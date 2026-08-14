@@ -2,6 +2,8 @@
 #include "cpu_fixture.c"
 #include "test.h"
 
+#include "../../src/cpu/armv7m/armv7m_internal.h"
+
 #include <string.h>
 
 #define XPSR_T (1u << 24)
@@ -253,6 +255,183 @@ static void test_multiple_store_preflight_refuses_partial_write(
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_multiple_dispatch_regression(semu_test_context *context)
+{
+    static const uint8_t program[] = {
+        0xa0u, 0xe8u, 0x16u, 0x00u,
+        0x00u, 0xbeu
+    };
+    semu_cpu_state state = initial_state();
+    semu_cpu_fixture fixture;
+    uint32_t value;
+
+    state.r[0] = 0x200u;
+    state.r[1] = 0x11111111u;
+    state.r[2] = 0x22222222u;
+    state.r[4] = 0x44444444u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, program, sizeof(program),
+                                      &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 0x20cu, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x200u, &value));
+    SEMU_TEST_EQ_U64(context, 0x11111111u, value);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x204u, &value));
+    SEMU_TEST_EQ_U64(context, 0x22222222u, value);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x208u, &value));
+    SEMU_TEST_EQ_U64(context, 0x44444444u, value);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
+static semu_status run_multiple(semu_cpu_fixture *fixture, uint16_t first,
+                                uint16_t second)
+{
+    semu_error_clear(&fixture->error);
+    return armv7m_exec32_memory(fixture->cpu, first, second, 0x100u,
+                                &fixture->error);
+}
+
+static void test_multiple_ia_db_and_stack_aliases(semu_test_context *context)
+{
+    static const uint32_t values[] = {
+        0x11111111u, 0x22222222u, 0x44444444u
+    };
+    semu_cpu_state state = initial_state();
+    semu_cpu_fixture fixture;
+    unsigned index;
+    uint32_t value;
+
+    state.r[0] = 0x200u;
+    state.r[1] = values[0]; state.r[2] = values[1]; state.r[4] = values[2];
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     run_multiple(&fixture, 0xe8a0u, 0x0016u));
+    SEMU_TEST_EQ_U64(context, 0x20cu, semu_cpu_get_state(fixture.cpu)->r[0]);
+    for (index = 0u; index < 3u; ++index) {
+        SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x200u + index * 4u,
+                                           &value));
+        SEMU_TEST_EQ_U64(context, values[index], value);
+    }
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[0] = 0x200u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    for (index = 0u; index < 3u; ++index)
+        SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(
+            &fixture, 0x200u + index * 4u, values[index]));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     run_multiple(&fixture, 0xe8b0u, 0x0016u));
+    SEMU_TEST_EQ_U64(context, 0x20cu, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, values[0], semu_cpu_get_state(fixture.cpu)->r[1]);
+    SEMU_TEST_EQ_U64(context, values[1], semu_cpu_get_state(fixture.cpu)->r[2]);
+    SEMU_TEST_EQ_U64(context, values[2], semu_cpu_get_state(fixture.cpu)->r[4]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[0] = 0x20cu;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    for (index = 0u; index < 3u; ++index)
+        SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(
+            &fixture, 0x200u + index * 4u, values[index]));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     run_multiple(&fixture, 0xe930u, 0x0016u));
+    SEMU_TEST_EQ_U64(context, 0x200u, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, values[0], semu_cpu_get_state(fixture.cpu)->r[1]);
+    SEMU_TEST_EQ_U64(context, values[1], semu_cpu_get_state(fixture.cpu)->r[2]);
+    SEMU_TEST_EQ_U64(context, values[2], semu_cpu_get_state(fixture.cpu)->r[4]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[13] = 0x210u; state.msp = 0x210u;
+    state.r[0] = values[0]; state.r[1] = values[1]; state.r[14] = 0x301u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     run_multiple(&fixture, 0xe92du, 0x4003u));
+    SEMU_TEST_EQ_U64(context, 0x204u, semu_cpu_get_state(fixture.cpu)->r[13]);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x204u, &value));
+    SEMU_TEST_EQ_U64(context, values[0], value);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x208u, &value));
+    SEMU_TEST_EQ_U64(context, values[1], value);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0x20cu, &value));
+    SEMU_TEST_EQ_U64(context, 0x301u, value);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[13] = 0x200u; state.msp = 0x200u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x200u,
+                                                         values[0]));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x204u,
+                                                         values[1]));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x208u,
+                                                         0x301u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     run_multiple(&fixture, 0xe8bdu, 0x8003u));
+    SEMU_TEST_EQ_U64(context, 0x20cu, semu_cpu_get_state(fixture.cpu)->r[13]);
+    SEMU_TEST_EQ_U64(context, 0x300u, semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, values[0], semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, values[1], semu_cpu_get_state(fixture.cpu)->r[1]);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
+static void test_multiple_refuses_without_partial_mutation(
+    semu_test_context *context)
+{
+    semu_cpu_state state = initial_state();
+    semu_cpu_fixture fixture;
+    uint32_t value;
+
+    state.r[0] = 0xffcu; state.r[1] = 0x11223344u; state.r[2] = 0x55667788u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0xffcu,
+                                                         0xaabbccddu));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                     run_multiple(&fixture, 0xe8a0u, 0x0006u));
+    SEMU_TEST_EQ_U64(context, 0xffcu, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_ASSERT(context, read_u32(&fixture, 0xffcu, &value));
+    SEMU_TEST_EQ_U64(context, 0xaabbccddu, value);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[0] = 0xffcu; state.r[1] = 0xa5u;
+    state.r[2] = 0x5au;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0xffcu,
+                                                         0x11223344u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                     run_multiple(&fixture, 0xe8b0u, 0x0006u));
+    SEMU_TEST_EQ_U64(context, 0xffcu, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, 0xa5u, semu_cpu_get_state(fixture.cpu)->r[1]);
+    SEMU_TEST_EQ_U64(context, 0x5au, semu_cpu_get_state(fixture.cpu)->r[2]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[0] = 0x200u; state.r[1] = 0xa5u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     run_multiple(&fixture, 0xe8b0u, 0x0001u));
+    SEMU_TEST_EQ_U64(context, 0x200u, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, 0xa5u, semu_cpu_get_state(fixture.cpu)->r[1]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state(); state.r[13] = 0x200u; state.msp = 0x200u;
+    state.r[0] = 0xa5u;
+    SEMU_TEST_ASSERT(context, prepare(&fixture, (const uint8_t[]){0, 0}, 2u,
+                                      &state));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x200u,
+                                                         0xa5u));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x204u,
+                                                         0x300u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     run_multiple(&fixture, 0xe8bdu, 0x8001u));
+    SEMU_TEST_EQ_U64(context, 0x200u, semu_cpu_get_state(fixture.cpu)->r[13]);
+    SEMU_TEST_EQ_U64(context, 0x100u, semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, 0xa5u, semu_cpu_get_state(fixture.cpu)->r[0]);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -260,7 +439,10 @@ int main(void)
         SEMU_TEST_CASE(test_subword_clrex_and_local_conflict),
         SEMU_TEST_CASE(test_reset_and_exception_clear_monitor),
         SEMU_TEST_CASE(test_table_branch_and_barriers),
-        SEMU_TEST_CASE(test_multiple_store_preflight_refuses_partial_write)
+        SEMU_TEST_CASE(test_multiple_store_preflight_refuses_partial_write),
+        SEMU_TEST_CASE(test_multiple_dispatch_regression),
+        SEMU_TEST_CASE(test_multiple_ia_db_and_stack_aliases),
+        SEMU_TEST_CASE(test_multiple_refuses_without_partial_mutation)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

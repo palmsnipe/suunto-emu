@@ -1,57 +1,110 @@
 #include "armv7m_internal.h"
 
-static semu_status store_multiple_decrement(semu_cpu *cpu, uint16_t first,
-                                            uint16_t second,
-                                            semu_error *error)
+static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
+                                     uint16_t second, semu_error *error)
 {
     unsigned rn = first & 15u;
     uint32_t list = second;
+    uint32_t prefix = first & 0xfff0u;
     uint32_t address;
     uint32_t base = cpu->state.r[rn];
     uint32_t total = armv7m_bit_count(list) * 4u;
-    uint64_t start;
+    uint32_t start;
+    uint32_t updated;
+    uint32_t values[16];
+    int load;
+    int decrement;
+    int writeback;
     unsigned reg;
 
-    if (rn == 15u || list == 0u || (list & (1u << 15)) != 0u ||
-        (list & (1u << rn)) != 0u) {
+    switch (prefix) {
+    case 0xe880u: case 0xe8a0u: load = 0; decrement = 0; break;
+    case 0xe890u: case 0xe8b0u: load = 1; decrement = 0; break;
+    case 0xe900u: case 0xe920u: load = 0; decrement = 1; break;
+    case 0xe910u: case 0xe930u: load = 1; decrement = 1; break;
+    default:
         return armv7m_unsupported(cpu, ((uint32_t)first << 16) | second,
                                   error);
     }
-    start = (uint64_t)base - total;
-    if (base < total || start > UINT32_MAX) {
-        semu_error_set(error, SEMU_ERR_RANGE,
-                       "multiple-store address underflow at 0x%08x", base);
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
-        cpu->fault_address = base;
-        cpu->has_fault_address = 1u;
-        return SEMU_ERR_RANGE;
+    writeback = (first & 0x20u) != 0u;
+    if (rn == 15u || list == 0u || (!load && (list & (1u << 15)) != 0u) ||
+        (writeback && (list & (1u << rn)) != 0u) || (base & 3u) != 0u) {
+        return armv7m_unsupported(cpu, ((uint32_t)first << 16) | second,
+                                  error);
     }
-    address = (uint32_t)start;
-    for (reg = 0u; reg < 15u; ++reg) {
-        if ((list & (1u << reg)) != 0u) {
-            if (armv7m_validate_write(cpu, address, 4u, error) != SEMU_OK) {
-                return error != NULL ? error->code : SEMU_ERR_RANGE;
-            }
-            address += 4u;
-        }
-    }
-    address = (uint32_t)start;
-    for (reg = 0u; reg < 15u; ++reg) {
-        if ((list & (1u << reg)) != 0u) {
-            if (armv7m_write(cpu, address, 4u, cpu->state.r[reg], error) !=
-                SEMU_OK) {
-                return error != NULL ? error->code : SEMU_ERR_RANGE;
-            }
-            address += 4u;
-        }
-    }
-    if (rn == 13u) {
-        armv7m_set_sp(cpu, base - total);
+    if (decrement) {
+        if (base < total) return armv7m_address_fault(cpu, base, error);
+        start = base - total;
+        updated = start;
     } else {
-        cpu->state.r[rn] = base - total;
+        start = base;
+        updated = base;
+        if (total > 4u && armv7m_add_address(cpu, base, total - 4u,
+                                              &address, error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (writeback && armv7m_add_address(cpu, base, total, &updated,
+                                             error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
     }
+    address = start;
+    if (!load) {
+        for (reg = 0u; reg < 16u; ++reg) {
+            if ((list & (1u << reg)) != 0u) {
+                if (armv7m_validate_write(cpu, address, 4u, error) != SEMU_OK)
+                    return error != NULL ? error->code : SEMU_ERR_RANGE;
+                address += 4u;
+            }
+        }
+    } else {
+        for (reg = 0u; reg < 16u; ++reg) {
+            if ((list & (1u << reg)) != 0u) {
+                if (armv7m_read(cpu, address, 4u, &values[reg], error) !=
+                    SEMU_OK)
+                    return error != NULL ? error->code : SEMU_ERR_RANGE;
+                address += 4u;
+            }
+        }
+        if ((list & (1u << 15)) != 0u &&
+            ((values[15] & 1u) == 0u ||
+             ((values[15] & 0xfffffff0u) == 0xfffffff0u &&
+              values[15] != 0xfffffff9u && values[15] != 0xfffffffdu)))
+            return armv7m_unsupported(cpu, values[15], error);
+    }
+    if (load) {
+        for (reg = 0u; reg < 15u; ++reg) {
+            if ((list & (1u << reg)) != 0u) {
+                if (reg == 13u) armv7m_set_sp(cpu, values[reg]);
+                else cpu->state.r[reg] = values[reg];
+            }
+        }
+    } else {
+        address = start;
+        for (reg = 0u; reg < 16u; ++reg) {
+            if ((list & (1u << reg)) != 0u) {
+                if (armv7m_write(cpu, address, 4u, cpu->state.r[reg], error) !=
+                    SEMU_OK)
+                    return error != NULL ? error->code : SEMU_ERR_RANGE;
+                address += 4u;
+            }
+        }
+    }
+    if (writeback) {
+        if (rn == 13u) armv7m_set_sp(cpu, updated);
+        else cpu->state.r[rn] = updated;
+    }
+    if (load && (list & (1u << 15)) != 0u)
+        return armv7m_branch_exchange(cpu, values[15], error);
     return SEMU_OK;
+}
+
+static int is_multiple_prefix(uint16_t first)
+{
+    uint32_t prefix = first & 0xfff0u;
+
+    return prefix == 0xe880u || prefix == 0xe890u ||
+           prefix == 0xe900u || prefix == 0xe910u ||
+           prefix == 0xe8a0u || prefix == 0xe8b0u ||
+           prefix == 0xe920u || prefix == 0xe930u;
 }
 
 static semu_status subtract_address(semu_cpu *cpu, uint32_t base,
@@ -236,9 +289,8 @@ semu_status armv7m_exec32_memory(semu_cpu *cpu, uint16_t first,
         (first & 0xfff0u) == 0xe8c0u ||
         (first & 0xfff0u) == 0xe8d0u)
         return armv7m_exec32_memory_exclusive(cpu, first, second, pc, error);
-    if ((first & 0xfff0u) == 0xe920u) {
-        return store_multiple_decrement(cpu, first, second, error);
-    }
+    if (is_multiple_prefix(first))
+        return multiple_transfer(cpu, first, second, error);
     if ((first & 0xff80u) == 0xf880u ||
         (first & 0xff80u) == 0xf980u) {
         return wide_transfer(cpu, first, second, pc, error);

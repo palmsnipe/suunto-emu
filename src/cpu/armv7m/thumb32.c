@@ -8,7 +8,14 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         (first & 0xfff0u) == 0xe850u ||
         (first & 0xfff0u) == 0xe8c0u ||
         (first & 0xfff0u) == 0xe8d0u ||
+        (first & 0xfff0u) == 0xe880u ||
+        (first & 0xfff0u) == 0xe890u ||
+        (first & 0xfff0u) == 0xe8a0u ||
+        (first & 0xfff0u) == 0xe8b0u ||
+        (first & 0xfff0u) == 0xe900u ||
+        (first & 0xfff0u) == 0xe910u ||
         (first & 0xfff0u) == 0xe920u ||
+        (first & 0xfff0u) == 0xe930u ||
         (first & 0xff80u) == 0xf880u ||
         (first & 0xff80u) == 0xf800u ||
         (first & 0xff80u) == 0xf980u ||
