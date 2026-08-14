@@ -1,6 +1,6 @@
 # 275 — FPU Exception Context and Lazy Stacking
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 245, 250, 265, 270
 **Estimate:** 2–3 days
