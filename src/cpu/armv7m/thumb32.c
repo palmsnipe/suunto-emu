@@ -4,6 +4,11 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
                           uint32_t pc, semu_error *error)
 {
     cpu->state.r[15] = pc + 4u;
+    if ((first & 0xff00u) == 0xec00u ||
+        (first & 0xff00u) == 0xed00u ||
+        (first & 0xff00u) == 0xee00u) {
+        return armv7m_exec32_fpu(cpu, first, second, pc, error);
+    }
     if ((first & 0xfff0u) == 0xe840u ||
         (first & 0xfff0u) == 0xe850u ||
         (first & 0xfff0u) == 0xe8c0u ||
@@ -24,9 +29,6 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
                                                   error);
         if (status != SEMU_OK) cpu->state.r[15] = pc;
         return status;
-    }
-    if (first == 0xeee1u || first == 0xeef1u) {
-        return armv7m_exec32_fpu(cpu, first, second, pc, error);
     }
     if (first == 0xf3bfu || first == 0xf3afu || first == 0xf3efu ||
         ((first & 0xfff0u) == 0xf380u &&

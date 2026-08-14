@@ -4,20 +4,16 @@ semu_status armv7m_exec32_fpu(semu_cpu *cpu, uint16_t first,
                               uint16_t second, uint32_t pc,
                               semu_error *error)
 {
-    (void)pc;
-    if (first == 0xeee1u && (second & 0x0fffu) == 0x0a10u) {
-        cpu->state.fpscr = cpu->state.r[(second >> 12u) & 15u];
-        return SEMU_OK;
-    }
-    if (first == 0xeef1u && (second & 0x0fffu) == 0x0a10u) {
-        unsigned rd = (second >> 12u) & 15u;
-        if (rd == 15u) {
-            cpu->state.xpsr = (cpu->state.xpsr & 0x0fffffffu) |
-                              (cpu->state.fpscr & 0xf0000000u);
-        } else {
-            cpu->state.r[rd] = cpu->state.fpscr;
-        }
-        return SEMU_OK;
-    }
-    return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second, error);
+    uint32_t next_pc = cpu->state.r[15];
+    uint32_t prior_ipsr = cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK;
+    semu_status status;
+
+    /* Fault entry must stack the address of the faulting instruction. */
+    cpu->state.r[15] = pc;
+    status = armv7m_fpu_transfer(cpu, first, second, pc, error);
+
+    if (status != SEMU_OK) cpu->state.r[15] = pc;
+    else if ((cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) == prior_ipsr)
+        cpu->state.r[15] = next_pc;
+    return status;
 }

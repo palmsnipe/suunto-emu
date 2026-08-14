@@ -241,6 +241,8 @@ static int test_fpscr_transfer(void)
     cpu_fixture fixture;
 
     CHECK(fixture_init(&fixture, program, sizeof(program)));
+    CHECK(semu_bus_write(fixture.bus, 0xe000ed88u, 4u, 0x00f00000u,
+                         &fixture.error) == SEMU_OK);
     semu_cpu_get_state_mutable(fixture.cpu)->r[0] = 0x03400000u;
     CHECK(step_ok(&fixture));
     CHECK(step_ok(&fixture));

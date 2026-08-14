@@ -50,6 +50,9 @@ struct semu_cpu {
     uint32_t mmfar;
     uint32_t bfar;
     uint32_t cpacr;
+    uint32_t fpccr;
+    uint32_t fpcar;
+    uint32_t fpdscr;
     uint8_t itstate;
     uint8_t event_register;
     uint8_t sleep_mode;
@@ -103,6 +106,10 @@ semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
 semu_status armv7m_exec32_fpu(semu_cpu *cpu, uint16_t first,
                               uint16_t second, uint32_t pc,
                               semu_error *error);
+semu_status armv7m_fpu_check_access(semu_cpu *cpu, semu_error *error);
+semu_status armv7m_fpu_transfer(semu_cpu *cpu, uint16_t first,
+                                uint16_t second, uint32_t pc,
+                                semu_error *error);
 
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error);

@@ -16,6 +16,15 @@
 #define SCB_MMFAR 0xd34u
 #define SCB_BFAR 0xd38u
 #define SCB_CPACR 0xd88u
+#define SCB_FPCCR 0xf34u
+#define SCB_FPCAR 0xf38u
+#define SCB_FPDSCR 0xf3cu
+
+#define FPCCR_ASPEN (1u << 31)
+#define FPCCR_LSPEN (1u << 30)
+#define FPCCR_MODEL_MASK (FPCCR_ASPEN | FPCCR_LSPEN)
+#define FPCAR_ADDRESS_MASK 0xfffffff8u
+#define FPDSCR_MODEL_MASK 0x07c00000u
 
 #define ICSR_PENDNMISET (1u << 31)
 #define ICSR_PENDSVSET (1u << 28)
@@ -192,6 +201,9 @@ static semu_status read_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
         case SCB_BFAR: raw = (cpu->cfsr & (1u << 15)) != 0u ?
                                   cpu->bfar : 0u; break;
         case SCB_CPACR: raw = cpu->cpacr; break;
+        case SCB_FPCCR: raw = cpu->fpccr & FPCCR_MODEL_MASK; break;
+        case SCB_FPCAR: raw = cpu->fpcar & FPCAR_ADDRESS_MASK; break;
+        case SCB_FPDSCR: raw = cpu->fpdscr & FPDSCR_MODEL_MASK; break;
         default: return refuse(offset, error);
         }
     }
@@ -294,6 +306,20 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
         cpu->cpacr = (cpu->cpacr & ~mask) | (bits & mask);
         cpu->cpacr &= 0x00f00000u;
         return SEMU_OK;
+    case SCB_FPCCR:
+        cpu->fpccr = (cpu->fpccr & ~(mask & FPCCR_MODEL_MASK)) |
+                     (bits & mask & FPCCR_MODEL_MASK);
+        cpu->fpccr &= FPCCR_MODEL_MASK;
+        return SEMU_OK;
+    case SCB_FPCAR:
+        cpu->fpcar = (cpu->fpcar & ~mask) | (bits & mask);
+        cpu->fpcar &= FPCAR_ADDRESS_MASK;
+        return SEMU_OK;
+    case SCB_FPDSCR:
+        cpu->fpdscr = (cpu->fpdscr & ~(mask & FPDSCR_MODEL_MASK)) |
+                      (bits & mask & FPDSCR_MODEL_MASK);
+        cpu->fpdscr &= FPDSCR_MODEL_MASK;
+        return SEMU_OK;
     default:
         return refuse(offset, error);
     }
@@ -391,6 +417,9 @@ void armv7m_scs_reset(void *context)
     cpu->mmfar = 0u;
     cpu->bfar = 0u;
     cpu->cpacr = 0u;
+    cpu->fpccr = FPCCR_MODEL_MASK;
+    cpu->fpcar = 0u;
+    cpu->fpdscr = 0u;
     armv7m_systick_reset(cpu);
     cpu->stack_align = 1u;
 }
