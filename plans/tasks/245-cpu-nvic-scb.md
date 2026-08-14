@@ -27,17 +27,19 @@ One cheaper-model agent for at most three working days; two implementation files
 ## Allowed Files
 
 - `src/cpu/armv7m/nvic.c`, `src/cpu/armv7m/scb.c`
+- `src/cpu/armv7m/armv7m_internal.h`, `src/cpu/armv7m/cpu.c`, `src/cpu/armv7m/support.c`, `src/cpu/armv7m/exception.c`
+- `src/core/bus.c`
 - `tests/unit/test_cpu_nvic.c`, `tests/unit/test_cpu_faults.c`
 - `tests/fixtures/cpu/nvic/**`, `tests/fixtures/cpu/faults/**`
 - assigned rows in `tests/fixtures/cpu/coverage.tsv`
 
 ## Frozen Interfaces
 
-Use 190's IRQ level/priority setters and fault inspection, 240's exception request/frame helpers, and existing bus API. CPU intercepts only documented SCS offsets; every unimplemented/reserved offset refuses. Model 256 external lines internally but expose only architecturally addressable implemented register words.
+Use 190's IRQ level/priority setters and fault inspection, 240's exception request/frame helpers, and existing bus API. The CPU registers a private prioritized SCS overlay so standalone fixtures and the Apollo4 placeholder bank can coexist; the overlay falls through only to the pre-existing bank's documented SoC offsets. CPU intercepts only documented SCS offsets; every other SCS offset refuses. Model 256 external lines internally but expose only IRQ0–239 and the eight-bit priority fields pinned by E-CPU-0006.
 
 ## Evidence Inputs
 
-`E-CPU-0003` is mandatory. This ticket is **blocked** unless it pins NVIC ISER/ICER/ISPR/ICPR/IABR/IPR, SCB ICSR/VTOR/AIRCR/SCR/CCR/SHPR/SHCSR/CFSR/HFSR/BFAR/MMFAR/CPACR, priority comparison, exception escalation, and return arbitration. Apollo4's implemented priority-bit mask is deferred to profile/SoC evidence and defaults to the reference-configured Cortex-M4 value only when explicitly pinned.
+`E-CPU-0003` and the explicit synthetic-profile choices in `E-CPU-0006` are mandatory. They pin NVIC ISER/ICER/ISPR/ICPR/IABR/IPR, SCB ICSR/VTOR/AIRCR/SCR/CCR/SHPR/SHCSR/CFSR/HFSR/BFAR/MMFAR/CPACR, priority comparison, exception escalation, return arbitration, the 240-line synthetic endpoint, and the eight-bit priority mask. Apollo4-specific values remain deferred to profile/SoC evidence.
 
 ## Implementation
 

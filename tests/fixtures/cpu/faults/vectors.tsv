@@ -1,0 +1,7 @@
+# Ticket 245 configurable-fault contract seeds; direct fault requests are exercised by test_cpu_faults.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+faults.precise-busfault | E-CPU-0003:B3.2 SCB;E-CPU-0006:synthetic-profile | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x14=c1 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+faults.enabled-usagefault | E-CPU-0003:B1.5;B3.2 SCB | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x18=c1 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+faults.disabled-configurable-escalation | E-CPU-0003:B1.5;B3.2 SCB | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x0c=81 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+faults.status-w1c-and-address | E-CPU-0003:B3.2 SCB | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+faults.scs-refusal | E-CPU-0003:B3.2 SCB;E-CPU-0006:synthetic-profile | 01 48 01 21 01 60 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x108=fc e0 00 e0 | 3 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x104 | 0x01000000 | r0=0xe000e0fc,r1=1,r13=0x800,r15=0x104 | - | emulator-refusal:unknown-scs-offset

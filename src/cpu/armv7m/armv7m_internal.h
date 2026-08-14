@@ -4,6 +4,9 @@
 #include "semu/cpu.h"
 
 #define ARMV7M_IRQ_COUNT 256u
+#define ARMV7M_IMPLEMENTED_IRQ_COUNT 240u
+#define ARMV7M_SCS_BASE 0xe000e000u
+#define ARMV7M_SCS_SIZE 0x1000u
 #define ARMV7M_XPSR_N (1u << 31)
 #define ARMV7M_XPSR_Z (1u << 30)
 #define ARMV7M_XPSR_C (1u << 29)
@@ -27,7 +30,23 @@ struct semu_cpu {
     uint8_t has_fault_address;
     uint32_t vector_table;
     uint8_t irq_level[ARMV7M_IRQ_COUNT];
+    uint8_t irq_enabled[ARMV7M_IRQ_COUNT];
+    uint8_t irq_pending[ARMV7M_IRQ_COUNT];
+    uint8_t irq_active[ARMV7M_IRQ_COUNT];
     uint8_t irq_priority[ARMV7M_IRQ_COUNT];
+    uint8_t system_priority[16];
+    uint8_t system_pending[16];
+    uint8_t system_active[16];
+    uint8_t exception_depth;
+    uint8_t prigroup;
+    uint32_t scr;
+    uint32_t ccr;
+    uint32_t shcsr;
+    uint32_t cfsr;
+    uint32_t hfsr;
+    uint32_t mmfar;
+    uint32_t bfar;
+    uint32_t cpacr;
     uint8_t itstate;
     uint8_t event_register;
     uint8_t stack_align;
@@ -35,6 +54,18 @@ struct semu_cpu {
     uint32_t exclusive_address;
     unsigned exclusive_width;
 };
+
+semu_status semu_bus_map_overlay(semu_bus *bus, const char *name,
+                                 uint32_t base, uint32_t size,
+                                 const semu_bus_device_ops *ops,
+                                 void *context, semu_error *error);
+void semu_bus_unmap_overlay(semu_bus *bus, void *context);
+semu_status semu_bus_read_below(semu_bus *bus, uint32_t address,
+                                unsigned width, uint32_t *value,
+                                semu_error *error);
+semu_status semu_bus_write_below(semu_bus *bus, uint32_t address,
+                                 unsigned width, uint32_t value,
+                                 semu_error *error);
 
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);
@@ -105,5 +136,25 @@ semu_status armv7m_literal_base(semu_cpu *cpu, uint32_t pc, uint32_t *base,
 semu_status armv7m_exec32_memory_exclusive(semu_cpu *cpu, uint16_t first,
                                             uint16_t second, uint32_t pc,
                                             semu_error *error);
+
+semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
+                            uint32_t *value, semu_error *error);
+semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
+                             uint32_t value, semu_error *error);
+semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
+                             uint32_t *value, semu_error *error);
+semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,
+                              uint32_t value, semu_error *error);
+void armv7m_scs_reset(void *context);
+int armv7m_pending_exception(const semu_cpu *cpu);
+int armv7m_pending_exception_for_icsr(const semu_cpu *cpu);
+int armv7m_exception_priority(const semu_cpu *cpu, unsigned exception);
+int armv7m_exception_masked(const semu_cpu *cpu, unsigned exception);
+int armv7m_exception_can_preempt(const semu_cpu *cpu, unsigned exception);
+void armv7m_exception_entered(semu_cpu *cpu, unsigned exception);
+void armv7m_exception_returned(semu_cpu *cpu, unsigned exception);
+semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
+                                 uint32_t status_bits, uint32_t address,
+                                 int address_valid, semu_error *error);
 
 #endif

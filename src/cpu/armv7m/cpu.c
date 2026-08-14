@@ -28,22 +28,6 @@ static int instruction_is_32bit(uint16_t instruction)
     return prefix == 0x1du || prefix == 0x1eu || prefix == 0x1fu;
 }
 
-static int pending_irq(const semu_cpu *cpu)
-{
-    unsigned irq;
-
-    if (cpu->state.primask != 0u || cpu->state.faultmask != 0u ||
-        cpu->state.basepri != 0u || (cpu->state.xpsr & 0x1ffu) != 0u) {
-        return -1;
-    }
-    for (irq = 0u; irq < ARMV7M_IRQ_COUNT; ++irq) {
-        if (cpu->irq_level[irq] != 0u) {
-            return (int)irq;
-        }
-    }
-    return -1;
-}
-
 static semu_status finish_instruction(semu_cpu *cpu, semu_error *error)
 {
     semu_status status;
@@ -76,11 +60,23 @@ semu_cpu *semu_cpu_create(semu_bus *bus, semu_scheduler *scheduler,
     }
     cpu->bus = bus;
     cpu->scheduler = scheduler;
+    {
+        static const semu_bus_device_ops scs_ops = {
+            armv7m_scs_read, armv7m_scs_write, armv7m_scs_reset
+        };
+        if (semu_bus_map_overlay(bus, "armv7m.scs", ARMV7M_SCS_BASE,
+                                 ARMV7M_SCS_SIZE, &scs_ops, cpu, error) !=
+            SEMU_OK) {
+            free(cpu);
+            return NULL;
+        }
+    }
     return cpu;
 }
 
 void semu_cpu_destroy(semu_cpu *cpu)
 {
+    if (cpu != NULL) semu_bus_unmap_overlay(cpu->bus, cpu);
     free(cpu);
 }
 
@@ -94,19 +90,21 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
         return;
     }
     memset(&cpu->state, 0, sizeof(cpu->state));
-    memset(cpu->irq_level, 0, sizeof(cpu->irq_level));
-    memset(cpu->irq_priority, 0, sizeof(cpu->irq_priority));
+    armv7m_scs_reset(cpu);
     cpu->stop_reason = SEMU_STOP_NONE;
     cpu->fault_instruction = 0u;
     cpu->fault_address = 0u;
     cpu->has_fault_address = 0u;
-    cpu->vector_table = vector_table;
+    cpu->vector_table = vector_table & ~0x7fu;
+    cpu->prigroup = 0u;
+    cpu->ccr = 1u << 9;
     cpu->itstate = 0u;
     cpu->event_register = 0u;
     cpu->stack_align = 1u;
     armv7m_clear_exclusive(cpu);
-    if (armv7m_read(cpu, vector_table, 4u, &initial_sp, error) != SEMU_OK ||
-        armv7m_read(cpu, vector_table + 4u, 4u, &initial_pc, error) != SEMU_OK) {
+    if (armv7m_read(cpu, cpu->vector_table, 4u, &initial_sp, error) != SEMU_OK ||
+        armv7m_read(cpu, cpu->vector_table + 4u, 4u, &initial_pc, error) !=
+            SEMU_OK) {
         return;
     }
     if ((initial_pc & 1u) == 0u) {
@@ -125,11 +123,11 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
 
 static semu_status step_waiting_cpu(semu_cpu *cpu, semu_error *error)
 {
-    int irq = pending_irq(cpu);
+    int exception = armv7m_pending_exception(cpu);
 
-    if (irq >= 0) {
+    if (exception >= 0) {
         cpu->state.waiting_for_interrupt = 0;
-        return armv7m_take_exception(cpu, 16u + (unsigned)irq, error);
+        return armv7m_take_exception(cpu, (unsigned)exception, error);
     }
     if (cpu->scheduler != NULL && semu_scheduler_has_events(cpu->scheduler)) {
         return semu_scheduler_run_next(cpu->scheduler, error);
@@ -165,9 +163,9 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     if ((cpu->state.xpsr & ARMV7M_XPSR_T) == 0u) {
         return armv7m_take_exception(cpu, 6u, error);
     }
-    irq = pending_irq(cpu);
+    irq = armv7m_pending_exception(cpu);
     if (irq >= 0) {
-        return armv7m_take_exception(cpu, 16u + (unsigned)irq, error);
+        return armv7m_take_exception(cpu, (unsigned)irq, error);
     }
 
     pc = cpu->state.r[15];
@@ -221,6 +219,7 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
 {
     if (cpu != NULL && irq < ARMV7M_IRQ_COUNT) {
         cpu->irq_level[irq] = level != 0 ? 1u : 0u;
+        if (level != 0) cpu->irq_enabled[irq] = 1u;
     }
 }
 

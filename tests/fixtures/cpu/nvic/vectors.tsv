@@ -1,0 +1,5 @@
+# Ticket 245 NVIC/SCB contract seeds; SCS transactions are exercised by test_cpu_nvic.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+nvic.enable-pending-active | E-CPU-0003:B3.4 NVIC;E-CPU-0006:synthetic-profile | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x40=81 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+nvic.priority-prigroup-nesting | E-CPU-0003:B3.4 NVIC;E-CPU-0006:synthetic-profile | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x40=81 01 00 00;0x44=a1 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none
+nvic.nmi-pendsv-vtor | E-CPU-0003:B3.2 SCB;E-CPU-0006:synthetic-profile | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100,primask=1,basepri=0xff,faultmask=1 | 0x08=a1 01 00 00;0x38=c1 01 00 00 | 1 | SEMU_OK | none | 0x102 | 0x01000000 | r13=0x800,r15=0x102 | - | none

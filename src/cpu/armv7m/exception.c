@@ -18,6 +18,7 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
     uint32_t sp;
     uint32_t frame_end;
     uint32_t restored_sp;
+    unsigned current_exception;
     unsigned index;
 
     if (token != 0xfffffff1u && token != 0xfffffff9u &&
@@ -27,6 +28,7 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
     if ((cpu->state.xpsr & 0x1ffu) == 0u) {
         return request_usage_fault(cpu, token, error);
     }
+    current_exception = cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK;
     sp = token == 0xfffffffdu ? cpu->state.psp : cpu->state.msp;
     for (index = 0u; index < 8u; ++index) {
         uint32_t address;
@@ -67,6 +69,7 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
         cpu->state.r[13] = cpu->state.msp;
         cpu->state.control &= ~2u;
     }
+    armv7m_exception_returned(cpu, current_exception);
     return SEMU_OK;
 }
 
@@ -157,6 +160,7 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
                       ((handler & 1u) != 0u ? ARMV7M_XPSR_T : 0u);
     cpu->state.control &= ~2u;
     cpu->itstate = 0u;
+    armv7m_exception_entered(cpu, exception);
     return SEMU_OK;
 }
 

@@ -1,14 +1,31 @@
 #include "armv7m_internal.h"
 
+static int scs_address(uint32_t address)
+{
+    return address >= ARMV7M_SCS_BASE &&
+           address - ARMV7M_SCS_BASE < ARMV7M_SCS_SIZE;
+}
+
+static void note_bus_failure(semu_cpu *cpu, uint32_t address,
+                             semu_status status)
+{
+    if (status == SEMU_ERR_UNSUPPORTED && scs_address(address)) {
+        cpu->state.halted = 1;
+        cpu->stop_reason = SEMU_STOP_UNSUPPORTED_INSTRUCTION;
+        return;
+    }
+    cpu->state.halted = 1;
+    cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
+    cpu->fault_address = address;
+    cpu->has_fault_address = 1u;
+}
+
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error)
 {
     semu_status status = semu_bus_read(cpu->bus, address, width, value, error);
     if (status != SEMU_OK) {
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
-        cpu->fault_address = address;
-        cpu->has_fault_address = 1u;
+        note_bus_failure(cpu, address, status);
     }
     return status;
 }
@@ -18,10 +35,7 @@ semu_status armv7m_write(semu_cpu *cpu, uint32_t address, unsigned width,
 {
     semu_status status = semu_bus_write(cpu->bus, address, width, value, error);
     if (status != SEMU_OK) {
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
-        cpu->fault_address = address;
-        cpu->has_fault_address = 1u;
+        note_bus_failure(cpu, address, status);
     } else {
         armv7m_note_local_store(cpu, address, width);
     }
@@ -34,10 +48,7 @@ semu_status armv7m_validate_write(semu_cpu *cpu, uint32_t address,
     semu_status status = semu_bus_validate_write(cpu->bus, address, width,
                                                  error);
     if (status != SEMU_OK) {
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
-        cpu->fault_address = address;
-        cpu->has_fault_address = 1u;
+        note_bus_failure(cpu, address, status);
     }
     return status;
 }

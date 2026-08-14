@@ -17,6 +17,7 @@ typedef struct bus_region {
     uint8_t *memory;
     semu_bus_device_ops ops;
     void *context;
+    uint8_t overlay;
 } bus_region;
 
 struct semu_bus {
@@ -73,7 +74,8 @@ static semu_status insert_region(semu_bus *bus, bus_region *region,
     for (position = 0u; position < bus->count; ++position) {
         bus_region *other = &bus->regions[position];
         if ((uint64_t)region->base < region_end(other) &&
-            (uint64_t)other->base < region_end(region)) {
+            (uint64_t)other->base < region_end(region) &&
+            region->overlay == 0u && other->overlay == 0u) {
             semu_error_set(error, SEMU_ERR_CONFLICT,
                            "region %s overlaps %s", region->name, other->name);
             return SEMU_ERR_CONFLICT;
@@ -94,10 +96,13 @@ static semu_status insert_region(semu_bus *bus, bus_region *region,
     return SEMU_OK;
 }
 
-static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size)
+static bus_region *find_region_kind(semu_bus *bus, uint32_t address,
+                                    size_t size, int include_overlays)
 {
     size_t index;
     uint64_t end = (uint64_t)address + size;
+    bus_region *regular = NULL;
+    bus_region *overlay = NULL;
 
     if (end > UINT64_C(0x100000000)) {
         return NULL;
@@ -105,13 +110,25 @@ static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size)
     for (index = 0u; index < bus->count; ++index) {
         bus_region *region = &bus->regions[index];
         if (address >= region->base && end <= region_end(region)) {
-            return region;
-        }
-        if (region->base > address) {
-            break;
+            if (region->overlay != 0u) {
+                if (include_overlays != 0) overlay = region;
+            } else {
+                regular = region;
+            }
         }
     }
-    return NULL;
+    return overlay != NULL ? overlay : regular;
+}
+
+static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size)
+{
+    return find_region_kind(bus, address, size, 1);
+}
+
+static bus_region *find_region_below(semu_bus *bus, uint32_t address,
+                                     size_t size)
+{
+    return find_region_kind(bus, address, size, 0);
 }
 
 static int valid_width(unsigned width)
@@ -230,9 +247,10 @@ semu_status semu_bus_map_rom(semu_bus *bus, const char *name, uint32_t base,
     return map_memory(bus, name, base, data, size, REGION_ROM, error);
 }
 
-semu_status semu_bus_map_device(semu_bus *bus, const char *name, uint32_t base,
-                                uint32_t size, const semu_bus_device_ops *ops,
-                                void *context, semu_error *error)
+static semu_status map_device(semu_bus *bus, const char *name, uint32_t base,
+                              uint32_t size, const semu_bus_device_ops *ops,
+                              void *context, uint8_t overlay,
+                              semu_error *error)
 {
     bus_region region;
     size_t name_length;
@@ -255,7 +273,85 @@ semu_status semu_bus_map_device(semu_bus *bus, const char *name, uint32_t base,
     region.kind = REGION_DEVICE;
     region.ops = *ops;
     region.context = context;
+    region.overlay = overlay;
     return insert_region(bus, &region, error);
+}
+
+semu_status semu_bus_map_device(semu_bus *bus, const char *name, uint32_t base,
+                                uint32_t size, const semu_bus_device_ops *ops,
+                                void *context, semu_error *error)
+{
+    return map_device(bus, name, base, size, ops, context, 0u, error);
+}
+
+semu_status semu_bus_map_overlay(semu_bus *bus, const char *name,
+                                 uint32_t base, uint32_t size,
+                                 const semu_bus_device_ops *ops,
+                                 void *context, semu_error *error)
+{
+    return map_device(bus, name, base, size, ops, context, 1u, error);
+}
+
+void semu_bus_unmap_overlay(semu_bus *bus, void *context)
+{
+    size_t index;
+
+    if (bus == NULL) return;
+    index = 0u;
+    while (index < bus->count) {
+        bus_region *region = &bus->regions[index];
+        if (region->overlay != 0u && region->context == context) {
+            size_t tail = bus->count - index - 1u;
+            if (tail != 0u) {
+                memmove(region, region + 1u, tail * sizeof(*region));
+            }
+            --bus->count;
+            continue;
+        }
+        ++index;
+    }
+}
+
+static semu_status read_region(bus_region *region, uint32_t address,
+                               unsigned width, uint32_t *value,
+                               semu_error *error)
+{
+    if (region->kind == REGION_DEVICE) {
+        if (region->ops.read == NULL) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "device %s is not readable", region->name);
+            return SEMU_ERR_UNSUPPORTED;
+        }
+        return region->ops.read(region->context, address - region->base,
+                                width, value, error);
+    }
+    *value = read_little_endian(region->memory + (address - region->base),
+                                width);
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
+static semu_status write_region(bus_region *region, uint32_t address,
+                                unsigned width, uint32_t value,
+                                semu_error *error)
+{
+    if (region->kind == REGION_ROM) {
+        semu_error_set(error, SEMU_ERR_STATE, "write to ROM %s", region->name);
+        return SEMU_ERR_STATE;
+    }
+    if (region->kind == REGION_DEVICE) {
+        if (region->ops.write == NULL) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "device %s is not writable", region->name);
+            return SEMU_ERR_UNSUPPORTED;
+        }
+        return region->ops.write(region->context, address - region->base,
+                                 width, value, error);
+    }
+    write_little_endian(region->memory + (address - region->base), width,
+                        value);
+    semu_error_clear(error);
+    return SEMU_OK;
 }
 
 semu_status semu_bus_read(semu_bus *bus, uint32_t address, unsigned width,
@@ -272,18 +368,25 @@ semu_status semu_bus_read(semu_bus *bus, uint32_t address, unsigned width,
         semu_error_set(error, SEMU_ERR_RANGE, "unmapped read at 0x%08x", address);
         return SEMU_ERR_RANGE;
     }
-    if (region->kind == REGION_DEVICE) {
-        if (region->ops.read == NULL) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "device %s is not readable", region->name);
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        return region->ops.read(region->context, address - region->base,
-                                width, value, error);
+    return read_region(region, address, width, value, error);
+}
+
+semu_status semu_bus_read_below(semu_bus *bus, uint32_t address,
+                                unsigned width, uint32_t *value,
+                                semu_error *error)
+{
+    bus_region *region;
+
+    if (bus == NULL || value == NULL || !valid_width(width)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus read");
+        return SEMU_ERR_ARGUMENT;
     }
-    *value = read_little_endian(region->memory + (address - region->base), width);
-    semu_error_clear(error);
-    return SEMU_OK;
+    region = find_region_below(bus, address, width);
+    if (region == NULL) {
+        semu_error_set(error, SEMU_ERR_RANGE, "unmapped read at 0x%08x", address);
+        return SEMU_ERR_RANGE;
+    }
+    return read_region(region, address, width, value, error);
 }
 
 semu_status semu_bus_write(semu_bus *bus, uint32_t address, unsigned width,
@@ -300,22 +403,25 @@ semu_status semu_bus_write(semu_bus *bus, uint32_t address, unsigned width,
         semu_error_set(error, SEMU_ERR_RANGE, "unmapped write at 0x%08x", address);
         return SEMU_ERR_RANGE;
     }
-    if (region->kind == REGION_ROM) {
-        semu_error_set(error, SEMU_ERR_STATE, "write to ROM %s", region->name);
-        return SEMU_ERR_STATE;
+    return write_region(region, address, width, value, error);
+}
+
+semu_status semu_bus_write_below(semu_bus *bus, uint32_t address,
+                                 unsigned width, uint32_t value,
+                                 semu_error *error)
+{
+    bus_region *region;
+
+    if (bus == NULL || !valid_width(width)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus write");
+        return SEMU_ERR_ARGUMENT;
     }
-    if (region->kind == REGION_DEVICE) {
-        if (region->ops.write == NULL) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "device %s is not writable", region->name);
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        return region->ops.write(region->context, address - region->base,
-                                 width, value, error);
+    region = find_region_below(bus, address, width);
+    if (region == NULL) {
+        semu_error_set(error, SEMU_ERR_RANGE, "unmapped write at 0x%08x", address);
+        return SEMU_ERR_RANGE;
     }
-    write_little_endian(region->memory + (address - region->base), width, value);
-    semu_error_clear(error);
-    return SEMU_OK;
+    return write_region(region, address, width, value, error);
 }
 
 semu_status semu_bus_validate_write(semu_bus *bus, uint32_t address,
