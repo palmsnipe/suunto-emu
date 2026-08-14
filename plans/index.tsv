@@ -25,7 +25,7 @@ id	phase	title	status	dependencies	ticket
 300	3	Apollo4 Clock Generator	blocked	285,295,298	plans/tasks/300-apollo4-foundation.md
 302	3	Apollo4 Power Controller	done	285,295,298	plans/tasks/302-apollo4-power.md
 304	3	Apollo4 Reset and MCU Control	blocked	285,295,298,300,302	plans/tasks/304-apollo4-reset-control.md
-305	3	Apollo4 GPIO and Interrupt Edges	ready	285,295,298	plans/tasks/305-apollo4-gpio.md
+305	3	Apollo4 GPIO and Interrupt Edges	done	285,295,298	plans/tasks/305-apollo4-gpio.md
 310	3	Apollo4 CTIMER	done	285,295,298	plans/tasks/310-apollo4-timers-uart.md
 312	3	Apollo4 System Timer	ready	285,295,298	plans/tasks/312-apollo4-stimer.md
 314	3	Apollo4 UART	done	285,295,298	plans/tasks/314-apollo4-uart.md

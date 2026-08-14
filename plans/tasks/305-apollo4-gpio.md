@@ -1,6 +1,6 @@
 # 305 — Apollo4 GPIO and Interrupt Edges
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 
