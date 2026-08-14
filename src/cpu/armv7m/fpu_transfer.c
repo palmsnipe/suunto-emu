@@ -23,10 +23,13 @@ semu_status armv7m_fpu_check_access(semu_cpu *cpu, semu_error *error)
 {
     unsigned cp10 = (cpu->cpacr >> 20u) & 3u;
     unsigned cp11 = (cpu->cpacr >> 22u) & 3u;
+    semu_status status;
 
-    if (cp10 == 3u && cp11 == 3u) return SEMU_OK;
-    if (cp10 == 1u && cp11 == 1u && privileged(cpu)) return SEMU_OK;
-    return armv7m_request_fault(cpu, 6u, FPU_NOCP, 0u, 0, error);
+    if (!((cp10 == 3u && cp11 == 3u) ||
+          (cp10 == 1u && cp11 == 1u && privileged(cpu))))
+        return armv7m_request_fault(cpu, 6u, FPU_NOCP, 0u, 0, error);
+    status = armv7m_fpu_context_prepare(cpu, error);
+    return status;
 }
 
 static semu_status subtract_address(semu_cpu *cpu, uint32_t base,

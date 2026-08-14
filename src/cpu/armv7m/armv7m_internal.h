@@ -22,6 +22,32 @@
 #define ARMV7M_SLEEP_NONE 0u
 #define ARMV7M_SLEEP_WFI 1u
 #define ARMV7M_SLEEP_WFE 2u
+#define ARMV7M_FPCCR_LSPACT (1u << 0)
+#define ARMV7M_FPCCR_USER (1u << 1)
+#define ARMV7M_FPCCR_THREAD (1u << 3)
+#define ARMV7M_FPCCR_HFRDY (1u << 4)
+#define ARMV7M_FPCCR_MMRDY (1u << 5)
+#define ARMV7M_FPCCR_BFRDY (1u << 6)
+#define ARMV7M_FPCCR_MONRDY (1u << 8)
+#define ARMV7M_FPCCR_LSPEN (1u << 30)
+#define ARMV7M_FPCCR_ASPEN (1u << 31)
+#define ARMV7M_FPCCR_CONTROL_MASK (ARMV7M_FPCCR_ASPEN | \
+                                   ARMV7M_FPCCR_LSPEN)
+#define ARMV7M_FPCCR_STATUS_MASK (ARMV7M_FPCCR_LSPACT | \
+                                  ARMV7M_FPCCR_USER | \
+                                  ARMV7M_FPCCR_THREAD | \
+                                  ARMV7M_FPCCR_HFRDY | \
+                                  ARMV7M_FPCCR_MMRDY | \
+                                  ARMV7M_FPCCR_BFRDY | \
+                                  ARMV7M_FPCCR_MONRDY)
+#define ARMV7M_FPCCR_READ_MASK (ARMV7M_FPCCR_CONTROL_MASK | \
+                                ARMV7M_FPCCR_STATUS_MASK)
+#define ARMV7M_CFSR_MUNSTKERR (1u << 3)
+#define ARMV7M_CFSR_MSTKERR (1u << 4)
+#define ARMV7M_CFSR_MLSPERR (1u << 5)
+#define ARMV7M_CFSR_BFSR_UNSTKERR (1u << 11)
+#define ARMV7M_CFSR_BFSR_STKERR (1u << 12)
+#define ARMV7M_CFSR_BFSR_LSPERR (1u << 13)
 
 struct semu_cpu {
     semu_bus *bus;
@@ -53,6 +79,9 @@ struct semu_cpu {
     uint32_t fpccr;
     uint32_t fpcar;
     uint32_t fpdscr;
+    uint8_t fpca;
+    uint8_t fp_context_fault;
+    uint8_t stack_fault_active;
     uint8_t itstate;
     uint8_t event_register;
     uint8_t sleep_mode;
@@ -114,6 +143,12 @@ semu_status armv7m_fpu_convert(semu_cpu *cpu, uint16_t first,
 semu_status armv7m_fpu_transfer(semu_cpu *cpu, uint16_t first,
                                 uint16_t second, uint32_t pc,
                                 semu_error *error);
+semu_status armv7m_fpu_context_prepare(semu_cpu *cpu, semu_error *error);
+void armv7m_fpu_context_note_use(semu_cpu *cpu);
+semu_status armv7m_fpu_context_stack(semu_cpu *cpu, uint32_t frame_sp,
+                                     int extended, semu_error *error);
+semu_status armv7m_fpu_context_unstack(semu_cpu *cpu, uint32_t frame_sp,
+                                       int extended, semu_error *error);
 
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error);

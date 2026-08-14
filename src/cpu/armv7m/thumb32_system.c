@@ -17,6 +17,11 @@ static uint32_t apsr_value(const semu_cpu *cpu)
     return cpu->state.xpsr & ARMV7M_XPSR_APSR_MASK;
 }
 
+static uint32_t control_value(const semu_cpu *cpu)
+{
+    return (cpu->state.control & 3u) | (cpu->fpca != 0u ? 4u : 0u);
+}
+
 static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
 {
     int is_privileged = privileged(cpu);
@@ -35,7 +40,7 @@ static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
         return 0u;
     }
     if (!is_privileged) {
-        return special == 20u ? cpu->state.control & 3u : 0u;
+        return special == 20u ? control_value(cpu) : 0u;
     }
     switch (special) {
     case 8u: return cpu->state.msp & ~3u;
@@ -44,7 +49,7 @@ static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
     case 17u:
     case 18u: return cpu->state.basepri & 0xffu;
     case 19u: return cpu->state.faultmask & 1u;
-    case 20u: return cpu->state.control & 3u;
+    case 20u: return control_value(cpu);
     default: return 0u;
     }
 }
