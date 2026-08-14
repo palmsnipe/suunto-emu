@@ -27,13 +27,16 @@ One cheaper-model agent for at most two working days; one transfer file, one tes
 ## Allowed Files
 
 - `src/cpu/armv7m/fpu_transfer.c`
+- `src/cpu/armv7m/thumb32_fpu.c`
+- `src/cpu/armv7m/armv7m_internal.h`
+- `src/cpu/armv7m/scb.c`
 - `tests/unit/test_cpu_fpu_transfer.c`
 - `tests/fixtures/cpu/fpu-transfer/**`
 - assigned rows in `tests/fixtures/cpu/coverage.tsv`
 
 ## Frozen Interfaces
 
-Use `armv7m_exec32_fpu`, SCB CPACR/fault hooks, bus helpers, and CPU state from 190/245. S-register values are raw IEEE-754 binary32 bit patterns; transfers never convert through host `float`.
+Use `armv7m_exec32_fpu`, SCB CPACR/fault hooks, bus helpers, and CPU state from 190/245. The private CPU seam may add explicit FPCCR/FPCAR/FPDSCR state and route their SCS offsets in the listed CPU-owned files; `thumb32_fpu.c` remains the family entry wrapper and may delegate transfer decoding to `fpu_transfer.c`. S-register values are raw IEEE-754 binary32 bit patterns; transfers never convert through host `float`.
 
 ## Evidence Inputs
 
