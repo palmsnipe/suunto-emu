@@ -1,0 +1,13 @@
+# Synthetic guest layout, all values are guest little-endian addresses.
+region	address	size	purpose
+vector-table	0x0000	0x0080	initial MSP and reset/exception vectors
+reset-code	0x1000	0x0034	reset, CPACR/NVIC setup, SVC
+exception-code	0x1200	0x019c	SVC/PendSV/SysTick/IRQ handlers and pools
+task-a-code	0x1400	0x00b8	FP-producing task and completion loop
+task-b-code	0x1500	0x001c	idle task and WFI
+mailbox	0x8800	0x0060	13 checkpoint words and task-control words
+msp-guard	0x8100	0x0010	handler-stack guard words
+task-a-guard	0x6f00	0x0010	Task A PSP software-save guard
+task-b-guard	0x7980	0x0010	Task B PSP software-save guard
+task-a-frame	0x7000	0x0020	initial basic frame, later extended hardware frame
+task-b-context	0x79a0	0x0080	S16-S31, R4-R11, and basic task-B frame

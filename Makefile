@@ -27,9 +27,13 @@ SDL_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/obj-sdl/%.o,$(SDL_SOURCES))
 
 UNIT_TEST_SOURCES = $(sort $(wildcard tests/unit/test_*.c))
 DEVICE_TEST_SOURCES = $(sort $(wildcard tests/devices/test_*.c))
-TEST_SOURCES = $(UNIT_TEST_SOURCES) $(DEVICE_TEST_SOURCES)
+INTEGRATION_TEST_SOURCES = $(sort $(wildcard tests/integration/test_*.c))
+TEST_SOURCES = $(UNIT_TEST_SOURCES) $(DEVICE_TEST_SOURCES) \
+               $(INTEGRATION_TEST_SOURCES)
 TEST_BINS = $(patsubst tests/unit/%.c,$(BUILD_DIR)/tests/%,$(UNIT_TEST_SOURCES)) \
-            $(patsubst tests/devices/%.c,$(BUILD_DIR)/tests/%,$(DEVICE_TEST_SOURCES))
+            $(patsubst tests/devices/%.c,$(BUILD_DIR)/tests/%,$(DEVICE_TEST_SOURCES)) \
+            $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
+INTEGRATION_TEST_BINS = $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
 
 .PHONY: all sdl check-sdl3-required test check check-lines \
 	check-task-contracts check-sdl test-firmware test-differential sanitize clean
@@ -72,6 +76,13 @@ $(BUILD_DIR)/tests/%: tests/devices/%.c tests/support/test.c $(BUILD_DIR)/libsem
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) $< tests/support/test.c \
 		$(BUILD_DIR)/libsemu.a -o $@
+
+$(INTEGRATION_TEST_BINS): $(BUILD_DIR)/tests/%: tests/integration/%.c \
+		tests/support/cpu_guest.c tests/support/test.c \
+		fixtures/synthetic/rtos/guest_image.h $(BUILD_DIR)/libsemu.a
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) $< \
+		tests/support/cpu_guest.c tests/support/test.c $(BUILD_DIR)/libsemu.a -o $@
 
 test:
 	@set -e; \

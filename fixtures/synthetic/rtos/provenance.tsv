@@ -1,0 +1,16 @@
+field	value
+image-format	C99 designated uint8_t bytes; omitted bytes are zero through 0x1600
+image-size	0x1600
+image-sha256	9bac7397f493f3ebe48ba03913f133e6430dae5a55986c85dae887bea77b77c2
+source	guest.S plus hand-encoded guest_image.h; no dynamic assembler
+abi-evidence	E-CPU-0005 AAPCS32 IHI 0042J and peeled FreeRTOS ARM_CM4F commit a4b28e35103d699edf074dfff4835921b481b301
+cpu-evidence	E-CPU-0002/E-CPU-0003/E-CPU-0004/E-CPU-0010
+instruction-limit	100000
+virtual-time-limit	1000000
+expected-instructions	268
+expected-virtual-time	344
+expected-state-sha256	e4497c731b9ad944edefa89b36e75bf8ab9d6c25601ad27361dbc2cf7da9289e
+external-events	IRQ0 pulse at 200ns (released at 201ns); IRQ2 at 300ns; IRQ1 is guest-pended inside IRQ0
+fp-policy	S0-S15/FPSCR use hardware exception frames; S16-S31 and R4-R11 use guest PendSV saves
+unsupported	No double precision, copied RTOS source, firmware, compatibility hit, or host runtime
+expected-transcript	reset,svc-start,task-a,tick,pendsv,task-b,irq-low,irq-high,irq-low-return,wfi,wake,fp-restored,done

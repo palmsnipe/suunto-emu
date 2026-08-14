@@ -1,0 +1,15 @@
+# ID order is the guest-visible RAM mailbox transcript.
+id	name	mailbox-offset	source
+1	reset	0x00	reset
+2	svc-start	0x04	SVC
+3	task-a	0x08	task-A
+4	tick	0x0c	SysTick
+5	pendsv	0x10	PendSV
+6	task-b	0x14	task-B
+7	irq-low	0x18	IRQ0
+8	irq-high	0x1c	IRQ1 nested in IRQ0
+9	irq-low-return	0x20	IRQ0 after IRQ1 return
+10	wfi	0x24	task-B
+11	wake	0x28	IRQ2 wake handler
+12	fp-restored	0x2c	task-A after return
+13	done	0x30	BKPT completion
