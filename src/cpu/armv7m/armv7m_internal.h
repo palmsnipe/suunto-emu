@@ -19,6 +19,9 @@
 #define ARMV7M_XPSR_LIVE_MASK (ARMV7M_XPSR_APSR_MASK | \
                                ARMV7M_XPSR_EPSR_MASK | \
                                ARMV7M_XPSR_IPSR_MASK)
+#define ARMV7M_SLEEP_NONE 0u
+#define ARMV7M_SLEEP_WFI 1u
+#define ARMV7M_SLEEP_WFE 2u
 
 struct semu_cpu {
     semu_bus *bus;
@@ -49,6 +52,16 @@ struct semu_cpu {
     uint32_t cpacr;
     uint8_t itstate;
     uint8_t event_register;
+    uint8_t sleep_mode;
+    uint8_t sleep_wake_source;
+    uint32_t systick_control;
+    uint32_t systick_reload;
+    uint32_t systick_current;
+    uint32_t systick_calibration;
+    uint64_t systick_last_time;
+    uint8_t systick_countflag;
+    semu_event_id systick_event;
+    uint8_t systick_event_valid;
     uint8_t stack_align;
     uint8_t exclusive_valid;
     uint32_t exclusive_address;
@@ -141,6 +154,14 @@ semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
                             uint32_t *value, semu_error *error);
 semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
                              uint32_t value, semu_error *error);
+semu_status armv7m_systick_read(semu_cpu *cpu, uint32_t offset,
+                                unsigned width, uint32_t *value,
+                                semu_error *error);
+semu_status armv7m_systick_write(semu_cpu *cpu, uint32_t offset,
+                                 unsigned width, uint32_t value,
+                                 semu_error *error);
+void armv7m_systick_reset(semu_cpu *cpu);
+void armv7m_systick_reschedule(semu_cpu *cpu);
 semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
                              uint32_t *value, semu_error *error);
 semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,
@@ -153,8 +174,17 @@ int armv7m_exception_masked(const semu_cpu *cpu, unsigned exception);
 int armv7m_exception_can_preempt(const semu_cpu *cpu, unsigned exception);
 void armv7m_exception_entered(semu_cpu *cpu, unsigned exception);
 void armv7m_exception_returned(semu_cpu *cpu, unsigned exception);
+void armv7m_set_system_pending(semu_cpu *cpu, unsigned exception);
+void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq);
+void armv7m_signal_pending_event(semu_cpu *cpu, unsigned exception);
+int armv7m_pending_wake(const semu_cpu *cpu);
 semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
                                  uint32_t status_bits, uint32_t address,
                                  int address_valid, semu_error *error);
+void armv7m_sleep_wfi(semu_cpu *cpu);
+void armv7m_sleep_wfe(semu_cpu *cpu);
+void armv7m_sleep_event(semu_cpu *cpu);
+semu_status armv7m_sleep_step(semu_cpu *cpu, semu_error *error);
+void armv7m_sleep_on_exception_return(semu_cpu *cpu);
 
 #endif

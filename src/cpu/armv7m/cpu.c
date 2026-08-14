@@ -100,6 +100,8 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
     cpu->ccr = 1u << 9;
     cpu->itstate = 0u;
     cpu->event_register = 0u;
+    cpu->sleep_mode = ARMV7M_SLEEP_NONE;
+    cpu->sleep_wake_source = 0u;
     cpu->stack_align = 1u;
     armv7m_clear_exclusive(cpu);
     if (armv7m_read(cpu, cpu->vector_table, 4u, &initial_sp, error) != SEMU_OK ||
@@ -123,18 +125,7 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
 
 static semu_status step_waiting_cpu(semu_cpu *cpu, semu_error *error)
 {
-    int exception = armv7m_pending_exception(cpu);
-
-    if (exception >= 0) {
-        cpu->state.waiting_for_interrupt = 0;
-        return armv7m_take_exception(cpu, (unsigned)exception, error);
-    }
-    if (cpu->scheduler != NULL && semu_scheduler_has_events(cpu->scheduler)) {
-        return semu_scheduler_run_next(cpu->scheduler, error);
-    }
-    cpu->state.halted = 1;
-    cpu->stop_reason = SEMU_STOP_WFI_DEADLOCK;
-    return SEMU_OK;
+    return armv7m_sleep_step(cpu, error);
 }
 
 semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
@@ -218,8 +209,12 @@ semu_cpu_state *semu_cpu_get_state_mutable(semu_cpu *cpu)
 void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
 {
     if (cpu != NULL && irq < ARMV7M_IRQ_COUNT) {
+        int was_pending = cpu->irq_level[irq] != 0u ||
+                          cpu->irq_pending[irq] != 0u;
         cpu->irq_level[irq] = level != 0 ? 1u : 0u;
         if (level != 0) cpu->irq_enabled[irq] = 1u;
+        if (!was_pending && level != 0)
+            armv7m_signal_pending_event(cpu, 16u + irq);
     }
 }
 
@@ -232,9 +227,7 @@ void semu_cpu_set_irq_priority(semu_cpu *cpu, unsigned irq, uint8_t priority)
 
 void semu_cpu_signal_event(semu_cpu *cpu)
 {
-    if (cpu != NULL) {
-        cpu->event_register = 1u;
-    }
+    armv7m_sleep_event(cpu);
 }
 
 semu_stop_reason semu_cpu_stop_reason(const semu_cpu *cpu)

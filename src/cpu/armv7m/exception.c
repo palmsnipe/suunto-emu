@@ -70,6 +70,7 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
         cpu->state.control &= ~2u;
     }
     armv7m_exception_returned(cpu, current_exception);
+    armv7m_sleep_on_exception_return(cpu);
     return SEMU_OK;
 }
 

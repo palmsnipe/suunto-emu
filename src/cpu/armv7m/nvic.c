@@ -137,6 +137,47 @@ int armv7m_pending_exception_for_icsr(const semu_cpu *cpu)
     return pending_exception(cpu, 1, 0);
 }
 
+void armv7m_signal_pending_event(semu_cpu *cpu, unsigned exception)
+{
+    if (cpu != NULL && exception < 16u + ARMV7M_IMPLEMENTED_IRQ_COUNT &&
+        (cpu->scr & (1u << 4)) != 0u)
+        armv7m_sleep_event(cpu);
+}
+
+void armv7m_set_system_pending(semu_cpu *cpu, unsigned exception)
+{
+    if (cpu == NULL || exception >= 16u ||
+        cpu->system_pending[exception] != 0u)
+        return;
+    cpu->system_pending[exception] = 1u;
+    armv7m_signal_pending_event(cpu, exception);
+}
+
+void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq)
+{
+    if (cpu == NULL || irq >= ARMV7M_IMPLEMENTED_IRQ_COUNT ||
+        cpu->irq_pending[irq] != 0u)
+        return;
+    cpu->irq_pending[irq] = 1u;
+    armv7m_signal_pending_event(cpu, 16u + irq);
+}
+
+int armv7m_pending_wake(const semu_cpu *cpu)
+{
+    unsigned exception;
+
+    for (exception = 2u; exception < 16u; ++exception) {
+        if (cpu->system_pending[exception] != 0u) return 1;
+    }
+    for (exception = 0u; exception < ARMV7M_IMPLEMENTED_IRQ_COUNT;
+         ++exception) {
+        if (cpu->irq_pending[exception] != 0u ||
+            cpu->irq_level[exception] != 0u)
+            return 1;
+    }
+    return 0;
+}
+
 void armv7m_exception_entered(semu_cpu *cpu, unsigned exception)
 {
     if (exception >= 16u && exception < 16u + ARMV7M_IRQ_COUNT) {
@@ -188,7 +229,10 @@ static void update_irq_bits(semu_cpu *cpu, unsigned word, uint32_t value,
         if (irq >= ARMV7M_IMPLEMENTED_IRQ_COUNT ||
             (value & (1u << bit)) == 0u) continue;
         if (kind == 0u) cpu->irq_enabled[irq] = set != 0 ? 1u : 0u;
-        else if (kind == 1u) cpu->irq_pending[irq] = set != 0 ? 1u : 0u;
+        else if (kind == 1u) {
+            if (set != 0) armv7m_set_irq_pending(cpu, irq);
+            else cpu->irq_pending[irq] = 0u;
+        }
     }
 }
 

@@ -214,10 +214,13 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
     mask = access_bits(width, (offset & 3u) * 8u);
     switch (offset & ~3u) {
     case SCB_ICSR:
-        if ((bits & ICSR_PENDNMISET) != 0u) cpu->system_pending[2u] = 1u;
-        if ((bits & ICSR_PENDSVSET) != 0u) cpu->system_pending[14u] = 1u;
+        if ((bits & ICSR_PENDNMISET) != 0u)
+            armv7m_set_system_pending(cpu, 2u);
+        if ((bits & ICSR_PENDSVSET) != 0u)
+            armv7m_set_system_pending(cpu, 14u);
         if ((bits & ICSR_PENDSVCLR) != 0u) cpu->system_pending[14u] = 0u;
-        if ((bits & ICSR_PENDSTSET) != 0u) cpu->system_pending[15u] = 1u;
+        if ((bits & ICSR_PENDSTSET) != 0u)
+            armv7m_set_system_pending(cpu, 15u);
         if ((bits & ICSR_PENDSTCLR) != 0u) cpu->system_pending[15u] = 0u;
         return SEMU_OK;
     case SCB_VTOR:
@@ -254,14 +257,26 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
             cpu->system_active[14u] = (bits & SHCSR_PENDSVACT) != 0u;
         if ((mask & SHCSR_SYSTICKACT) != 0u)
             cpu->system_active[15u] = (bits & SHCSR_SYSTICKACT) != 0u;
-        if ((mask & SHCSR_MEMFAULTPENDED) != 0u)
-            cpu->system_pending[4u] = (bits & SHCSR_MEMFAULTPENDED) != 0u;
-        if ((mask & SHCSR_BUSFAULTPENDED) != 0u)
-            cpu->system_pending[5u] = (bits & SHCSR_BUSFAULTPENDED) != 0u;
-        if ((mask & SHCSR_USGFAULTPENDED) != 0u)
-            cpu->system_pending[6u] = (bits & SHCSR_USGFAULTPENDED) != 0u;
-        if ((mask & SHCSR_SVCALLPENDED) != 0u)
-            cpu->system_pending[11u] = (bits & SHCSR_SVCALLPENDED) != 0u;
+        if ((mask & SHCSR_MEMFAULTPENDED) != 0u) {
+            if ((bits & SHCSR_MEMFAULTPENDED) != 0u)
+                armv7m_set_system_pending(cpu, 4u);
+            else cpu->system_pending[4u] = 0u;
+        }
+        if ((mask & SHCSR_BUSFAULTPENDED) != 0u) {
+            if ((bits & SHCSR_BUSFAULTPENDED) != 0u)
+                armv7m_set_system_pending(cpu, 5u);
+            else cpu->system_pending[5u] = 0u;
+        }
+        if ((mask & SHCSR_USGFAULTPENDED) != 0u) {
+            if ((bits & SHCSR_USGFAULTPENDED) != 0u)
+                armv7m_set_system_pending(cpu, 6u);
+            else cpu->system_pending[6u] = 0u;
+        }
+        if ((mask & SHCSR_SVCALLPENDED) != 0u) {
+            if ((bits & SHCSR_SVCALLPENDED) != 0u)
+                armv7m_set_system_pending(cpu, 11u);
+            else cpu->system_pending[11u] = 0u;
+        }
         return SEMU_OK;
     case SCB_CFSR:
         cpu->cfsr &= ~bits;
@@ -327,6 +342,8 @@ semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
     if (status == SEMU_OK) return status;
     status = read_scb(cpu, offset, width, value, error);
     if (status == SEMU_OK) return status;
+    if (offset >= 0x010u && offset < 0x020u)
+        return armv7m_systick_read(cpu, offset, width, value, error);
     status = semu_bus_read_below(cpu->bus, ARMV7M_SCS_BASE + offset,
                                  width, value, error);
     return status == SEMU_OK ? status : refuse(offset, error);
@@ -343,6 +360,8 @@ semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
     if (status == SEMU_OK) return status;
     status = write_scb(cpu, offset, width, value, error);
     if (status == SEMU_OK) return status;
+    if (offset >= 0x010u && offset < 0x020u)
+        return armv7m_systick_write(cpu, offset, width, value, error);
     status = semu_bus_write_below(cpu->bus, ARMV7M_SCS_BASE + offset,
                                   width, value, error);
     return status == SEMU_OK ? status : refuse(offset, error);
@@ -372,5 +391,6 @@ void armv7m_scs_reset(void *context)
     cpu->mmfar = 0u;
     cpu->bfar = 0u;
     cpu->cpacr = 0u;
+    armv7m_systick_reset(cpu);
     cpu->stack_align = 1u;
 }

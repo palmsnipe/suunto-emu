@@ -174,8 +174,12 @@ semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
     if (first == 0xf3afu && second == 0x8000u) {
         return SEMU_OK;
     }
+    if (first == 0xf3afu && second == 0x8002u) {
+        armv7m_sleep_wfe(cpu);
+        return SEMU_OK;
+    }
     if (first == 0xf3afu && second == 0x8003u) {
-        cpu->state.waiting_for_interrupt = 1;
+        armv7m_sleep_wfi(cpu);
         return SEMU_OK;
     }
     if (first == 0xf3efu) return execute_mrs(cpu, second, error);

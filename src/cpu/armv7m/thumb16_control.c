@@ -141,19 +141,15 @@ static semu_status miscellaneous(semu_cpu *cpu, uint16_t instruction,
             return SEMU_OK;
         }
         if (low == 0x20u) {
-            if (cpu->event_register != 0u) {
-                cpu->event_register = 0u;
-            } else {
-                cpu->state.waiting_for_interrupt = 1;
-            }
+            armv7m_sleep_wfe(cpu);
             return SEMU_OK;
         }
         if (low == 0x30u) {
-            cpu->state.waiting_for_interrupt = 1;
+            armv7m_sleep_wfi(cpu);
             return SEMU_OK;
         }
         if (low == 0x40u) {
-            cpu->event_register = 1u;
+            armv7m_sleep_event(cpu);
             return SEMU_OK;
         }
         if ((low & 0x0fu) == 0u) {
