@@ -1,6 +1,6 @@
 # 265 — FPU Single-Precision Arithmetic
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 260
 **Estimate:** 2–3 days
