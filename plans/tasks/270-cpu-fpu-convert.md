@@ -1,6 +1,6 @@
 # 270 — FPU Compare, Conversion, and Immediate Forms
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 2
 **Dependencies:** 265
 **Estimate:** 2 days
@@ -27,17 +27,22 @@ No compare or conversion decoder exists. `thumb32.c` can copy FPSCR.NZCV into xP
 ## Allowed Files
 
 - `src/cpu/armv7m/fpu_convert.c`
+- `src/cpu/armv7m/fpu_softfloat.c`
+- `src/cpu/armv7m/fpu_softfloat.h`
+- `src/cpu/armv7m/fpu_softfloat_internal.h`
+- `src/cpu/armv7m/armv7m_internal.h`
+- `src/cpu/armv7m/thumb32_fpu.c`
 - `tests/unit/test_cpu_fpu_convert.c`
 - `tests/fixtures/cpu/fpu-convert/**`
 - assigned rows in `tests/fixtures/cpu/coverage.tsv`
 
 ## Frozen Interfaces
 
-Use 260's access/FPSCR helpers and the integer-only classify/round/pack interface frozen by 265. Compare writes FPSCR.NZCV, with APSR updated only by the existing VMRS-to-PC form.
+Use 260's access/FPSCR helpers and the private integer-only classify/round/pack seam extended from 265. The seam is private to the Armv7-M CPU implementation; it must not become a public header or host-floating-point dependency. Compare writes FPSCR.NZCV, with APSR updated only by the existing VMRS-to-PC form.
 
 ## Evidence Inputs
 
-`E-CPU-0004` is mandatory for VCMP/VCMPE, VCVT integer/single/fixed forms, VCVTR, VMOV immediate, and utility instructions. This ticket is **blocked** if the relevant NaN, invalid, saturation, or rounding rules are absent.
+`E-CPU-0004` and the opcode-specific conversion pin `E-CPU-0009` are mandatory for VCMP/VCMPE, VCVT integer/single/fixed forms, VCVTR, VMOV immediate, and utility instructions. This ticket is **blocked** if the relevant NaN, invalid, saturation, or rounding rules are absent.
 
 ## Implementation
 
@@ -59,7 +64,7 @@ Raw destination/FPSCR/xPSR values match exact vectors; no implementation-defined
 
 ## Forbidden Scope
 
-No double precision, extended exception frames, arbitrary fixed widths not in FPv4-SP, host math/conversion calls, public/shared-header edits, or guessing result values for invalid conversions.
+No double precision, extended exception frames, arbitrary fixed widths not in FPv4-SP, host math/conversion calls, public/shared-header edits, or guessing result values for invalid conversions. Double-precision and FPv5 encodings are explicit refusal cases in this ticket.
 
 ## Handoff
 
