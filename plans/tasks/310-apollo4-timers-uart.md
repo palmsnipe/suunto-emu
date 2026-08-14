@@ -1,6 +1,6 @@
 # 310 — Apollo4 CTIMER
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 
