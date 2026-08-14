@@ -1,6 +1,6 @@
 # 250 — SysTick, PendSV/SVC Scheduling, WFI, and WFE
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 245
 **Estimate:** 2 days

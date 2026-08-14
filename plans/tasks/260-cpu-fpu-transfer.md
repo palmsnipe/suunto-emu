@@ -1,6 +1,6 @@
 # 260 — FPU Access Control, Registers, and Transfers
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 2
 **Dependencies:** 190, 220, 240, 245
 **Estimate:** 1–2 days
