@@ -13,10 +13,11 @@ Hand-written C, headers, and tests should remain under 300 lines and must remain
 ## Delegation Flow
 
 1. The integrator selects a ready ticket from `plans/index.tsv` and freezes required interfaces.
-2. An implementer works only in `Allowed files` and runs the ticket commands.
-3. The implementer reports changed files, tests, evidence used, and unresolved gaps.
-4. The integrator reviews fail-closed behavior, line counts, public-interface drift, and deterministic results.
-5. Registry/header/Makefile changes land through the named integration ticket after component tests pass.
+2. The integrator dispatches one ticket using `plans/agent-prompt.md`.
+3. An implementer works only in `Allowed Files` and runs the ticket commands.
+4. The implementer reports changed files, tests, evidence used, and unresolved gaps.
+5. The integrator reviews fail-closed behavior, line counts, public-interface drift, and deterministic results.
+6. Registry/header/Makefile changes land through the named integration ticket after component tests pass.
 
 Parallel tickets must have disjoint allowed paths. If overlap is unavoidable, sequence them by dependency instead of relying on conflict resolution.
 
@@ -28,3 +29,5 @@ Use ISO C99 and fixed-width integer types. Avoid compiler extensions, platform-s
 
 A ticket is done only when every acceptance item passes, required evidence is cited, negative tests exist, source firmware remains unchanged, documentation is synchronized, and no forbidden scope was touched. A partial implementation stays `in-progress` or `blocked` in the index; it is not marked done because it compiles.
 
+`AGENTS.md` is the repository-wide execution contract. Ticket text may narrow
+ownership and behavior but cannot weaken its safety or fidelity rules.

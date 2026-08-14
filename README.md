@@ -35,3 +35,8 @@ make check-sdl
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.
+
+Agents and other models must follow `AGENTS.md`. Select only a `ready` row from
+`plans/index.tsv` and dispatch its single ticket with `plans/agent-prompt.md`;
+blocked Phase 7 templates must first be instantiated with exact evidence and
+expected checkpoints by the integrator.

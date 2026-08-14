@@ -8,9 +8,23 @@
 
 Freeze the architecture, execution, compatibility, testing, evidence, hardware-status, and delegation rules needed for bounded implementation.
 
+## Execution Budget
+
+Completed scaffolding ticket; documentation and validation scripts only.
+
+## Required Reading
+
+Approved standalone-emulator plan and all files under `docs/` and `plans/`.
+
+## Current Baseline
+
+This root ticket created the original documentation set. Later plan hardening
+added `AGENTS.md`, `plans/agent-prompt.md`, granular tickets, and executable
+contract checks without reopening the implementation scope.
+
 ## Allowed Files
 
-`docs/**`, `plans/**` only.
+`AGENTS.md`, `docs/**`, `plans/**`, and task-validation scripts only.
 
 ## Frozen Interfaces
 
@@ -26,7 +40,8 @@ Create durable docs, a status index, a reusable template, and dependency-ordered
 
 ## Tests and Commands
 
-`find docs plans -type f -maxdepth 3 | sort`; `awk -F '\t' 'NR > 1 && NF != 6 { exit 1 }' plans/index.tsv`; `git diff --check -- docs plans`.
+`make check-task-contracts` prints the indexed ticket count and exits 0;
+`make check-lines` exits 0; `git diff --check -- AGENTS.md docs plans` exits 0.
 
 ## Acceptance
 
@@ -39,4 +54,3 @@ No emulator source, build files, firmware, external dependencies, or guessed dev
 ## Handoff
 
 Report documentation files, integration assumptions, and validation results.
-

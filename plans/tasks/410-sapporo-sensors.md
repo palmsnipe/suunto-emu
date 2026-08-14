@@ -1,42 +1,53 @@
-# 410 — Sapporo Sensor and Power Devices
+# 410 — Sapporo HSPPAD143 Pressure Sensor
 
 **Status:** blocked
 **Phase:** 4
-**Dependencies:** 400
+**Dependencies:** 285, 295, 298
 
 ## Goal
 
-Model the observed pressure sensor, LSM6DSL, wrist magnetometer, haptic PMIC, ambient-light sensor, and fuel gauge as small deterministic physical devices.
+Replace the permissive pressure branch with a strict HSPPAD143 endpoint and refusal tests. This supplies pressure startup traffic to 420; later pressure chips and random samples remain deferred.
+
+## Execution Budget
+
+One agent-day. Replace the permissive pressure branch with one strict I2C device.
+
+## Required Reading
+
+`src/devices/sapporo_devices.c:initialize_registers/register_transfer`, `tests/devices/test_sapporo_devices.c:test_pressure`, `SapporoHsppad143.cs:Write/Read/FinishTransmission/Reset`, and `docs/research/sapporo-2.22-startup-peripheral-map.md`.
+
+## Current Baseline
+
+Kind `SEMU_SAPPORO_PRESSURE` at address `0x48` returns ID `0x49`, ready `0x11`, value `0xe0`, but marks all 256 registers readable/writable. It has no selected-register lifecycle, reset/refusal coverage, timing, or provenance.
 
 ## Allowed Files
 
-`src/devices/{pressure,lsm6dsl,magnetometer,haptic,ambient_light,fuel_gauge}*`, matching `tests/devices/**`; no board registry/public headers.
+Only `src/devices/{sapporo_hsppad143.c,sapporo_hsppad143.h}` and `tests/devices/test_sapporo_hsppad143.c`.
 
 ## Frozen Interfaces
 
-Use board-provided typed I2C/SPI attachment contexts from 400. Each device validates address, register, direction, length, and state before mutation. Samples are fixed board configuration or explicitly injected semantic sensor input.
+Opaque create/destroy/reset plus `semu_serial_endpoint`; I2C address is constructor wiring, not hardcoded device policy. Selected-register state and auto-increment follow evidence; unknown register/direction/length/state refuses before write.
 
 ## Evidence Inputs
 
-Per-device ledger entries containing exact startup transcripts, reset observations, addresses/chip selects, and refusal cases migrated from `suunto-firmware`.
+`E-SAP-HSPPAD143-001` must cite the four C# methods and contain exact startup write/read/reset plus unknown-register trace. Register arrays inferred only from the permissive local model are forbidden.
 
 ## Implementation
 
-Implement only observed identity/config/status/sample/IRQ operations; separate protocol parsing from state where files approach 300 lines; make unobserved commands refuse.
+Implement only traced identity/ready/sample/config fields, explicit masks/defaults, transaction framing, and reset. Fixed sample values must be labeled synthetic configuration, not physical measurements.
 
 ## Tests and Commands
 
-`make test TEST_FILTER=device_pressure`; `make test TEST_FILTER=device_imu`; `make test TEST_FILTER=device_power`; `make test TEST_FILTER=device_refusal`; `make check`.
+`make test TEST_FILTER=sapporo_hsppad143` runs only its binary and exits 0; startup transcript, reset, wrong address/register/length/state, write mask, and repeated transcript pass. `make check` exits 0.
 
 ## Acceptance
 
-Every device passes reset, byte-exact startup, wrong command/length/state refusal, deterministic IRQ/sample, and repeated transcript tests; coverage matrix advances only with cited IDs.
+Byte transcript and refusals match `E-SAP-HSPPAD143-001`; no wildcard readable/writable mask remains in the new module; reset is deterministic.
 
 ## Forbidden Scope
 
-No GPS, OHR, compatibility fixture, random/live host sensor data, permissive register arrays, board wiring changes, or invented commands needed only to continue boot.
+No LPS22/later firmware, random pressure, all-register storage, IOM logic, board attachment, guessed timing, or legacy aggregate edit.
 
 ## Handoff
 
-Report per-device supported operations, tests, evidence IDs, and remaining refused native transactions.
-
+Report supported registers/masks, synthetic fields, evidence hash, test output, and endpoint role for 420.

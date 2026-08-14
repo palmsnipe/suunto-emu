@@ -1,42 +1,53 @@
-# 515 — SDL3 Frontend and Board Input
+# 515 — SDL3 Frame Presentation
 
 **Status:** blocked
 **Phase:** 5
-**Dependencies:** 420
+**Dependencies:** 298, 513
 
 ## Goal
 
-Add an optional SDL3 frontend that presents RGB565 frames and injects semantic three-button input without affecting headless builds.
+Isolate validated RGB565 SDL3 presentation behind a dependency-free core. This supplies the presenter consumed by 520; semantic input and CLI wiring remain deferred.
+
+## Execution Budget
+
+One to two agent-days. Isolate SDL3 texture/window presentation behind a testable frame-validation core; do not wire CLI/input yet.
+
+## Required Reading
+
+`src/frontends/main_sdl.c:prepare_frontend/publish_frame/destroy_frontend`, `include/semu/frame.h`, current `Makefile` SDL targets, and SDL3 texture/pitch APIs used by the baseline.
+
+## Current Baseline
+
+`main_sdl.c` creates a 2× window and `SDL_PIXELFORMAT_RGB565` streaming texture, updates/presents frames, and polls only quit. It does not validate size versus stride completely, expose `--scale`, separate presentation for tests, or preserve detailed SDL errors.
 
 ## Allowed Files
 
-`src/frontends/sdl3_*`, SDL-specific tests, `Makefile` SDL targets, frontend option parsing; no display renderer, board internals, or mandatory dependencies.
+Only `src/frontends/{sdl_present.c,sdl_present.h,sdl_present_core.c,sdl_present_core.h}` and `tests/unit/test_sdl_present.c`.
 
 ## Frozen Interfaces
 
-Use frame/input APIs frozen by 120/500 and the same run options as headless. Add only `--scale` and explicit key/input mapping options. SDL3 is discovered with `pkg-config`; `make` never probes or links it, while `make sdl` builds `build/suunto-emu-sdl`.
+Core validates RGB565LE format, nonzero dimensions, `stride>=width*2`, and `size>=stride*height`, returning normalized presentation descriptor without SDL types. SDL presenter owns window/renderer/texture, recreates only on dimension/scale change, uses nearest scaling and caller-provided integer scale 1–8.
 
 ## Evidence Inputs
 
-`E-SAP-0001`; SDL3 public API available on target hosts.
+No hardware evidence beyond `E-SAP-0001` 240×240 RGB565. This ticket displays supplied frames and makes no authenticity claim.
 
 ## Implementation
 
-Create/update a texture with declared RGB565 format/stride; map default keys to upper/middle/lower press/release; preserve virtual-time determinism by queuing semantic input at run boundaries.
+Move presentation code from `main_sdl.c` conceptually without editing it; make lifecycle partially initialized-safe; copy/update using declared stride; preserve error string/status for integration.
 
 ## Tests and Commands
 
-`make clean && make`; `make sdl`; `SDL_VIDEODRIVER=dummy make check-sdl`; `make test TEST_FILTER=input_mapping`; `otool -L build/suunto-emu 2>/dev/null || ldd build/suunto-emu`.
+`make test TEST_FILTER=sdl_present` runs only dependency-free core tests and exits 0 for valid 240×240/stride 480, padded stride, bad format/size/scale/overflow. `SDL_VIDEODRIVER=dummy make check-sdl` builds and exits 0 after 520 integrates presenter. Until 520, `make sdl` must compile this module. `make check` remains SDL-free and exits 0.
 
 ## Acceptance
 
-Headless builds without SDL3; SDL target reports a clear missing-package error; dummy-driver smoke publishes a frame and all press/releases; input replay is identical across two runs.
+Core validation is exhaustive/overflow-safe; presenter handles recreate/destroy/error paths; headless binary has no SDL symbol/link; no guest-visible timing changes.
 
 ## Forbidden Scope
 
-No SDL dependency in core/public headers, host-time guest advancement, renderer implementation, audio/touch/crown, global key state polling, or source firmware access.
+No event/input mapping, CLI edit, renderer/raster, frame generation, host-time advancement, screenshot write, mandatory SDL, or `main_sdl.c` edit.
 
 ## Handoff
 
-Report SDL version tested, default mappings, headless link audit, and dummy-driver results.
-
+Report presenter API, validation cases, SDL version/dummy result, headless link audit, and 520 integration calls.

@@ -1,28 +1,87 @@
 id	phase	title	status	dependencies	ticket
-000	0	Documentation and project contract	done	-	plans/tasks/000-project-contract.md
-100	1	Utilities, formats, and test harness	done	000	plans/tasks/100-utilities-formats.md
-110	1	Memory bus and deterministic scheduler	done	100	plans/tasks/110-bus-scheduler.md
-120	1	Storage, machine shell, and Phase 1 integration	done	110	plans/tasks/120-machine-storage.md
-190	2	CPU contract, state, and fetch	ready	120	plans/tasks/190-cpu-contract.md
-200	2	Thumb-16 execution	blocked	190	plans/tasks/200-cpu-thumb16.md
-210	2	Thumb-32 arithmetic, branches, and memory	blocked	190	plans/tasks/210-cpu-thumb32.md
-220	2	Exceptions, special registers, and NVIC core	blocked	200,210	plans/tasks/220-cpu-exceptions.md
-230	2	FPU and synthetic RTOS Phase 2 gate	blocked	220	plans/tasks/230-cpu-fpu-rtos.md
-300	3	Apollo4 map, clock, reset, and GPIO	blocked	230	plans/tasks/300-apollo4-foundation.md
-310	3	Apollo4 timers and UART	blocked	300	plans/tasks/310-apollo4-timers-uart.md
-315	3	Apollo4 IOM, MSPI, DMA, and MRAM	blocked	300	plans/tasks/315-apollo4-controllers.md
-320	3	Apollo4 Phase 3 integration	blocked	310,315	plans/tasks/320-apollo4-integration.md
-400	4	Sapporo profile, wiring, flash, and panel transport	blocked	320	plans/tasks/400-sapporo-foundation.md
-410	4	Sapporo sensor and power devices	blocked	400	plans/tasks/410-sapporo-sensors.md
-415	4	Sapporo GPS/OHR and compatibility layer	blocked	400	plans/tasks/415-sapporo-gps-ohr.md
-420	4	Sapporo headless Phase 4 gate	blocked	410,415	plans/tasks/420-sapporo-headless.md
-500	5	Nema command validation and state	blocked	420	plans/tasks/500-nema-command-state.md
-510	5	Rasterization and physical panel composition	blocked	500	plans/tasks/510-display-raster.md
-515	5	SDL3 frontend and board input	blocked	420	plans/tasks/515-sdl-input.md
-520	5	Sapporo display golden gate	blocked	510,515	plans/tasks/520-sdl-goldens.md
-600	6	Tracing, reports, replay, and snapshots	blocked	520	plans/tasks/600-debugging.md
-610	6	Sanitizers and optional differential hardening	blocked	600	plans/tasks/610-hardening.md
-700	7	Later Sapporo profiles	blocked	610	plans/tasks/700-sapporo-expansion.md
-710	7	Ulsan profiles and hardware	blocked	700	plans/tasks/710-ulsan.md
-720	7	Wismar profile and hardware	blocked	710	plans/tasks/720-wismar.md
-730	7	Tianjin, Rostock, and Xiamen onboarding	blocked	720	plans/tasks/730-future-products.md
+000	0	Documentation and Project Contract	done	none	plans/tasks/000-project-contract.md
+100	1	Utilities, Formats, and Test Harness	done	000	plans/tasks/100-utilities-formats.md
+110	1	Memory Bus and Deterministic Scheduler	done	100	plans/tasks/110-bus-scheduler.md
+120	1	Storage, Machine Shell, and Phase 1 Gate	done	110	plans/tasks/120-machine-storage.md
+180	2	CPU Evidence Pins and Vector Contract	ready	120	plans/tasks/180-cpu-evidence-vectors.md
+190	2	CPU Contract and Baseline Decomposition	blocked	180	plans/tasks/190-cpu-contract.md
+200	2	Thumb-16 Shifts and Arithmetic	blocked	190	plans/tasks/200-cpu-thumb16-arithmetic.md
+205	2	Thumb-16 Control, High Registers, and Bit Utilities	blocked	190	plans/tasks/205-cpu-thumb16-control.md
+210	2	Thumb-16 Memory, Stack, and Multiple Transfers	blocked	190	plans/tasks/210-cpu-thumb16-memory.md
+220	2	Thumb-32 Data Processing and Branches	blocked	190,200,205	plans/tasks/220-cpu-thumb32-data.md
+225	2	Thumb-32 Memory, Multiple, Exclusives, and Barriers	blocked	190,210	plans/tasks/225-cpu-thumb32-memory.md
+230	2	Thumb-32 Multiply, DSP, Saturation, and Packing	blocked	190,200,220	plans/tasks/230-cpu-thumb32-dsp.md
+240	2	Special Registers, Privilege, and Exception Frames	blocked	200,205,210,220,225,230	plans/tasks/240-cpu-special-exceptions.md
+245	2	NVIC, SCB, Priorities, Nesting, and Fault Escalation	blocked	240	plans/tasks/245-cpu-nvic-scb.md
+250	2	SysTick, PendSV/SVC Scheduling, WFI, and WFE	blocked	245	plans/tasks/250-cpu-systick-sleep.md
+260	2	FPU Access Control, Registers, and Transfers	blocked	190,220,240,245	plans/tasks/260-cpu-fpu-transfer.md
+265	2	FPU Single-Precision Arithmetic	blocked	260	plans/tasks/265-cpu-fpu-arithmetic.md
+270	2	FPU Compare, Conversion, and Immediate Forms	blocked	265	plans/tasks/270-cpu-fpu-convert.md
+275	2	FPU Exception Context and Lazy Stacking	blocked	245,250,265,270	plans/tasks/275-cpu-fpu-context.md
+280	2	Synthetic ARM_CM4F RTOS Guest	blocked	250,275	plans/tasks/280-cpu-rtos-guest.md
+285	2	Phase 2 CPU Integration and Determinism Gate	blocked	280	plans/tasks/285-cpu-phase2-gate.md
+295	3	Phase 3–5 Evidence Inventory	ready	000	plans/tasks/295-phase3-5-evidence-inventory.md
+298	3	Targeted Test Runner and Phase 3–5 Module Contract	ready	120	plans/tasks/298-targeted-test-and-module-contract.md
+300	3	Apollo4 Clock Generator	blocked	285,295,298	plans/tasks/300-apollo4-foundation.md
+302	3	Apollo4 Power Controller	blocked	285,295,298	plans/tasks/302-apollo4-power.md
+304	3	Apollo4 Reset and MCU Control	blocked	285,295,298,300,302	plans/tasks/304-apollo4-reset-control.md
+305	3	Apollo4 GPIO and Interrupt Edges	blocked	285,295,298	plans/tasks/305-apollo4-gpio.md
+310	3	Apollo4 CTIMER	blocked	285,295,298	plans/tasks/310-apollo4-timers-uart.md
+312	3	Apollo4 System Timer	blocked	285,295,298	plans/tasks/312-apollo4-stimer.md
+314	3	Apollo4 UART	blocked	285,295,298	plans/tasks/314-apollo4-uart.md
+315	3	Apollo4 IOM Controller	blocked	285,295,298	plans/tasks/315-apollo4-controllers.md
+316	3	Apollo4 MSPI Controller	blocked	285,295,298	plans/tasks/316-apollo4-mspi.md
+317	3	Apollo4 DMA Engine	blocked	285,295,298	plans/tasks/317-apollo4-dma.md
+318	3	Apollo4 MRAM Controller	blocked	285,295,298	plans/tasks/318-apollo4-mram.md
+320	3	Apollo4 Phase 3 Integration	blocked	300,302,304,305,310,312,314,315,316,317,318	plans/tasks/320-apollo4-integration.md
+400	4	Sapporo 2.22 Profile and Wiring	blocked	295,298,320	plans/tasks/400-sapporo-foundation.md
+402	4	Sapporo External Flash Device	blocked	285,295,298,316,317	plans/tasks/402-sapporo-flash.md
+404	4	Sapporo Panel Transport, Buttons, and Backlight	blocked	295,298,305,310,316	plans/tasks/404-sapporo-panel-buttons-backlight.md
+410	4	Sapporo HSPPAD143 Pressure Sensor	blocked	285,295,298	plans/tasks/410-sapporo-sensors.md
+411	4	Sapporo LSM6DSL Motion Sensor	blocked	285,295,298	plans/tasks/411-sapporo-lsm6dsl.md
+412	4	Sapporo TLI493D-W2BW Magnetometer	blocked	285,295,298	plans/tasks/412-sapporo-magnetometer.md
+413	4	Sapporo Haptic PMIC	blocked	285,295,298	plans/tasks/413-sapporo-haptic.md
+414	4	Sapporo OPT3007 Ambient-Light Sensor	blocked	285,295,298	plans/tasks/414-sapporo-als.md
+415	4	Sapporo MAX17050 Fuel Gauge	blocked	285,295,298	plans/tasks/415-sapporo-max17050.md
+416	4	Sapporo CXD5610 GPS Transport	blocked	285,295,298,314	plans/tasks/416-sapporo-gps.md
+417	4	Sapporo OHR2 Transport	blocked	285,295,298	plans/tasks/417-sapporo-ohr2.md
+418	4	Sapporo Compatibility Records and Device Fixtures	blocked	295,298,400,416,417	plans/tasks/418-sapporo-compat-records-fixtures.md
+420	4	Sapporo 2.22 Headless Integration	blocked	400,402,404,410,411,412,413,414,415,416,417,418	plans/tasks/420-sapporo-headless.md
+490	5	Sapporo Nema Trace Corpus	blocked	295,420	plans/tasks/490-nema-trace-corpus.md
+500	5	Nema Ring and Command Framing	blocked	285,298,490	plans/tasks/500-nema-command-state.md
+502	5	Nema Register and Draw State	blocked	490,500	plans/tasks/502-nema-state.md
+504	5	Nema Texture Descriptor and Decode	blocked	490,500	plans/tasks/504-nema-textures.md
+506	5	Nema Refusal Diagnostics and Completion Events	blocked	298,490,500	plans/tasks/506-nema-diagnostics.md
+510	5	Integer Raster Primitives and Clipping	blocked	298,490,502	plans/tasks/510-display-raster.md
+511	5	RGB565 and A2LE Blend Math	blocked	295,490,510	plans/tasks/511-display-blend.md
+512	5	Texture Sampling and Masked Draw	blocked	504,510,511	plans/tasks/512-display-sampling.md
+513	5	Nema Backend and Panel Frame Publication	blocked	404,500,502,504,506,510,511,512	plans/tasks/513-panel-publication.md
+515	5	SDL3 Frame Presentation	blocked	298,513	plans/tasks/515-sdl-input.md
+516	5	SDL Semantic Input Mapping	blocked	295,298,404,420	plans/tasks/516-sdl-semantic-input.md
+518	5	Deterministic Input Replay	blocked	298,420,516	plans/tasks/518-input-replay.md
+520	5	Native Display, SDL, Replay, and Golden Integration	blocked	490,500,502,504,506,510,511,512,513,515,516,518	plans/tasks/520-sdl-goldens.md
+600	6	Bounded Trace Contract	blocked	520	plans/tasks/600-trace-contract.md
+605	6	CPU and Refusal Reports	blocked	600	plans/tasks/605-cpu-fault-report.md
+610	6	Versioned Input Recording and Replay	blocked	600	plans/tasks/610-input-replay.md
+615	6	Versioned Machine Snapshots	blocked	600,610	plans/tasks/615-snapshot-format.md
+620	6	Debugging CLI Integration	blocked	605,610,615	plans/tasks/620-debug-cli-integration.md
+625	6	Deterministic Malformed-Input Corpus	blocked	620	plans/tasks/625-hardening-corpus.md
+630	6	Portability and Optional Differential Gate	blocked	625	plans/tasks/630-portability-differential.md
+700	7	Later Sapporo Evidence Inventory	blocked	630	plans/tasks/700-sapporo-version-evidence.md
+705	7	One Later Sapporo Profile	blocked	700	plans/tasks/705-sapporo-version-profile.md
+710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
+715	7	One Later Sapporo Release Gate	blocked	710	plans/tasks/715-sapporo-version-gate.md
+718	7	Later Sapporo Expansion Gate	blocked	715	plans/tasks/718-sapporo-expansion-gate.md
+720	7	Ulsan 2.35/2.44 Evidence Inventory	blocked	718	plans/tasks/720-ulsan-evidence.md
+725	7	One Ulsan Reset Profile	blocked	720	plans/tasks/725-ulsan-reset-profile.md
+730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
+740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
+745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
+750	7	Wismar 2.46 Evidence Inventory	blocked	745	plans/tasks/750-wismar-evidence.md
+755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
+760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
+765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
+770	7	Tianjin, Rostock, or Xiamen Intake	blocked	765	plans/tasks/770-product-intake.md
+775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md
+780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md
+790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md

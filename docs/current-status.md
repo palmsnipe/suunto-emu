@@ -40,12 +40,16 @@ and physical-button UI transitions have not been reached.
 
 ## Next Actionable Ticket
 
-Phase 1 is complete. Ticket 190 is the next `ready` ticket. Existing CPU code
-is deliberately treated as a partial starting point, not as completion of
-tickets 190 through 230. In particular, the frozen priority/fault inspection
-contract, full Thumb-2/DSP, FPU arithmetic and stacking, NVIC
-priorities/nesting, SysTick/PendSV behavior, and fault escalation remain
-required before Apollo4/Sapporo boot work can pass.
+Phase 1 is complete. Three independent tickets are ready:
+
+- 180 pins primary CPU references and the instruction-vector contract.
+- 295 inventories Phase 3–5 evidence and explicitly marks missing observations.
+- 298 freezes transcript helpers and shared peripheral/display integration seams.
+
+Ticket 190 follows 180. Existing CPU code is deliberately treated as a partial
+starting point, not as completion of Phase 2. Full Thumb-2/DSP, FPU arithmetic
+and stacking, NVIC priorities/nesting, SysTick/PendSV behavior, and fault
+escalation remain required before Apollo4/Sapporo boot work can pass.
 
 The next authentic investigation should capture the fault/exception path that
 enters `0x001a2434`, then add the narrowest synthetic CPU or controller

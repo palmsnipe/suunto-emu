@@ -1,0 +1,5 @@
+# filter	test binary name
+formats	test_hash
+formats	test_manifest
+renode_regressions	test_cpu
+determinism	test_machine

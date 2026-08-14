@@ -2,6 +2,14 @@ CC ?= cc
 AR ?= ar
 PKG_CONFIG ?= pkg-config
 BUILD_DIR ?= build
+TEST_PROFILE ?= sapporo-2.22.60
+DIFFERENTIAL_RUNNER_DIR ?= tests/differential
+
+export TEST_FILTER
+export SEMU_FIRMWARE_MANIFEST
+export FIRMWARE_ROOT
+export TEST_PROFILE
+export RENODE
 
 CPPFLAGS ?=
 CFLAGS ?= -O2
@@ -23,11 +31,15 @@ TEST_SOURCES = $(UNIT_TEST_SOURCES) $(DEVICE_TEST_SOURCES)
 TEST_BINS = $(patsubst tests/unit/%.c,$(BUILD_DIR)/tests/%,$(UNIT_TEST_SOURCES)) \
             $(patsubst tests/devices/%.c,$(BUILD_DIR)/tests/%,$(DEVICE_TEST_SOURCES))
 
-.PHONY: all sdl test check check-sdl test-firmware sanitize clean
+.PHONY: all sdl check-sdl3-required test check check-lines \
+	check-task-contracts check-sdl test-firmware test-differential sanitize clean
 
 all: $(BUILD_DIR)/suunto-emu
 
-sdl: $(BUILD_DIR)/suunto-emu-sdl
+sdl: check-sdl3-required $(BUILD_DIR)/suunto-emu-sdl
+
+check-sdl3-required:
+	@PKG_CONFIG="$(PKG_CONFIG)" sh tools/check_sdl3.sh required
 
 $(BUILD_DIR)/libsemu.a: $(LIB_OBJECTS)
 	@mkdir -p $(@D)
@@ -38,7 +50,7 @@ $(BUILD_DIR)/suunto-emu: $(BUILD_DIR)/libsemu.a $(HEADLESS_OBJECTS)
 
 $(BUILD_DIR)/suunto-emu-sdl: $(BUILD_DIR)/libsemu.a $(SDL_OBJECTS)
 	$(CC) $(PROJECT_CFLAGS) $(SDL_OBJECTS) $(BUILD_DIR)/libsemu.a \
-		$(shell $(PKG_CONFIG) --libs sdl3) -o $@
+		$(shell $(PKG_CONFIG) --libs sdl3 2>/dev/null) -o $@
 
 $(BUILD_DIR)/obj/%.o: %.c
 	@mkdir -p $(@D)
@@ -47,7 +59,9 @@ $(BUILD_DIR)/obj/%.o: %.c
 $(BUILD_DIR)/obj-sdl/%.o: %.c
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) \
-		$(shell $(PKG_CONFIG) --cflags sdl3) -MMD -MP -c $< -o $@
+		$(shell $(PKG_CONFIG) --cflags sdl3 2>/dev/null) -MMD -MP -c $< -o $@
+
+$(SDL_OBJECTS) $(BUILD_DIR)/suunto-emu-sdl: | check-sdl3-required
 
 $(BUILD_DIR)/tests/%: tests/unit/%.c tests/support/test.c $(BUILD_DIR)/libsemu.a
 	@mkdir -p $(@D)
@@ -59,25 +73,43 @@ $(BUILD_DIR)/tests/%: tests/devices/%.c tests/support/test.c $(BUILD_DIR)/libsem
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) $< tests/support/test.c \
 		$(BUILD_DIR)/libsemu.a -o $@
 
-test: $(TEST_BINS)
-	@set -e; for test_binary in $(TEST_BINS); do \
-		echo "TEST $$test_binary"; "$$test_binary"; \
+test:
+	@set -e; \
+	selected=`sh tools/select_tests.sh $(TEST_SOURCES)`; \
+	for test_source in $$selected; do \
+		test_name=`basename "$$test_source" .c`; \
+		test_binary="$(BUILD_DIR)/tests/$$test_name"; \
+		$(MAKE) "$$test_binary"; \
+		echo "TEST $$test_binary"; \
+		"$$test_binary"; \
 	done
 
-check: all test
+check-lines:
 	@sh tools/check_source_size.sh
+
+check-task-contracts:
+	@sh tools/check_task_contracts.sh
+
+check: all test check-lines check-task-contracts
 	@$(BUILD_DIR)/suunto-emu list >/dev/null
 	@$(BUILD_DIR)/suunto-emu show-profile sapporo-2.22.60 >/dev/null
 	@$(BUILD_DIR)/suunto-emu list-layers --profile sapporo-2.22.60 >/dev/null
 
-check-sdl: sdl
-	@SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null
+check-sdl:
+	@set -e; \
+	if PKG_CONFIG="$(PKG_CONFIG)" sh tools/check_sdl3.sh probe; then \
+		$(MAKE) sdl; \
+		SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null; \
+	fi
 
 test-firmware: all
-	@test -n "$(SEMU_FIRMWARE_MANIFEST)" || \
-		{ echo "SEMU_FIRMWARE_MANIFEST is required" >&2; exit 2; }
-	@$(BUILD_DIR)/suunto-emu validate --profile sapporo-2.22.60 \
-		--firmware "$(SEMU_FIRMWARE_MANIFEST)"
+	@SEMU_EMULATOR="$(BUILD_DIR)/suunto-emu" \
+		sh tools/run_firmware_tests.sh
+
+test-differential: all
+	@SEMU_EMULATOR="$(BUILD_DIR)/suunto-emu" \
+		DIFFERENTIAL_RUNNER_DIR="$(DIFFERENTIAL_RUNNER_DIR)" \
+		sh tools/run_differential_tests.sh
 
 sanitize:
 	@$(MAKE) BUILD_DIR=$(BUILD_DIR)/sanitize \

@@ -8,13 +8,35 @@
 
 Establish the portable build, dependency-free C99 test harness, allocation/error/endian helpers, CRC32, SHA-256, and strict profile/firmware manifest parsing.
 
+## Execution Budget
+
+Completed Phase 1 ticket; no remaining implementation is delegated here.
+
+## Required Reading
+
+`include/semu/{types,hash,manifest}.h`, `src/core/error.c`,
+`src/formats/{hash,manifest,manifest_validate}.c`, `tests/support/**`,
+`tests/unit/{test_hash,test_manifest}.c`, and `docs/profile-format.md`.
+
+## Current Baseline
+
+The listed source and tests implement the accepted contract. `semu_error_set`,
+CRC32/SHA-256, strict profile/manifest parsing, safe relative paths, and
+pre-map byte validation are present. Parser implementation remains below the
+500-line hard limit but above the review threshold and should be split before
+material expansion.
+
 ## Allowed Files
 
-`Makefile`, `include/semu/{error,endian,hash,manifest}.h`, `src/{core,formats}/**`, `tests/{support,unit}/**` limited to this functionality.
+`Makefile`, `include/semu/{types,hash,manifest}.h`, `src/core/error.c`,
+`src/formats/**`, `tests/support/**`, and the matching unit tests.
 
 ## Frozen Interfaces
 
-INI grammar is ASCII sections, unique `key=value`, `#` comments, decimal/`0x` integers, no unknown keys. Parser results carry source/line diagnostics. Hash APIs are streaming and return lowercase 64-character SHA-256 hex when formatted.
+INI grammar is ASCII sections, unique `key=value`, `#` comments, decimal/`0x`
+integers, and no unknown keys. Hash formatting returns lowercase 64-character
+SHA-256 hex. Frozen declarations are the current public headers; source/line
+diagnostics are a future enhancement, not an undocumented acceptance claim.
 
 ## Evidence Inputs
 
@@ -26,7 +48,10 @@ Add `make`, `test`, and `check` foundations; make the parser schema-driven so pr
 
 ## Tests and Commands
 
-`make clean && make`; `make test TEST_FILTER=formats`; `make test TEST_FILTER=hash`; `make check-lines`; `CC=clang make check`; `CC=gcc make check` where available.
+`make clean && make` exits 0 without SDL linkage; `make test
+TEST_FILTER=formats` selects `test_hash` and `test_manifest`; `make test
+TEST_FILTER=hash` selects `test_hash`; `make check-lines`; `CC=clang make check`;
+and `CC=gcc make check` where available all exit 0.
 
 ## Acceptance
 

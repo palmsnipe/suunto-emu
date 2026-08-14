@@ -19,10 +19,24 @@ CPU vectors record initial registers/memory and expected registers, flags, memor
 ## Commands and Gates
 
 - `make test`: dependency-free unit, device, and synthetic integration tests.
-- `make check`: clean headless build, tests, warnings-as-errors, and line-count policy.
+- `make test TEST_FILTER=NAME`: run matching test binaries, case names, tags,
+  or a declared group from `tools/test_groups.tsv`; no match is an error.
+- `make check-lines`: apply the 300-line review and 500-line hard limits.
+- `make check-task-contracts`: validate the indexed ticket structure and graph.
+- `make check`: headless build, all normal tests, warnings-as-errors, source-size
+  policy, task-contract validation, and CLI smoke checks.
 - `make check-sdl`: SDL3 build and dummy-driver smoke test; reports a skip only when SDL3 is absent.
 - `make sanitize`: supported address/undefined-behavior sanitizer run.
-- `make test-firmware SEMU_FIRMWARE_MANIFEST=/absolute/path/to/firmware.semu`: validate the private component sizes and hashes. The target fails with a usage error when the variable is absent.
+- `make test-firmware SEMU_FIRMWARE_MANIFEST=/absolute/path/to/firmware.semu`:
+  validate the private component sizes and hashes and run any matching private
+  integration scripts.
+- `make test-firmware FIRMWARE_ROOT=/absolute/root TEST_PROFILE=PROFILE`:
+  locate either `ROOT/PROFILE.semu` or `ROOT/PROFILE/firmware.semu`, validate it,
+  and run matching private integration scripts. With no private-data variable,
+  the target reports an explicit skip; an explicitly configured missing,
+  ambiguous, or hash-mismatched input is an error.
+- `make test-differential`: report an explicit skip unless `RENODE` names a
+  caller-provided executable. Renode remains optional and non-authoritative.
 
 `make check` warns for hand-written C/header/test files above 300 lines and fails above 500. Only declared generated data tables are exempt.
 

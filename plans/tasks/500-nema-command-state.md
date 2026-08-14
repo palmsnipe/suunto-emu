@@ -1,42 +1,53 @@
-# 500 — Nema Command Validation and State
+# 500 — Nema Ring and Command Framing
 
 **Status:** blocked
 **Phase:** 5
-**Dependencies:** 420
+**Dependencies:** 285, 298, 490
 
 ## Goal
 
-Parse and validate only observed Sapporo Nema commands, producing deterministic rendering operations and explicit unsupported-command diagnostics.
+Decode verified ring/wrap/child-list framing into atomic register-write records. This unlocks state, texture, and diagnostic tickets 502/504/506; register semantics and pixels remain deferred.
+
+## Execution Budget
+
+Two agent-days. Decode ring bootstrap/wrap and complete child-list framing into validated register-write records.
+
+## Required Reading
+
+`fixtures/display/nema/**`, `native-nema-ring-bootstrap-decode.md`, `SapporoNemaP.cs:CompleteNativeMarker/ExecuteSubmittedChildren/ExecuteObservedChild`, and Ambiq command constants cited by the evidence note.
+
+## Current Baseline
+
+There is no Nema MMIO/command parser. The prior Renode model reads ring words and accepts only observed suffixes, child sizes, hold commands, and register pairs; it also contains rendering/state logic that must not be copied into framing.
 
 ## Allowed Files
 
-`include/semu/display.h`, `src/display/{nema_command,nema_state,texture,display_diag}*`, `tests/unit/display_{command,state,texture}*`, Makefile source lists.
+Only `src/display/{nema_framing.c,nema_framing.h}` and `tests/unit/test_nema_framing.c`.
 
 ## Frozen Interfaces
 
-Input is the raw panel/GPU command stream from 400. Output is a checked operation stream over explicit state/texture handles; frame publication uses the machine frame callback. An unsupported form stops before partial command effects and records bounded command context.
+Parser input is bus plus ring base/word count/old/new pointer; output callback receives ordered `{prefix,register,value,source_address}` records and list boundary. Validate alignment, wrap, word arithmetic, `CL_NOP`, hold prefix, `CMDADDR`, `CL_PUSH|CMDSIZE`, and complete child range before callback. Return `OK/REFUSE`; no partial callbacks on malformed input.
 
 ## Evidence Inputs
 
-Command traces captured during exact Sapporo run, added to the ledger by hash and decoded observation; `E-SAP-0002` through `E-SAP-0004` are later frame gates, not parser evidence.
+`E-NEMA-RING-001` establishes bootstrap/no-IRQ and wrap trailer; `E-NEMA-LISTS-001` establishes complete suffix/list sizes. Source symbols are the three methods above. Prefix-only captures remain refusal tests, never valid list inputs.
 
 ## Implementation
 
-Split framing, opcode validation, state transitions, texture descriptors/uploads, and diagnostic capture. Validate arithmetic/ranges before allocation or memory access.
+Stage decoded records in a bounded buffer before emitting; use checked bus reads and size/word conversion; keep all register semantics opaque; produce deterministic refusal category/address/ordinal.
 
 ## Tests and Commands
 
-`make test TEST_FILTER=nema_command`; `make test TEST_FILTER=nema_state`; `make test TEST_FILTER=nema_refusal`; `make check`.
+`make test TEST_FILTER=nema_framing` runs only its binary and exits 0; bootstrap, wrap, NOP, complete child, multiple child, prefix/truncation, bad alignment/range/size/prefix/tail, callback refusal, and repeat output pass. Each case caps list words at 4096. `make check` exits 0.
 
 ## Acceptance
 
-Every observed command form has a byte-exact positive test; truncated/unknown/wrong-state/range cases fail atomically with deterministic diagnostics; public display operation contract is frozen for raster work.
+Synthetic/evidenced framing outputs match corpus; bootstrap emits no IRQ/draw; malformed lists emit zero records; no texture/pixel/register state is interpreted.
 
 ## Forbidden Scope
 
-No raster pixels, SDL, guessed unobserved opcodes, raw command-as-host-pointer behavior, shader/external library, or accepting malformed commands to preserve boot.
+No render/state/texture semantics, unbounded allocation, treating size as bytes when evidence says words, firmware memory write, completion IRQ, or support for unobserved suffixes.
 
 ## Handoff
 
-Report command coverage, trace evidence IDs, operation contract, and refused forms.
-
+Report accepted grammar/limits, refusal categories, evidence/corpus cases, tests, and callback contract for 502/504/506.

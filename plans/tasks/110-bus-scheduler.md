@@ -8,9 +8,26 @@
 
 Implement fail-closed memory regions and a stable integer-time event scheduler behind frozen core interfaces.
 
+## Execution Budget
+
+Completed Phase 1 ticket; extensions require new focused tickets.
+
+## Required Reading
+
+`include/semu/{bus,scheduler}.h`, `src/core/{bus,scheduler}.c`,
+`tests/unit/{test_core,test_machine}.c`, and `docs/execution-model.md`.
+
+## Current Baseline
+
+Exact RAM/ROM/device regions, widths 1/2/4, overlap/bounds refusal, reset
+callbacks, stable deadline/insertion ordering, cancellation, and WFI event
+advancement are implemented. `src/core/bus.c` is above 300 lines and must be
+split before material expansion.
+
 ## Allowed Files
 
-`include/semu/{bus,scheduler}.h`, `src/core/{bus,scheduler}*`, `tests/unit/{bus,scheduler}*`, plus Makefile source-list additions only.
+`include/semu/{bus,scheduler}.h`, `src/core/{bus,scheduler}.c`,
+`tests/unit/{test_core,test_machine}.c`, and integration-owned Makefile changes.
 
 ## Frozen Interfaces
 
@@ -26,7 +43,9 @@ Reject zero/overflowing/overlapping regions; implement little-endian checked rea
 
 ## Tests and Commands
 
-`make test TEST_FILTER=bus`; `make test TEST_FILTER=scheduler`; `make test TEST_FILTER=determinism`; `make check`.
+`make test TEST_FILTER=core` selects `test_core`; `make test
+TEST_FILTER=determinism` selects `test_machine`; `make check-lines`; and `make
+check` all exit 0. `test_core` must report scheduler and bus cases passing.
 
 ## Acceptance
 
