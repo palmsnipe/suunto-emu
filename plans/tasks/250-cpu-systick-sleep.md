@@ -27,6 +27,9 @@ One cheaper-model agent for two working days; two implementation files, three fo
 ## Allowed Files
 
 - `src/cpu/armv7m/systick.c`, `src/cpu/armv7m/sleep.c`
+- `src/cpu/armv7m/armv7m_internal.h`, `src/cpu/armv7m/cpu.c`
+- `src/cpu/armv7m/nvic.c`, `src/cpu/armv7m/scb.c`, `src/cpu/armv7m/exception.c`
+- `src/cpu/armv7m/thumb16_control.c`, `src/cpu/armv7m/thumb32_system.c`
 - `tests/unit/test_cpu_systick.c`, `tests/unit/test_cpu_sleep.c`
 - `tests/unit/test_cpu_pendsv.c`
 - `tests/fixtures/cpu/systick/**`, `tests/fixtures/cpu/sleep/**`
@@ -34,7 +37,7 @@ One cheaper-model agent for two working days; two implementation files, three fo
 
 ## Frozen Interfaces
 
-Use the integer scheduler API, 190's event signal, 240's SVC handling, and 245's pending/arbitration/SCR hooks unchanged. One retired instruction costs one nanosecond in the present functional model. Sleep fast-forward may run only the next deterministic scheduler event, then re-evaluate eligibility.
+Use the integer scheduler API, 190's event signal, 240's SVC handling, and 245's pending/arbitration/SCR hooks. The private CPU seam may add explicit SysTick state, sleep-mode and wake-source helpers, and callback routing in the listed CPU-owned files; no public header or global side channel is permitted. One retired instruction costs one nanosecond in the present functional model. Sleep fast-forward may run only the next deterministic scheduler event, then re-evaluate eligibility.
 
 ## Evidence Inputs
 
