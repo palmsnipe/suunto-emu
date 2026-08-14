@@ -1,0 +1,10 @@
+# Ticket 265; exact raw-bit FPv4-SP arithmetic vectors in guest memory order.
+# Each row is bounded to one arithmetic instruction plus an unexecuted BKPT.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+fpu.vadd-normal | E-CPU-0008:A2.5.4;A7.7.225 | 30 ee 81 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s1=0x3f800000,s2=0x40000000 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | r15=0x104,s0=0x40400000 | - | none
+fpu.vsub-normal | E-CPU-0008:A2.5.4;A7.7.260 | 30 ee c1 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s1=0x40400000,s2=0x3f800000 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | r15=0x104,s0=0x40000000 | - | none
+fpu.vmul-vdiv-normal | E-CPU-0008:A2.5.4;A7.7.248/A7.7.232 | 20 ee 81 0a 80 ee 81 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s1=0x3fc00000,s2=0x40000000 | - | 2 | SEMU_OK | none | 0x108 | 0x01000000 | r15=0x108,s0=0x3f400000 | - | none
+fpu.vmla-separate-rounding | E-CPU-0008:A2.5.4;A7.7.238 | 00 ee 81 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s0=0x3f800000,s1=0x40000000,s2=0x40400000 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | r15=0x104,s0=0x40e00000 | - | none
+fpu.vnmla-vnmls-vnmul | E-CPU-0008:A2.5.4;A7.7.250 | 10 ee c1 0a 10 ee 81 0a 20 ee c1 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s0=0x3f800000,s1=0x40000000,s2=0x40400000 | - | 3 | SEMU_OK | none | 0x10c | 0x01000000 | r15=0x10c,s0=0xc0c00000 | - | none
+fpu.vabs-vneg-vsqrt | E-CPU-0008:A2.5.4;A7.7.224/A7.7.249/A7.7.257 | b0 ee e0 0a b1 ee 60 0a b1 ee e0 0a 00 be | 0x100 | 0x01000000 | r15=0x100,s1=0x40000000 | - | 3 | SEMU_OK | none | 0x10c | 0x01000000 | r15=0x10c,s0=0x3fb504f3,fpscr=0x00000010 | - | none
+fpu.refuse-double-arithmetic | E-CPU-0008:A2.5.4;A7.7.225;B1.6 | 30 ee 81 0b 00 be | 0x100 | 0x01000000 | r15=0x100,s0=0x13579bdf,s1=0x3f800000,s2=0x40000000 | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x100 | 0x01000000 | r15=0x100,s0=0x13579bdf,s1=0x3f800000,s2=0x40000000 | - | emulator-refusal:double-precision
