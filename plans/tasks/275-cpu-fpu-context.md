@@ -1,6 +1,6 @@
 # 275 — FPU Exception Context and Lazy Stacking
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 2
 **Dependencies:** 245, 250, 265, 270
 **Estimate:** 2–3 days
@@ -15,18 +15,25 @@ One cheaper-model agent for at most three working days; one context file, one te
 
 ## Required Reading
 
-- `src/cpu/armv7m/{exceptions.c,nvic.c,sleep.c,fpu_transfer.c,fpu_context.c}` after dependencies
+- `src/cpu/armv7m/{exception.c,nvic.c,sleep.c,scb.c,fpu_transfer.c,fpu_context.c}` after dependencies
+- `src/cpu/armv7m/{thumb32_fpu.c,thumb32_system.c,armv7m_internal.h}` for the private integration seams
 - `docs/{execution-model.md,migration-evidence.md,testing-strategy.md}`
 - `E-CPU-0003/0004` exception/FP context sections
 - `E-CPU-0005` pinned ARM_CM4F context layout only
 
 ## Current Baseline
 
-`exceptions.c` from 240 supports basic integer frames only. CPU state has S0–S31/FPSCR but no active/lazy context fields. Ticket 260 adds FPCCR/FPCAR/FPDSCR; no current test covers EXC_RETURN frame bit 4 or FP state across nested exceptions.
+`exception.c` from 240 supports basic integer frames only. CPU state has S0–S31/FPSCR but no active/lazy context fields. Ticket 260 adds FPCCR/FPCAR/FPDSCR; no current test covers EXC_RETURN frame bit 4 or FP state across nested exceptions.
 
 ## Allowed Files
 
 - `src/cpu/armv7m/fpu_context.c`
+- `src/cpu/armv7m/exception.c`
+- `src/cpu/armv7m/scb.c`
+- `src/cpu/armv7m/thumb32_fpu.c`
+- `src/cpu/armv7m/thumb32_system.c`
+- `src/cpu/armv7m/fpu_transfer.c`
+- `src/cpu/armv7m/armv7m_internal.h` (private CPU seam only)
 - `tests/unit/test_cpu_fpu_context.c`
 - `tests/fixtures/cpu/fpu-context/**`
 - assigned rows in `tests/fixtures/cpu/coverage.tsv`
@@ -37,11 +44,11 @@ Use 240's exception-frame extension hooks, 245's nested arbitration, 250's sleep
 
 ## Evidence Inputs
 
-`E-CPU-0003`, `E-CPU-0004`, and `E-CPU-0005` are mandatory. This ticket is **blocked** unless EXC_RETURN bit 4, ASPEN/LSPEN/LSPACT, lazy allocation triggers, nested exception behavior, and ARM_CM4F context assumptions are pinned.
+`E-CPU-0003`, `E-CPU-0004`, `E-CPU-0005`, and `E-CPU-0010` are mandatory. The exact extended-frame offsets, EXC_RETURN bit 4, ASPEN/LSPEN/LSPACT, lazy allocation/materialization triggers, nested exception behavior, and ARM_CM4F context assumptions are pinned by `E-CPU-0010`; the ticket is no longer blocked.
 
 ## Implementation
 
-Implement active FP context tracking, basic versus extended frame selection, correct EXC_RETURN token, eager preservation, lazy reservation/materialization on first handler FP use, FPCCR/FPCAR updates, nested exception behavior, restore validation, alignment, and fault escalation during FP stack/unstack. Do not expose host pointers or copy S16–S31 automatically.
+Implement active FP context tracking, basic versus extended frame selection, correct EXC_RETURN token, eager preservation, lazy reservation/materialization on first handler FP use, FPCCR/FPCAR updates, nested exception behavior, restore validation, alignment, and fault escalation during FP stack/unstack. Use the private `armv7m_fpu_context_*` seam; do not extend the public CPU state or copy S16–S31 automatically. Architecturally UNKNOWN handler FP state and post-preservation FPCAR are assigned deterministic zero values by the synthetic profile and must be covered by tests.
 
 ## Tests and Commands
 
