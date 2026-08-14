@@ -67,11 +67,11 @@ static void test_mrs_reads_privileged_and_unprivileged(
                      semu_cpu_get_state(fixture.cpu)->r[0]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf3efu, 0x8103u));
-    SEMU_TEST_EQ_U64(context, XPSR_N | XPSR_Q | (0x0fu << 16u),
+    SEMU_TEST_EQ_U64(context, XPSR_N | XPSR_Q | (0x0fu << 16u) | 7u,
                      semu_cpu_get_state(fixture.cpu)->r[1]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf3efu, 0x8205u));
-    SEMU_TEST_EQ_U64(context, 0u, semu_cpu_get_state(fixture.cpu)->r[2]);
+    SEMU_TEST_EQ_U64(context, 7u, semu_cpu_get_state(fixture.cpu)->r[2]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf3efu, 0x8306u));
     SEMU_TEST_EQ_U64(context, 0u, semu_cpu_get_state(fixture.cpu)->r[3]);
@@ -97,7 +97,7 @@ static void test_mrs_reads_privileged_and_unprivileged(
     SEMU_TEST_EQ_U64(context, 1u, semu_cpu_get_state(fixture.cpu)->r[9]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf3efu, 0x8a14u));
-    SEMU_TEST_EQ_U64(context, 5u, semu_cpu_get_state(fixture.cpu)->r[10]);
+    SEMU_TEST_EQ_U64(context, 1u, semu_cpu_get_state(fixture.cpu)->r[10]);
     semu_cpu_fixture_destroy(&fixture);
 
     state = initial_state();
@@ -126,7 +126,7 @@ static void test_mrs_reads_privileged_and_unprivileged(
     SEMU_TEST_EQ_U64(context, 1u, actual->r[4]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf3efu, 0x8509u));
-    SEMU_TEST_EQ_U64(context, 0x23454u, actual->r[5]);
+    SEMU_TEST_EQ_U64(context, 0u, actual->r[5]);
     semu_cpu_fixture_destroy(&fixture);
 }
 

@@ -2,12 +2,13 @@
 
 static semu_status take_exception_internal(semu_cpu *cpu,
                                             unsigned exception,
-                                            semu_error *error,
-                                            int escalate_bad_vector);
+                                            semu_error *error);
 
-static semu_status request_usage_fault(semu_cpu *cpu, semu_error *error)
+static semu_status request_usage_fault(semu_cpu *cpu, uint32_t token,
+                                       semu_error *error)
 {
-    return take_exception_internal(cpu, 6u, error, 1);
+    cpu->state.r[14] = token;
+    return take_exception_internal(cpu, 6u, error);
 }
 
 static semu_status exception_return(semu_cpu *cpu, uint32_t token,
@@ -21,10 +22,10 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
 
     if (token != 0xfffffff1u && token != 0xfffffff9u &&
         token != 0xfffffffdu) {
-        return request_usage_fault(cpu, error);
+        return request_usage_fault(cpu, token, error);
     }
     if ((cpu->state.xpsr & 0x1ffu) == 0u) {
-        return request_usage_fault(cpu, error);
+        return request_usage_fault(cpu, token, error);
     }
     sp = token == 0xfffffffdu ? cpu->state.psp : cpu->state.msp;
     for (index = 0u; index < 8u; ++index) {
@@ -35,9 +36,9 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
             return error != NULL ? error->code : SEMU_ERR_RANGE;
         }
     }
-    if ((frame[7] & ARMV7M_XPSR_T) == 0u ||
+    if ((frame[7] & ARMV7M_XPSR_T) == 0u || (frame[6] & 1u) != 0u ||
         ((token == 0xfffffff1u) == ((frame[7] & 0x1ffu) == 0u))) {
-        return request_usage_fault(cpu, error);
+        return request_usage_fault(cpu, token, error);
     }
     if (armv7m_add_address(cpu, sp, 32u, &frame_end, error) != SEMU_OK)
         return error != NULL ? error->code : SEMU_ERR_RANGE;
@@ -54,15 +55,17 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
     cpu->state.r[12] = frame[4];
     cpu->state.r[14] = frame[5];
     cpu->state.r[15] = frame[6] & ~1u;
-    cpu->state.xpsr = frame[7];
+    cpu->state.xpsr = frame[7] & ARMV7M_XPSR_LIVE_MASK;
     cpu->itstate = (uint8_t)(((frame[7] >> 25) & 3u) |
                              ((frame[7] >> 8) & 0xfcu));
     if (token == 0xfffffffdu) {
         cpu->state.psp = restored_sp;
         cpu->state.r[13] = cpu->state.psp;
+        cpu->state.control = (cpu->state.control & ~2u) | 2u;
     } else {
         cpu->state.msp = restored_sp;
         cpu->state.r[13] = cpu->state.msp;
+        cpu->state.control &= ~2u;
     }
     return SEMU_OK;
 }
@@ -70,19 +73,18 @@ static semu_status exception_return(semu_cpu *cpu, uint32_t token,
 semu_status armv7m_branch_exchange(semu_cpu *cpu, uint32_t target,
                                    semu_error *error)
 {
-    if ((target & 0xfffffff0u) == 0xfffffff0u) {
+    if ((cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) != 0u &&
+        (target & 0xfffffff0u) == 0xfffffff0u) {
         return exception_return(cpu, target, error);
     }
-    if ((target & 1u) == 0u) {
-        return armv7m_unsupported(cpu, target, error);
-    }
     cpu->state.r[15] = target & ~1u;
+    cpu->state.xpsr = (cpu->state.xpsr & ~ARMV7M_XPSR_T) |
+                      (target & 1u ? ARMV7M_XPSR_T : 0u);
     return SEMU_OK;
 }
 
 static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
-                                            semu_error *error,
-                                            int escalate_bad_vector)
+                                            semu_error *error)
 {
     uint32_t values[8];
     uint32_t handler;
@@ -99,13 +101,12 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
         return armv7m_unsupported(cpu, exception, error);
     }
     from_handler = (cpu->state.xpsr & 0x1ffu) != 0u;
-    armv7m_clear_exclusive(cpu);
     used_psp = !from_handler &&
                (cpu->state.control & 2u) != 0u;
     current_sp = used_psp ? cpu->state.psp : cpu->state.msp;
     if (current_sp < 32u) return armv7m_address_fault(cpu, current_sp, error);
     sp = current_sp - 32u;
-    aligned_xpsr = cpu->state.xpsr;
+    aligned_xpsr = cpu->state.xpsr & ARMV7M_XPSR_LIVE_MASK;
     if (cpu->stack_align != 0u && (current_sp & 7u) != 0u) {
         if (sp < 4u) return armv7m_address_fault(cpu, sp, error);
         sp &= ~7u;
@@ -125,17 +126,6 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
         armv7m_read(cpu, vector_address, 4u, &handler, error) != SEMU_OK) {
         return error != NULL ? error->code : SEMU_ERR_RANGE;
     }
-    if ((handler & 1u) == 0u) {
-        if (exception != 3u && escalate_bad_vector != 0) {
-            return take_exception_internal(cpu, 3u, error, 0);
-        }
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_FIRMWARE_ASSERT;
-        semu_error_set(error, SEMU_ERR_FORMAT,
-                       "exception %u has invalid vector 0x%08lx", exception,
-                       (unsigned long)handler);
-        return SEMU_ERR_FORMAT;
-    }
     for (index = 0u; index < 8u; ++index) {
         uint32_t address;
         if (armv7m_add_address(cpu, frame_sp, index * 4u, &address, error) !=
@@ -152,6 +142,7 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
             return error != NULL ? error->code : SEMU_ERR_RANGE;
         }
     }
+    armv7m_clear_exclusive(cpu);
     if (used_psp) {
         cpu->state.psp = frame_sp;
     } else {
@@ -161,8 +152,10 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
     cpu->state.r[14] = from_handler ? 0xfffffff1u :
                        (used_psp ? 0xfffffffdu : 0xfffffff9u);
     cpu->state.r[15] = handler & ~1u;
-    cpu->state.xpsr = (cpu->state.xpsr & ~0x1ffu) | exception;
-    cpu->state.xpsr |= ARMV7M_XPSR_T;
+    cpu->state.xpsr = (cpu->state.xpsr & ARMV7M_XPSR_APSR_MASK) |
+                      (exception & ARMV7M_XPSR_IPSR_MASK) |
+                      ((handler & 1u) != 0u ? ARMV7M_XPSR_T : 0u);
+    cpu->state.control &= ~2u;
     cpu->itstate = 0u;
     return SEMU_OK;
 }
@@ -170,5 +163,5 @@ static semu_status take_exception_internal(semu_cpu *cpu, unsigned exception,
 semu_status armv7m_take_exception(semu_cpu *cpu, unsigned exception,
                                   semu_error *error)
 {
-    return take_exception_internal(cpu, exception, error, 1);
+    return take_exception_internal(cpu, exception, error);
 }

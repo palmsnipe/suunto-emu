@@ -30,7 +30,7 @@ thumb32	MOV.W-r0-sp	implemented	E-CPU-0001	A7.7.77	test_mov_w_sp_regression	posi
 thumb32	STMDB-sp-r3-r8-lr	implemented	E-CPU-0001	A5.3.5;A7.7 STMDB	test_stmdb_sp_regression	positive	Exact decrement-before layout; no family-completeness claim.
 exceptions	SVC-basic-return	implemented	E-CPU-0003	B1.5;exception-entry/return pseudocode	test_svc_exception_return	positive	Current narrow basic-frame path only.
 exceptions	basic-frame-stkalign-nested-return	implemented	E-CPU-0003	B1.5.6-B1.5.8	test_cpu_exceptions	positive	MSP/PSP selection, eight-word frame layout, stack alignment word, nested handler return, and accepted EXC_RETURN tokens are bounded.
-exceptions	invalid-frame-vector-token-refusal	implemented	E-CPU-0003	A3.2;B1.5.6-B1.5.8	test_cpu_exceptions	refusal	Reserved EXC_RETURN and invalid vector/frame boundaries refuse without architectural state mutation.
+exceptions	invalid-frame-vector-token-refusal	implemented	E-CPU-0003	A3.2;B1.5.6-B1.5.8	test_cpu_exceptions	refusal	Reserved EXC_RETURN and invalid stacked frames request UsageFault; even handler vectors reach INVSTATE/UsageFault on the next step.
 interrupts	level-IRQ-entry-return	implemented	E-CPU-0003	B1.5;B3.4 NVIC	test_level_irq	positive	Current level-triggered IRQ path only; priority/nesting remain missing.
 special	MSR-PSP	implemented	E-CPU-0002	A7.7.83 MSR;B1 registers	test_msr_psp	positive	One PSP transfer; access-control matrix remains missing.
 special	MRS-APSR-xPSR-and-mask-reads	implemented	E-CPU-0002/E-CPU-0003	B5.1.1;B5.2.2	test_cpu_special	positive	APSR, xPSR, IPSR, EPSR, MSP, PSP, PRIMASK, BASEPRI, BASEPRI_MAX, FAULTMASK, and CONTROL reads follow privilege and reserved-bit rules.

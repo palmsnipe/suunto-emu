@@ -94,6 +94,8 @@ static void test_psp_alignment_and_nested_return(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      armv7m_take_exception(fixture.cpu, 11u,
                                             &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->control & 2u);
     SEMU_TEST_EQ_U64(context, 0x7e0u, semu_cpu_get_state(fixture.cpu)->psp);
     SEMU_TEST_EQ_U64(context, 0x900u, semu_cpu_get_state(fixture.cpu)->r[13]);
     SEMU_TEST_EQ_U64(context, 0xfffffffdu,
@@ -107,6 +109,10 @@ static void test_psp_alignment_and_nested_return(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x804u, semu_cpu_get_state(fixture.cpu)->r[13]);
     SEMU_TEST_EQ_U64(context, 0u,
                      semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
+    SEMU_TEST_EQ_U64(context, XPSR_T,
+                     semu_cpu_get_state(fixture.cpu)->xpsr);
+    SEMU_TEST_EQ_U64(context, 2u,
+                     semu_cpu_get_state(fixture.cpu)->control & 2u);
     semu_cpu_fixture_destroy(&fixture);
 
     state = initial_state();
@@ -136,18 +142,26 @@ static void test_exception_refusals_are_precise(semu_test_context *context)
     semu_cpu_state state = initial_state();
     semu_cpu_fixture fixture;
     semu_status status;
+    uint32_t value;
 
     SEMU_TEST_ASSERT(context, prepare(&fixture, &state, 16u, 0x181u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(fixture.bus, 3u * 4u, 4u, 0x1a1u,
+                     semu_bus_write(fixture.bus, 6u * 4u, 4u, 0x1c1u,
                                     &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     armv7m_take_exception(fixture.cpu, 16u,
+                                            &fixture.error));
     status = armv7m_branch_exchange(fixture.cpu, 0xfffffff5u,
                                     &fixture.error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
-    SEMU_TEST_EQ_U64(context, 3u,
+    SEMU_TEST_EQ_U64(context, 6u,
                      semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
-    SEMU_TEST_EQ_U64(context, 0x1a0u,
+    SEMU_TEST_EQ_U64(context, 0x1c0u,
                      semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, 0xfffffff1u,
+                     semu_cpu_get_state(fixture.cpu)->r[14]);
+    SEMU_TEST_ASSERT(context, read_word(&fixture, 0x7d4u, &value));
+    SEMU_TEST_EQ_U64(context, 0xfffffff5u, value);
     semu_cpu_fixture_destroy(&fixture);
 
     state = initial_state();
@@ -163,13 +177,41 @@ static void test_exception_refusals_are_precise(semu_test_context *context)
     state = initial_state();
     SEMU_TEST_ASSERT(context, prepare(&fixture, &state, 16u, 0x180u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(fixture.bus, 3u * 4u, 4u, 0x1a1u,
+                     semu_bus_write(fixture.bus, 6u * 4u, 4u, 0x1c1u,
                                     &fixture.error));
     status = armv7m_take_exception(fixture.cpu, 16u, &fixture.error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
-    SEMU_TEST_EQ_U64(context, 3u,
+    SEMU_TEST_EQ_U64(context, 16u,
                      semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
-    SEMU_TEST_EQ_U64(context, 0x1a0u,
+    SEMU_TEST_EQ_U64(context, 0x180u,
+                     semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & XPSR_T);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 6u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
+    SEMU_TEST_EQ_U64(context, 0x1c0u,
+                     semu_cpu_get_state(fixture.cpu)->r[15]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state, 16u, 0x181u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(fixture.bus, 6u * 4u, 4u, 0x1c1u,
+                                    &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     armv7m_take_exception(fixture.cpu, 16u,
+                                            &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(fixture.bus, 0x7f8u, 4u, 0x101u,
+                                    &fixture.error));
+    status = armv7m_branch_exchange(fixture.cpu, 0xfffffff9u,
+                                    &fixture.error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 6u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
+    SEMU_TEST_EQ_U64(context, 0x1c0u,
                      semu_cpu_get_state(fixture.cpu)->r[15]);
     semu_cpu_fixture_destroy(&fixture);
 
@@ -191,6 +233,17 @@ static void test_exception_refusals_are_precise(semu_test_context *context)
                      semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
     SEMU_TEST_EQ_U64(context, 0x1c0u,
                      semu_cpu_get_state(fixture.cpu)->r[15]);
+    semu_cpu_fixture_destroy(&fixture);
+
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state, 16u, 0x181u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     armv7m_branch_exchange(fixture.cpu, 0xfffffff5u,
+                                            &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0xfffffff4u,
+                     semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, XPSR_T,
+                     semu_cpu_get_state(fixture.cpu)->xpsr);
     semu_cpu_fixture_destroy(&fixture);
 }
 

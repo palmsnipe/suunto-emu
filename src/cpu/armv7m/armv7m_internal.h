@@ -10,6 +10,12 @@
 #define ARMV7M_XPSR_V (1u << 28)
 #define ARMV7M_XPSR_STACK_ALIGN (1u << 9)
 #define ARMV7M_XPSR_T (1u << 24)
+#define ARMV7M_XPSR_APSR_MASK 0xf80f0000u
+#define ARMV7M_XPSR_EPSR_MASK 0x0700fc00u
+#define ARMV7M_XPSR_IPSR_MASK 0x000001ffu
+#define ARMV7M_XPSR_LIVE_MASK (ARMV7M_XPSR_APSR_MASK | \
+                               ARMV7M_XPSR_EPSR_MASK | \
+                               ARMV7M_XPSR_IPSR_MASK)
 
 struct semu_cpu {
     semu_bus *bus;

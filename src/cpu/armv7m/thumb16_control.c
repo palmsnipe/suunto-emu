@@ -183,7 +183,9 @@ static semu_status miscellaneous(semu_cpu *cpu, uint16_t instruction,
         if ((mask & 2u) != 0u) {
             cpu->state.primask = disable ? 1u : 0u;
         }
-        if ((mask & 1u) != 0u) {
+        if ((mask & 1u) != 0u &&
+            (cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) != 2u &&
+            (cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) != 3u) {
             cpu->state.faultmask = disable ? 1u : 0u;
         }
         return SEMU_OK;

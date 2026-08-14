@@ -1,7 +1,5 @@
 #include "armv7m_internal.h"
 
-#define ARMV7M_XPSR_APSR_MASK 0xf80f0000u
-
 static int privileged(const semu_cpu *cpu)
 {
     return (cpu->state.xpsr & 0x1ffu) != 0u ||
@@ -23,12 +21,20 @@ static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
 {
     int is_privileged = privileged(cpu);
 
-    if (special <= 3u || (special >= 5u && special <= 7u)) {
-        /* MRS exposes APSR only; EPSR and IPSR fields read as zero. */
-        return special <= 3u ? apsr_value(cpu) : 0u;
+    if (special <= 3u) {
+        uint32_t value = apsr_value(cpu);
+        if ((special & 1u) != 0u && is_privileged) {
+            value |= cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK;
+        }
+        return value;
+    }
+    if (special == 5u || special == 7u) {
+        return is_privileged ? cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK : 0u;
+    }
+    if (special == 6u) {
+        return 0u;
     }
     if (!is_privileged) {
-        if (special == 9u) return cpu->state.psp & ~3u;
         return special == 20u ? cpu->state.control & 3u : 0u;
     }
     switch (special) {
@@ -38,7 +44,7 @@ static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
     case 17u:
     case 18u: return cpu->state.basepri & 0xffu;
     case 19u: return cpu->state.faultmask & 1u;
-    case 20u: return cpu->state.control & 7u;
+    case 20u: return cpu->state.control & 3u;
     default: return 0u;
     }
 }
@@ -131,6 +137,10 @@ static semu_status execute_msr(semu_cpu *cpu, uint16_t first,
         }
         return SEMU_OK;
     case 19u:
+        if ((cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) == 2u ||
+            (cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) == 3u) {
+            return SEMU_OK;
+        }
         cpu->state.faultmask = value & 1u;
         return SEMU_OK;
     case 20u:
@@ -141,7 +151,6 @@ static semu_status execute_msr(semu_cpu *cpu, uint16_t first,
             cpu->state.r[13] = (value & 2u) != 0u ? cpu->state.psp :
                                cpu->state.msp;
         }
-        cpu->state.control = (cpu->state.control & ~4u) | (value & 4u);
         return SEMU_OK;
     default:
         return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second,

@@ -162,6 +162,9 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     if (cpu->state.waiting_for_interrupt) {
         return step_waiting_cpu(cpu, error);
     }
+    if ((cpu->state.xpsr & ARMV7M_XPSR_T) == 0u) {
+        return armv7m_take_exception(cpu, 6u, error);
+    }
     irq = pending_irq(cpu);
     if (irq >= 0) {
         return armv7m_take_exception(cpu, 16u + (unsigned)irq, error);
