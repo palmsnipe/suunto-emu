@@ -23,7 +23,7 @@ id	phase	title	status	dependencies	ticket
 295	3	Phase 3–5 Evidence Inventory	done	000	plans/tasks/295-phase3-5-evidence-inventory.md
 298	3	Targeted Test Runner and Phase 3–5 Module Contract	done	120	plans/tasks/298-targeted-test-and-module-contract.md
 300	3	Apollo4 Clock Generator	blocked	285,295,298	plans/tasks/300-apollo4-foundation.md
-302	3	Apollo4 Power Controller	blocked	285,295,298	plans/tasks/302-apollo4-power.md
+302	3	Apollo4 Power Controller	ready	285,295,298	plans/tasks/302-apollo4-power.md
 304	3	Apollo4 Reset and MCU Control	blocked	285,295,298,300,302	plans/tasks/304-apollo4-reset-control.md
 305	3	Apollo4 GPIO and Interrupt Edges	blocked	285,295,298	plans/tasks/305-apollo4-gpio.md
 310	3	Apollo4 CTIMER	blocked	285,295,298	plans/tasks/310-apollo4-timers-uart.md
