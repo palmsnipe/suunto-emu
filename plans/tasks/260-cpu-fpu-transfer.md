@@ -31,6 +31,7 @@ One cheaper-model agent for at most two working days; one transfer file, one tes
 - `src/cpu/armv7m/thumb32_fpu.c`
 - `src/cpu/armv7m/armv7m_internal.h`
 - `src/cpu/armv7m/scb.c`
+- `tests/unit/test_cpu.c`
 - `tests/unit/test_cpu_fpu_transfer.c`
 - `tests/fixtures/cpu/fpu-transfer/**`
 - assigned rows in `tests/fixtures/cpu/coverage.tsv`
