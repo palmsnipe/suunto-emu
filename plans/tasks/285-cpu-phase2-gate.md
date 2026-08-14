@@ -1,6 +1,6 @@
 # 285 — Phase 2 CPU Integration and Determinism Gate
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 280
 **Estimate:** 1–2 days
