@@ -1,0 +1,5 @@
+# Ticket 240; basic exception frames and return tokens in guest memory order.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+cpu-exceptions.aligned-basic-frame | E-CPU-0003:B1.5.6;B1.5.8 | 00 be | 0x100 | 0x01000000 | r0=0x11223344,r12=0xaabbccdd,r13=0x800,r14=0x301,r15=0x100 | 0x40=81 01 00 00 | 1 | SEMU_OK | none | 0x100 | 0x01000000 | r0=0x11223344,r13=0x800,r15=0x100 | 0x7e0=44 33 22 11;0x7fc=00 00 00 01 | none
+cpu-exceptions.psp-stkalign | E-CPU-0003:B1.5.6-B1.5.7;B1.5.8 | 00 be | 0x100 | 0x01000000 | r13=0x804,r15=0x100 | 0x2c=81 01 00 00 | 1 | SEMU_OK | none | 0x100 | 0x01000000 | r13=0x804,r15=0x100 | 0x7fc=00 02 00 01 | none
+cpu-exceptions.invalid-exc-return | E-CPU-0003:A3.2;B1.5.8 | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | 0x0c=a1 01 00 00;0x18=c1 01 00 00 | 1 | SEMU_OK | none | 0x1c0 | 0x01000006 | r13=0x7e0,r15=0x1c0 | - | architectural-fault-request:usagefault

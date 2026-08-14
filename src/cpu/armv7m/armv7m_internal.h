@@ -8,6 +8,7 @@
 #define ARMV7M_XPSR_Z (1u << 30)
 #define ARMV7M_XPSR_C (1u << 29)
 #define ARMV7M_XPSR_V (1u << 28)
+#define ARMV7M_XPSR_STACK_ALIGN (1u << 9)
 #define ARMV7M_XPSR_T (1u << 24)
 
 struct semu_cpu {
@@ -23,6 +24,7 @@ struct semu_cpu {
     uint8_t irq_priority[ARMV7M_IRQ_COUNT];
     uint8_t itstate;
     uint8_t event_register;
+    uint8_t stack_align;
     uint8_t exclusive_valid;
     uint32_t exclusive_address;
     unsigned exclusive_width;

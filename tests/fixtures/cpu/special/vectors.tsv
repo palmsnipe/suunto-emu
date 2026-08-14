@@ -1,0 +1,6 @@
+# Ticket 240 special-register vectors; bytes are in guest memory order.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+special.mrs-privileged | E-CPU-0002:B5.1.1/B5.2.2;E-CPU-0003:B5.1.1/B5.2 | ef f3 03 81 | 0x100 | 0x89000007 | msp=0x12345,psp=0x23456,control=5 | - | 1 | SEMU_OK | none | 0x100 | 0x89000007 | r1=0x89000007 | - | none
+special.mrs-unprivileged-raz | E-CPU-0003:B5.2.2 | ef f3 08 80 | 0x100 | 0x01000000 | msp=0x12344,control=1 | - | 1 | SEMU_OK | none | 0x100 | 0x01000000 | r0=0 | - | none
+special.msr-masks-control | E-CPU-0003:B5.2.3 | 83 f3 10 88 | 0x100 | 0x01000000 | r3=1,primask=0 | - | 1 | SEMU_OK | none | 0x100 | 0x01000000 | primask=1 | - | none
+special.msr-invalid-fixed-fields | E-CPU-0003:B5.2.3 | ef f3 00 8d | 0x100 | 0x01000000 | r0=0x13579bdf | - | 1 | SEMU_ERR_UNSUPPORTED | unsupported_instruction | 0x100 | 0x01000000 | r0=0x13579bdf | - | none
