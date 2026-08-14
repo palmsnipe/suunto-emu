@@ -30,7 +30,7 @@ id	phase	title	status	dependencies	ticket
 312	3	Apollo4 System Timer	ready	285,295,298	plans/tasks/312-apollo4-stimer.md
 314	3	Apollo4 UART	done	285,295,298	plans/tasks/314-apollo4-uart.md
 315	3	Apollo4 IOM Controller	blocked	285,295,298	plans/tasks/315-apollo4-controllers.md
-316	3	Apollo4 MSPI Controller	blocked	285,295,298	plans/tasks/316-apollo4-mspi.md
+316	3	Apollo4 MSPI Controller	ready	285,295,298	plans/tasks/316-apollo4-mspi.md
 317	3	Apollo4 DMA Engine	blocked	285,295,298	plans/tasks/317-apollo4-dma.md
 318	3	Apollo4 MRAM Controller	ready	285,295,298	plans/tasks/318-apollo4-mram.md
 320	3	Apollo4 Phase 3 Integration	blocked	300,302,304,305,310,312,314,315,316,317,318	plans/tasks/320-apollo4-integration.md
