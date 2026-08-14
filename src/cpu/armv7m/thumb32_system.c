@@ -5,9 +5,12 @@ semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
                                  semu_error *error)
 {
     (void)pc;
+    if (first == 0xf3bfu && second == 0x8f2fu) {
+        armv7m_clear_exclusive(cpu);
+        return SEMU_OK;
+    }
     if (first == 0xf3bfu &&
-        (second == 0x8f2fu || second == 0x8f4fu || second == 0x8f5fu ||
-         second == 0x8f6fu)) {
+        (second == 0x8f4fu || second == 0x8f5fu || second == 0x8f6fu)) {
         return SEMU_OK;
     }
     if (first == 0xf3afu && second == 0x8000u) {

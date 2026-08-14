@@ -34,6 +34,11 @@ semu_status semu_bus_read(semu_bus *bus, uint32_t address, unsigned width,
                           uint32_t *value, semu_error *error);
 semu_status semu_bus_write(semu_bus *bus, uint32_t address, unsigned width,
                            uint32_t value, semu_error *error);
+/* Validate a CPU multi-write without invoking a device callback or mutating
+ * memory. Device regions are refused because their callbacks are not
+ * preflightable. */
+semu_status semu_bus_validate_write(semu_bus *bus, uint32_t address,
+                                    unsigned width, semu_error *error);
 semu_status semu_bus_load(semu_bus *bus, uint32_t address, const uint8_t *data,
                           size_t size, semu_error *error);
 semu_status semu_bus_copy_out(semu_bus *bus, uint32_t address, uint8_t *data,

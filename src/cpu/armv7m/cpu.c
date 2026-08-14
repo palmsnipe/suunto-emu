@@ -103,6 +103,7 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
     cpu->vector_table = vector_table;
     cpu->itstate = 0u;
     cpu->event_register = 0u;
+    armv7m_clear_exclusive(cpu);
     if (armv7m_read(cpu, vector_table, 4u, &initial_sp, error) != SEMU_OK ||
         armv7m_read(cpu, vector_table + 4u, 4u, &initial_pc, error) != SEMU_OK) {
         return;

@@ -318,6 +318,34 @@ semu_status semu_bus_write(semu_bus *bus, uint32_t address, unsigned width,
     return SEMU_OK;
 }
 
+semu_status semu_bus_validate_write(semu_bus *bus, uint32_t address,
+                                    unsigned width, semu_error *error)
+{
+    bus_region *region;
+
+    if (bus == NULL || !valid_width(width)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid write validation");
+        return SEMU_ERR_ARGUMENT;
+    }
+    region = find_region(bus, address, width);
+    if (region == NULL) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "unmapped write at 0x%08x", address);
+        return SEMU_ERR_RANGE;
+    }
+    if (region->kind == REGION_ROM) {
+        semu_error_set(error, SEMU_ERR_STATE, "write to ROM %s", region->name);
+        return SEMU_ERR_STATE;
+    }
+    if (region->kind == REGION_DEVICE) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "device %s has no write preflight", region->name);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 semu_status semu_bus_load(semu_bus *bus, uint32_t address, const uint8_t *data,
                           size_t size, semu_error *error)
 {

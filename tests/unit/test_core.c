@@ -13,7 +13,11 @@ typedef struct event_log {
 
 typedef struct event_item { event_log *log; unsigned value; } event_item;
 
-typedef struct test_device { uint32_t value; unsigned resets; } test_device;
+typedef struct test_device {
+    uint32_t value;
+    unsigned resets;
+    unsigned writes;
+} test_device;
 
 static void record_event(void *opaque, uint64_t now_ns)
 {
@@ -41,6 +45,7 @@ static semu_status device_write(void *opaque, uint32_t offset, unsigned width,
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "bad register");
         return SEMU_ERR_UNSUPPORTED;
     }
+    ++device->writes;
     device->value = value;
     return SEMU_OK;
 }
@@ -92,7 +97,7 @@ static void test_bus_memory_and_device(semu_test_context *context)
 {
     static const uint8_t rom[] = {1u, 2u, 3u, 4u};
     semu_bus_device_ops ops = {device_read, device_write, device_reset};
-    test_device device = {0u, 0u};
+    test_device device = {0u, 0u, 0u};
     semu_error error;
     semu_bus *bus = semu_bus_create(&error);
     uint32_t value;
@@ -109,6 +114,8 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x1000u, 4u, 0x44332211u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_validate_write(bus, 0x1000u, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_copy_out(bus, 0x1000u, output, 4u, &error));
     SEMU_TEST_ASSERT(context, memcmp(output, "\x11\x22\x33\x44", 4u) == 0);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -118,8 +125,14 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x04030201u, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
                      semu_bus_write(bus, 0x2000u, 1u, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+                     semu_bus_validate_write(bus, 0x2000u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_validate_write(bus, 0x3000u, 4u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, device.writes);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x3000u, 4u, 0xa5u, &error));
+    SEMU_TEST_EQ_U64(context, 1u, device.writes);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, 0x3000u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0xa5u, value);
     semu_bus_reset(bus);

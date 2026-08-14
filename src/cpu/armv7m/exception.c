@@ -65,6 +65,7 @@ semu_status armv7m_take_exception(semu_cpu *cpu, unsigned exception,
     if (exception >= 16u + ARMV7M_IRQ_COUNT) {
         return armv7m_unsupported(cpu, exception, error);
     }
+    armv7m_clear_exclusive(cpu);
     used_psp = (cpu->state.xpsr & 0x1ffu) == 0u &&
                (cpu->state.control & 2u) != 0u;
     sp = (used_psp ? cpu->state.psp : cpu->state.msp) - 32u;
