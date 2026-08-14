@@ -1,6 +1,6 @@
 # 314 — Apollo4 UART
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 

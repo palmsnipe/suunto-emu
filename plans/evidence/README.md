@@ -7,11 +7,11 @@ capture bytes, frame pixels, or compatibility payloads.
 The inspected `suunto-firmware` source revision is:
 
 ```text
-1d633f27deb61dc022a29d14e56e9988983b783a
+fa043f82a9a8b3c3cf378a48dbe38563e05f7160
 ```
 
 Source-tree paths in the TSV are repository-relative references to that
-read-only checkout. The Sapporo firmware package was hashed locally as:
+evidence checkout. The Sapporo firmware package was hashed locally as:
 
 ```text
 00eba9e7e2a06263894d11030692daf6f3744f8937d84e0f3ff3c078b0516f41
