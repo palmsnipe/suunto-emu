@@ -1,6 +1,6 @@
 # 270 — FPU Compare, Conversion, and Immediate Forms
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 265
 **Estimate:** 2 days
