@@ -1,6 +1,6 @@
 # 180 — CPU Evidence Pins and Vector Contract
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 120
 **Estimate:** 1 day

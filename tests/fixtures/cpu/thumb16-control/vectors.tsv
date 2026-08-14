@@ -1,0 +1,18 @@
+# Ticket 205 Thumb-16 control vectors; bytes are in guest memory order.
+# Each row is a bounded program with an unexecuted BKPT stop word where useful.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+thumb16.bcc-taken-forward | E-CPU-0002:A5.2.5/A7.7 Bcc | 06 d0 00 be | 0x100 | 0x41000000 | - | - | 1 | SEMU_OK | none | 0x10a | 0x41000000 | - | - | none
+thumb16.bcc-not-taken | E-CPU-0002:A5.2.5/A7.7 Bcc | 06 d1 00 be | 0x100 | 0x41000000 | - | - | 1 | SEMU_OK | none | 0x102 | 0x41000000 | - | - | none
+thumb16.bcc-backward-bound | E-CPU-0002:A5.2.5/A7.7 Bcc | 80 d1 00 be | 0x100 | 0x01000000 | - | - | 1 | SEMU_OK | none | 0x04 | 0x01000000 | - | - | none
+thumb16.b-forward-bound | E-CPU-0002:A5.2.5/A7.7 B | ff e3 00 be | 0x100 | 0x01000000 | - | - | 1 | SEMU_OK | none | 0x902 | 0x01000000 | - | - | none
+thumb16.cbz-cbnz | E-CPU-0002:A5.2.5/A7.7 CBZ/CBNZ | f8 b3 00 be | 0x100 | 0x01000000 | r0=0 | - | 1 | SEMU_OK | none | 0x182 | 0x01000000 | - | - | none
+thumb16.high-register-pc-sp | E-CPU-0002:A5.2.3/A7.7 ADD/CMP/MOV | 80 44 c1 46 89 45 85 44 00 be | 0x100 | 0x31000000 | r0=3,r1=3,r13=0x800 | - | 4 | SEMU_OK | none | 0x108 | 0x61000000 | r8=3,r9=3,r13=0x803 | - | none
+thumb16.blx-register-link | E-CPU-0002:A5.2.3/A7.7 BLX | 80 47 00 be | 0x100 | 0x01000000 | r0=0x181 | - | 1 | SEMU_OK | none | 0x180 | 0x01000000 | r14=0x103 | - | none
+thumb16.bx-even-refusal | E-CPU-0002:A5.2.3/A7.7 BX | 00 47 00 be | 0x100 | 0x01000000 | r0=0x180,r14=0xfeed0001 | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x102 | 0x01000000 | r14=0xfeed0001 | - | emulator-refusal:even-bx-target
+thumb16.it-lengths-inversion | E-CPU-0002:A5.2.6/A7.7 IT | 19 bf 80 46 89 46 92 46 9b 46 00 be | 0x100 | 0x41000000 | r0=1,r1=2,r2=3,r3=4 | - | 5 | SEMU_OK | none | 0x10a | 0x41000000 | r8=0,r9=0,r10=3,r11=4 | - | none
+thumb16.sev-wfe | E-CPU-0002:A5.2.6/A7.7 SEV/WFE | 40 bf 20 bf 00 be | 0x100 | 0x01000000 | - | - | 2 | SEMU_OK | none | 0x104 | 0x01000000 | - | - | none
+thumb16.wfi-deadlock | E-CPU-0002:A5.2.6/A7.7 WFI | 30 bf 00 be | 0x100 | 0x01000000 | - | - | 2 | SEMU_OK | SEMU_STOP_WFI_DEADLOCK | 0x102 | 0x01000000 | - | - | none
+thumb16.cps-privileged | E-CPU-0002:A5.2.6/A7.7 CPS | 72 b6 62 b6 71 b6 61 b6 73 b6 63 b6 00 be | 0x100 | 0x01000000 | - | - | 6 | SEMU_OK | none | 0x10c | 0x01000000 | primask=0,faultmask=0 | - | none
+thumb16.reverse-extend | E-CPU-0002:A5.2.6/A7.7 REV/SXTB/UXTH | 08 ba 5a ba ec ba 4e b2 1f b2 e9 b2 bb b2 00 be | 0x100 | 0x01000000 | r1=0x12345680,r3=0x00008001,r5=0x123480ff | - | 7 | SEMU_OK | none | 0x10e | 0x01000000 | r0=0x80563412,r2=0x180,r4=0xffffff80,r6=0xffffff80,r7=0xffff8001,r1=0xff,r3=0x8001 | - | none
+thumb16.bkpt-halt | E-CPU-0002:A5.2.6/A7.7 BKPT | 00 be | 0x100 | 0x01000000 | - | - | 1 | SEMU_OK | SEMU_STOP_HALT | 0x102 | 0x01000000 | - | - | none
+thumb16.udf-refusal | E-CPU-0002:A5.2.6/A7.7 UDF | 00 de 00 be | 0x100 | 0x01000000 | r0=0x13579bdf | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x102 | 0x01000000 | r0=0x13579bdf | - | emulator-refusal:unsupported-instruction

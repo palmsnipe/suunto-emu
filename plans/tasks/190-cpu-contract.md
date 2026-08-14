@@ -1,6 +1,6 @@
 # 190 — CPU Contract and Baseline Decomposition
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 180
 **Estimate:** 2–3 days

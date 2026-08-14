@@ -1,6 +1,6 @@
 # 220 — Thumb-32 Data Processing and Branches
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 190, 200, 205
 **Estimate:** 2–3 days

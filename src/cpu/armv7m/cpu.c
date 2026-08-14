@@ -95,10 +95,14 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
     }
     memset(&cpu->state, 0, sizeof(cpu->state));
     memset(cpu->irq_level, 0, sizeof(cpu->irq_level));
+    memset(cpu->irq_priority, 0, sizeof(cpu->irq_priority));
     cpu->stop_reason = SEMU_STOP_NONE;
     cpu->fault_instruction = 0u;
+    cpu->fault_address = 0u;
+    cpu->has_fault_address = 0u;
     cpu->vector_table = vector_table;
     cpu->itstate = 0u;
+    cpu->event_register = 0u;
     if (armv7m_read(cpu, vector_table, 4u, &initial_sp, error) != SEMU_OK ||
         armv7m_read(cpu, vector_table + 4u, 4u, &initial_pc, error) != SEMU_OK) {
         return;
@@ -215,6 +219,20 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
     }
 }
 
+void semu_cpu_set_irq_priority(semu_cpu *cpu, unsigned irq, uint8_t priority)
+{
+    if (cpu != NULL && irq < ARMV7M_IRQ_COUNT) {
+        cpu->irq_priority[irq] = priority;
+    }
+}
+
+void semu_cpu_signal_event(semu_cpu *cpu)
+{
+    if (cpu != NULL) {
+        cpu->event_register = 1u;
+    }
+}
+
 semu_stop_reason semu_cpu_stop_reason(const semu_cpu *cpu)
 {
     return cpu != NULL ? cpu->stop_reason : SEMU_STOP_FIRMWARE_ASSERT;
@@ -223,6 +241,20 @@ semu_stop_reason semu_cpu_stop_reason(const semu_cpu *cpu)
 uint32_t semu_cpu_fault_instruction(const semu_cpu *cpu)
 {
     return cpu != NULL ? cpu->fault_instruction : 0u;
+}
+
+int semu_cpu_fault_address(const semu_cpu *cpu, uint32_t *address)
+{
+    if (cpu == NULL || cpu->has_fault_address == 0u) {
+        if (address != NULL) {
+            *address = 0u;
+        }
+        return 0;
+    }
+    if (address != NULL) {
+        *address = cpu->fault_address;
+    }
+    return 1;
 }
 
 void armv7m_set_itstate(semu_cpu *cpu, uint8_t value)

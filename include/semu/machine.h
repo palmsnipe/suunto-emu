@@ -1,6 +1,7 @@
 #ifndef SEMU_MACHINE_H
 #define SEMU_MACHINE_H
 
+#include "semu/display.h"
 #include "semu/frame.h"
 #include "semu/input.h"
 #include "semu/log.h"
@@ -21,6 +22,8 @@ typedef struct semu_machine_options {
     semu_logger *logger;
     semu_frame_callback frame_callback;
     void *frame_context;
+    semu_display_backend_submit_fn display_backend_submit;
+    void *display_backend_context;
 } semu_machine_options;
 
 semu_machine *semu_machine_create(const semu_machine_options *options,

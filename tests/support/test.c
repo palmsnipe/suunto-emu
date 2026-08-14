@@ -4,6 +4,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "transcript.c"
+
 void semu_test_fail(semu_test_context *context, const char *file, unsigned line,
                     const char *expression)
 {

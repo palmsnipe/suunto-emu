@@ -1,6 +1,6 @@
 # 298 — Targeted Test Runner and Phase 3–5 Module Contract
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 120
 

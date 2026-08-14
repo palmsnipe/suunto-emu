@@ -1,6 +1,6 @@
 # 200 — Thumb-16 Shifts and Arithmetic
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 190
 **Estimate:** 1–2 days

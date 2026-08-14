@@ -1,6 +1,6 @@
 # 295 — Phase 3–5 Evidence Inventory
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 000
 

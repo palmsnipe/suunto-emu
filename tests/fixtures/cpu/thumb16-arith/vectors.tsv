@@ -1,0 +1,31 @@
+# Ticket 200 Thumb-16 arithmetic vectors; bytes are in guest memory order.
+# Each row is bounded to one arithmetic instruction plus an unexecuted BKPT.
+vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
+thumb16.lsl-imm-zero | E-CPU-0002:A5.2.1/A7.7 LSL | 00 00 00 be | 0x100 | 0x31000000 | r0=0x80000001 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0x80000001 | - | none
+thumb16.lsl-imm-one | E-CPU-0002:A5.2.1/A7.7 LSL | 40 00 00 be | 0x100 | 0x31000000 | r0=0x40000000 | - | 1 | SEMU_OK | none | 0x102 | 0x91000000 | r0=0x80000000 | - | none
+thumb16.lsl-imm-31 | E-CPU-0002:A5.2.1/A7.7 LSL | c0 07 00 be | 0x100 | 0x31000000 | r0=1 | - | 1 | SEMU_OK | none | 0x102 | 0x91000000 | r0=0x80000000 | - | none
+thumb16.lsr-imm-32 | E-CPU-0002:A5.2.1/A7.7 LSR | 00 08 00 be | 0x100 | 0x11000000 | r0=0x80000000 | - | 1 | SEMU_OK | none | 0x102 | 0x71000000 | r0=0 | - | none
+thumb16.asr-imm-32 | E-CPU-0002:A5.2.1/A7.7 ASR | 00 10 00 be | 0x100 | 0x31000000 | r0=0x80000000 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0xffffffff | - | none
+thumb16.lsl-reg-zero | E-CPU-0002:A5.2.1/A7.7 LSL | 88 40 00 be | 0x100 | 0x31000000 | r0=0x80000001,r1=0 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0x80000001 | - | none
+thumb16.lsl-reg-32 | E-CPU-0002:A5.2.1/A7.7 LSL | 88 40 00 be | 0x100 | 0x11000000 | r0=1,r1=32 | - | 1 | SEMU_OK | none | 0x102 | 0x71000000 | r0=0 | - | none
+thumb16.lsl-reg-33 | E-CPU-0002:A5.2.1/A7.7 LSL | 88 40 00 be | 0x100 | 0x31000000 | r0=1,r1=33 | - | 1 | SEMU_OK | none | 0x102 | 0x51000000 | r0=0 | - | none
+thumb16.lsl-reg-255 | E-CPU-0002:A5.2.1/A7.7 LSL | 88 40 00 be | 0x100 | 0x31000000 | r0=0x80000000,r1=255 | - | 1 | SEMU_OK | none | 0x102 | 0x51000000 | r0=0 | - | none
+thumb16.lsr-reg-32 | E-CPU-0002:A5.2.1/A7.7 LSR | c8 40 00 be | 0x100 | 0x11000000 | r0=0x80000000,r1=32 | - | 1 | SEMU_OK | none | 0x102 | 0x71000000 | r0=0 | - | none
+thumb16.asr-reg-32 | E-CPU-0002:A5.2.1/A7.7 ASR | 08 41 00 be | 0x100 | 0x11000000 | r0=0x80000000,r1=32 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0xffffffff | - | none
+thumb16.ror-reg-32 | E-CPU-0002:A5.2.1/A7.7 ROR | c8 41 00 be | 0x100 | 0x11000000 | r0=0x80000001,r1=32 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0x80000001 | - | none
+thumb16.add-reg-carry | E-CPU-0002:A5.2.1/A7.7 ADD | 40 18 00 be | 0x100 | 0x01000000 | r0=0xffffffff,r1=1 | - | 1 | SEMU_OK | none | 0x102 | 0x61000000 | r0=0 | - | none
+thumb16.sub-reg-borrow | E-CPU-0002:A5.2.1/A7.7 SUB | 40 1a 00 be | 0x100 | 0x01000000 | r0=0,r1=1 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0xffffffff | - | none
+thumb16.add-imm3 | E-CPU-0002:A5.2.1/A7.7 ADD | 40 1c 00 be | 0x100 | 0x01000000 | r0=0xffffffff | - | 1 | SEMU_OK | none | 0x102 | 0x61000000 | r0=0 | - | none
+thumb16.sub-imm3 | E-CPU-0002:A5.2.1/A7.7 SUB | 40 1e 00 be | 0x100 | 0x01000000 | r0=0 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0xffffffff | - | none
+thumb16.add-signed-overflow | E-CPU-0002:A5.2.1/A7.7 ADD | 40 18 00 be | 0x100 | 0x01000000 | r0=0x7fffffff,r1=1 | - | 1 | SEMU_OK | none | 0x102 | 0x91000000 | r0=0x80000000 | - | none
+thumb16.movs-zero | E-CPU-0002:A5.2.2/A7.7 MOVS | 00 20 00 be | 0x100 | 0x31000000 | r0=0xffffffff | - | 1 | SEMU_OK | none | 0x102 | 0x41000000 | r0=0 | - | none
+thumb16.cmps-borrow | E-CPU-0002:A5.2.2/A7.7 CMP | 01 28 00 be | 0x100 | 0x01000000 | r0=0 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0 | - | none
+thumb16.adds-imm-carry | E-CPU-0002:A5.2.2/A7.7 ADD | 01 30 00 be | 0x100 | 0x01000000 | r0=0xffffffff | - | 1 | SEMU_OK | none | 0x102 | 0x61000000 | r0=0 | - | none
+thumb16.subs-imm-borrow | E-CPU-0002:A5.2.2/A7.7 SUB | 01 38 00 be | 0x100 | 0x01000000 | r0=0 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0xffffffff | - | none
+thumb16.and-preserve-cv | E-CPU-0002:A5.2.2/A7.7 AND | 08 40 00 be | 0x100 | 0x31000000 | r0=0xf0f00000,r1=0x0ff00000 | - | 1 | SEMU_OK | none | 0x102 | 0x31000000 | r0=0x00f00000 | - | none
+thumb16.eor-negative | E-CPU-0002:A5.2.2/A7.7 EOR | 48 40 00 be | 0x100 | 0x31000000 | r0=0xf0f00000,r1=0x0ff00000 | - | 1 | SEMU_OK | none | 0x102 | 0xB1000000 | r0=0xff000000 | - | none
+thumb16.adc-carry | E-CPU-0002:A5.2.2/A7.7 ADC | 48 41 00 be | 0x100 | 0x21000000 | r0=0xffffffff,r1=0 | - | 1 | SEMU_OK | none | 0x102 | 0x61000000 | r0=0 | - | none
+thumb16.sbc-borrow | E-CPU-0002:A5.2.2/A7.7 SBC | 88 41 00 be | 0x100 | 0x01000000 | r0=0,r1=0 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0xffffffff | - | none
+thumb16.rsb-negative | E-CPU-0002:A5.2.2/A7.7 RSB | 48 42 00 be | 0x100 | 0x01000000 | r0=0x12345678,r1=1 | - | 1 | SEMU_OK | none | 0x102 | 0x81000000 | r0=0xffffffff | - | none
+thumb16.mul-wrap | E-CPU-0002:A5.2.2/A7.7 MUL | 48 43 00 be | 0x100 | 0x31000000 | r0=0x10000,r1=0x10000 | - | 1 | SEMU_OK | none | 0x102 | 0x41000000 | r0=0 | - | none
+thumb16.udf-refusal | E-CPU-0002:A5.2.6/A7.7.194 UDF | 00 de 00 be | 0x100 | 0xB1000000 | r0=0x13579bdf,r1=0x2468ace0 | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x102 | 0xB1000000 | r0=0x13579bdf,r1=0x2468ace0 | - | emulator-refusal:unsupported-instruction

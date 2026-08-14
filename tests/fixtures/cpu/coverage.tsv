@@ -1,0 +1,75 @@
+# Ticket 180 seed plus ticket 190 contract coverage. Rows describe only exact
+# behaviors covered by the named tests; no row claims family completeness.
+# status is one of: missing, vector-only, implemented, verified.
+# No row below claims that its instruction family is complete.
+family	behavior	status	evidence	section	validation	case_kind	notes
+reset	reset-vector-and-thumb-state	implemented	E-CPU-0003	B1.5.3	test_reset_arithmetic_and_branch	positive	Exact reset MSP/PC/xPSR boundary; arithmetic/branch smoke remains combined.
+thumb16	MOVS-ADDS-CMP-Bcc-BKPT-smoke	implemented	E-CPU-0002	A5.2.1;A5.2.6;A7.7	test_reset_arithmetic_and_branch	positive	Only the encodings in the named smoke program are covered.
+thumb16	shift-immediate-lsl-lsr-asr	verified	E-CPU-0002	A5.2.1;A7.7 LSL/LSR/ASR	test_shift_immediate_boundaries	positive	Zero, one, and 31-bit immediate shifts, including LSR/ASR #32 aliases and exact NZC preservation.
+thumb16	shift-register-lsl-lsr-asr-ror	verified	E-CPU-0002	A5.2.1;A7.7 LSL/LSR/ASR/ROR	test_shift_register_boundaries	positive	Register amounts 0/1/31/32/33/255 with zero/sign/carry boundary vectors.
+thumb16	add-sub-register-and-imm3	verified	E-CPU-0002	A5.2.1;A7.7 ADD/SUB	test_add_sub_forms	positive	Register and three-bit immediate forms cover carry, borrow, and signed overflow.
+thumb16	mov-cmp-add-sub-imm8	verified	E-CPU-0002	A5.2.2;A7.7 MOVS/CMP/ADD/SUB	test_immediate_forms	positive	Eight-bit immediate forms cover zero, borrow, and carry without result writes for CMP.
+thumb16	alu-logical-test	verified	E-CPU-0002	A5.2.2;A7.7 AND/EOR/TST/ORR/BIC/MVN	test_logical_forms_preserve_carry_overflow	positive	Logical/test forms update N/Z and preserve APSR C/V.
+thumb16	alu-carry-compare-reverse	verified	E-CPU-0002	A5.2.2;A7.7 ADC/SBC/RSB/CMP/CMN	test_carry_compare_reverse_forms	positive	Carry-in, borrow, reverse-subtract, compare, and compare-negative flag vectors.
+thumb16	alu-ror-mul-wrap	verified	E-CPU-0002	A5.2.2;A7.7 ROR/MUL	test_ror_and_multiply_wrap	positive	ROR carry-out and 32-bit multiply wrap with C/V preservation.
+thumb16	unsupported-refusal-boundary	verified	E-CPU-0002	A5.2.6;A7.7.194 UDF	test_unsupported_refusal	refusal	Unsupported encoding does not retire or mutate general registers/APSR.
+thumb16	STR-LDR-word-aligned	implemented	E-CPU-0002	A5.2.4;A7.7 STR/LDR	test_load_store	positive	One aligned word transfer; widths, alignment, and faults remain missing.
+thumb16	WFI-deadlock	implemented	E-CPU-0002	A7.7 WFI	test_wfi_deadlock	refusal	Deadlocked WFI stop is covered; wake/event variants remain missing.
+thumb16	UDF-unsupported-refusal	implemented	E-CPU-0002	A5.2.6;A7.7.194	test_unsupported_instruction	refusal	No retirement and exact unsupported stop are required.
+thumb16	Bcc-taken-not-taken-and-bounds	implemented	E-CPU-0002	A5.2.5;A7.7 B/Bcc	test_branch_conditions_and_bounds	positive	Taken, not-taken, and signed forward/backward displacement bounds are exact.
+thumb16	CBZ-CBNZ-forward-bounds	implemented	E-CPU-0002	A5.2.5;A7.7 CBZ/CBNZ	test_compare_branches	positive	Zero and nonzero decisions use the bounded forward offset.
+thumb16	high-register-ADD-CMP-MOV-PC-SP	implemented	E-CPU-0002	A5.2.3;A7.7 ADD/CMP/MOV	test_high_register_operations	positive	High destinations, SP writeback, PC operands, and APSR behavior are covered.
+thumb16	BX-BLX-register-link	implemented	E-CPU-0002	A5.2.3;A7.7 BX/BLX	test_pc_link_and_bx_refusal	positive	Odd target exchange and BLX Thumb-bit LR semantics are exact.
+thumb16	IT-lengths-and-condition-inversion	implemented	E-CPU-0002	A5.2.6;A7.7 IT	test_it_blocks_and_inversion	positive	All one-to-four instruction lengths and T/E inversion are bounded.
+thumb16	hints-SEV-WFE-WFI-NOP-YIELD	implemented	E-CPU-0002	A5.2.6;A7.7 hints	test_hints_and_sleep	positive	Event consumption and deterministic sleep/deadlock are covered.
+thumb16	CPSIE-CPSID-privilege-fields	implemented	E-CPU-0002	A5.2.6;A7.7 CPS	test_cps_and_reserved_refusals	positive	Privileged I/F/IF enable and disable fields round-trip to masks.
+thumb16	REV-REV16-REVSH-and-extensions	implemented	E-CPU-0002	A5.2.6;A7.7 REV/SXTB/UXTH	test_reverse_and_extend	positive	Byte/halfword reversal and signed/unsigned extension are exact.
+thumb16	BKPT-halt	implemented	E-CPU-0002	A5.2.6;A7.7 BKPT	test_hints_and_sleep	positive	BKPT retires and records the exact halt stop.
+thumb16	control-reserved-and-target-refusals	implemented	E-CPU-0002	A5.2.3;A5.2.6;A7.7	test_cps_and_reserved_refusals	refusal	Reserved hints/IT/CPS/reverse/high-register forms, even BX, and UDF fail closed without retirement.
+thumb32	MOV.W-r0-sp	implemented	E-CPU-0001	A7.7.77	test_mov_w_sp_regression	positive	Exact memory-order bytes are 4f ea 0d 00.
+thumb32	STMDB-sp-r3-r8-lr	implemented	E-CPU-0001	A5.3.5;A7.7 STMDB	test_stmdb_sp_regression	positive	Exact decrement-before layout; no family-completeness claim.
+exceptions	SVC-basic-return	implemented	E-CPU-0003	B1.5;exception-entry/return pseudocode	test_svc_exception_return	positive	Current narrow basic-frame path only.
+interrupts	level-IRQ-entry-return	implemented	E-CPU-0003	B1.5;B3.4 NVIC	test_level_irq	positive	Current level-triggered IRQ path only; priority/nesting remain missing.
+special	MSR-PSP	implemented	E-CPU-0002	A7.7.83 MSR;B1 registers	test_msr_psp	positive	One PSP transfer; access-control matrix remains missing.
+thumb32	ORR-modified-immediate	implemented	E-CPU-0002	A5.3.1;A7.7 ORR	test_orr_modified_immediate	positive	One immediate expansion only.
+fpu	VMSR-VMRS-FPSCR	implemented	E-CPU-0004	A2.5;B1.6;A7.7 VMSR/VMRS	test_fpscr_transfer	positive	Raw FPSCR round trip only; FP arithmetic/context remain missing.
+thumb32	LDR.W-post-index-word	implemented	E-CPU-0002	A5.3.7;A7.7 LDR	test_indexed_word_load	positive	One post-indexed word load only.
+thumb32	MOV-register-SP-and-shift-aliases	verified	E-CPU-0001;E-CPU-0002	A7.7.77;A5.3.1	test_EA4F_000D_and_register_forms	positive	MOV.W r0,sp, LSL/LSR/ASR/RRX boundaries, and PC/SP restrictions are bounded; exact E-CPU-0001 bytes are retained.
+thumb32	logical-register-forms-and-test-aliases	verified	E-CPU-0002	A5.3.1;A7.7 AND/BIC/ORR/ORN/EOR/TST/TEQ	test_EA4F_000D_and_register_forms	positive	All five logical register operations plus TST/TEQ flag-only aliases and no-S flag preservation are covered.
+thumb32	arithmetic-register-forms-and-compare-aliases	verified	E-CPU-0002	A5.3.2;A7.7 ADD/ADC/SBC/SUB/RSB/CMN/CMP	test_EA4F_000D_and_register_forms	positive	All five register arithmetic operations plus CMN/CMP aliases cover carry-in, reverse, and no-S flag preservation.
+thumb32	modified-immediate-forms-and-expansion	verified	E-CPU-0002	A5.3.1;A7.7 data-processing immediate	test_modified_immediate_and_aliases	positive	Modified immediate expansion, ORR existing regression, S-bit, and logical/arithmetic immediate paths are bounded.
+thumb32	mov-mvn-immediate-aliases	verified	E-CPU-0002	A5.3.1;A7.7 MOV/MVN	test_modified_immediate_and_aliases	positive	MOV/MVN immediate aliases and flag/no-flag behavior are covered; reserved second-halfword forms refuse.
+thumb32	movw-movt	verified	E-CPU-0002	A5.3.3;A7.7 MOVW/MOVT	test_wide_bitfield_and_extract	positive	MOVW zero-extends, MOVT preserves the lower halfword, and the i-bit immediate split is covered; SP/PC destinations refuse.
+thumb32	addw-subw-adr	verified	E-CPU-0002	A5.3.3;A7.7 ADDW/SUBW/ADR	test_wide_bitfield_and_extract	positive	12-bit wide arithmetic, legal SP+SP forms, and aligned PC-relative ADR use the architectural PC base.
+thumb32	clz	verified	E-CPU-0002	A5.3.4;A7.7 CLZ	test_wide_bitfield_and_extract	positive	CLZ zero and nonzero leading-bit behavior is bounded; SP/PC operands refuse.
+thumb32	bfi-bfc	verified	E-CPU-0002	A5.3.4;A7.7 BFI/BFC	test_wide_bitfield_and_extract	positive	Bitfield widths one, eight, and maximum are represented; invalid lsb/msb ordering refuses.
+thumb32	sbfx-ubfx	verified	E-CPU-0002	A5.3.4;A7.7 SBFX/UBFX	test_wide_bitfield_and_extract	positive	Signed and unsigned extraction cover width one, eight, and maximum without signed shifts.
+thumb32	bw-bl-signed-limits	verified	E-CPU-0002	A5.3.11;A7.7 B/BL	test_branch_bounds_and_link	positive	B.W signed negative/positive limits, zero displacement, BL target, and LR Thumb bit are exact.
+thumb32	data-refusal-state	verified	E-CPU-0002	A5.3.1;A5.3.3;A5.3.4;A7.7	test_refusals_preserve_state	refusal	Reserved immediate, bad PC/SP registers, invalid bitfield ranges, and reserved target forms leave architectural state unchanged.
+contract	reset-fixture-vector-state	implemented	E-CPU-0003	B1.5.3	test_cpu_contract_reset	positive	Reusable fixture reset baseline and no-fault state.
+contract	wide-fetch-boundary-refusal	implemented	E-CPU-0002	A3.2	test_cpu_contract_fetch_boundary	refusal	Second halfword outside the mapped RAM is refused without retirement.
+contract	top-level-16-32-dispatch	implemented	E-CPU-0002	A5.2;A5.3	test_cpu_contract_dispatch_16_32	positive	One narrow and one wide baseline instruction route through distinct families.
+contract	unsupported-encoding-refusal	implemented	E-CPU-0002	A5.2.6;A7.7.194	test_cpu_contract_unsupported	refusal	Unsupported encoding retains PC/state and does not retire.
+contract	precise-unmapped-address	implemented	E-CPU-0002	A3.2	test_cpu_contract_unmapped_fault_address	refusal	Unmapped data access records the exact failing address.
+contract	out-of-range-irq-setters	implemented	E-CPU-0003	B3.4	test_cpu_contract_irq_range	refusal	IRQ level and priority setters ignore index 256.
+contract	bounded-deterministic-retirement	implemented	E-CPU-0002	A5.2;A5.3	test_cpu_contract_deterministic_retirement	positive	Two bounded runs compare complete state and selected memory bytes.
+thumb16	STR-LDR-register-widths	implemented	E-CPU-0002	A5.2.4;A7.7 STR/STRH/STRB/LDR/LDRH/LDRB	test_cpu_thumb16_memory	positive	All register-offset widths, including LDRSB/LDRSH sign extension, are bounded and deterministic.
+thumb16	STR-LDR-immediate-widths	implemented	E-CPU-0002	A5.2.4;A7.7 STR/LDR immediate	test_cpu_thumb16_memory	positive	Word, halfword, and byte immediate offsets reach the lowest/highest aligned mapped addresses.
+thumb16	LDR-literal-and-SP-relative	implemented	E-CPU-0002	A5.2.4;A7.7 LDR literal/SP-relative	test_cpu_thumb16_memory	positive	Literal PC alignment and word SP-relative store/load are exact.
+thumb16	ADR-and-add-sub-SP	implemented	E-CPU-0002	A5.2.4;A7.7 ADR/ADD/SUB SP	test_cpu_thumb16_memory	positive	Address generation and aligned stack-pointer adjustment are bounded.
+thumb16	PUSH-POP-with-PC	implemented	E-CPU-0002	A5.2.4;A7.7 PUSH/POP	test_cpu_thumb16_memory	positive	Exact descending stack layout, ascending pop layout, SP restoration, and Thumb PC exchange.
+thumb16	LDMIA-STMIA-writeback	implemented	E-CPU-0002	A5.2.4;A7.7 LDMIA/STMIA	test_cpu_thumb16_memory	positive	Low-register lists use ascending addresses and legal writeback.
+thumb16	memory-alignment-overflow-refusals	implemented	E-CPU-0002	A3.2;A5.2.4	test_cpu_thumb16_memory	refusal	Unaligned effective addresses and 32-bit address arithmetic overflow refuse without retirement.
+thumb16	memory-unmapped-precise-fault	implemented	E-CPU-0002	A3.2;A5.2.4	test_cpu_thumb16_memory	refusal	Unmapped single and multiple transfers retain the exact failing address and partial store.
+thumb16	empty-list-and-even-PC-refusals	implemented	E-CPU-0002	A5.2.4;A7.7 PUSH/POP/LDMIA/STMIA	test_cpu_thumb16_memory	refusal	Empty lists and even POP targets refuse without SP/PC retirement mutation.
+thumb32-dsp	MUL-MLA-MLS	implemented	E-CPU-0002	A5.3.16;A7.7 MUL/MLA/MLS	test_cpu_thumb32_dsp	positive	32-bit wrap, accumulate, subtract, and normal CPU MUL routing are bounded; other multiply forms remain explicit refusals.
+thumb32-dsp	SMULL-UMULL-SMLAL-UMLAL	implemented	E-CPU-0002	A5.3.16;A7.7 long multiply	test_cpu_thumb32_dsp	positive	Signed/unsigned 64-bit results, carry-out, accumulate wrap, and non-overlap constraints are covered.
+thumb32-dsp	SDIV-UDIV	implemented	E-CPU-0002	A5.3.17;A7.7 divide	test_cpu_thumb32_dsp	positive	Signed and unsigned quotients, preserved flags, and divide-by-zero zero result are covered.
+thumb32-dsp	SSAT-USAT-and-16-bit-variants	implemented	E-CPU-0002	A5.3.17;A7.7 saturation	test_cpu_thumb32_dsp	positive	Scalar and halfword limits cover min/max behavior and sticky APSR.Q without changing unrelated flags.
+thumb32-dsp	QADD-QSUB-QDADD-QDSUB	implemented	E-CPU-0002	A5.3.17;A7.7 saturating arithmetic	test_cpu_thumb32_dsp	positive	Operand order, double-and-add/subtract, saturation, and sticky APSR.Q are bounded.
+thumb32-dsp	parallel-byte-halfword-with-GE	implemented	E-CPU-0002	A5.3.14;A7.7 parallel add/subtract	test_cpu_thumb32_dsp	positive	Signed/unsigned byte, halfword, and exchange forms cover lane results and GE carry/sign patterns.
+thumb32-dsp	SEL	implemented	E-CPU-0002	A5.3.15;A7.7 SEL	test_cpu_thumb32_dsp	positive	All four GE selection lanes are covered while unrelated xPSR bits remain unchanged.
+thumb32-dsp	PKHBT-PKHTB	implemented	E-CPU-0002	A5.3.12;A7.7 packing	test_cpu_thumb32_dsp	positive	LSL packing, ASR #32 alias behavior, and ordinary register overlap boundaries are bounded.
+thumb32-dsp	extend-add-rotations	implemented	E-CPU-0002	A5.3.13;A7.7 extend and add	test_cpu_thumb32_dsp	positive	Signed/unsigned halfword, byte, and byte-pair forms cover all four rotations and an overlapping destination.
+thumb32-dsp	REV-REV16-RBIT-REVSH-CLZ	implemented	E-CPU-0002	A5.3.15;A7.7 reverse/bit/count	test_cpu_thumb32_dsp	positive	Reverse, bit-reverse, reverse-shifted halfword, and leading-zero aliases are bounded.
+thumb32-dsp	reserved-and-unsupported-dsp-refusals	implemented	E-CPU-0002	A5.3.12-A5.3.17;A7.7 DSP	test_cpu_thumb32_dsp	refusal	Dual multiply, parallel saturating, bad registers, mismatched aliases, and long-multiply overlap fail closed without mutation.

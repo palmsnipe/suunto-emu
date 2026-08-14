@@ -1,7 +1,8 @@
 #include "semu/cpu.h"
+#include "cpu_fixture.h"
+#include "cpu_fixture.c"
 
 #include <stdio.h>
-#include <string.h>
 
 #define CHECK(condition) do {                                                \
     if (!(condition)) {                                                      \
@@ -11,64 +12,11 @@
     }                                                                        \
 } while (0)
 
-typedef struct cpu_fixture {
-    semu_bus *bus;
-    semu_scheduler *scheduler;
-    semu_cpu *cpu;
-    semu_error error;
-} cpu_fixture;
-
-static void put_u32(uint8_t bytes[4], uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-    bytes[2] = (uint8_t)(value >> 16);
-    bytes[3] = (uint8_t)(value >> 24);
-}
-
-static int load_u32(cpu_fixture *fixture, uint32_t address, uint32_t value)
-{
-    uint8_t bytes[4];
-    put_u32(bytes, value);
-    return semu_bus_load(fixture->bus, address, bytes, sizeof(bytes),
-                         &fixture->error) == SEMU_OK;
-}
-
-static int fixture_init(cpu_fixture *fixture, const uint8_t *program,
-                        size_t program_size)
-{
-    (void)memset(fixture, 0, sizeof(*fixture));
-    fixture->bus = semu_bus_create(&fixture->error);
-    CHECK(fixture->bus != NULL);
-    fixture->scheduler = semu_scheduler_create(&fixture->error);
-    CHECK(fixture->scheduler != NULL);
-    CHECK(semu_bus_map_ram(fixture->bus, "cpu-test", 0u, 0x1000u,
-                           &fixture->error) == SEMU_OK);
-    CHECK(load_u32(fixture, 0u, 0x800u));
-    CHECK(load_u32(fixture, 4u, 0x101u));
-    CHECK(semu_bus_load(fixture->bus, 0x100u, program, program_size,
-                        &fixture->error) == SEMU_OK);
-    fixture->cpu = semu_cpu_create(fixture->bus, fixture->scheduler,
-                                   &fixture->error);
-    CHECK(fixture->cpu != NULL);
-    semu_cpu_reset(fixture->cpu, 0u, &fixture->error);
-    CHECK(fixture->error.code == SEMU_OK);
-    return 1;
-}
-
-static void fixture_destroy(cpu_fixture *fixture)
-{
-    semu_cpu_destroy(fixture->cpu);
-    semu_scheduler_destroy(fixture->scheduler);
-    semu_bus_destroy(fixture->bus);
-}
-
-static int step_ok(cpu_fixture *fixture)
-{
-    semu_error_clear(&fixture->error);
-    return semu_cpu_step(fixture->cpu, &fixture->error) == SEMU_OK;
-}
-
+typedef semu_cpu_fixture cpu_fixture;
+#define fixture_init semu_cpu_fixture_init
+#define fixture_destroy semu_cpu_fixture_destroy
+#define load_u32 semu_cpu_fixture_load_u32
+#define step_ok(fixture) (semu_cpu_fixture_step(fixture) == SEMU_OK)
 static int test_reset_arithmetic_and_branch(void)
 {
     static const uint8_t program[] = {
@@ -102,7 +50,6 @@ static int test_reset_arithmetic_and_branch(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_load_store(void)
 {
     static const uint8_t program[] = {
@@ -127,7 +74,6 @@ static int test_load_store(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_wfi_deadlock(void)
 {
     static const uint8_t program[] = {0x30u, 0xbfu};
@@ -145,7 +91,6 @@ static int test_wfi_deadlock(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_unsupported_instruction(void)
 {
     static const uint8_t program[] = {0x00u, 0xdeu};
@@ -162,7 +107,6 @@ static int test_unsupported_instruction(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_mov_w_sp_regression(void)
 {
     static const uint8_t program[] = {
@@ -178,7 +122,6 @@ static int test_mov_w_sp_regression(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_stmdb_sp_regression(void)
 {
     static const uint8_t program[] = {
@@ -209,7 +152,6 @@ static int test_stmdb_sp_regression(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_svc_exception_return(void)
 {
     static const uint8_t program[] = {0x01u, 0xdfu, 0x00u, 0xbeu};
@@ -236,7 +178,6 @@ static int test_svc_exception_return(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_level_irq(void)
 {
     static const uint8_t program[] = {0x03u, 0x20u, 0x00u, 0xbeu};
@@ -260,7 +201,6 @@ static int test_level_irq(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_msr_psp(void)
 {
     static const uint8_t program[] = {
@@ -276,7 +216,6 @@ static int test_msr_psp(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_orr_modified_immediate(void)
 {
     static const uint8_t program[] = {
@@ -292,7 +231,6 @@ static int test_orr_modified_immediate(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_fpscr_transfer(void)
 {
     static const uint8_t program[] = {
@@ -311,7 +249,6 @@ static int test_fpscr_transfer(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 static int test_indexed_word_load(void)
 {
     static const uint8_t program[] = {
@@ -329,7 +266,6 @@ static int test_indexed_word_load(void)
     fixture_destroy(&fixture);
     return 1;
 }
-
 int main(void)
 {
     static int (*const tests[])(void) = {

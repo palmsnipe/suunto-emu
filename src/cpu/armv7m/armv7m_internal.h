@@ -16,15 +16,38 @@ struct semu_cpu {
     semu_cpu_state state;
     semu_stop_reason stop_reason;
     uint32_t fault_instruction;
+    uint32_t fault_address;
+    uint8_t has_fault_address;
     uint32_t vector_table;
     uint8_t irq_level[ARMV7M_IRQ_COUNT];
+    uint8_t irq_priority[ARMV7M_IRQ_COUNT];
     uint8_t itstate;
+    uint8_t event_register;
 };
 
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);
+semu_status armv7m_exec16_arith(semu_cpu *cpu, uint16_t instruction,
+                                uint32_t pc, semu_error *error);
+semu_status armv7m_exec16_control(semu_cpu *cpu, uint16_t instruction,
+                                  uint32_t pc, semu_error *error);
 semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
                           uint32_t pc, semu_error *error);
+semu_status armv7m_exec32_data(semu_cpu *cpu, uint16_t first,
+                               uint16_t second, uint32_t pc,
+                               semu_error *error);
+semu_status armv7m_exec32_memory(semu_cpu *cpu, uint16_t first,
+                                 uint16_t second, uint32_t pc,
+                                 semu_error *error);
+semu_status armv7m_exec32_dsp(semu_cpu *cpu, uint16_t first,
+                              uint16_t second, uint32_t pc,
+                              semu_error *error);
+semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
+                                 uint16_t second, uint32_t pc,
+                                 semu_error *error);
+semu_status armv7m_exec32_fpu(semu_cpu *cpu, uint16_t first,
+                              uint16_t second, uint32_t pc,
+                              semu_error *error);
 
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error);
@@ -39,6 +62,12 @@ semu_status armv7m_branch_exchange(semu_cpu *cpu, uint32_t target,
 semu_status armv7m_exec16_memory(semu_cpu *cpu, uint16_t instruction,
                                  uint32_t pc, semu_error *error);
 void armv7m_set_itstate(semu_cpu *cpu, uint8_t value);
+unsigned armv7m_bit_count(uint32_t value);
+uint32_t armv7m_shift(semu_cpu *cpu, uint32_t value, unsigned type,
+                      unsigned amount, int immediate);
+uint32_t armv7m_expand_modified_immediate(uint16_t first,
+                                          uint16_t second);
+uint32_t armv7m_shifted_register(uint32_t value, uint16_t second);
 
 uint32_t armv7m_reg(const semu_cpu *cpu, unsigned reg, uint32_t pc);
 void armv7m_set_sp(semu_cpu *cpu, uint32_t value);
