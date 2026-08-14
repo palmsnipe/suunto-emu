@@ -1,6 +1,6 @@
 # 280 — Synthetic ARM_CM4F RTOS Guest
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 2
 **Dependencies:** 250, 275
 **Estimate:** 2–3 days
@@ -29,7 +29,7 @@ There are no synthetic CPU binaries or integration tests. `tests/unit/test_cpu.c
 - `fixtures/synthetic/rtos/**`
 - `tests/integration/test_cpu_rtos_guest.c`
 - `tests/support/cpu_guest.c`, `tests/support/cpu_guest.h`
-- `Makefile` only to include `tests/integration/test_*.c` in `TEST_BINS`
+- `Makefile` only to include `tests/integration/test_*.c` in `TEST_SOURCES`/`TEST_BINS` and add their integration-test build rule
 
 ## Frozen Interfaces
 
@@ -37,7 +37,7 @@ Use the public CPU/bus/scheduler API and Phase 2 instruction/exception behavior 
 
 ## Evidence Inputs
 
-`E-CPU-0002` through `E-CPU-0005` are mandatory. `E-SAP-0008` is only a negative boundary demonstrating why a synthetic gate is needed. This ticket is **blocked** if the exact ARM_CM4F port revision in `E-CPU-0005` or the expected context layout is absent.
+`E-CPU-0002` through `E-CPU-0005` and `E-CPU-0010` are mandatory. `E-SAP-0008` is only a negative boundary demonstrating why a synthetic gate is needed. The exact ARM_CM4F port revision and AAPCS32 context rules come from `E-CPU-0005`; the hardware-saved FP context and S16–S31 software-preservation boundary come from `E-CPU-0010`. This ticket is ready because those inputs are present.
 
 ## Implementation
 
