@@ -27,6 +27,7 @@ One cheaper-model agent for at most two working days; one transfer file, one tes
 ## Allowed Files
 
 - `src/cpu/armv7m/fpu_transfer.c`
+- `src/cpu/armv7m/thumb32.c`
 - `src/cpu/armv7m/thumb32_fpu.c`
 - `src/cpu/armv7m/armv7m_internal.h`
 - `src/cpu/armv7m/scb.c`
