@@ -1,6 +1,6 @@
 # 316 — Apollo4 MSPI Controller
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 

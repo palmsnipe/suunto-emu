@@ -1,6 +1,6 @@
 # 312 — Apollo4 System Timer
 
-**Status:** ready
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 
