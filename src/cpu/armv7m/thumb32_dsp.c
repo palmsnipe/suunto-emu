@@ -327,12 +327,12 @@ static semu_status miscellaneous(semu_cpu *cpu, uint16_t first,
             result = saturate_signed(signed32(cpu->state.r[rn]) +
                                      signed32(cpu->state.r[rm]), 32u, &sat1);
         } else if (op2 == 0xa0u) {
-            result = saturate_signed(signed32(cpu->state.r[rm]) -
-                                     signed32(cpu->state.r[rn]), 32u, &sat1);
+            result = saturate_signed(signed32(cpu->state.r[rn]) -
+                                     signed32(cpu->state.r[rm]), 32u, &sat1);
         } else {
-            int64_t doubled = signed32(cpu->state.r[rn]) * 2LL;
+            int64_t doubled = signed32(cpu->state.r[rm]) * 2LL;
             uint32_t double_bits = saturate_signed(doubled, 32u, &sat1);
-            int64_t addend = signed32(cpu->state.r[rm]);
+            int64_t addend = signed32(cpu->state.r[rn]);
             int64_t double_value = signed32(double_bits);
             int64_t final = op2 == 0x90u ? addend + double_value :
                                             addend - double_value;

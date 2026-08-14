@@ -242,30 +242,49 @@ static void test_saturation_and_q(semu_test_context *context)
     state.r[2] = 1u;
     SEMU_TEST_ASSERT(context, run_dsp(0xfa82u, 0xf081u, state, &status,
                                       &final));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x7fffffffu, final.r[0]);
     SEMU_TEST_ASSERT(context, (final.xpsr & XPSR_Q) != 0u);
+    SEMU_TEST_EQ_U64(context, 0x104u, final.r[15]);
 
     state = initial_state();
     state.r[1] = 7u;
     state.r[2] = 9u;
     SEMU_TEST_ASSERT(context, run_dsp(0xfa82u, 0xf0a1u, state, &status,
                                       &final));
-    SEMU_TEST_EQ_U64(context, 0xfffffffeu, final.r[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 2u, final.r[0]);
     SEMU_TEST_EQ_U64(context, XPSR_T, final.xpsr);
+    SEMU_TEST_EQ_U64(context, 0x104u, final.r[15]);
 
     state = initial_state();
     state.r[1] = 1u;
     state.r[2] = 2u;
     SEMU_TEST_ASSERT(context, run_dsp(0xfa82u, 0xf091u, state, &status,
                                       &final));
-    SEMU_TEST_EQ_U64(context, 5u, final.r[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 4u, final.r[0]);
+    SEMU_TEST_EQ_U64(context, XPSR_T, final.xpsr);
+    SEMU_TEST_EQ_U64(context, 0x104u, final.r[15]);
 
     state = initial_state();
     state.r[1] = 10u;
     state.r[2] = 2u;
     SEMU_TEST_ASSERT(context, run_dsp(0xfa82u, 0xf0b1u, state, &status,
                                       &final));
-    SEMU_TEST_EQ_U64(context, 6u, final.r[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0xffffffeeu, final.r[0]);
+    SEMU_TEST_EQ_U64(context, XPSR_T, final.xpsr);
+    SEMU_TEST_EQ_U64(context, 0x104u, final.r[15]);
+
+    state = initial_state();
+    state.r[1] = 0x40000000u;
+    SEMU_TEST_ASSERT(context, run_dsp(0xfa82u, 0xf091u, state, &status,
+                                      &final));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x7fffffffu, final.r[0]);
+    SEMU_TEST_EQ_U64(context, XPSR_T | XPSR_Q, final.xpsr);
+    SEMU_TEST_EQ_U64(context, 0x104u, final.r[15]);
 
     state = initial_state();
     state.xpsr |= XPSR_Q;
@@ -440,7 +459,8 @@ static void test_reserved_forms_refuse(semu_test_context *context)
         {0xfb01u, 0xd002u},
         {0xeac1u, 0x8f02u},
         {0xfa91u, 0xf080u},
-        {0xfb82u, 0x0003u}
+        {0xfb82u, 0x0003u},
+        {0xfa8fu, 0xf0a1u}
     };
     size_t index;
 

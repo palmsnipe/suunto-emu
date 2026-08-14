@@ -10,7 +10,9 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         (first & 0xfff0u) == 0xe8d0u ||
         (first & 0xfff0u) == 0xe920u ||
         (first & 0xff80u) == 0xf880u ||
-        (first & 0xff80u) == 0xf800u) {
+        (first & 0xff80u) == 0xf800u ||
+        (first & 0xff80u) == 0xf980u ||
+        (first & 0xff80u) == 0xf900u) {
         semu_status status = armv7m_exec32_memory(cpu, first, second, pc,
                                                   error);
         if (status != SEMU_OK) cpu->state.r[15] = pc;
