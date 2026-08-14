@@ -1,6 +1,6 @@
 # 302 — Apollo4 Power Controller
 
-**Status:** ready
+**Status:** blocked
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 
