@@ -1,0 +1,28 @@
+id	phase	title	status	dependencies	ticket
+000	0	Documentation and project contract	done	-	plans/tasks/000-project-contract.md
+100	1	Utilities, formats, and test harness	done	000	plans/tasks/100-utilities-formats.md
+110	1	Memory bus and deterministic scheduler	done	100	plans/tasks/110-bus-scheduler.md
+120	1	Storage, machine shell, and Phase 1 integration	done	110	plans/tasks/120-machine-storage.md
+190	2	CPU contract, state, and fetch	ready	120	plans/tasks/190-cpu-contract.md
+200	2	Thumb-16 execution	blocked	190	plans/tasks/200-cpu-thumb16.md
+210	2	Thumb-32 arithmetic, branches, and memory	blocked	190	plans/tasks/210-cpu-thumb32.md
+220	2	Exceptions, special registers, and NVIC core	blocked	200,210	plans/tasks/220-cpu-exceptions.md
+230	2	FPU and synthetic RTOS Phase 2 gate	blocked	220	plans/tasks/230-cpu-fpu-rtos.md
+300	3	Apollo4 map, clock, reset, and GPIO	blocked	230	plans/tasks/300-apollo4-foundation.md
+310	3	Apollo4 timers and UART	blocked	300	plans/tasks/310-apollo4-timers-uart.md
+315	3	Apollo4 IOM, MSPI, DMA, and MRAM	blocked	300	plans/tasks/315-apollo4-controllers.md
+320	3	Apollo4 Phase 3 integration	blocked	310,315	plans/tasks/320-apollo4-integration.md
+400	4	Sapporo profile, wiring, flash, and panel transport	blocked	320	plans/tasks/400-sapporo-foundation.md
+410	4	Sapporo sensor and power devices	blocked	400	plans/tasks/410-sapporo-sensors.md
+415	4	Sapporo GPS/OHR and compatibility layer	blocked	400	plans/tasks/415-sapporo-gps-ohr.md
+420	4	Sapporo headless Phase 4 gate	blocked	410,415	plans/tasks/420-sapporo-headless.md
+500	5	Nema command validation and state	blocked	420	plans/tasks/500-nema-command-state.md
+510	5	Rasterization and physical panel composition	blocked	500	plans/tasks/510-display-raster.md
+515	5	SDL3 frontend and board input	blocked	420	plans/tasks/515-sdl-input.md
+520	5	Sapporo display golden gate	blocked	510,515	plans/tasks/520-sdl-goldens.md
+600	6	Tracing, reports, replay, and snapshots	blocked	520	plans/tasks/600-debugging.md
+610	6	Sanitizers and optional differential hardening	blocked	600	plans/tasks/610-hardening.md
+700	7	Later Sapporo profiles	blocked	610	plans/tasks/700-sapporo-expansion.md
+710	7	Ulsan profiles and hardware	blocked	700	plans/tasks/710-ulsan.md
+720	7	Wismar profile and hardware	blocked	710	plans/tasks/720-wismar.md
+730	7	Tianjin, Rostock, and Xiamen onboarding	blocked	720	plans/tasks/730-future-products.md

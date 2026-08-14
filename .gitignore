@@ -1,0 +1,8 @@
+/build/
+*.o
+*.dSYM/
+compile_commands.json
+.DS_Store
+tests/private/
+firmware.local.semu
+

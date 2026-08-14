@@ -1,0 +1,33 @@
+[profile]
+format=1
+id=sapporo-2.22.60
+board=sapporo
+product=Sapporo
+version=2.22.60.3383-P
+vector_table=0x00040000
+display_width=240
+display_height=240
+
+[component resident]
+role=resident
+load_address=0x00019000
+size=71504
+sha256=a409b088a061c2fe61689c8f39a79b2c35ed0059cd66987646e0195e47a2f522
+
+[component application]
+role=application
+load_address=0x00040000
+size=1493234
+sha256=c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc
+
+[component resources]
+role=resources
+load_address=0x14000000
+size=16519168
+sha256=ec2a4b1c472844ac6ff9cc575cb9383c29a74302107af3619f9a08fdf6abcaf1
+
+[layer sapporo-2.22-no-device]
+kind=synthetic-state
+evidence=suunto-firmware/docs/research/factory-calibration-records.md
+max_hits=1
+

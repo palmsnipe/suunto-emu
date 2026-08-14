@@ -1,0 +1,5 @@
+# Redistributable profile index. Firmware paths never appear here.
+[profile sapporo-2.22.60]
+path=profiles/sapporo/2.22.60/profile.semu
+status=interpreter-bring-up
+

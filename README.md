@@ -1,0 +1,37 @@
+# suunto-emu
+
+`suunto-emu` is a standalone C99 emulator for Apollo4-era Suunto watches. It
+uses an in-tree ARMv7-M interpreter, deterministic virtual time, strict device
+contracts, immutable firmware inputs, and optional SDL3 presentation.
+
+The repository is under active bring-up. The deterministic core, strict
+profile/manifest validation, instruction interpreter foundation, Sapporo
+memory contract, and explicitly synthetic no-device compatibility state are
+implemented first. Full Sapporo firmware/UI coverage is tracked as gated work
+in `plans/` rather than being claimed prematurely.
+
+Firmware is not included. Extract a legally obtained Sapporo 2.22.60 package,
+copy `profiles/sapporo/2.22.60/firmware.example.semu`, and point its paths at
+the three expanded components.
+
+```sh
+make
+make test
+build/suunto-emu list
+build/suunto-emu validate \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu
+build/suunto-emu run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --max-time 1000000
+```
+
+SDL3 is the only optional runtime library:
+
+```sh
+make sdl
+make check-sdl
+```
+
+See `docs/architecture.md`, `docs/compatibility-policy.md`,
+`docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
+implemented baseline, and remaining gates.

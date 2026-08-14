@@ -1,0 +1,25 @@
+[fixture]
+format=1
+id=sapporo-2.22-no-device-production-data
+kind=synthetic-emulator-state
+device_address=0x00fff000
+mapped_address=0x14fff000
+size=4096
+generator=src/compat/sapporo_222.c
+evidence=suunto-firmware/tools/build_production_data_fixture.py
+
+[recovered]
+record_size=256
+checksum_span=252
+format_version=1000
+required_records=ProductionData,ACCR,ACCC,MAGN,HLAT
+
+[synthetic]
+identity=SUUNTO-EMU-001
+calibration=zero placeholders
+hlat=EMUHLAT00001
+
+[limitations]
+calibration=Structurally accepted records are not valid physical calibration.
+provenance=None of the identity or calibration values came from a watch or OTA.
+

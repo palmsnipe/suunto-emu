@@ -1,0 +1,5 @@
+# Local-only authentic-firmware acceptance hashes. Pixels are not committed.
+normal-native-frame 115200 8503ffbde124e35f914b09eea858ffcda2fc4bc453d3f9c7eb3e88388621d9cc
+middle-button-language-menu 115200 68a4126a8f908e9dd7c5703982c6fe141e6cc89cc383ee0d9d6d502eeadcb2d9
+lower-button-transition 115200 dcec235c8b450c96356b27b49306026ab9d14e7626714cdacb8bf3737a623ad3
+
