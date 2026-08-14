@@ -13,10 +13,17 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         return armv7m_exec32_fpu(cpu, first, second, pc, error);
     }
     if (first == 0xf3bfu || first == 0xf3afu ||
-        (first & 0xfff0u) == 0xf380u) {
+        ((first & 0xfff0u) == 0xf380u &&
+         (second & 0xff00u) == 0x8800u)) {
         return armv7m_exec32_system(cpu, first, second, pc, error);
     }
-    if ((first & 0xff00u) == 0xfb00u) {
+    if ((first & 0xff00u) == 0xfb00u ||
+        (first & 0xfff0u) == 0xeac0u ||
+        (first & 0xffd0u) == 0xf300u ||
+        (first & 0xffd0u) == 0xf380u ||
+        (first & 0xff80u) == 0xfa00u ||
+        ((first & 0xff80u) == 0xfa80u &&
+         (first & 0xfff0u) != 0xfab0u)) {
         return armv7m_exec32_dsp(cpu, first, second, pc, error);
     }
     return armv7m_exec32_data(cpu, first, second, pc, error);
