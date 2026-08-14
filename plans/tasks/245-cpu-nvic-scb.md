@@ -1,6 +1,6 @@
 # 245 — NVIC, SCB, Priorities, Nesting, and Fault Escalation
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 240
 **Estimate:** 2–3 days

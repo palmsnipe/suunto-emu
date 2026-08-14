@@ -1,6 +1,6 @@
 # 240 — Special Registers, Privilege, and Exception Frames
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 200, 205, 210, 220, 225, 230
 **Estimate:** 2–3 days

@@ -1,6 +1,6 @@
 # 225 — Thumb-32 Memory, Multiple, Exclusives, and Barriers
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 190, 210
 **Estimate:** 2–3 days

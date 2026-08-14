@@ -1,6 +1,6 @@
 # 230 — Thumb-32 Multiply, DSP, Saturation, and Packing
 
-**Status:** blocked
+**Status:** done
 **Phase:** 2
 **Dependencies:** 190, 200, 220
 **Estimate:** 2–3 days

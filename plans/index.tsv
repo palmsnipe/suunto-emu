@@ -9,11 +9,11 @@ id	phase	title	status	dependencies	ticket
 205	2	Thumb-16 Control, High Registers, and Bit Utilities	done	190	plans/tasks/205-cpu-thumb16-control.md
 210	2	Thumb-16 Memory, Stack, and Multiple Transfers	done	190	plans/tasks/210-cpu-thumb16-memory.md
 220	2	Thumb-32 Data Processing and Branches	done	190,200,205	plans/tasks/220-cpu-thumb32-data.md
-225	2	Thumb-32 Memory, Multiple, Exclusives, and Barriers	blocked	190,210	plans/tasks/225-cpu-thumb32-memory.md
-230	2	Thumb-32 Multiply, DSP, Saturation, and Packing	blocked	190,200,220	plans/tasks/230-cpu-thumb32-dsp.md
-240	2	Special Registers, Privilege, and Exception Frames	blocked	200,205,210,220,225,230	plans/tasks/240-cpu-special-exceptions.md
-245	2	NVIC, SCB, Priorities, Nesting, and Fault Escalation	blocked	240	plans/tasks/245-cpu-nvic-scb.md
-250	2	SysTick, PendSV/SVC Scheduling, WFI, and WFE	blocked	245	plans/tasks/250-cpu-systick-sleep.md
+225	2	Thumb-32 Memory, Multiple, Exclusives, and Barriers	done	190,210	plans/tasks/225-cpu-thumb32-memory.md
+230	2	Thumb-32 Multiply, DSP, Saturation, and Packing	done	190,200,220	plans/tasks/230-cpu-thumb32-dsp.md
+240	2	Special Registers, Privilege, and Exception Frames	done	200,205,210,220,225,230	plans/tasks/240-cpu-special-exceptions.md
+245	2	NVIC, SCB, Priorities, Nesting, and Fault Escalation	done	240	plans/tasks/245-cpu-nvic-scb.md
+250	2	SysTick, PendSV/SVC Scheduling, WFI, and WFE	ready	245	plans/tasks/250-cpu-systick-sleep.md
 260	2	FPU Access Control, Registers, and Transfers	blocked	190,220,240,245	plans/tasks/260-cpu-fpu-transfer.md
 265	2	FPU Single-Precision Arithmetic	blocked	260	plans/tasks/265-cpu-fpu-arithmetic.md
 270	2	FPU Compare, Conversion, and Immediate Forms	blocked	265	plans/tasks/270-cpu-fpu-convert.md
