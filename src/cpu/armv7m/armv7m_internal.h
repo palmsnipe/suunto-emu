@@ -109,6 +109,8 @@ semu_status armv7m_exec32_fpu(semu_cpu *cpu, uint16_t first,
 semu_status armv7m_fpu_check_access(semu_cpu *cpu, semu_error *error);
 semu_status armv7m_fpu_arith(semu_cpu *cpu, uint16_t first,
                              uint16_t second, semu_error *error);
+semu_status armv7m_fpu_convert(semu_cpu *cpu, uint16_t first,
+                               uint16_t second, semu_error *error);
 semu_status armv7m_fpu_transfer(semu_cpu *cpu, uint16_t first,
                                 uint16_t second, uint32_t pc,
                                 semu_error *error);

@@ -1,0 +1,6 @@
+fpu.vcmp-ordered | E-CPU-0004:A7.7.226;E-CPU-0009:A2-53 | b4 ee 60 0a 00 be | 0x100 | 0x01000000 | s0=0xbf800000,s1=0x3f800000,r15=0x100 | - | 1 | SEMU_OK | none | 0x104 | 0x81000000 | s0=0xbf800000,s1=0x3f800000,r15=0x104,fpscr=0x80000000 | - | none
+fpu.vcvt-round-zero | E-CPU-0004:A7.7.228;E-CPU-0009:A2-58 | bd ee e0 0a 00 be | 0x100 | 0x01000000 | s0=0x3fc00000,s1=0x3fc00000,r15=0x100 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | s0=1,s1=0x3fc00000,r15=0x104 | - | none
+fpu.vcvt-fixed | E-CPU-0004:A7.7.229;E-CPU-0009:A2-58 | be ee 44 0a 00 be | 0x100 | 0x01000000 | s0=0x3fc00000,r15=0x100 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | s0=0x180,r15=0x104 | - | none
+fpu.vmov-immediate | E-CPU-0004:A6.4.1;E-CPU-0009:A6-166 | b7 ee 00 0a 00 be | 0x100 | 0x01000000 | r15=0x100 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | s0=0x3f800000,r15=0x104 | - | none
+fpu.vmov-register | E-CPU-0004:A7.7.240;E-CPU-0009:A7-479 | b0 ee 60 0a 00 be | 0x100 | 0x01000000 | s1=0x7fc12345,r15=0x100 | - | 1 | SEMU_OK | none | 0x104 | 0x01000000 | s0=0x7fc12345,r15=0x104 | - | none
+fpu.vcvt-double-refusal | E-CPU-0004:A7.7.228;E-CPU-0009:A7-462 | b4 ee 41 0b 00 be | 0x100 | 0x01000000 | s0=1,r15=0x100 | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x100 | 0x01000000 | s0=1,r15=0x100 | - | emulator-refusal:fpv4-sp-only

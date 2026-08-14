@@ -1,31 +1,4 @@
-#include "fpu_softfloat.h"
-#define SF_SIGN UINT32_C(0x80000000)
-#define SF_EXPONENT UINT32_C(0x7f800000)
-#define SF_FRACTION UINT32_C(0x007fffff)
-#define SF_HIDDEN UINT32_C(0x00800000)
-#define SF_QNAN_BIT UINT32_C(0x00400000)
-#define SF_INFINITY_BITS SF_EXPONENT
-#define SF_MAX_FINITE UINT32_C(0x7f7fffff)
-typedef enum sf_kind {
-    SF_ZERO,
-    SF_FINITE,
-    SF_INFINITY,
-    SF_QNAN,
-    SF_SNAN
-} sf_kind;
-typedef struct sf_value {
-    sf_kind kind;
-    unsigned sign;
-    int exponent;
-    uint32_t significand;
-    uint32_t raw;
-} sf_value;
-typedef struct sf_ext {
-    uint64_t significand;
-    int exponent;
-    unsigned sign;
-    unsigned sticky;
-} sf_ext;
+#include "fpu_softfloat_internal.h"
 static int sf_top_bit(uint64_t value)
 {
     int bit = 63;
@@ -34,7 +7,7 @@ static int sf_top_bit(uint64_t value)
     return bit;
 }
 static void sf_set_flag(uint32_t *fpscr, uint32_t flag) { *fpscr |= flag; }
-static unsigned sf_rounding_mode(uint32_t fpscr)
+unsigned sf_rounding_mode(uint32_t fpscr)
 { return (unsigned)((fpscr & ARMV7M_FPSCR_RMODE_MASK) >> 22u); }
 static uint32_t sf_default_nan(void) { return UINT32_C(0x7fc00000); }
 static uint32_t sf_infinity(unsigned sign)
@@ -53,7 +26,7 @@ static uint64_t sf_shift_right_jam(uint64_t value, unsigned count,
     if (lost != 0u) *sticky = 1u;
     return value >> count;
 }
-static sf_value sf_unpack(uint32_t bits, uint32_t *fpscr)
+sf_value sf_unpack(uint32_t bits, uint32_t *fpscr)
 {
     sf_value value;
     unsigned exponent = (unsigned)((bits & SF_EXPONENT) >> 23u);
@@ -155,7 +128,7 @@ static uint64_t sf_round_shift(uint64_t value, unsigned shift,
     if (round_up != 0) ++truncated;
     return truncated;
 }
-static uint32_t sf_round_ext(uint32_t *fpscr, sf_ext value)
+uint32_t sf_round_ext(uint32_t *fpscr, sf_ext value)
 {
     int top;
     int magnitude_exponent;

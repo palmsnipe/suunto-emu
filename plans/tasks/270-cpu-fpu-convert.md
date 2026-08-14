@@ -28,6 +28,7 @@ No compare or conversion decoder exists. `thumb32.c` can copy FPSCR.NZCV into xP
 
 - `src/cpu/armv7m/fpu_convert.c`
 - `src/cpu/armv7m/fpu_softfloat.c`
+- `src/cpu/armv7m/fpu_softfloat_convert.c`
 - `src/cpu/armv7m/fpu_softfloat.h`
 - `src/cpu/armv7m/fpu_softfloat_internal.h`
 - `src/cpu/armv7m/armv7m_internal.h`

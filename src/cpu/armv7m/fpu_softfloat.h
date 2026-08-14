@@ -33,6 +33,20 @@ semu_fpu_eval semu_fpu_div_bits(uint32_t left, uint32_t right,
 semu_fpu_eval semu_fpu_mul_add_bits(uint32_t addend, uint32_t left,
                                     uint32_t right, uint32_t fpscr);
 semu_fpu_eval semu_fpu_sqrt_bits(uint32_t operand, uint32_t fpscr);
+uint32_t semu_fpu_compare_flags(uint32_t left, uint32_t right,
+                                unsigned quiet_nan_exception,
+                                uint32_t *fpscr);
+uint32_t semu_fpu_to_int_bits(uint32_t operand, unsigned is_unsigned,
+                              unsigned round_zero, uint32_t *fpscr);
+uint32_t semu_fpu_from_int_bits(uint32_t operand, unsigned is_unsigned,
+                                uint32_t *fpscr);
+uint32_t semu_fpu_to_fixed_bits(uint32_t operand, unsigned size,
+                                unsigned fraction_bits, unsigned is_unsigned,
+                                uint32_t *fpscr);
+uint32_t semu_fpu_from_fixed_bits(uint32_t operand, unsigned size,
+                                  unsigned fraction_bits, unsigned is_unsigned,
+                                  uint32_t *fpscr);
+uint32_t semu_fpu_expand_imm8(uint8_t immediate);
 
 semu_status armv7m_fpu_arith(semu_cpu *cpu, uint16_t first,
                              uint16_t second, semu_error *error);

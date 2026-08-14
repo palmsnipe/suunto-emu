@@ -10,7 +10,9 @@ semu_status armv7m_exec32_fpu(semu_cpu *cpu, uint16_t first,
 
     /* Fault entry must stack the address of the faulting instruction. */
     cpu->state.r[15] = pc;
-    status = armv7m_fpu_arith(cpu, first, second, error);
+    status = armv7m_fpu_convert(cpu, first, second, error);
+    if (status == SEMU_ERR_UNSUPPORTED && cpu->state.halted == 0u)
+        status = armv7m_fpu_arith(cpu, first, second, error);
     if (status == SEMU_ERR_UNSUPPORTED && cpu->state.halted == 0u)
         status = armv7m_fpu_transfer(cpu, first, second, pc, error);
 
