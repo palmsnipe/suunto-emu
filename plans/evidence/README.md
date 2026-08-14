@@ -7,7 +7,7 @@ capture bytes, frame pixels, or compatibility payloads.
 The inspected `suunto-firmware` source revision is:
 
 ```text
-ffafe6f020711b48215c3d33f471bd92e86ccb9c
+540a4a55b0a82dc080111572cc27b0f68de73c92
 ```
 
 Source-tree paths in the TSV are repository-relative references to that
