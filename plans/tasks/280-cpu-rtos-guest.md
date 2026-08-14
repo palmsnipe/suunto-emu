@@ -1,6 +1,6 @@
 # 280 — Synthetic ARM_CM4F RTOS Guest
 
-**Status:** ready
+**Status:** done
 **Phase:** 2
 **Dependencies:** 250, 275
 **Estimate:** 2–3 days
