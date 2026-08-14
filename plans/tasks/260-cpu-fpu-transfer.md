@@ -41,7 +41,7 @@ Use `armv7m_exec32_fpu`, SCB CPACR/fault hooks, bus helpers, and CPU state from 
 
 ## Evidence Inputs
 
-`E-CPU-0004` is mandatory and must pin CPACR/FP system registers, NOCP behavior, VMRS/VMSR, VMOV, VLDR/VSTR, and VLDM/VSTM sections. `E-SAP-0008` is context only, not an opcode authority. This ticket is **blocked** without `E-CPU-0004`.
+`E-CPU-0004` and the deterministic synthetic-profile choices in `E-CPU-0007` are mandatory. Together they pin CPACR/FP system registers, reset values, NOCP behavior, VMRS/VMSR, VMOV, VLDR/VSTR, and VLDM/VSTM sections. `E-SAP-0008` is context only, not an opcode authority. This ticket is **blocked** without both CPU entries.
 
 ## Implementation
 
