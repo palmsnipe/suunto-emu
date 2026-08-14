@@ -1,6 +1,6 @@
 # 265 — FPU Single-Precision Arithmetic
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 2
 **Dependencies:** 260
 **Estimate:** 2–3 days
@@ -16,7 +16,7 @@ One cheaper-model agent for at most three working days; decoder plus project-loc
 ## Required Reading
 
 - `src/cpu/armv7m/{armv7m_internal.h,fpu_transfer.c,fpu_arith.c,fpu_softfloat.c,fpu_softfloat.h}` after ticket 260
-- `docs/migration-evidence.md` entry `E-CPU-0004`
+- `docs/migration-evidence.md` entries `E-CPU-0004` and `E-CPU-0008`
 - `docs/{contributing.md,testing-strategy.md}`
 - `tests/fixtures/cpu/vector-format.md`
 
@@ -26,6 +26,7 @@ There is no FP arithmetic implementation or test beyond FPSCR transfer. S regist
 
 ## Allowed Files
 
+- `src/cpu/armv7m/armv7m_internal.h`, `src/cpu/armv7m/thumb32.c`, `src/cpu/armv7m/thumb32_fpu.c`
 - `src/cpu/armv7m/fpu_arith.c`, `src/cpu/armv7m/fpu_softfloat.c`, `src/cpu/armv7m/fpu_softfloat.h`
 - `tests/unit/test_cpu_fpu_arith.c`
 - `tests/fixtures/cpu/fpu-arith/**`
@@ -33,11 +34,11 @@ There is no FP arithmetic implementation or test beyond FPSCR transfer. S regist
 
 ## Frozen Interfaces
 
-Consume raw binary32 operands/results and FPSCR helpers from 260. The project-local integer implementation is authoritative. It must produce canonical results prescribed by `E-CPU-0004`, preserve NaN payload/sign where required, and never alter the process floating environment.
+Consume raw binary32 operands/results and FPSCR helpers from 260. The project-local integer implementation is authoritative. It must produce canonical results prescribed by `E-CPU-0004` and `E-CPU-0008`, preserve NaN payload/sign where required, and never alter the process floating environment. The private `armv7m_exec32_fpu` seam may route arithmetic encodings to `armv7m_fpu_arith`; no public header or shared decoder API may change.
 
 ## Evidence Inputs
 
-`E-CPU-0004` is mandatory and must pin VADD, VSUB, VMUL, VDIV, VMLA/VMLS/VNMLA/VNMLS/VNMUL, VABS/VNEG/VSQRT, rounding modes, default-NaN, flush-to-zero, and cumulative exception flags. This ticket is **blocked** for any family lacking pinned special-case rules.
+`E-CPU-0004` and `E-CPU-0008` are mandatory. Together they pin VADD, VSUB, VMUL, VDIV, VMLA/VMLS/VNMLA/VNMLS/VNMUL, VABS/VNEG/VSQRT, rounding modes, default-NaN, flush-to-zero, and cumulative exception flags. This ticket is **blocked** for any family lacking pinned special-case rules.
 
 ## Implementation
 
