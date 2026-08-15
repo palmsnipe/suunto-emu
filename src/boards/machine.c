@@ -6,6 +6,7 @@
 #include "semu/cpu.h"
 #include "semu/scheduler.h"
 #include "../compat/sapporo_222.h"
+#include "../devices/sapporo_devices.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@ struct semu_machine {
     semu_scheduler *scheduler;
     semu_cpu *cpu;
     semu_apollo4 *soc;
+    semu_sapporo_devices *devices;
     semu_logger *logger;
     semu_stop_reason stop_reason;
     semu_profile profile;
@@ -23,6 +25,14 @@ struct semu_machine {
     semu_layer_state layers[SEMU_MAX_LAYERS];
     size_t layer_count;
 };
+
+static void irq_sink(void *context, unsigned irq, int level)
+{
+    semu_machine *machine = (semu_machine *)context;
+    if (machine != NULL && machine->cpu != NULL) {
+        semu_cpu_set_irq(machine->cpu, irq, level);
+    }
+}
 
 static int known_sapporo_profile(const semu_profile *profile)
 {
@@ -41,7 +51,22 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
     machine->soc = semu_apollo4_create(machine->bus, error);
-    return machine->soc != NULL ? SEMU_OK : error->code;
+    if (machine->soc == NULL) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    if (semu_apollo4_init(machine->soc, machine->scheduler, irq_sink,
+                           machine, error) != SEMU_OK) {
+        return error->code;
+    }
+    machine->devices = semu_sapporo_devices_create(machine->scheduler, error);
+    if (machine->devices == NULL) {
+        return error->code;
+    }
+    if (semu_sapporo_devices_attach(machine->devices, machine->soc,
+                                     error) != SEMU_OK) {
+        return error->code;
+    }
+    return SEMU_OK;
 }
 
 static semu_status load_file(semu_bus *bus, const semu_component *component,
@@ -173,6 +198,7 @@ void semu_machine_destroy(semu_machine *machine)
 {
     if (machine != NULL) {
         semu_cpu_destroy(machine->cpu);
+        semu_sapporo_devices_destroy(machine->devices);
         semu_apollo4_destroy(machine->soc);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
@@ -194,6 +220,7 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     semu_scheduler_reset(machine->scheduler);
     semu_bus_reset(machine->bus);
     semu_apollo4_reset(machine->soc);
+    semu_sapporo_devices_reset(machine->devices);
     if (load_components(machine, &machine->firmware, error) != SEMU_OK) {
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return error->code;
