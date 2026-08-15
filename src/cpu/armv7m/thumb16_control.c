@@ -220,7 +220,7 @@ semu_status armv7m_exec16_control(semu_cpu *cpu, uint16_t instruction,
     if ((instruction & 0xfc00u) == 0x4400u) {
         return special_data(cpu, instruction, pc, error);
     }
-    if ((instruction & 0xf800u) == 0xa000u) {
+    if ((instruction & 0xf000u) == 0xa000u) {
         unsigned rd = (instruction >> 8) & 7u;
         uint32_t base = (instruction & 0x0800u) != 0u
                             ? cpu->state.r[13] : ((pc + 4u) & ~3u);

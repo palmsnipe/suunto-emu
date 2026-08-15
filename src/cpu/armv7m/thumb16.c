@@ -10,7 +10,7 @@ semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
         return armv7m_exec16_arith(cpu, instruction, pc, error);
     }
     if ((instruction & 0xfc00u) == 0x4400u ||
-        (instruction & 0xf800u) == 0xa000u ||
+        (instruction & 0xf000u) == 0xa000u ||
         (instruction & 0xf500u) == 0xb100u ||
         (instruction & 0xf000u) == 0xd000u ||
         (instruction & 0xf800u) == 0xe000u) {
