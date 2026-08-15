@@ -65,7 +65,7 @@ id	phase	title	status	dependencies	ticket
 610	6	Versioned Input Recording and Replay	done	600	plans/tasks/610-input-replay.md
 615	6	Versioned Machine Snapshots	done	600,610	plans/tasks/615-snapshot-format.md
 620	6	Debugging CLI Integration	done	605,610,615	plans/tasks/620-debug-cli-integration.md
-625	6	Deterministic Malformed-Input Corpus	blocked	620	plans/tasks/625-hardening-corpus.md
+625	6	Deterministic Malformed-Input Corpus	done	620	plans/tasks/625-hardening-corpus.md
 630	6	Portability and Optional Differential Gate	blocked	625	plans/tasks/630-portability-differential.md
 700	7	Later Sapporo Evidence Inventory	blocked	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	blocked	700	plans/tasks/705-sapporo-version-profile.md

@@ -1,6 +1,6 @@
 # 625 — Deterministic Malformed-Input Corpus
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 620
 
