@@ -56,7 +56,7 @@ id	phase	title	status	dependencies	ticket
 511	5	RGB565 and A2LE Blend Math	done	295,490,510	plans/tasks/511-display-blend.md
 512	5	Texture Sampling and Masked Draw	done	504,510,511	plans/tasks/512-display-sampling.md
 513	5	Nema Backend and Panel Frame Publication	done	404,500,502,504,506,510,511,512	plans/tasks/513-panel-publication.md
-515	5	SDL3 Frame Presentation	blocked	298,513	plans/tasks/515-sdl-input.md
+515	5	SDL3 Frame Presentation	done	298,513	plans/tasks/515-sdl-input.md
 516	5	SDL Semantic Input Mapping	done	295,298,404,420	plans/tasks/516-sdl-semantic-input.md
 518	5	Deterministic Input Replay	done	298,420,516	plans/tasks/518-input-replay.md
 520	5	Native Display, SDL, Replay, and Golden Integration	blocked	490,500,502,504,506,510,511,512,513,515,516,518	plans/tasks/520-sdl-goldens.md

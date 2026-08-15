@@ -1,6 +1,6 @@
 # 515 — SDL3 Frame Presentation
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 298, 513
 
