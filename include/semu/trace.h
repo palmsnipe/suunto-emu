@@ -79,4 +79,34 @@ const semu_trace_record *semu_trace_get(const semu_trace *trace,
 size_t semu_trace_format(const semu_trace *trace,
     char *buf, size_t buf_size);
 
+/*
+ * CPU fault reports (ticket 605).
+ * Reports borrow immutable trace history and CPU inspection state.
+ * They never read guest memory after the fault or mutate stop state.
+ * No host paths or raw firmware bytes appear in formatted output.
+ */
+typedef struct semu_report_fault {
+    semu_stop_reason stop_reason;
+    uint32_t fault_instruction;
+    uint32_t fault_address;
+    int has_fault_address;
+    uint32_t r[16];
+    uint32_t xpsr;
+    uint32_t primask;
+    uint32_t basepri;
+    uint32_t faultmask;
+    uint32_t control;
+    uint32_t fpscr;
+    uint64_t instructions;
+} semu_report_fault;
+
+/*
+ * Format a fault report to a buffer.  Output is stable: identical
+ * fault data and trace history produce byte-identical output.
+ * If trace is non-NULL, bounded preceding history is appended.
+ * Returns bytes written (excluding NUL).  Writes at most buf_size bytes.
+ */
+size_t semu_report_fault_format(const semu_report_fault *report,
+    const semu_trace *trace, char *buf, size_t buf_size);
+
 #endif
