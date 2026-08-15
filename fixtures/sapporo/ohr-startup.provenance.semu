@@ -1,0 +1,20 @@
+[fixture]
+id=sapporo-2.22-no-device-ohr-startup
+layer=sapporo-2.22-no-device
+trigger=ohr-startup
+evidence=E-SAP-COMPAT-OHR-001
+max_hits=1
+
+[commands]
+identity=command 0: response body has "OHR2" at offset 9, null at offset 13
+configure=command 1: zeroed response body
+echo=command 6: zeroed response body
+result_13=command 13: zeroed response body
+result_14=command 14: zeroed response body
+reboot=command 3: fire-and-forget, transitions BSL to MAIN (handled by transport)
+
+[provenance]
+source=../suunto-firmware/emulator/results/sapporo-startup-request-probe.log
+trace_sha256=c987d798436da654ab17955e6830fd93f288086e42ceac5c5811ea56f0995357
+synthetic=true
+description=BSL-to-MAIN startup fixture; response bodies are synthetic zeroed data. Command/sequence echo, CRC, and ready ordering are preserved by the transport.

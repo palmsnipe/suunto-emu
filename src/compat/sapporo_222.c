@@ -9,13 +9,38 @@
 #define SECTOR_SIZE 4096u
 #define CHECKSUM_OFFSET 252u
 
+/* E-SAP-PROFILE-001 component hashes (resident, application, resources). */
+static const char *const sapporo_hashes[] = {
+    "a409b088a061c2fe61689c8f39a79b2c35ed0059cd66987646e0195e47a2f522",
+    "c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc",
+    "ec2a4b1c472844ac6ff9cc575cb9383c29a74302107af3619f9a08fdf6abcaf1"
+};
+
+/* Intervention table: each trigger has its own per-hit budget. */
+static semu_layer_intervention sapporo_interventions[] = {
+    { "production-data",
+      "install synthetic ProductionData/ACCR/ACCC/MAGN/HLAT records",
+      "E-SAP-COMPAT-PROD-001", 1u, 0u },
+    { "gps-startup",
+      "inject $PSS0000 response to @VER startup request",
+      "E-SAP-COMPAT-GPS-001", 1u, 0u },
+    { "ohr-startup",
+      "supply synthetic BSL-to-MAIN startup body responses",
+      "E-SAP-COMPAT-OHR-001", 1u, 0u }
+};
+
 const semu_layer_descriptor semu_sapporo_222_no_device_layer = {
-    "sapporo-2.22-no-device",
-    SEMU_LAYER_SYNTHETIC_STATE,
-    "sapporo-2.22.60",
-    "suunto-firmware/tools/build_production_data_fixture.py and "
-    "docs/research/factory-calibration-records.md",
-    1u
+    .id = "sapporo-2.22-no-device",
+    .kind = SEMU_LAYER_SYNTHETIC_STATE,
+    .profile_id = "sapporo-2.22.60",
+    .evidence = "suunto-firmware/tools/build_production_data_fixture.py and "
+                "docs/research/factory-calibration-records.md",
+    .component_hashes = sapporo_hashes,
+    .component_hash_count = sizeof(sapporo_hashes) / sizeof(sapporo_hashes[0]),
+    .interventions = sapporo_interventions,
+    .intervention_count = sizeof(sapporo_interventions) /
+                           sizeof(sapporo_interventions[0]),
+    .maximum_hits = 3u
 };
 
 static uint32_t firmware_checksum(const uint8_t *data, size_t size,
@@ -123,8 +148,76 @@ semu_status semu_sapporo_222_install_no_device(
     if (status != SEMU_OK) {
         return status;
     }
-    return semu_layer_hit(state, logger,
-                          "installed session-local synthetic ProductionData, "
-                          "ACCR, ACCC, MAGN, and HLAT records",
-                          error);
+    return semu_layer_intervention_hit(state, logger,
+        SEMU_SAPPORO_222_IV_PRODUCTION, error);
+}
+
+semu_transaction_result semu_sapporo_222_gps_exchange(
+    void *context, const uint8_t *request, size_t count,
+    semu_sapporo_cxd5610 *transport, semu_error *error)
+{
+    static const uint8_t expected[] = { '@', 'V', 'E', 'R', '\r', '\n' };
+    static const uint8_t response[] = {
+        '$', 'P', 'S', 'S', '0', '0', '0', '0', '\r', '\n'
+    };
+    semu_sapporo_222_fixture_context *ctx =
+        (semu_sapporo_222_fixture_context *)context;
+
+    if (count != sizeof(expected) ||
+        memcmp(request, expected, count) != 0) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "GPS fixture: unexpected request");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL) {
+        if (semu_layer_intervention_hit(ctx->state, ctx->logger,
+                SEMU_SAPPORO_222_IV_GPS_STARTUP, error) != SEMU_OK) {
+            return SEMU_TRANSACTION_REFUSE;
+        }
+    }
+    if (semu_sapporo_cxd5610_inject_rx_after(transport, response,
+            sizeof(response), 10u, error) != SEMU_OK) {
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    return SEMU_TRANSACTION_OK;
+}
+
+semu_transaction_result semu_sapporo_222_ohr_body_provider(
+    void *context, semu_sapporo_ohr2_command command, uint16_t sequence,
+    semu_sapporo_ohr2_state state,
+    const uint8_t request_payload[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE],
+    uint8_t response_payload[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE],
+    semu_error *error)
+{
+    semu_sapporo_222_fixture_context *ctx =
+        (semu_sapporo_222_fixture_context *)context;
+    (void)sequence;
+    (void)state;
+    (void)request_payload;
+
+    switch (command) {
+    case SEMU_SAPPORO_OHR2_COMMAND_IDENTITY:
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        memcpy(response_payload + 9u, "OHR2", 4u);
+        response_payload[13u] = 0u;
+        break;
+    case SEMU_SAPPORO_OHR2_COMMAND_CONFIGURE:
+    case SEMU_SAPPORO_OHR2_COMMAND_ECHO:
+    case SEMU_SAPPORO_OHR2_COMMAND_RESULT_13:
+    case SEMU_SAPPORO_OHR2_COMMAND_RESULT_14:
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        break;
+    default:
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "OHR fixture: unexpected command %u",
+                       (unsigned)command);
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL) {
+        if (semu_layer_intervention_hit(ctx->state, ctx->logger,
+                SEMU_SAPPORO_222_IV_OHR_STARTUP, error) != SEMU_OK) {
+            return SEMU_TRANSACTION_REFUSE;
+        }
+    }
+    return SEMU_TRANSACTION_OK;
 }

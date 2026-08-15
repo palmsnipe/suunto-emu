@@ -45,7 +45,7 @@ id	phase	title	status	dependencies	ticket
 415	4	Sapporo MAX17050 Fuel Gauge	done	285,295,298	plans/tasks/415-sapporo-max17050.md
 416	4	Sapporo CXD5610 GPS Transport	done	285,295,298,314	plans/tasks/416-sapporo-gps.md
 417	4	Sapporo OHR2 Transport	done	285,295,298	plans/tasks/417-sapporo-ohr2.md
-418	4	Sapporo Compatibility Records and Device Fixtures	blocked	295,298,400,416,417	plans/tasks/418-sapporo-compat-records-fixtures.md
+418	4	Sapporo Compatibility Records and Device Fixtures	done	295,298,400,416,417	plans/tasks/418-sapporo-compat-records-fixtures.md
 420	4	Sapporo 2.22 Headless Integration	blocked	400,402,404,410,411,412,413,414,415,416,417,418	plans/tasks/420-sapporo-headless.md
 490	5	Sapporo Nema Trace Corpus	blocked	295,420	plans/tasks/490-nema-trace-corpus.md
 500	5	Nema Ring and Command Framing	blocked	285,298,490	plans/tasks/500-nema-command-state.md

@@ -14,7 +14,11 @@ static int failures;
 int main(void)
 {
     const semu_layer_descriptor descriptor = {
-        "test-layer", SEMU_LAYER_DEVICE_FIXTURE, "test-profile", "unit test", 1u
+        .id = "test-layer",
+        .kind = SEMU_LAYER_DEVICE_FIXTURE,
+        .profile_id = "test-profile",
+        .evidence = "unit test",
+        .maximum_hits = 1u
     };
     semu_layer_state state;
     semu_logger logger;

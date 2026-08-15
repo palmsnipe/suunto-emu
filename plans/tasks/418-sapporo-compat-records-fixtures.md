@@ -1,6 +1,6 @@
 # 418 — Sapporo Compatibility Records and Device Fixtures
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 295, 298, 400, 416, 417
 

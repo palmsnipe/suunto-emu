@@ -1,0 +1,20 @@
+[fixture]
+id=sapporo-2.22-no-device-gps-startup
+layer=sapporo-2.22-no-device
+trigger=gps-startup
+evidence=E-SAP-COMPAT-GPS-001
+max_hits=1
+
+[request]
+bytes=40 56 45 52 0d 0a
+description=@VER startup request (6 bytes)
+
+[response]
+bytes=24 50 53 53 30 30 30 30 0d 0a
+description=$PSS0000 startup response (10 bytes, injected after 10 ms)
+
+[provenance]
+source=../suunto-firmware/emulator/results/sapporo-gps-probe-flow.log
+trace_sha256=3fc4b6a628fbfeda737d7f77662444036f601496cf8fbb5d3fdc1aedaf106dd2
+synthetic=true
+description=Startup transport fixture; response bytes are deterministic synthetic data, not physical GNSS output.
