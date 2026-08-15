@@ -63,7 +63,7 @@ id	phase	title	status	dependencies	ticket
 600	6	Bounded Trace Contract	done	520	plans/tasks/600-trace-contract.md
 605	6	CPU and Refusal Reports	done	600	plans/tasks/605-cpu-fault-report.md
 610	6	Versioned Input Recording and Replay	done	600	plans/tasks/610-input-replay.md
-615	6	Versioned Machine Snapshots	blocked	600,610	plans/tasks/615-snapshot-format.md
+615	6	Versioned Machine Snapshots	done	600,610	plans/tasks/615-snapshot-format.md
 620	6	Debugging CLI Integration	blocked	605,610,615	plans/tasks/620-debug-cli-integration.md
 625	6	Deterministic Malformed-Input Corpus	blocked	620	plans/tasks/625-hardening-corpus.md
 630	6	Portability and Optional Differential Gate	blocked	625	plans/tasks/630-portability-differential.md

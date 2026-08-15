@@ -1,6 +1,6 @@
 # 615 — Versioned Machine Snapshots
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 600,610
 
