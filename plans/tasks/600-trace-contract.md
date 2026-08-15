@@ -1,6 +1,6 @@
 # 600 — Bounded Trace Contract
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 520
 

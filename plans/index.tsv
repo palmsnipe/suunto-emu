@@ -60,7 +60,7 @@ id	phase	title	status	dependencies	ticket
 516	5	SDL Semantic Input Mapping	done	295,298,404,420	plans/tasks/516-sdl-semantic-input.md
 518	5	Deterministic Input Replay	done	298,420,516	plans/tasks/518-input-replay.md
 520	5	Native Display, SDL, Replay, and Golden Integration	done	490,500,502,504,506,510,511,512,513,515,516,518	plans/tasks/520-sdl-goldens.md
-600	6	Bounded Trace Contract	blocked	520	plans/tasks/600-trace-contract.md
+600	6	Bounded Trace Contract	done	520	plans/tasks/600-trace-contract.md
 605	6	CPU and Refusal Reports	blocked	600	plans/tasks/605-cpu-fault-report.md
 610	6	Versioned Input Recording and Replay	blocked	600	plans/tasks/610-input-replay.md
 615	6	Versioned Machine Snapshots	blocked	600,610	plans/tasks/615-snapshot-format.md
