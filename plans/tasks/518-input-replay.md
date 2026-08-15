@@ -1,6 +1,6 @@
 # 518 — Deterministic Input Replay
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 298, 420, 516
 

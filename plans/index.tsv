@@ -58,7 +58,7 @@ id	phase	title	status	dependencies	ticket
 513	5	Nema Backend and Panel Frame Publication	done	404,500,502,504,506,510,511,512	plans/tasks/513-panel-publication.md
 515	5	SDL3 Frame Presentation	blocked	298,513	plans/tasks/515-sdl-input.md
 516	5	SDL Semantic Input Mapping	done	295,298,404,420	plans/tasks/516-sdl-semantic-input.md
-518	5	Deterministic Input Replay	blocked	298,420,516	plans/tasks/518-input-replay.md
+518	5	Deterministic Input Replay	done	298,420,516	plans/tasks/518-input-replay.md
 520	5	Native Display, SDL, Replay, and Golden Integration	blocked	490,500,502,504,506,510,511,512,513,515,516,518	plans/tasks/520-sdl-goldens.md
 600	6	Bounded Trace Contract	blocked	520	plans/tasks/600-trace-contract.md
 605	6	CPU and Refusal Reports	blocked	600	plans/tasks/605-cpu-fault-report.md
