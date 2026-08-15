@@ -1,6 +1,6 @@
 # 605 — CPU and Refusal Reports
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 600
 
