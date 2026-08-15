@@ -1,0 +1,305 @@
+/*
+ * Deterministic input replay (ticket 518).
+ * Parses a strict ASCII replay format into a bounded queue of
+ * semantic button events.  Validates time ordering and press/release
+ * state before scheduling.
+ */
+
+#include "input_replay.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+typedef struct {
+    uint64_t time_ns;
+    semu_input_event event;
+} replay_entry;
+
+struct semu_input_replay {
+    replay_entry entries[INPUT_REPLAY_MAX_EVENTS];
+    size_t count;
+    size_t cursor;
+};
+
+semu_input_replay *semu_input_replay_create(semu_error *error)
+{
+    semu_input_replay *r;
+    r = (semu_input_replay *)calloc(1u, sizeof(*r));
+    if (r == NULL) {
+        semu_error_set(error, SEMU_ERR_NOMEM,
+                       "input_replay: cannot allocate");
+        return NULL;
+    }
+    return r;
+}
+
+void semu_input_replay_destroy(semu_input_replay *replay)
+{
+    free(replay);
+}
+
+void semu_input_replay_reset(semu_input_replay *replay)
+{
+    if (replay == NULL) {
+        return;
+    }
+    replay->count = 0u;
+    replay->cursor = 0u;
+}
+
+static int parse_button(const char *word, size_t len,
+                          semu_button_id *out)
+{
+    if (len == 5u && memcmp(word, "upper", 5u) == 0) {
+        *out = SEMU_BUTTON_UPPER;
+        return 1;
+    }
+    if (len == 6u && memcmp(word, "middle", 6u) == 0) {
+        *out = SEMU_BUTTON_MIDDLE;
+        return 1;
+    }
+    if (len == 5u && memcmp(word, "lower", 5u) == 0) {
+        *out = SEMU_BUTTON_LOWER;
+        return 1;
+    }
+    return 0;
+}
+
+static int parse_value(const char *word, size_t len, int *out_down)
+{
+    if (len == 5u && memcmp(word, "press", 5u) == 0) {
+        *out_down = 1;
+        return 1;
+    }
+    if (len == 7u && memcmp(word, "release", 7u) == 0) {
+        *out_down = 0;
+        return 1;
+    }
+    return 0;
+}
+
+static int parse_uint64(const char *s, size_t len, uint64_t *out)
+{
+    uint64_t val = 0u;
+    size_t i;
+    if (len == 0u || len > 20u) {
+        return 0;
+    }
+    for (i = 0u; i < len; ++i) {
+        if (s[i] < '0' || s[i] > '9') {
+            return 0;
+        }
+        val = val * 10u + (uint64_t)(s[i] - '0');
+    }
+    *out = val;
+    return 1;
+}
+
+#define MAX_WORDS 4u
+#define MAX_WORD_LEN 32u
+
+static int split_line(const char *line, size_t line_len,
+                       char words[MAX_WORDS][MAX_WORD_LEN],
+                       size_t word_lens[MAX_WORDS],
+                       size_t *out_count)
+{
+    size_t i = 0u;
+    size_t wc = 0u;
+    *out_count = 0u;
+    while (i < line_len) {
+        while (i < line_len && isspace((unsigned char)line[i])) {
+            ++i;
+        }
+        if (i >= line_len) {
+            break;
+        }
+        if (wc >= MAX_WORDS) {
+            return 0;
+        }
+        {
+            size_t wl = 0u;
+            while (i < line_len && !isspace((unsigned char)line[i])) {
+                if (wl >= MAX_WORD_LEN - 1u) {
+                    return 0;
+                }
+                words[wc][wl] = line[i];
+                ++wl;
+                ++i;
+            }
+            words[wc][wl] = '\0';
+            word_lens[wc] = wl;
+            ++wc;
+        }
+    }
+    *out_count = wc;
+    return 1;
+}
+
+semu_status semu_input_replay_parse(semu_input_replay *replay,
+    const char *text, size_t text_size, semu_error *error)
+{
+    size_t i = 0u;
+    uint32_t line_no = 0u;
+    uint64_t last_time = 0u;
+    int pressed[3] = { 0, 0, 0 };
+    int have_last = 0;
+
+    if (replay == NULL || text == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "input_replay: null argument");
+        return SEMU_ERR_ARGUMENT;
+    }
+    replay->count = 0u;
+    replay->cursor = 0u;
+
+    while (i < text_size) {
+        size_t start = i;
+        ++line_no;
+        while (i < text_size && text[i] != '\n') {
+            ++i;
+        }
+        {
+            size_t line_len = i - start;
+            const char *line = text + start;
+            char words[MAX_WORDS][MAX_WORD_LEN];
+            size_t word_lens[MAX_WORDS];
+            size_t wc;
+            uint64_t time_ns;
+            semu_button_id button;
+            int down;
+
+            if (i < text_size) {
+                ++i;
+            }
+
+            while (line_len > 0u &&
+                   isspace((unsigned char)line[line_len - 1u])) {
+                --line_len;
+            }
+            if (line_len == 0u) {
+                continue;
+            }
+            if (line[0] == '#') {
+                continue;
+            }
+            if (!split_line(line, line_len, words, word_lens, &wc)) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: too many words",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (wc != 4u) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: expected 4 words",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (word_lens[1] != 6u ||
+                memcmp(words[1], "button", 6u) != 0) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: expected 'button'",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (!parse_uint64(words[0], word_lens[0], &time_ns)) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: bad time", line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (!parse_button(words[2], word_lens[2], &button)) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: bad button code",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (!parse_value(words[3], word_lens[3], &down)) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: bad value", line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (have_last && time_ns < last_time) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: time out of order",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (have_last && time_ns == last_time) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: duplicate time",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (down && pressed[button]) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: duplicate press",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (!down && !pressed[button]) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "input_replay: line %u: impossible release",
+                               line_no);
+                return SEMU_ERR_FORMAT;
+            }
+            if (replay->count >= INPUT_REPLAY_MAX_EVENTS) {
+                semu_error_set(error, SEMU_ERR_RANGE,
+                               "input_replay: event overflow at line %u",
+                               line_no);
+                return SEMU_ERR_RANGE;
+            }
+            pressed[button] = down;
+            replay->entries[replay->count].time_ns = time_ns;
+            replay->entries[replay->count].event.kind = SEMU_INPUT_BUTTON;
+            replay->entries[replay->count].event.code = (uint32_t)button;
+            replay->entries[replay->count].event.value = down ? 0 : 1;
+            replay->entries[replay->count].event.x = 0;
+            replay->entries[replay->count].event.y = 0;
+            ++replay->count;
+            last_time = time_ns;
+            have_last = 1;
+        }
+    }
+    return SEMU_OK;
+}
+
+size_t semu_input_replay_count(const semu_input_replay *replay)
+{
+    return replay != NULL ? replay->count : 0u;
+}
+
+size_t semu_input_replay_pump(semu_input_replay *replay,
+    uint64_t current_time_ns,
+    semu_input_replay_sink sink, void *sink_context,
+    int *out_refused)
+{
+    size_t emitted = 0u;
+    if (replay == NULL || sink == NULL) {
+        if (out_refused != NULL) {
+            *out_refused = 0;
+        }
+        return 0u;
+    }
+    if (out_refused != NULL) {
+        *out_refused = 0;
+    }
+    while (replay->cursor < replay->count) {
+        replay_entry *e = &replay->entries[replay->cursor];
+        if (e->time_ns > current_time_ns) {
+            break;
+        }
+        {
+            int rc = sink(sink_context, &e->event, e->time_ns,
+                            (uint32_t)replay->cursor);
+            ++replay->cursor;
+            if (rc != 0) {
+                if (out_refused != NULL) {
+                    *out_refused = 1;
+                }
+                break;
+            }
+            ++emitted;
+        }
+    }
+    return emitted;
+}
