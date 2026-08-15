@@ -1,6 +1,6 @@
 # 510 — Integer Raster Primitives and Clipping
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 298, 490, 502
 
