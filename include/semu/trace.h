@@ -169,4 +169,60 @@ const char *semu_replay_profile_id(const semu_replay *replay);
 const char *semu_replay_firmware_hash(const semu_replay *replay);
 uint32_t semu_replay_version(const semu_replay *replay);
 
+/*
+ * Versioned machine snapshots (ticket 615).
+ * Atomic serialize/restore with magic, version, identity binding,
+ * and named binary sections.  Restore validates the entire image
+ * before mutating the target.  No pointer serialization, compression
+ * dependency, or private firmware bytes.
+ */
+#define SEMU_SNAPSHOT_MAGIC 0x53454D53u  /* "SEMS" */
+#define SEMU_SNAPSHOT_VERSION 1u
+#define SEMU_SNAPSHOT_MAX_SECTIONS 16u
+#define SEMU_SNAPSHOT_MAX_SECTION_SIZE (4u * 1024u * 1024u)
+
+/* Section IDs */
+#define SEMU_SNAPSHOT_SECTION_CPU_STATE   0u
+#define SEMU_SNAPSHOT_SECTION_RAM         1u
+#define SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME 2u
+#define SEMU_SNAPSHOT_SECTION_STOP_REASON  3u
+
+typedef struct semu_snapshot semu_snapshot;
+
+semu_snapshot *semu_snapshot_create(semu_error *error);
+void semu_snapshot_destroy(semu_snapshot *snap);
+void semu_snapshot_reset(semu_snapshot *snap);
+
+semu_status semu_snapshot_set_identity(semu_snapshot *snap,
+    const char *profile_id, const char *firmware_hash,
+    semu_error *error);
+
+semu_status semu_snapshot_write_section(semu_snapshot *snap,
+    uint32_t section_id, const uint8_t *data, size_t size,
+    semu_error *error);
+
+/*
+ * Serialize to byte buffer (explicit little-endian, checked sizes).
+ * Returns bytes written.  Writes at most buf_size bytes.
+ */
+size_t semu_snapshot_serialize(const semu_snapshot *snap,
+    uint8_t *buf, size_t buf_size);
+
+/*
+ * Deserialize from a byte buffer.  Validates magic, version,
+ * identity, all section lengths, and total size before accepting.
+ * Returns SEMU_OK or an error code.  On failure, the snapshot is
+ * left unchanged (atomic restore).
+ */
+semu_status semu_snapshot_deserialize(semu_snapshot *snap,
+    const uint8_t *buf, size_t buf_size, semu_error *error);
+
+semu_status semu_snapshot_read_section(const semu_snapshot *snap,
+    uint32_t section_id, const uint8_t **out_data, size_t *out_size);
+
+const char *semu_snapshot_profile_id(const semu_snapshot *snap);
+const char *semu_snapshot_firmware_hash(const semu_snapshot *snap);
+uint32_t semu_snapshot_version(const semu_snapshot *snap);
+size_t semu_snapshot_section_count(const semu_snapshot *snap);
+
 #endif
