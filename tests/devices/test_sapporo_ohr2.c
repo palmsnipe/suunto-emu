@@ -247,13 +247,38 @@ static void test_sequence_refusal_and_probe_reset(semu_test_context *context)
     semu_sapporo_ohr2_destroy(device);
 }
 
+static void test_sequence_overflow_is_atomic(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    uint8_t request[59];
+
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    endpoint = semu_sapporo_ohr2_endpoint(device);
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_IDENTITY, UINT16_MAX);
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.ready_count);
+    semu_sapporo_ohr2_destroy(device);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_packet_crc_and_ready),
         SEMU_TEST_CASE(test_state_sequence_and_fire_forget),
         SEMU_TEST_CASE(test_refusals_reset_and_missing_body),
-        SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset)
+        SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset),
+        SEMU_TEST_CASE(test_sequence_overflow_is_atomic)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

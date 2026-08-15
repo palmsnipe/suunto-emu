@@ -114,6 +114,9 @@ static semu_transaction_result queue_response(
     uint8_t body[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE];
     semu_transaction_result result;
 
+    if (sequence == UINT16_MAX) {
+        return refuse(error, "sequence counter overflow");
+    }
     if (device->body_provider == NULL) {
         return refuse(error, "missing response body fixture");
     }
