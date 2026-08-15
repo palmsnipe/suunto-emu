@@ -109,4 +109,64 @@ typedef struct semu_report_fault {
 size_t semu_report_fault_format(const semu_report_fault *report,
     const semu_trace *trace, char *buf, size_t buf_size);
 
+/*
+ * Versioned input recording and replay (ticket 610).
+ * Strict parser/formatter with format version, exact profile and
+ * firmware identity binding, ordered integer virtual times, and
+ * semantic events.  Duplicate times preserve file order; time reversal
+ * is rejected.  No wall time, SDL polling, or best-effort load.
+ */
+#include "semu/input.h"
+
+#define SEMU_REPLAY_FORMAT_VERSION 1u
+#define SEMU_REPLAY_MAX_EVENTS 1024u
+#define SEMU_REPLAY_HASH_HEX_LEN (SEMU_SHA256_SIZE * 2u + 1u)
+
+typedef struct semu_replay_event {
+    uint64_t virtual_time_ns;
+    semu_input_kind kind;
+    uint32_t code;
+    int32_t value;
+    int32_t x;
+    int32_t y;
+} semu_replay_event;
+
+struct semu_replay {
+    uint32_t version;
+    char profile_id[SEMU_ID_MAX];
+    char firmware_hash[SEMU_REPLAY_HASH_HEX_LEN];
+    semu_replay_event events[SEMU_REPLAY_MAX_EVENTS];
+    size_t count;
+};
+typedef struct semu_replay semu_replay;
+
+semu_replay *semu_replay_create(semu_error *error);
+void semu_replay_destroy(semu_replay *replay);
+void semu_replay_reset(semu_replay *replay);
+
+/*
+ * Parse strict ASCII replay text.  Validates version, identity,
+ * event count, ordering, and all event fields before accepting.
+ * Rejects unknown kinds/codes and time reversal.  Duplicate times
+ * are allowed and preserve file order.
+ * Returns SEMU_OK or an error code with a line-number message.
+ */
+semu_status semu_replay_parse(semu_replay *replay,
+    const char *text, size_t text_size, semu_error *error);
+
+/*
+ * Format to stable byte-identical text.  Identical replays always
+ * produce identical output.  Returns bytes written (excluding NUL).
+ * Writes at most buf_size bytes.
+ */
+size_t semu_replay_format(const semu_replay *replay,
+    char *buf, size_t buf_size);
+
+size_t semu_replay_event_count(const semu_replay *replay);
+const semu_replay_event *semu_replay_event_get(const semu_replay *replay,
+    size_t index);
+const char *semu_replay_profile_id(const semu_replay *replay);
+const char *semu_replay_firmware_hash(const semu_replay *replay);
+uint32_t semu_replay_version(const semu_replay *replay);
+
 #endif
