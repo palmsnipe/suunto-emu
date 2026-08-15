@@ -1,6 +1,6 @@
 # 506 — Nema Refusal Diagnostics and Completion Events
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 298, 490, 500
 
