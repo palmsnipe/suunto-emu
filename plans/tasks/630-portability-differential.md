@@ -1,6 +1,6 @@
 # 630 — Portability and Optional Differential Gate
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 625
 
