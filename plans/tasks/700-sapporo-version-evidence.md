@@ -1,6 +1,6 @@
 # 700 — Later Sapporo Evidence Inventory
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 630
 

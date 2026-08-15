@@ -53,6 +53,9 @@ static const char *profile_path(const char *argument)
     if (argument != NULL && strcmp(argument, "sapporo-2.22.60") == 0) {
         return "profiles/sapporo/2.22.60/profile.semu";
     }
+    if (argument != NULL && strcmp(argument, "sapporo-2.33.16") == 0) {
+        return "profiles/sapporo/2.33.16/profile.semu";
+    }
     return argument;
 }
 
@@ -150,6 +153,7 @@ static int parse_options(int argc, char **argv, int start,
 static int command_list(void)
 {
     puts("sapporo-2.22.60  Sapporo  2.22.60.3383-P  interpreter-bring-up");
+    puts("sapporo-2.33.16  Sapporo  2.33.16.17428-P  evidence-contract");
     return 0;
 }
 
