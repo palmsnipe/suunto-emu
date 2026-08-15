@@ -3,30 +3,44 @@
 
 #include "semu/apollo4.h"
 
-#define SEMU_APOLLO4_GPIO_COUNT 128u
-#define SEMU_APOLLO4_REGBANK_WORDS 32u
+#include "clock.h"
+#include "dma.h"
+#include "gpio.h"
+#include "mcu_control.h"
+#include "mram.h"
+#include "mspi.h"
+#include "iom.h"
+#include "power.h"
+#include "reset.h"
+#include "stimer.h"
+#include "timer.h"
+#include "uart.h"
 
-typedef struct semu_regbank {
-    const char *name;
-    uint32_t allowed[SEMU_APOLLO4_REGBANK_WORDS];
-    uint32_t values[SEMU_APOLLO4_REGBANK_WORDS];
-    size_t count;
-} semu_regbank;
+#define SEMU_APOLLO4_GPIO_COUNT 128u
 
 struct semu_apollo4 {
     semu_bus *bus;
+    int initialized;
+    semu_apollo4_irq_fn irq_sink;
+    void *irq_context;
     uint8_t gpio_level[SEMU_APOLLO4_GPIO_COUNT];
-    semu_regbank clock;
-    semu_regbank power;
-    semu_regbank mram;
-    semu_regbank crypto;
-    semu_regbank system;
+    semu_apollo4_clock *clock;
+    semu_apollo4_power *power;
+    semu_apollo4_mcu_control *mcu_control;
+    semu_apollo4_reset_controller *reset_ctrl;
+    semu_apollo4_gpio *gpio;
+    semu_apollo4_timer *timer;
+    semu_apollo4_stimer *stimer;
+    semu_apollo4_uart *uart;
+    semu_apollo4_iom *iom0;
+    semu_apollo4_iom *iom2;
+    semu_apollo4_iom *iom3;
+    semu_apollo4_iom *iom4;
+    semu_apollo4_iom *iom6;
+    semu_apollo4_dma *dma;
+    semu_apollo4_mspi *mspi1;
+    semu_apollo4_mspi *mspi2;
+    semu_apollo4_mram *mram;
 };
-
-semu_status semu_regbank_read(void *context, uint32_t offset, unsigned width,
-                              uint32_t *value, semu_error *error);
-semu_status semu_regbank_write(void *context, uint32_t offset, unsigned width,
-                               uint32_t value, semu_error *error);
-void semu_regbank_reset(void *context);
 
 #endif

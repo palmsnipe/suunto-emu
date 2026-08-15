@@ -33,7 +33,7 @@ id	phase	title	status	dependencies	ticket
 316	3	Apollo4 MSPI Controller	done	285,295,298	plans/tasks/316-apollo4-mspi.md
 317	3	Apollo4 DMA Engine	done	285,295,298	plans/tasks/317-apollo4-dma.md
 318	3	Apollo4 MRAM Controller	done	285,295,298	plans/tasks/318-apollo4-mram.md
-320	3	Apollo4 Phase 3 Integration	blocked	300,302,304,305,310,312,314,315,316,317,318	plans/tasks/320-apollo4-integration.md
+320	3	Apollo4 Phase 3 Integration	done	300,302,304,305,310,312,314,315,316,317,318	plans/tasks/320-apollo4-integration.md
 400	4	Sapporo 2.22 Profile and Wiring	blocked	295,298,320	plans/tasks/400-sapporo-foundation.md
 402	4	Sapporo External Flash Device	blocked	285,295,298,316,317	plans/tasks/402-sapporo-flash.md
 404	4	Sapporo Panel Transport, Buttons, and Backlight	blocked	295,298,305,310,316	plans/tasks/404-sapporo-panel-buttons-backlight.md

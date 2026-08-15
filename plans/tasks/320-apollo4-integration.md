@@ -1,6 +1,6 @@
 # 320 — Apollo4 Phase 3 Integration
 
-**Status:** blocked
+**Status:** done
 **Phase:** 3
 **Dependencies:** 300, 302, 304, 305, 310, 312, 314, 315, 316, 317, 318
 
