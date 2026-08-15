@@ -1,6 +1,6 @@
 # 512 — Texture Sampling and Masked Draw
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 504, 510, 511
 
