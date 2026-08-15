@@ -1,6 +1,6 @@
 # 610 — Versioned Input Recording and Replay
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 600
 
