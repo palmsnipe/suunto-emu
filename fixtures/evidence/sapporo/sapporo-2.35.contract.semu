@@ -1,0 +1,92 @@
+[evidence]
+format=1
+id=E-SAP-0010
+date=2026-08-15
+source_kind=authentic SOF package extraction
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Sapporo-fw_2.35.34.18929-P-abc8d1dc.sof
+product=Sapporo
+version=2.35.34.18929-P
+channel=P
+
+[sof_package]
+filename=Sapporo-fw_2.35.34.18929-P-abc8d1dc.sof
+size=5390294
+sha256=79ca59c012795e3694ca317e38ce42568b8acf425ea3a131bab09fdc0ed32a07
+magic=SOF1
+header_span=624
+revision=b0e8e377
+release_date=2024-07-03
+
+[component resident]
+role=resident
+type=2
+encoding_version=2
+load_address=0x00019000
+size=73377
+sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5
+compression=xz
+
+[component application]
+role=application
+type=4
+encoding_version=2
+load_address=0x00040000
+size=1585150
+sha256=36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a
+compression=xz
+
+[component resources]
+role=resources
+type=1
+encoding_version=3
+load_address=0x14000000
+size=16519168
+sha256=f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22
+compression=xz
+
+[vector_table resident]
+initial_sp=0x10080000
+reset_vector=0x0001df75
+reset_code_address=0x0001df74
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[vector_table application]
+initial_sp=0x10080000
+reset_vector=0x001c2b05
+reset_code_address=0x001c2b04
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[comparison_2.22]
+resident_same_load_address=true
+resident_size_delta=1873
+resident_same_sha256=false
+application_same_load_address=true
+application_size_delta=91916
+application_same_sha256=false
+resources_same_load_address=true
+resources_same_size=true
+resources_same_sha256=false
+resident_same_initial_sp=true
+resident_same_reset_vector=false
+
+[comparison_2.33.16]
+resident_same_sha256=true
+application_same_sha256=false
+application_size_delta=23753
+resources_same_sha256=false
+resident_same_reset_vector=true
+
+[bounded_traces]
+status=blocked
+reason=No profile exists for Sapporo 2.35; profile creation is ticket 705 scope
+reset_mmio_traces=not captured
+startup_stop=not captured
+
+[limitations]
+cache_interventions=unknown
+logical_storage_interventions=unknown
+description=Component contracts are exact; emulator run traces require a version-specific profile

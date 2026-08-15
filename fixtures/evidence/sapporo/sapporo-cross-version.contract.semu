@@ -1,0 +1,73 @@
+[evidence]
+format=1
+id=E-SAP-0012
+date=2026-08-15
+source_kind=cross-version SOF extraction comparison
+source_location=$FIRMWARE_ROOT/artifacts/analysis/sapporo-*
+product=Sapporo
+versions=2.22.60.3383,2.33.12.15926,2.33.14.16606,2.33.16.17428,2.35.34.18929,2.39.20.22297
+
+[shared_components]
+header_component_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+header_identical_across_all_builds=true
+header_note=Component type 1 encoding v1, 5854 bytes, load address 0xFFFFFFFF (unmapped descriptor)
+
+[resident_component]
+2.22_sha256=a409b088a061c2fe61689c8f39a79b2c35ed0059cd66987646e0195e47a2f522
+2.22_size=71504
+post_2.22_sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5
+post_2.22_size=73377
+post_2.22_identical_from=2.33.12 through 2.39.20
+resident_load_address=0x00019000 (all versions)
+resident_initial_sp=0x10080000 (all versions)
+
+[xip_component]
+2.22_expanded_sha256=ddb2e95ebdb294f994e6eeebc887fe366a9204845a7a014de22105a7f5d55aab
+post_2.22_expanded_sha256=448bbd3ffc8025f89ac6919c16be5bb86d20c29cd59ced03cf6da4b2b21f491e
+xip_identical_from=2.33.12 through 2.39.20
+xip_load_address=0x00040000 (all versions)
+
+[application_component]
+load_address=0x00040000 (all versions)
+initial_sp=0x10080000 (all versions)
+sha256_differs_per_build=true
+reset_vector_differs_per_build=true
+size_trend=monotonically_increasing_from_2.22_to_2.39
+
+[resources_component]
+load_address=0x14000000 (all versions)
+size=16519168 (all versions)
+sha256_differs_per_build=true (except shared resident/xip)
+
+[application_size_progression]
+2.22.60=1493234
+2.33.12=1561609
+2.33.14=1561551
+2.33.16=1561397
+2.35.34=1585150
+2.39.20=1596337
+
+[application_reset_vector_progression]
+2.22.60=0x001a2e91
+2.33.12=0x001bcfbd
+2.33.14=0x001bcf8d
+2.33.16=0x001bcefd
+2.35.34=0x001c2b05
+2.39.20=0x001c4727
+
+[bounded_traces]
+status=blocked
+reason=No profiles exist for later Sapporo versions; profile creation is ticket 705 scope
+all_versions_startup_stop=not captured
+all_versions_reset_mmio=not captured
+
+[cache_logical_storage]
+status=unknown
+interventions_real_or_synthetic=not yet determinable without emulator run traces
+requires=version-specific profile and bounded authentic run
+
+[provenance]
+extraction_tool=$FIRMWARE_ROOT/tools/inspect_sapporo_boot.py
+analysis_directories=$FIRMWARE_ROOT/artifacts/analysis/sapporo-*
+hashes_verified_independently=true
+verification_method=shasum -a 256 on extracted .raw files, compared against manifest expanded_sha256

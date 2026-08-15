@@ -29,6 +29,7 @@ Only evidence recorded in `docs/migration-evidence.md` may advance a component b
 | Sapporo GPS UART | observed transcript; optional fixture | unknown | bounded startup exchange passes |
 | Sapporo Nema/panel 240x240 | command traces and frame hashes | unknown | all three private frame goldens pass |
 | Sapporo buttons/backlight | board traces | unknown | three-button input and panel-state tests pass |
+| Sapporo 2.33/2.35/2.39 component contracts | SOF extraction manifests (E-SAP-0009/0010/0011/0012) | traced | exact component hashes and vector tables verified; bounded emulator traces blocked (no profiles) |
 | Ulsan platform | future exact profiles/traces | unknown | native display transaction obtained |
 | Wismar platform | future exact profiles/traces | unknown | stable reset, then native display |
 | Tianjin/Rostock/Xiamen | future firmware and traces | unknown | product-specific gate not yet opened |

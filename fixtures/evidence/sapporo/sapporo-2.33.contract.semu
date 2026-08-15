@@ -1,0 +1,105 @@
+[evidence]
+format=1
+id=E-SAP-0009
+date=2026-08-15
+source_kind=authentic SOF package extraction
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Sapporo-fw_2.33.16.17428-P-96f38caa.sof
+product=Sapporo
+version=2.33.16.17428-P
+channel=P
+
+[sof_package]
+filename=Sapporo-fw_2.33.16.17428-P-96f38caa.sof
+size=5262962
+sha256=4384322af5ffedf05de1144d069b05369f14e8803b2dfa2814a83272eefd0327
+magic=SOF1
+header_span=624
+revision=acf9fa01
+release_date=2024-05-21
+
+[component resident]
+role=resident
+type=2
+encoding_version=2
+load_address=0x00019000
+size=73377
+sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5
+compression=xz
+
+[component application]
+role=application
+type=4
+encoding_version=2
+load_address=0x00040000
+size=1561397
+sha256=ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5
+compression=xz
+
+[component resources]
+role=resources
+type=1
+encoding_version=3
+load_address=0x14000000
+size=16519168
+sha256=b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5
+compression=xz
+
+[vector_table resident]
+initial_sp=0x10080000
+reset_vector=0x0001df75
+reset_code_address=0x0001df74
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[vector_table application]
+initial_sp=0x10080000
+reset_vector=0x001bcefd
+reset_code_address=0x001bcefc
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[comparison_2.22]
+resident_same_load_address=true
+resident_size_delta=1873
+resident_same_sha256=false
+application_same_load_address=true
+application_size_delta=68163
+application_same_sha256=false
+resources_same_load_address=true
+resources_same_size=true
+resources_same_sha256=false
+resident_same_initial_sp=true
+resident_same_reset_vector=false
+
+[cross_build_2.33]
+builds=2.33.12.15926,2.33.14.16606,2.33.16.17428
+resident_identical_across_builds=true
+xip_identical_across_builds=true
+header_identical_across_builds=true
+application_differs_per_build=true
+resources_differs_per_build=true
+
+[build_2.33.12]
+sof_sha256=5ab2cb74df87a7fb2988d06fd1f9a9519b96813d4471c05dd98f08514b94874d
+application_sha256=17293321d88986c0a4f1ed9e5bb9834d55e4cb6331be906458d71294e234ea05
+application_size=1561609
+resources_sha256=a785e7600370e7c7e7461210364fcffad135b9fad018daa5a1c0946062a6f882
+
+[build_2.33.14]
+sof_sha256=ffc38d28c47935a545b515c537fbef8f2e09b1931fac6fc23565cab34d7bedd6
+application_sha256=fb1acdd14118749130c8af07ad43de89a1da56b0a93db9f82632da01964d78ed
+application_size=1561551
+resources_sha256=5ff9562d2ddd402fc101fe84fb303393db1da6299c5169d04c08428491e409bc
+
+[bounded_traces]
+status=blocked
+reason=No profile exists for Sapporo 2.33; profile creation is ticket 705 scope
+reset_mmio_traces=not captured
+startup_stop=not captured
+
+[limitations]
+cache_interventions=unknown
+logical_storage_interventions=unknown
+description=Component contracts are exact; emulator run traces require a version-specific profile
