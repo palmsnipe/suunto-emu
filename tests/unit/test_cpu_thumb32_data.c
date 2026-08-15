@@ -369,12 +369,60 @@ static void test_branch_bounds_and_link(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0xff000104u, state.r[15]);
 }
 
+static void test_conditional_branch_t3(semu_test_context *context)
+{
+    /* B<cc>.W T3 encoding: first = 11110 S cond imm6,
+     * second = 10 J1 0 J2 imm11. For displacement +32 (S=0, I1=0,
+     * I2=0, imm6=0, imm11=0x10), J1=J2=1 (inverted from I1/I2).
+     * Target = pc + 4 + 32 = 0x124 when taken. */
+    semu_cpu_state state = initial_state();
+    semu_status status;
+
+    /* BEQ.W (cond=EQ=0): Z=0 → not taken, falls through to pc+4. */
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0xa810u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
+
+    /* BEQ.W (cond=EQ=0): Z=1 → taken, target = 0x124. */
+    state = initial_state();
+    state.xpsr |= XPSR_Z;
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0xa810u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x124u, state.r[15]);
+
+    /* BGT.W (cond=GT=0xC): Z=0 and N==V → taken. This encoding
+     * (first=0xf300) collides with the DSP saturation dispatch and
+     * must be routed to branch_data via the branch pre-check. */
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, run32(0xf300u, 0xa810u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x124u, state.r[15]);
+
+    /* BGT.W (cond=GT=0xC): Z=1 → not taken. */
+    state = initial_state();
+    state.xpsr |= XPSR_Z;
+    SEMU_TEST_ASSERT(context, run32(0xf300u, 0xa810u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
+
+    /* Refusal: cond=15 (undefined) with T3 encoding. */
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, run32(0xf3c0u, 0xa810u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, status);
+    SEMU_TEST_EQ_U64(context, 0x100u, state.r[15]);
+}
+
 static void test_refusals_preserve_state(semu_test_context *context)
 {
     static const struct { uint16_t first; uint16_t second; } cases[] = {
-        {0xf040u, 0x8000u}, {0xea4fu, 0x000fu}, {0xea0du, 0x0001u},
-        {0xf240u, 0x0d01u}, {0xf361u, 0x70c0u}, {0xf341u, 0x70c1u},
-        {0xf000u, 0x8000u}
+        {0xea4fu, 0x000fu}, {0xea0du, 0x0001u},
+        {0xf240u, 0x0d01u}, {0xf361u, 0x70c0u}, {0xf341u, 0x70c1u}
     };
     size_t index;
 
@@ -403,6 +451,7 @@ int main(void)
         SEMU_TEST_CASE(test_modified_immediate_and_aliases),
         SEMU_TEST_CASE(test_wide_bitfield_and_extract),
         SEMU_TEST_CASE(test_branch_bounds_and_link),
+        SEMU_TEST_CASE(test_conditional_branch_t3),
         SEMU_TEST_CASE(test_refusals_preserve_state)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

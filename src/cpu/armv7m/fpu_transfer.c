@@ -220,15 +220,17 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
     int add = (first & 0x0080u) != 0u;
     int writeback = (first & 0x0020u) != 0u;
     int load = (first & 0x0010u) != 0u;
-    uint32_t values[16];
-    uint32_t addresses[16];
+    int is_double = (second & 0x0100u) != 0u;
+    unsigned words = is_double ? count * 2u : count;
+    uint32_t values[32];
+    uint32_t addresses[32];
     uint32_t address;
     uint32_t updated;
     semu_status status;
     unsigned index;
 
-    if ((second & 0x0f00u) != 0x0a00u || rn == 15u || count == 0u ||
-        count > 16u || start + count > 32u ||
+    if ((second & 0x0e00u) != 0x0a00u || rn == 15u || count == 0u ||
+        count > 16u || start + words > 32u ||
         (push && (add || !writeback)))
         return refuse(cpu, first, second, error);
     if (!push && !add && writeback)
@@ -247,24 +249,24 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
     }
     status = armv7m_fpu_check_access(cpu, error);
     if (status != SEMU_OK) return status;
-    status = transfer_start(cpu, cpu->state.r[rn], count, add, writeback,
+    status = transfer_start(cpu, cpu->state.r[rn], words, add, writeback,
                             &address, &updated, error);
     if (status == SEMU_ERR_UNSUPPORTED)
         return refuse(cpu, first, second, error);
     if (status != SEMU_OK) return status;
-    for (index = 0u; index < count; ++index) {
+    for (index = 0u; index < words; ++index) {
         status = transfer_address(cpu, address, index, &addresses[index],
                                   error);
         if (status != SEMU_OK) return status;
     }
     if (load) {
-        for (index = 0u; index < count; ++index) {
+        for (index = 0u; index < words; ++index) {
             status = armv7m_read(cpu, addresses[index], 4u,
                                  &values[index], error);
             if (status != SEMU_OK) return status;
         }
     } else {
-        for (index = 0u; index < count; ++index) {
+        for (index = 0u; index < words; ++index) {
             values[index] = cpu->state.s[start + index];
             status = armv7m_validate_write(cpu, addresses[index], 4u,
                                            error);
@@ -272,10 +274,10 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
         }
     }
     if (load) {
-        for (index = 0u; index < count; ++index)
+        for (index = 0u; index < words; ++index)
             cpu->state.s[start + index] = values[index];
     } else {
-        for (index = 0u; index < count; ++index) {
+        for (index = 0u; index < words; ++index) {
             status = armv7m_write(cpu, addresses[index], 4u, values[index],
                                   error);
             if (status != SEMU_OK) return status;
@@ -294,12 +296,17 @@ static semu_status single_memory_transfer(semu_cpu *cpu, uint16_t first,
     unsigned offset = ((unsigned)second & 0xffu) * 4u;
     int add = (first & 0x0080u) != 0u;
     int load = (first & 0x0010u) != 0u;
+    int is_double = (second & 0x0100u) != 0u;
     uint32_t base;
     uint32_t address;
+    uint32_t address2;
     uint32_t value;
+    uint32_t value2;
     semu_status status;
 
-    if ((second & 0x0f00u) != 0x0a00u || sd > 31u || (!load && rn == 15u))
+    if ((second & 0x0e00u) != 0x0a00u || sd > 31u || (!load && rn == 15u))
+        return refuse(cpu, first, second, error);
+    if (is_double && sd > 30u)
         return refuse(cpu, first, second, error);
     if (rn == 15u && !load) return refuse(cpu, first, second, error);
     status = armv7m_fpu_check_access(cpu, error);
@@ -315,12 +322,30 @@ static semu_status single_memory_transfer(semu_cpu *cpu, uint16_t first,
     if (status != SEMU_OK) return status;
     if (load) {
         status = armv7m_read(cpu, address, 4u, &value, error);
-        if (status == SEMU_OK) cpu->state.s[sd] = value;
-        return status;
+        if (status != SEMU_OK) return status;
+        if (is_double) {
+            status = armv7m_add_address(cpu, address, 4u, &address2, error);
+            if (status != SEMU_OK) return status;
+            status = armv7m_read(cpu, address2, 4u, &value2, error);
+            if (status != SEMU_OK) return status;
+        }
+        cpu->state.s[sd] = value;
+        if (is_double) cpu->state.s[sd + 1u] = value2;
+        return SEMU_OK;
     }
     status = armv7m_validate_write(cpu, address, 4u, error);
     if (status != SEMU_OK) return status;
-    return armv7m_write(cpu, address, 4u, cpu->state.s[sd], error);
+    if (is_double) {
+        status = armv7m_add_address(cpu, address, 4u, &address2, error);
+        if (status != SEMU_OK) return status;
+        status = armv7m_validate_write(cpu, address2, 4u, error);
+        if (status != SEMU_OK) return status;
+    }
+    status = armv7m_write(cpu, address, 4u, cpu->state.s[sd], error);
+    if (status != SEMU_OK) return status;
+    if (is_double)
+        return armv7m_write(cpu, address2, 4u, cpu->state.s[sd + 1u], error);
+    return SEMU_OK;
 }
 
 semu_status armv7m_fpu_transfer(semu_cpu *cpu, uint16_t first,

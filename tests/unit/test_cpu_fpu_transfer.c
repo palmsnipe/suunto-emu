@@ -274,6 +274,103 @@ static void test_refusals_are_bounded(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_cp11_double_single_transfer(semu_test_context *context)
+{
+    /* VLDR D0,[R0] (CP11 double: loads S0 and S1)
+     * first=0xED90 second=0x0B00
+     * VSTR D0,[R1] (CP11 double: stores S0 and S1)
+     * first=0xED81 second=0x0B00 */
+    static const uint8_t program[] = {
+        0x90u, 0xedu, 0x00u, 0x0bu, /* vldr d0,[r0] */
+        0x81u, 0xedu, 0x00u, 0x0bu  /* vstr d0,[r1] */
+    };
+    semu_cpu_fixture fixture;
+    semu_cpu_state *state;
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, init_enabled(&fixture, program,
+                                           sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = 0x600u;
+    state->r[1] = 0x700u;
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x600u,
+                                                         0x11111111u));
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x604u,
+                                                         0x22222222u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_cpu_fixture_run(&fixture, 2u));
+    SEMU_TEST_EQ_U64(context, 0x11111111u, state->s[0]);
+    SEMU_TEST_EQ_U64(context, 0x22222222u, state->s[1]);
+    SEMU_TEST_ASSERT(context, read_word(&fixture, 0x700u, &value));
+    SEMU_TEST_EQ_U64(context, 0x11111111u, value);
+    SEMU_TEST_ASSERT(context, read_word(&fixture, 0x704u, &value));
+    SEMU_TEST_EQ_U64(context, 0x22222222u, value);
+    semu_cpu_fixture_destroy(&fixture);
+
+    /* Refusal: CP11 double with sd=31 (D15.5 does not exist on FPv4-SP).
+     * first=0xEDD0 second=0xFB00 → sd=31, is_double → sd>30u */
+    SEMU_TEST_ASSERT(context, init_enabled(&fixture, program,
+                                           sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->s[31] = 0x80000000u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     armv7m_exec32(fixture.cpu, 0xedd0u, 0xfb00u,
+                                   0x100u, &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0x100u, state->r[15]);
+    SEMU_TEST_EQ_U64(context, 0x80000000u, state->s[31]);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
+static void test_cp11_double_multiple_transfer(semu_test_context *context)
+{
+    /* VLDmia D0-D3,[R0!] (CP11 double: 4 D regs = 8 S regs = 32 bytes)
+     * first=0xECB0 second=0x0B04
+     * VSTMia D0-D3,[R1!] (CP11 double store)
+     * first=0xECA1 second=0x0B04 */
+    static const uint8_t program[] = {
+        0xb0u, 0xecu, 0x04u, 0x0bu, /* vldmia r0!,{d0-d3} */
+        0xa1u, 0xecu, 0x04u, 0x0bu  /* vstmia r1!,{d0-d3} */
+    };
+    semu_cpu_fixture fixture;
+    semu_cpu_state *state;
+    uint32_t value;
+    unsigned index;
+
+    SEMU_TEST_ASSERT(context, init_enabled(&fixture, program,
+                                           sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = 0x600u;
+    state->r[1] = 0x700u;
+    for (index = 0u; index < 8u; ++index)
+        SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(
+            &fixture, 0x600u + index * 4u, 0xa0000000u + index));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_cpu_fixture_run(&fixture, 2u));
+    SEMU_TEST_EQ_U64(context, 0x620u, state->r[0]);
+    SEMU_TEST_EQ_U64(context, 0x720u, state->r[1]);
+    for (index = 0u; index < 8u; ++index) {
+        SEMU_TEST_EQ_U64(context, 0xa0000000u + index,
+                         state->s[index]);
+        SEMU_TEST_ASSERT(context, read_word(&fixture,
+                                            0x700u + index * 4u, &value));
+        SEMU_TEST_EQ_U64(context, 0xa0000000u + index, value);
+    }
+    semu_cpu_fixture_destroy(&fixture);
+
+    /* Refusal: CP11 double multiple with start+words>32.
+     * first=0xECB0 second=0xFB02 → start=30, count=2, words=4 → 34>32 */
+    SEMU_TEST_ASSERT(context, init_enabled(&fixture, program,
+                                           sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = 0x600u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     armv7m_exec32(fixture.cpu, 0xecb0u, 0xfb02u,
+                                   0x100u, &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0x100u, state->r[15]);
+    SEMU_TEST_EQ_U64(context, 0x600u, state->r[0]);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_memory_preflight_is_atomic(semu_test_context *context)
 {
     static const uint8_t program[] = {0x00u, 0xbeu};
@@ -320,6 +417,8 @@ int main(void)
         SEMU_TEST_CASE(test_scalar_and_pair_raw_transfers),
         SEMU_TEST_CASE(test_fpscr_and_nzcv_transfers),
         SEMU_TEST_CASE(test_single_memory_bounds_and_multiple_writeback),
+        SEMU_TEST_CASE(test_cp11_double_single_transfer),
+        SEMU_TEST_CASE(test_cp11_double_multiple_transfer),
         SEMU_TEST_CASE(test_refusals_are_bounded),
         SEMU_TEST_CASE(test_memory_preflight_is_atomic)
     };

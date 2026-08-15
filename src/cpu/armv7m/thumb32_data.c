@@ -298,10 +298,34 @@ static semu_status branch_data(semu_cpu *cpu, uint16_t first,
     return SEMU_OK;
 }
 
+static semu_status conditional_branch(semu_cpu *cpu, uint16_t first,
+                                       uint16_t second, uint32_t pc,
+                                       semu_error *error)
+{
+    unsigned condition = (first >> 6u) & 0xfu;
+    uint32_t s = (first >> 10u) & 1u, j1 = (second >> 13u) & 1u;
+    uint32_t j2 = (second >> 11u) & 1u, i1 = (~(j1 ^ s)) & 1u;
+    uint32_t i2 = (~(j2 ^ s)) & 1u, encoded;
+
+    if (condition >= 14u)
+        return refuse(cpu, first, second, pc, error);
+    if (!armv7m_condition_passed(cpu, condition))
+        return SEMU_OK;
+    encoded = (s << 24u) | (i1 << 23u) | (i2 << 22u) |
+              ((uint32_t)(first & 0x3fu) << 12u) |
+              ((uint32_t)(second & 0x7ffu) << 1u);
+    cpu->state.r[15] = pc + 4u +
+                       (uint32_t)armv7m_sign_extend(encoded, 25u);
+    return SEMU_OK;
+}
+
 semu_status armv7m_exec32_data(semu_cpu *cpu, uint16_t first,
                                uint16_t second, uint32_t pc,
                                semu_error *error)
 {
+    if ((first & 0xf800u) == 0xf000u &&
+        (second & 0xd000u) == 0x8000u)
+        return conditional_branch(cpu, first, second, pc, error);
     if ((first & 0xf800u) == 0xf000u &&
         ((second & 0xd000u) == 0x9000u || (second & 0xd000u) == 0xd000u))
         return branch_data(cpu, first, second, pc);

@@ -31,9 +31,19 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         return status;
     }
     if (first == 0xf3bfu || first == 0xf3afu || first == 0xf3efu ||
+        first == 0xf57fu ||
         ((first & 0xfff0u) == 0xf380u &&
          (second & 0xf000u) == 0x8000u)) {
         return armv7m_exec32_system(cpu, first, second, pc, error);
+    }
+    /* Branch encodings (B<cc>.W T3, B.W T4, BL T1) must be dispatched
+     * before DSP, as some branch first halfwords collide with the
+     * saturation (0xf300) and other DSP patterns. */
+    if ((first & 0xf800u) == 0xf000u &&
+        ((second & 0xd000u) == 0x8000u ||
+         (second & 0xd000u) == 0x9000u ||
+         (second & 0xd000u) == 0xd000u)) {
+        return armv7m_exec32_data(cpu, first, second, pc, error);
     }
     if ((first & 0xff00u) == 0xfb00u ||
         (first & 0xfff0u) == 0xeac0u ||

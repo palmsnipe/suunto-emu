@@ -176,6 +176,15 @@ semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
         (second == 0x8f4fu || second == 0x8f5fu || second == 0x8f6fu)) {
         return SEMU_OK;
     }
+    /* DSB/DMB/ISB with the 0xf57f barrier encoding (e.g. DMB ISH).
+     * In a single-core deterministic emulator, barriers are NOPs. */
+    if (first == 0xf57fu &&
+        (second & 0x0f00u) == 0x0f00u &&
+        (second & 0x000fu) == 0x0007u) {
+        unsigned op = (second >> 12u) & 0xfu;
+        if (op == 0x9u || op == 0xau || op == 0xbu)
+            return SEMU_OK;
+    }
     if (first == 0xf3afu && second == 0x8000u) {
         return SEMU_OK;
     }
