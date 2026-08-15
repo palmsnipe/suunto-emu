@@ -35,7 +35,7 @@ id	phase	title	status	dependencies	ticket
 318	3	Apollo4 MRAM Controller	done	285,295,298	plans/tasks/318-apollo4-mram.md
 320	3	Apollo4 Phase 3 Integration	done	300,302,304,305,310,312,314,315,316,317,318	plans/tasks/320-apollo4-integration.md
 400	4	Sapporo 2.22 Profile and Wiring	done	295,298,320	plans/tasks/400-sapporo-foundation.md
-402	4	Sapporo External Flash Device	blocked	285,295,298,316,317	plans/tasks/402-sapporo-flash.md
+402	4	Sapporo External Flash Device	done	285,295,298,316,317	plans/tasks/402-sapporo-flash.md
 404	4	Sapporo Panel Transport, Buttons, and Backlight	done	295,298,305,310,316	plans/tasks/404-sapporo-panel-buttons-backlight.md
 410	4	Sapporo HSPPAD143 Pressure Sensor	done	285,295,298	plans/tasks/410-sapporo-sensors.md
 411	4	Sapporo LSM6DSL Motion Sensor	done	285,295,298	plans/tasks/411-sapporo-lsm6dsl.md
@@ -47,7 +47,7 @@ id	phase	title	status	dependencies	ticket
 417	4	Sapporo OHR2 Transport	done	285,295,298	plans/tasks/417-sapporo-ohr2.md
 418	4	Sapporo Compatibility Records and Device Fixtures	done	295,298,400,416,417	plans/tasks/418-sapporo-compat-records-fixtures.md
 420	4	Sapporo 2.22 Headless Integration	done	400,402,404,410,411,412,413,414,415,416,417,418	plans/tasks/420-sapporo-headless.md
-490	5	Sapporo Nema Trace Corpus	blocked	295,420	plans/tasks/490-nema-trace-corpus.md
+490	5	Sapporo Nema Trace Corpus	done	295,420	plans/tasks/490-nema-trace-corpus.md
 500	5	Nema Ring and Command Framing	blocked	285,298,490	plans/tasks/500-nema-command-state.md
 502	5	Nema Register and Draw State	blocked	490,500	plans/tasks/502-nema-state.md
 504	5	Nema Texture Descriptor and Decode	blocked	490,500	plans/tasks/504-nema-textures.md

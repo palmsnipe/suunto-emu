@@ -1,6 +1,6 @@
 # 490 — Sapporo Nema Trace Corpus
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 295, 420
 

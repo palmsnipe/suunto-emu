@@ -1,0 +1,15 @@
+case	evidence_id	kind	input_path	input_sha256	expected_event	expected_result
+ring-bootstrap	E-NEMA-RING-001	ring	ring-bootstrap.bin	ec5e683ed6ad978031d46734d5ae35b4a7a3e435afb2be1085f4a77ff1e8beea	bootstrap	ignored
+list-clear	E-NEMA-LISTS-001	list	list-clear.bin	d5271f5d151714a5d6cae7f6d690a926c42a96269b893f1c9951627ca6bce3f8	render	clear
+list-refusal	-	refusal	list-refusal.bin	b940021eee0aad48952a87c13cc04113745d9257eff785e31c647fdcc4fcc050	refused	refused
+texture-a2le	E-NEMA-TEXTURE-001	texture	texture-a2le.bin	ad95131bc0b799c0b1af477fb14fcf26a6a9f76079e48bf090acb7e8367bfd0e	texture	a2le
+authentic-ring	E-NEMA-RING-001	authentic-ring	authentic/sapporo-native-command-ring.bin	61714ff851c4cd5ef851bce76859a597261b62c815ffd58e19fe4172980f1ff3	bootstrap	ignored
+authentic-list-001	E-NEMA-LISTS-001	authentic-list	authentic/nema-first-frame/sapporo-native-command-list-001.bin	9e0a65ff8fb3c262ed48efea6a123ed20713bcac853120660c99d463762ecc08	render	bind
+authentic-list-002	E-NEMA-LISTS-001	authentic-list	authentic/nema-first-frame/sapporo-native-command-list-002.bin	22ee87c2539c87fd4ecaae4421ecef9b0a035a56553deb941b5a79b4f1e8906a	render	bind
+authentic-list-003	E-NEMA-LISTS-001	prefix	authentic/nema-first-frame/sapporo-native-command-list-003.bin	726a7b4cd1f2aba1cb7ca887b6b91b1bdfab3076cb4b8a0633f821f4f440a55b	prefix	refused
+authentic-list-004	E-NEMA-LISTS-001	prefix	authentic/nema-first-frame/sapporo-native-command-list-004.bin	303cf46c677d1e35baf8754f390a2fa4da7345f3fda4174383bd2f708627e4a4	prefix	refused
+authentic-list-005	E-NEMA-LISTS-001	prefix	authentic/nema-first-frame/sapporo-native-command-list-005.bin	17b8185a7f1c040fdd40afa25cf9473f4d6d59d7287eda4003e2d497547d0d75	prefix	refused
+authentic-texture-1	E-NEMA-TEXTURE-001	authentic-texture	authentic/nema-first-frame/texture-10098ef0-a2le.bin	b4ac40916fb5f24461534e84141fa3cdcc8e2e23aa2912b1b779d6344688e5ef	texture	a2le
+authentic-texture-2	E-NEMA-TEXTURE-001	authentic-texture	authentic/nema-first-frame/texture-100996b0-a2le.bin	4a4840198577a355ec649551c6ec7335ca5b810657c6ef8a9791b921e1a93735	texture	a2le
+authentic-texture-3	E-NEMA-TEXTURE-001	authentic-texture	authentic/nema-first-frame/texture-100745a7-a2le.bin	54b5c997ec92403b60188fc03620721b2eca13e49d7116f03d6fa5f00c4ac20b	texture	a2le
+authentic-texture-4	E-NEMA-TEXTURE-001	authentic-texture	authentic/nema-first-frame/texture-10074879-a2le.bin	760a7d3afc5fcd8c638d5020f2ab4bee29893bb7009cebefff846efc71c1380c	texture	a2le

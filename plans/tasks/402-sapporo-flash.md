@@ -1,6 +1,6 @@
 # 402 — Sapporo External Flash Device
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298, 316, 317
 
