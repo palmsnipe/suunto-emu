@@ -162,6 +162,9 @@ static semu_transaction_result accept_request(
     }
     command = read_u16(request + 1u);
     sequence = read_u16(request + 3u);
+    if (sequence == UINT16_MAX) {
+        return refuse(error, "sequence counter overflow");
+    }
     if (!known_command(command)) {
         return refuse(error, "unknown command");
     }

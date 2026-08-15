@@ -255,6 +255,7 @@ static void test_sequence_overflow_is_atomic(semu_test_context *context)
     semu_serial_endpoint endpoint;
     semu_serial_transaction transaction;
     uint8_t request[59];
+    uint8_t response[58];
 
     semu_error_clear(&error);
     device = semu_sapporo_ohr2_create(ready_callback, &fixture,
@@ -268,6 +269,12 @@ static void test_sequence_overflow_is_atomic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      endpoint.transfer(endpoint.context, &transaction, &error));
     SEMU_TEST_EQ_U64(context, 0u, fixture.ready_count);
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_REBOOT, UINT16_MAX);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_IDENTITY, 0u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
     semu_sapporo_ohr2_destroy(device);
 }
 
