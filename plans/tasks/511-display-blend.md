@@ -1,6 +1,6 @@
 # 511 — RGB565 and A2LE Blend Math
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 295, 490, 510
 
