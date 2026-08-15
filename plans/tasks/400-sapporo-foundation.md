@@ -1,6 +1,6 @@
 # 400 — Sapporo 2.22 Profile and Wiring
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 295, 298, 320
 
