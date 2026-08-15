@@ -1,6 +1,6 @@
 # 513 — Nema Backend and Panel Frame Publication
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 404, 500, 502, 504, 506, 510, 511, 512
 
