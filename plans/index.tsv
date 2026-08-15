@@ -68,7 +68,7 @@ id	phase	title	status	dependencies	ticket
 625	6	Deterministic Malformed-Input Corpus	done	620	plans/tasks/625-hardening-corpus.md
 630	6	Portability and Optional Differential Gate	done	625	plans/tasks/630-portability-differential.md
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
-705	7	One Later Sapporo Profile	blocked	700	plans/tasks/705-sapporo-version-profile.md
+705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
 710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
 715	7	One Later Sapporo Release Gate	blocked	710	plans/tasks/715-sapporo-version-gate.md
 718	7	Later Sapporo Expansion Gate	blocked	715	plans/tasks/718-sapporo-expansion-gate.md

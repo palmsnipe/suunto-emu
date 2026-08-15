@@ -1,6 +1,6 @@
 # 705 — One Later Sapporo Profile
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 700
 
