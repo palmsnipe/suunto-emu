@@ -1,6 +1,6 @@
 # 417 — Sapporo OHR2 Transport
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

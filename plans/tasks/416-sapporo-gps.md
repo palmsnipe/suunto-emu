@@ -1,6 +1,6 @@
 # 416 — Sapporo CXD5610 GPS Transport
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298, 314
 
