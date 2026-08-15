@@ -1,6 +1,6 @@
 # 520 — Native Display, SDL, Replay, and Golden Integration
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 490, 500, 502, 504, 506, 510, 511, 512, 513, 515, 516, 518
 
