@@ -50,7 +50,7 @@ id	phase	title	status	dependencies	ticket
 490	5	Sapporo Nema Trace Corpus	done	295,420	plans/tasks/490-nema-trace-corpus.md
 500	5	Nema Ring and Command Framing	done	285,298,490	plans/tasks/500-nema-command-state.md
 502	5	Nema Register and Draw State	done	490,500	plans/tasks/502-nema-state.md
-504	5	Nema Texture Descriptor and Decode	blocked	490,500	plans/tasks/504-nema-textures.md
+504	5	Nema Texture Descriptor and Decode	done	490,500	plans/tasks/504-nema-textures.md
 506	5	Nema Refusal Diagnostics and Completion Events	blocked	298,490,500	plans/tasks/506-nema-diagnostics.md
 510	5	Integer Raster Primitives and Clipping	blocked	298,490,502	plans/tasks/510-display-raster.md
 511	5	RGB565 and A2LE Blend Math	blocked	295,490,510	plans/tasks/511-display-blend.md

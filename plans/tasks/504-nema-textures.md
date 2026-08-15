@@ -1,6 +1,6 @@
 # 504 — Nema Texture Descriptor and Decode
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 490, 500
 
