@@ -18,6 +18,8 @@ struct gps_fixture {
     int awake_level;
     uint64_t awake_time;
     unsigned exchange_count;
+    int reset_on_awake_high;
+    int reset_on_receive;
 };
 
 static void awake(void *context, unsigned signal, int level)
@@ -27,6 +29,10 @@ static void awake(void *context, unsigned signal, int level)
     fixture->awake_count++;
     fixture->awake_level = level;
     fixture->awake_time = semu_scheduler_now(fixture->scheduler);
+    if (level == 1 && fixture->reset_on_awake_high) {
+        fixture->reset_on_awake_high = 0;
+        semu_sapporo_cxd5610_reset(fixture->transport);
+    }
 }
 
 static void receive(void *context, uint8_t value, uint64_t virtual_time_ns)
@@ -35,6 +41,10 @@ static void receive(void *context, uint8_t value, uint64_t virtual_time_ns)
     (void)virtual_time_ns;
     if (fixture->rx_count < sizeof(fixture->rx_trace)) {
         fixture->rx_trace[fixture->rx_count++] = value;
+    }
+    if (fixture->reset_on_receive) {
+        fixture->reset_on_receive = 0;
+        semu_sapporo_cxd5610_reset(fixture->transport);
     }
 }
 
@@ -178,12 +188,40 @@ static void test_awake_pulse_and_reset(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_reset_reentrancy_cancels_current_event(
+    semu_test_context *context)
+{
+    static const uint8_t request[] = { '@', 'V', 'E', 'R', '\r', '\n' };
+    gps_fixture fixture;
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    fixture.reset_on_awake_high = 1;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_cxd5610_pulse_awake_after(
+                         fixture.transport, 10u, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(fixture.scheduler, 10u,
+                                             &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0, fixture.awake_level);
+    SEMU_TEST_ASSERT(context, !semu_scheduler_has_events(fixture.scheduler));
+    semu_sapporo_cxd5610_set_exchange(fixture.transport, exchange, &fixture);
+    fixture.reset_on_receive = 1;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     send(&fixture, request, sizeof(request)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(fixture.scheduler, 10u,
+                                             &fixture.error));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.rx_count);
+    SEMU_TEST_ASSERT(context, !semu_scheduler_has_events(fixture.scheduler));
+    fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_split_request_and_delayed_rx),
         SEMU_TEST_CASE(test_refusals_are_bounded),
-        SEMU_TEST_CASE(test_awake_pulse_and_reset)
+        SEMU_TEST_CASE(test_awake_pulse_and_reset),
+        SEMU_TEST_CASE(test_reset_reentrancy_cancels_current_event)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

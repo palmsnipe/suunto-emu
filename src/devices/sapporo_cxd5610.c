@@ -1,11 +1,11 @@
 #include "sapporo_cxd5610.h"
-
 #include <stdlib.h>
 #include <string.h>
 typedef struct semu_cxd_event semu_cxd_event;
 struct semu_cxd_event {
     semu_sapporo_cxd5610 *transport;
     uint8_t kind;
+    uint64_t generation;
 };
 struct semu_sapporo_cxd5610 {
     semu_scheduler *scheduler;
@@ -21,11 +21,10 @@ struct semu_sapporo_cxd5610 {
     size_t pending_count;
     uint8_t rx[SEMU_SAPPORO_CXD5610_MAX_RX];
     size_t rx_count;
-    semu_event_id rx_event;
-    semu_cxd_event rx_event_context;
-    semu_event_id awake_event;
-    semu_cxd_event awake_event_context;
+    semu_event_id rx_event; semu_cxd_event rx_event_context;
+    semu_event_id awake_event; semu_cxd_event awake_event_context;
     uint8_t awake_stage;
+    uint64_t generation;
 };
 static semu_status require_transport(const semu_sapporo_cxd5610 *transport,
                                      semu_error *error)
@@ -48,16 +47,18 @@ static void trace_byte(semu_sapporo_cxd5610 *transport,
 }
 static void set_awake(semu_sapporo_cxd5610 *transport, int level)
 {
-    if (transport->awake_signal != NULL) {
-        transport->awake_signal(transport->awake_context, 0u, level);
-    }
+    if (transport->awake_signal != NULL) transport->awake_signal(
+        transport->awake_context, 0u, level);
 }
 static void inject_now(semu_sapporo_cxd5610 *transport, const uint8_t *bytes,
                        size_t count)
 {
+    uint64_t generation = transport->generation;
     size_t index;
     for (index = 0u; index < count; ++index) {
+        if (transport->generation != generation) break;
         trace_byte(transport, SEMU_SAPPORO_CXD5610_RX, bytes[index]);
+        if (transport->generation != generation) break;
         if (transport->rx_sink != NULL) {
             transport->rx_sink(transport->rx_context, bytes[index],
                                semu_scheduler_now(transport->scheduler));
@@ -68,15 +69,19 @@ static void scheduled_event(void *context, uint64_t now_ns)
 {
     semu_cxd_event *event = (semu_cxd_event *)context;
     semu_sapporo_cxd5610 *transport = event->transport;
+    uint64_t generation = event->generation;
     (void)now_ns;
+    if (transport->generation != generation) return;
     if (event->kind == 1u) {
         transport->rx_event = 0u;
         inject_now(transport, transport->rx, transport->rx_count);
+        if (transport->generation != generation) return;
         transport->rx_count = 0u;
     } else if (event->kind == 2u) {
         transport->awake_event = 0u;
         transport->awake_stage = 2u;
         set_awake(transport, 1);
+        if (transport->generation != generation) return;
         event->kind = 3u;
         if (semu_scheduler_schedule(transport->scheduler,
                                      SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS,
@@ -102,7 +107,6 @@ static semu_transaction_result transfer(void *context,
     size_t candidate_count;
     size_t index;
     semu_transaction_result result;
-
     if (require_transport(transport, error) != SEMU_OK || transaction == NULL ||
         transaction->address != 0u || transaction->chip_select != 0u ||
         transaction->tx == NULL || transaction->tx_size == 0u ||
@@ -181,6 +185,7 @@ semu_sapporo_cxd5610 *semu_sapporo_cxd5610_create(
     transport->rx_context = rx_context;
     transport->trace = trace;
     transport->trace_context = trace_context;
+    transport->generation = 1u;
     transport->rx_event_context.transport = transport;
     transport->awake_event_context.transport = transport;
     set_awake(transport, 0);
@@ -192,6 +197,8 @@ void semu_sapporo_cxd5610_reset(void *context)
     semu_sapporo_cxd5610 *transport =
         (semu_sapporo_cxd5610 *)context;
     if (transport == NULL) return;
+    ++transport->generation;
+    if (transport->generation == 0u) transport->generation = 1u;
     if (transport->rx_event != 0u) {
         (void)semu_scheduler_cancel(transport->scheduler, transport->rx_event);
         transport->rx_event = 0u;
@@ -215,19 +222,14 @@ void semu_sapporo_cxd5610_destroy(semu_sapporo_cxd5610 *transport)
 semu_serial_endpoint semu_sapporo_cxd5610_endpoint(
     semu_sapporo_cxd5610 *transport)
 {
-    semu_serial_endpoint endpoint = {
-        "sapporo-cxd5610", transfer, transport
-    };
-    return endpoint;
+    return (semu_serial_endpoint){"sapporo-cxd5610", transfer, transport};
 }
 void semu_sapporo_cxd5610_set_exchange(
     semu_sapporo_cxd5610 *transport, semu_sapporo_cxd5610_exchange_fn exchange,
     void *exchange_context)
 {
-    if (transport != NULL) {
-        transport->exchange = exchange;
-        transport->exchange_context = exchange_context;
-    }
+    if (transport != NULL) { transport->exchange = exchange;
+        transport->exchange_context = exchange_context; }
 }
 semu_status semu_sapporo_cxd5610_inject_rx(
     semu_sapporo_cxd5610 *transport, const uint8_t *bytes, size_t count,
@@ -257,6 +259,7 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
     }
     semu_cxd_event *event = &transport->rx_event_context;
     event->kind = 1u;
+    event->generation = transport->generation;
     memcpy(transport->rx, bytes, count);
     transport->rx_count = count;
     if (semu_scheduler_schedule(transport->scheduler, delay_ns,
@@ -268,19 +271,24 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
     semu_error_clear(error);
     return SEMU_OK;
 }
-
 semu_status semu_sapporo_cxd5610_pulse_awake_after(
     semu_sapporo_cxd5610 *transport, uint64_t delay_ns, semu_error *error)
 {
     if (require_transport(transport, error) != SEMU_OK ||
-        transport->awake_event != 0u) {
+        transport->awake_event != 0u || transport->awake_stage != 0u) {
         semu_error_set(error, SEMU_ERR_STATE,
                        "CXD5610 awake pulse is already scheduled");
         return SEMU_ERR_STATE;
     }
     semu_cxd_event *event = &transport->awake_event_context;
     event->kind = 2u;
+    event->generation = transport->generation;
     set_awake(transport, 0);
+    if (transport->generation != event->generation) {
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "CXD5610 reset during awake scheduling");
+        return SEMU_ERR_STATE;
+    }
     if (semu_scheduler_schedule(transport->scheduler, delay_ns,
                                  scheduled_event, event,
                                  &transport->awake_event, error) != SEMU_OK) {
