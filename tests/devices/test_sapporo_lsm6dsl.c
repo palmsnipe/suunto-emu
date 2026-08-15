@@ -1,0 +1,210 @@
+#include "test.h"
+
+#include <stdint.h>
+#include <string.h>
+
+#include "../../src/devices/sapporo_lsm6dsl.h"
+
+static semu_transaction_result do_read(semu_serial_endpoint *ep,
+                                       uint8_t cs, uint8_t cmd,
+                                       uint8_t *rx, size_t rx_size,
+                                       semu_error *error)
+{
+    uint8_t tx = cmd;
+    semu_serial_transaction t = { 0u, cs, &tx, 1u, rx, rx_size };
+    return ep->transfer(ep->context, &t, error);
+}
+
+static semu_transaction_result do_read_phase2(semu_serial_endpoint *ep,
+                                               uint8_t cs,
+                                               uint8_t *rx, size_t rx_size,
+                                               semu_error *error)
+{
+    semu_serial_transaction t = { 0u, cs, NULL, 0u, rx, rx_size };
+    return ep->transfer(ep->context, &t, error);
+}
+
+static semu_transaction_result do_write(semu_serial_endpoint *ep,
+                                         uint8_t cs, const uint8_t *tx,
+                                         size_t tx_size, semu_error *error)
+{
+    semu_serial_transaction t = { 0u, cs, tx, tx_size, NULL, 0u };
+    return ep->transfer(ep->context, &t, error);
+}
+
+static void test_who_am_i(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    SEMU_TEST_ASSERT(context, sensor != NULL);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, 0x8fu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x6au, rx[0u]);
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_fifo_status(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[2];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, 0xbau, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x10u, rx[1u]);
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_two_phase_read(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t cmd = 0x8fu;
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0u, &cmd, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read_phase2(&ep, 0u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x6au, rx[0u]);
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_reset(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t tx[] = { 0x0fu, 0xAAu };
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0u, tx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, 0x8fu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0xAAu, rx[0u]);
+
+    semu_sapporo_lsm6dsl_reset(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, 0x8fu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x6au, rx[0u]);
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_wrong_chip_select(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 1u, 0x8fu, rx, 1u, &error));
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_unknown_register(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0u, 0x80u, rx, 1u, &error));
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_wrong_direction(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t tx_write_with_read[] = { 0x8fu, 0x01u };
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0u, tx_write_with_read, 2u, &error));
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+static void test_repeated_transcript(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx_id[1], rx_fifo[2];
+    unsigned i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+
+    for (i = 0u; i < 2u; ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_read(&ep, 0u, 0x8fu, rx_id, 1u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_read(&ep, 0u, 0xbau, rx_fifo, 2u, &error));
+        SEMU_TEST_EQ_U64(context, 0x6au, rx_id[0u]);
+        SEMU_TEST_EQ_U64(context, 0x00u, rx_fifo[0u]);
+        SEMU_TEST_EQ_U64(context, 0x10u, rx_fifo[1u]);
+    }
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
+int main(void)
+{
+    static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_who_am_i),
+        SEMU_TEST_CASE(test_fifo_status),
+        SEMU_TEST_CASE(test_two_phase_read),
+        SEMU_TEST_CASE(test_reset),
+        SEMU_TEST_CASE(test_wrong_chip_select),
+        SEMU_TEST_CASE(test_unknown_register),
+        SEMU_TEST_CASE(test_wrong_direction),
+        SEMU_TEST_CASE(test_repeated_transcript)
+    };
+    return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
+}
