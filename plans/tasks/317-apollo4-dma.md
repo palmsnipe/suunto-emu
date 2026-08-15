@@ -1,6 +1,6 @@
 # 317 — Apollo4 DMA Engine
 
-**Status:** blocked
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 

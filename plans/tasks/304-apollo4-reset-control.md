@@ -1,6 +1,6 @@
 # 304 — Apollo4 Reset and MCU Control
 
-**Status:** blocked
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298, 300, 302
 

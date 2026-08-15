@@ -1,6 +1,6 @@
 # 300 — Apollo4 Clock Generator
 
-**Status:** blocked
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 

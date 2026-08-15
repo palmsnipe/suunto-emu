@@ -1,6 +1,6 @@
 # 412 — Sapporo TLI493D-W2BW Magnetometer
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

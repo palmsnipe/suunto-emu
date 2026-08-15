@@ -1,6 +1,6 @@
 # 415 — Sapporo MAX17050 Fuel Gauge
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

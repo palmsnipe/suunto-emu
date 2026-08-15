@@ -1,6 +1,6 @@
 # 410 — Sapporo HSPPAD143 Pressure Sensor
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

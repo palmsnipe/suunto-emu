@@ -1,6 +1,6 @@
 # 411 — Sapporo LSM6DSL Motion Sensor
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

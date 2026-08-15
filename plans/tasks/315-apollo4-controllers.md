@@ -1,6 +1,6 @@
 # 315 — Apollo4 IOM Controller
 
-**Status:** blocked
+**Status:** done
 **Phase:** 3
 **Dependencies:** 285, 295, 298
 

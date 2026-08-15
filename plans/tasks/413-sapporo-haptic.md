@@ -1,6 +1,6 @@
 # 413 — Sapporo Haptic PMIC
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 

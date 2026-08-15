@@ -1,6 +1,6 @@
 # 414 — Sapporo OPT3007 Ambient-Light Sensor
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 285, 295, 298
 
