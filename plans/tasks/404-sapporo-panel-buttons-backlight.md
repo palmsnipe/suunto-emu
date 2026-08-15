@@ -1,6 +1,6 @@
 # 404 — Sapporo Panel Transport, Buttons, and Backlight
 
-**Status:** blocked
+**Status:** done
 **Phase:** 4
 **Dependencies:** 295, 298, 305, 310, 316
 
