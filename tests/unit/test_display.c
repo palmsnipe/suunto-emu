@@ -2,6 +2,9 @@
 
 #include <stdio.h>
 
+/* Declared in nema_backend.h, defined in surface.c. */
+void semu_surface_publish(semu_surface *surface);
+
 static int failures;
 
 #define CHECK(condition) do { \
@@ -24,10 +27,14 @@ int main(void)
     frame = semu_surface_frame(surface);
     CHECK(frame->size == 24u);
     CHECK(frame->stride == 8u);
-    CHECK(frame->generation == 1u);
+    CHECK(frame->generation == 0u);
     CHECK(semu_surface_write(surface, 1u, 1u, 2u, 1u, patch, 4u, &error) ==
           SEMU_OK);
     CHECK(frame->pixels[10] == 0x34u && frame->pixels[11] == 0x12u);
+    CHECK(frame->generation == 0u);
+    semu_surface_publish(surface);
+    CHECK(frame->generation == 1u);
+    semu_surface_publish(surface);
     CHECK(frame->generation == 2u);
     CHECK(semu_surface_write(surface, 3u, 2u, 2u, 1u, patch, 4u, &error) ==
           SEMU_ERR_RANGE);

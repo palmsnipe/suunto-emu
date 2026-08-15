@@ -50,6 +50,24 @@ void semu_surface_destroy(semu_surface *surface)
     }
 }
 
+void semu_surface_publish(semu_surface *surface)
+{
+    if (surface != NULL) {
+        surface->frame.generation++;
+    }
+}
+
+uint8_t *semu_surface_pixels(semu_surface *surface, uint32_t *out_stride)
+{
+    if (surface == NULL) {
+        return NULL;
+    }
+    if (out_stride != NULL) {
+        *out_stride = surface->frame.stride;
+    }
+    return surface->pixels;
+}
+
 void semu_surface_clear(semu_surface *surface, uint16_t rgb565)
 {
     size_t i;
@@ -60,7 +78,6 @@ void semu_surface_clear(semu_surface *surface, uint16_t rgb565)
         surface->pixels[i] = (uint8_t)rgb565;
         surface->pixels[i + 1u] = (uint8_t)(rgb565 >> 8u);
     }
-    surface->frame.generation++;
 }
 
 semu_status semu_surface_write(semu_surface *surface, uint32_t x, uint32_t y,
@@ -84,7 +101,6 @@ semu_status semu_surface_write(semu_surface *surface, uint32_t x, uint32_t y,
         memcpy(surface->pixels + destination,
                rgb565_le + (size_t)row * stride, (size_t)width * 2u);
     }
-    surface->frame.generation++;
     return SEMU_OK;
 }
 
