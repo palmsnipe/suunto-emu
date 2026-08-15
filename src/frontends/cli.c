@@ -1,8 +1,11 @@
 #include "cli.h"
+#include "cli_debug.h"
+#include "cli_debug.c"
 
 #include "semu/hash.h"
 #include "semu/machine.h"
 #include "semu/manifest.h"
+#include "semu/trace.h"
 #include "semu/types.h"
 
 #include "../display/nema_backend.h"
@@ -27,6 +30,7 @@ typedef struct run_arguments {
     const char *layers[SEMU_MAX_LAYERS];
     size_t layer_count;
     uint64_t max_time;
+    semu_cli_debug_options debug;
 } run_arguments;
 
 static void usage(FILE *stream)
@@ -39,7 +43,9 @@ static void usage(FILE *stream)
             "  suunto-emu list-layers --profile PROFILE\n"
             "  suunto-emu run --profile PROFILE --firmware MANIFEST "
             "[--layer ID] [--until wfi] [--max-time NS] "
-            "[--trace PATH] [--input-replay PATH] [--headless]\n");
+            "[--trace PATH] [--input-replay PATH] [--headless] "
+            "[--report PATH] [--snapshot-load PATH] [--snapshot-save PATH] "
+            "[--trace-capacity N] [--trace-overflow stop|truncate]\n");
 }
 
 static const char *profile_path(const char *argument)
@@ -78,6 +84,7 @@ static int parse_options(int argc, char **argv, int start,
 {
     int index;
     memset(arguments, 0, sizeof(*arguments));
+    semu_cli_debug_init(&arguments->debug);
     for (index = start; index < argc; ++index) {
         const char *option = argv[index];
         const char *value;
@@ -122,9 +129,20 @@ static int parse_options(int argc, char **argv, int start,
             }
             arguments->layers[arguments->layer_count++] = value;
         } else {
-            semu_error_set(error, SEMU_ERR_ARGUMENT, "unknown option %s", option);
-            return 0;
+            int rc = semu_cli_debug_parse_option(&arguments->debug,
+                option, value, error);
+            if (rc < 0) {
+                return 0;
+            }
+            if (rc == 0) {
+                semu_error_set(error, SEMU_ERR_ARGUMENT,
+                    "unknown option %s", option);
+                return 0;
+            }
         }
+    }
+    if (!semu_cli_debug_validate(&arguments->debug, error)) {
+        return 0;
     }
     return 1;
 }
