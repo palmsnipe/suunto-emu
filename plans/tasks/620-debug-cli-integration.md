@@ -1,6 +1,6 @@
 # 620 — Debugging CLI Integration
 
-**Status:** blocked
+**Status:** done
 **Phase:** 6
 **Dependencies:** 605,610,615
 
