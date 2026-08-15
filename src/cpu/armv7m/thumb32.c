@@ -49,7 +49,7 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         (first & 0xfff0u) == 0xeac0u ||
         (first & 0xffd0u) == 0xf300u ||
         (first & 0xffd0u) == 0xf380u ||
-        (first & 0xff80u) == 0xfa00u ||
+        (first & 0xfb80u) == 0xfa00u ||
         ((first & 0xff80u) == 0xfa80u &&
          (first & 0xfff0u) != 0xfab0u)) {
         return armv7m_exec32_dsp(cpu, first, second, pc, error);

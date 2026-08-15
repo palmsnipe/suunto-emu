@@ -129,6 +129,9 @@ semu_status armv7m_exec32_memory(semu_cpu *cpu, uint16_t first,
 semu_status armv7m_exec32_dsp(semu_cpu *cpu, uint16_t first,
                               uint16_t second, uint32_t pc,
                               semu_error *error);
+semu_status armv7m_exec32_shift(semu_cpu *cpu, uint16_t first,
+                                uint16_t second, uint32_t pc,
+                                semu_error *error);
 semu_status armv7m_exec32_system(semu_cpu *cpu, uint16_t first,
                                  uint16_t second, uint32_t pc,
                                  semu_error *error);

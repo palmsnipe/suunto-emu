@@ -477,8 +477,11 @@ semu_status armv7m_exec32_dsp(semu_cpu *cpu, uint16_t first,
     if ((first & 0xff80u) == 0xf300u ||
         (first & 0xff80u) == 0xf380u)
         return saturation(cpu, first, second, pc, error);
-    if ((first & 0xff80u) == 0xfa00u)
+    if ((first & 0xfb80u) == 0xfa00u) {
+        if ((second & 0x8080u) == 0x8000u)
+            return armv7m_exec32_shift(cpu, first, second, pc, error);
         return extend_add(cpu, first, second, pc, error);
+    }
     if ((first & 0xff80u) == 0xfa80u) {
         unsigned form = second & 0x70u;
         if ((second & 0x80u) == 0u && (form == 0u || form == 0x40u))
