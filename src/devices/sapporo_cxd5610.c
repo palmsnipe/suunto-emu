@@ -236,7 +236,7 @@ semu_status semu_sapporo_cxd5610_inject_rx(
     semu_error *error)
 {
     if (require_transport(transport, error) != SEMU_OK ||
-        (bytes == NULL && count != 0u) || count > SEMU_SAPPORO_CXD5610_MAX_RX ||
+        (bytes == NULL || count == 0u) || count > SEMU_SAPPORO_CXD5610_MAX_RX ||
         transport->rx_sink == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "CXD5610 RX injection is invalid or detached");
@@ -251,7 +251,7 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
     uint64_t delay_ns, semu_error *error)
 {
     if (require_transport(transport, error) != SEMU_OK ||
-        (bytes == NULL && count != 0u) || count > sizeof(transport->rx) ||
+        (bytes == NULL || count == 0u) || count > sizeof(transport->rx) ||
         transport->rx_sink == NULL || transport->rx_event != 0u) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "CXD5610 delayed RX injection is invalid");

@@ -152,6 +152,12 @@ static void test_refusals_are_bounded(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      fixture.endpoint.transfer(fixture.endpoint.context,
                                                 &wrong, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+                     semu_sapporo_cxd5610_inject_rx(
+                         fixture.transport, NULL, 0u, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+                     semu_sapporo_cxd5610_inject_rx_after(
+                         fixture.transport, NULL, 0u, 1u, &fixture.error));
     SEMU_TEST_EQ_U64(context, 0u, fixture.exchange_count);
     semu_sapporo_cxd5610_set_exchange(fixture.transport, exchange, &fixture);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,

@@ -16,6 +16,8 @@ struct semu_sapporo_ohr2 {
     int response_queued;
     int selector_armed;
     int ready;
+    uint16_t expected_sequence;
+    int sequence_initialized;
 };
 
 static uint16_t read_u16(const uint8_t *data)
@@ -91,6 +93,20 @@ static int known_command(uint16_t command)
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_14;
 }
 
+static int sequence_allowed(const semu_sapporo_ohr2 *device,
+                            uint16_t command, uint16_t sequence)
+{
+    if (!device->sequence_initialized) {
+        return sequence == 1u ||
+               (command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY &&
+                sequence == 0u);
+    }
+    if (sequence == device->expected_sequence) return 1;
+    return device->expected_sequence == 2u &&
+           device->state == SEMU_SAPPORO_OHR2_BSL &&
+           command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY && sequence == 0u;
+}
+
 static semu_transaction_result queue_response(
     semu_sapporo_ohr2 *device, const uint8_t *request, uint16_t command,
     uint16_t sequence, semu_error *error)
@@ -113,6 +129,8 @@ static semu_transaction_result queue_response(
     write_u32(device->queued_response + SEMU_SAPPORO_OHR2_PAYLOAD_SIZE,
               semu_sapporo_ohr2_crc32(body, sizeof(body)));
     device->queued_sequence = sequence;
+    device->expected_sequence = sequence;
+    device->sequence_initialized = 1;
     device->response_queued = 1;
     device->selector_armed = 0;
     set_ready(device, 1);
@@ -144,6 +162,9 @@ static semu_transaction_result accept_request(
     if (!known_command(command)) {
         return refuse(error, "unknown command");
     }
+    if (!sequence_allowed(device, command, sequence)) {
+        return refuse(error, "request sequence");
+    }
     if (!valid_command_state(device, (semu_sapporo_ohr2_command)command)) {
         return refuse(error, "command in current state");
     }
@@ -165,13 +186,19 @@ static semu_transaction_result consume_response(
     if (!device->response_queued || !device->selector_armed) {
         return refuse(error, "read without selected queued response");
     }
-    if (read_u16(device->queued_response + 2u) != device->queued_sequence) {
+    if (!device->sequence_initialized ||
+        read_u16(device->queued_response + 2u) != device->expected_sequence ||
+        device->queued_sequence != device->expected_sequence) {
         return refuse(error, "queued response sequence");
+    }
+    if (device->expected_sequence == UINT16_MAX) {
+        return refuse(error, "sequence counter overflow");
     }
     (void)memcpy(output, device->queued_response,
                  SEMU_SAPPORO_OHR2_RESPONSE_SIZE);
     device->response_queued = 0;
     device->selector_armed = 0;
+    ++device->expected_sequence;
     set_ready(device, 0);
     return SEMU_TRANSACTION_OK;
 }
@@ -228,6 +255,7 @@ semu_sapporo_ohr2 *semu_sapporo_ohr2_create(
     device->body_provider = body_provider;
     device->body_context = body_context;
     device->state = SEMU_SAPPORO_OHR2_BSL;
+    semu_error_clear(error);
     return device;
 }
 
@@ -245,6 +273,8 @@ void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device)
     device->response_queued = 0;
     device->selector_armed = 0;
     device->queued_sequence = 0u;
+    device->expected_sequence = 0u;
+    device->sequence_initialized = 0;
     set_ready(device, 0);
 }
 

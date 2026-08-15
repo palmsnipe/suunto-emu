@@ -212,12 +212,48 @@ static void test_refusals_reset_and_missing_body(semu_test_context *context)
     semu_sapporo_ohr2_destroy(device);
 }
 
+static void test_sequence_refusal_and_probe_reset(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    uint8_t request[59];
+    uint8_t response[58];
+
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    endpoint = semu_sapporo_ohr2_endpoint(device);
+    make_request(request, 0u, 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    make_request(request, 0u, 0u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    make_request(request, 1u, 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    make_request(request, 1u, 3u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    semu_sapporo_ohr2_destroy(device);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_packet_crc_and_ready),
         SEMU_TEST_CASE(test_state_sequence_and_fire_forget),
-        SEMU_TEST_CASE(test_refusals_reset_and_missing_body)
+        SEMU_TEST_CASE(test_refusals_reset_and_missing_body),
+        SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
