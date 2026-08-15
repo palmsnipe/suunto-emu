@@ -1,6 +1,6 @@
 # 500 — Nema Ring and Command Framing
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 285, 298, 490
 
