@@ -1,6 +1,6 @@
 # 516 — SDL Semantic Input Mapping
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 295, 298, 404, 420
 
