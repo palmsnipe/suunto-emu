@@ -1,6 +1,6 @@
 # 502 — Nema Register and Draw State
 
-**Status:** blocked
+**Status:** done
 **Phase:** 5
 **Dependencies:** 490, 500
 
