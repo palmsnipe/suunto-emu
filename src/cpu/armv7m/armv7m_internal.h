@@ -22,6 +22,7 @@
 #define ARMV7M_SLEEP_NONE 0u
 #define ARMV7M_SLEEP_WFI 1u
 #define ARMV7M_SLEEP_WFE 2u
+#define ARMV7M_NVIC_PRIORITY_MASK 0xe0u
 #define ARMV7M_FPCCR_LSPACT (1u << 0)
 #define ARMV7M_FPCCR_USER (1u << 1)
 #define ARMV7M_FPCCR_THREAD (1u << 3)
@@ -96,6 +97,7 @@ struct semu_cpu {
     uint8_t event_register;
     uint8_t sleep_mode;
     uint8_t sleep_wake_source;
+    uint8_t reset_requested;
     uint32_t systick_control;
     uint32_t systick_reload;
     uint32_t systick_current;

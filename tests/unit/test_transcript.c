@@ -75,7 +75,7 @@ static void test_frozen_callbacks_and_options(semu_test_context *context)
     semu_serial_endpoint endpoint = {"dma", transfer, NULL};
     semu_dma_request request = {
         "iom4", SEMU_DMA_TO_ENDPOINT, 0x1000u, 4u, &endpoint, 1u,
-        completion_callback, &completion
+        NULL, completion_callback, &completion
     };
     semu_machine_options options;
     semu_error error;

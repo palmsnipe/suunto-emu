@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#define SCB_CPUID 0xd00u
 #define SCB_ICSR 0xd04u
 #define SCB_VTOR 0xd08u
 #define SCB_AIRCR 0xd0cu
@@ -30,6 +31,7 @@
 #define ICSR_PENDSTCLR (1u << 25)
 #define ICSR_ISRPENDING (1u << 22)
 #define ICSR_RETTOBASE (1u << 11)
+#define AIRCR_SYSRESETREQ (1u << 2)
 
 #define SHCSR_MEMFAULTPENDED (1u << 13)
 #define SHCSR_BUSFAULTPENDED (1u << 14)
@@ -184,6 +186,7 @@ static semu_status read_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
         raw = shpr_value(cpu, offset & ~3u);
     } else {
         switch (offset & ~3u) {
+        case SCB_CPUID: raw = UINT32_C(0x410fc241); break;
         case SCB_ICSR: raw = icsr_value(cpu); break;
         case SCB_VTOR: raw = cpu->vector_table; break;
         case SCB_AIRCR: raw = 0xfa05u << 16 | (uint32_t)cpu->prigroup << 8;
@@ -237,7 +240,12 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
         cpu->vector_table &= ~0x7fu;
         return SEMU_OK;
     case SCB_AIRCR:
-        if ((bits >> 16) == 0x5fau) cpu->prigroup = (uint8_t)((bits >> 8) & 7u);
+        if ((bits >> 16) == 0x5fau) {
+            cpu->prigroup = (uint8_t)((bits >> 8) & 7u);
+            if ((bits & AIRCR_SYSRESETREQ) != 0u) {
+                cpu->reset_requested = 1u;
+            }
+        }
         return SEMU_OK;
     case SCB_SCR:
         cpu->scr = (cpu->scr & ~mask) | (bits & mask);
@@ -425,6 +433,7 @@ void armv7m_scs_reset(void *context)
     cpu->fp_context_fault = 0u;
     cpu->stack_fault_active = 0u;
     cpu->bus_fault_active = 0u;
+    cpu->reset_requested = 0u;
     armv7m_systick_reset(cpu);
     cpu->stack_align = 1u;
 }

@@ -279,6 +279,31 @@ static void test_unknown_offset_refusal(semu_test_context *context)
     fixture_destroy(&f);
 }
 
+static void test_observed_inner_registers(semu_test_context *context)
+{
+    iom_fixture f;
+    irq_log irq = {0u};
+    dma_log dma = {0u};
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&f, &irq, &dma));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x11cu, &value));
+    SEMU_TEST_EQ_U64(context, 0xE20u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x104u, 0x1010u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x104u, &value));
+    SEMU_TEST_EQ_U64(context, 0x1010u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x118u, 0x1D0E1301u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x118u, &value));
+    SEMU_TEST_EQ_U64(context, 0x1D0E1301u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x11cu, 0x10u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x11cu, &value));
+    SEMU_TEST_EQ_U64(context, 0xE30u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x248u, &value));
+    SEMU_TEST_EQ_U64(context, 4u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, wr(&f, 0x248u, 0u));
+    fixture_destroy(&f);
+}
+
 static void test_reset_and_repeatability(semu_test_context *context)
 {
     iom_fixture f;
@@ -310,6 +335,7 @@ int main(void)
         SEMU_TEST_CASE(test_zero_count_refusal),
         SEMU_TEST_CASE(test_invalid_command_op),
         SEMU_TEST_CASE(test_unknown_offset_refusal),
+        SEMU_TEST_CASE(test_observed_inner_registers),
         SEMU_TEST_CASE(test_reset_and_repeatability)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

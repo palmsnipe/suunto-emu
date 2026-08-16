@@ -202,6 +202,9 @@ static void test_table_branch_and_barriers(semu_test_context *context)
     static const uint8_t tbb_program[] = {
         0xd0u, 0xe8u, 0x01u, 0xf0u, 0x02u, 0xbeu
     };
+    static const uint8_t pc_tbb_program[] = {
+        0xdfu, 0xe8u, 0x03u, 0xf0u, 0x01u, 0xbeu
+    };
     static const uint8_t barrier_program[] = {
         0xbfu, 0xf3u, 0x5fu, 0x8fu,
         0xbfu, 0xf3u, 0x4fu, 0x8fu,
@@ -220,7 +223,20 @@ static void test_table_branch_and_barriers(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x108u, semu_cpu_get_state(fixture.cpu)->r[15]);
     semu_cpu_fixture_destroy(&fixture);
+    state = initial_state();
+    state.r[15] = 0x102u;
+    state.r[3] = 0u;
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_init_at(&fixture,
+                                                       pc_tbb_program,
+                                                       sizeof(pc_tbb_program),
+                                                       0x102u));
+    semu_cpu_fixture_apply_state(&fixture, &state);
+    status = semu_cpu_fixture_step(&fixture);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x108u, semu_cpu_get_state(fixture.cpu)->r[15]);
+    semu_cpu_fixture_destroy(&fixture);
 
+    state = initial_state();
     SEMU_TEST_ASSERT(context, prepare(&fixture, barrier_program,
                                       sizeof(barrier_program), &state));
     status = semu_cpu_fixture_run(&fixture, 3u);

@@ -7,15 +7,15 @@
 #define SEMU_APOLLO4_STIMER_SIZE 0x200u
 typedef struct semu_apollo4_stimer semu_apollo4_stimer;
 typedef enum semu_apollo4_stimer_irq {
-    SEMU_APOLLO4_STIMER_IRQ_A = 0u,
-    SEMU_APOLLO4_STIMER_IRQ_B,
-    SEMU_APOLLO4_STIMER_IRQ_C,
-    SEMU_APOLLO4_STIMER_IRQ_D,
-    SEMU_APOLLO4_STIMER_IRQ_E,
-    SEMU_APOLLO4_STIMER_IRQ_F,
-    SEMU_APOLLO4_STIMER_IRQ_G,
-    SEMU_APOLLO4_STIMER_IRQ_H,
-    SEMU_APOLLO4_STIMER_IRQ_I
+    SEMU_APOLLO4_STIMER_IRQ_A = 32u,
+    SEMU_APOLLO4_STIMER_IRQ_B = 33u,
+    SEMU_APOLLO4_STIMER_IRQ_C = 34u,
+    SEMU_APOLLO4_STIMER_IRQ_D = 35u,
+    SEMU_APOLLO4_STIMER_IRQ_E = 36u,
+    SEMU_APOLLO4_STIMER_IRQ_F = 37u,
+    SEMU_APOLLO4_STIMER_IRQ_G = 38u,
+    SEMU_APOLLO4_STIMER_IRQ_H = 39u,
+    SEMU_APOLLO4_STIMER_IRQ_I = 40u
 } semu_apollo4_stimer_irq;
 typedef void (*semu_apollo4_stimer_irq_fn)(void *context, unsigned irq,
                                            int level);

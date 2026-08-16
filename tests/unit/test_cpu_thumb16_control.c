@@ -240,6 +240,43 @@ static void test_it(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static int run_ite_mov(uint32_t input, uint32_t expected, unsigned steps)
+{
+    static const uint16_t instructions[] = {
+        0x2801u, /* cmp r0, #1 */
+        0xbf0cu, /* ite eq */
+        0x2101u, /* moveq r1, #1 */
+        0x2100u, /* movne r1, #0 */
+        0xbe00u
+    };
+    uint8_t program[sizeof(instructions)];
+    semu_cpu_fixture fixture = {0};
+    semu_cpu_state *state;
+    unsigned index;
+    int result;
+
+    for (index = 0u; index < SEMU_ARRAY_LEN(instructions); ++index) {
+        put16(program, index * 2u, instructions[index]);
+    }
+    if (!semu_cpu_fixture_init(&fixture, program, sizeof(program))) {
+        return 0;
+    }
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = input;
+    state->xpsr = T;
+    result = semu_cpu_fixture_run(&fixture, steps) == SEMU_OK &&
+             state->r[1] == expected &&
+             (state->xpsr & (N | Z | C | V)) == (Z | C);
+    semu_cpu_fixture_destroy(&fixture);
+    return result;
+}
+
+static void test_it_conditional_mov_preserves_flags(semu_test_context *context)
+{
+    SEMU_TEST_ASSERT(context, run_ite_mov(1u, 1u, 3u));
+    SEMU_TEST_ASSERT(context, run_ite_mov(2u, 0u, 4u));
+}
+
 static void test_hints_sleep_and_bkpt(semu_test_context *context)
 {
     static const uint8_t event_program[] = {
@@ -347,6 +384,7 @@ int main(void)
         SEMU_TEST_CASE(test_pc_link_and_bx),
         SEMU_TEST_CASE(test_reverse_extend),
         SEMU_TEST_CASE(test_it),
+        SEMU_TEST_CASE(test_it_conditional_mov_preserves_flags),
         SEMU_TEST_CASE(test_hints_sleep_and_bkpt),
         SEMU_TEST_CASE(test_cps_and_refusals)
     };

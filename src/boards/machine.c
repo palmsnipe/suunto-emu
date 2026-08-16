@@ -5,8 +5,10 @@
 #include "semu/compat.h"
 #include "semu/cpu.h"
 #include "semu/scheduler.h"
+#include "semu/storage.h"
 #include "../compat/sapporo_222.h"
 #include "../devices/sapporo_devices.h"
+#include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
 
 #include <stdio.h>
@@ -19,11 +21,14 @@ struct semu_machine {
     semu_cpu *cpu;
     semu_apollo4 *soc;
     semu_sapporo_devices *devices;
+    semu_storage *flash_storage;
     semu_nema_gpu *nema_gpu;
     semu_display_backend_submit_fn display_backend_submit;
     void *display_backend_context;
     semu_frame_callback frame_callback;
     void *frame_context;
+    uint64_t instruction_epoch;
+    uint64_t virtual_time_epoch;
     semu_logger *logger;
     semu_stop_reason stop_reason;
     semu_profile profile;
@@ -49,6 +54,18 @@ static int known_sapporo_profile(const semu_profile *profile)
 
 static semu_status map_sapporo(semu_machine *machine, semu_error *error)
 {
+    const semu_component *resources = NULL;
+    size_t component_index;
+
+    for (component_index = 0u;
+         component_index < machine->firmware.component_count;
+         ++component_index) {
+        if (strcmp(machine->firmware.components[component_index].role,
+                   "resources") == 0) {
+            resources = &machine->firmware.components[component_index];
+            break;
+        }
+    }
     if (semu_bus_map_ram(machine->bus, "sapporo.mram", 0x00000000u,
                          0x00200000u, error) != SEMU_OK ||
         semu_bus_map_ram(machine->bus, "sapporo.sram", 0x10000000u,
@@ -56,6 +73,16 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
         semu_bus_map_ram(machine->bus, "sapporo.external-flash", 0x14000000u,
                          0x02000000u, error) != SEMU_OK) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    if (semu_sapporo_info1_map(machine->bus, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    if (resources != NULL) {
+        machine->flash_storage = semu_storage_open(
+            resources->path, UINT64_C(0x02000000), 0xffu, error);
+        if (machine->flash_storage == NULL) {
+            return error != NULL ? error->code : SEMU_ERR_STATE;
+        }
     }
     machine->soc = semu_apollo4_create(machine->bus, error);
     if (machine->soc == NULL) {
@@ -65,8 +92,13 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
                            machine, error) != SEMU_OK) {
         return error->code;
     }
-    machine->devices = semu_sapporo_devices_create(machine->scheduler, error);
+    machine->devices = semu_sapporo_devices_create(
+        machine->scheduler, machine->flash_storage, error);
     if (machine->devices == NULL) {
+        return error->code;
+    }
+    if (semu_sapporo_devices_bind_bus(machine->devices, machine->bus,
+                                      error) != SEMU_OK) {
         return error->code;
     }
     if (semu_sapporo_devices_attach(machine->devices, machine->soc,
@@ -221,6 +253,7 @@ void semu_machine_destroy(semu_machine *machine)
         semu_cpu_destroy(machine->cpu);
         semu_nema_gpu_destroy(machine->nema_gpu);
         semu_sapporo_devices_destroy(machine->devices);
+        semu_storage_destroy(machine->flash_storage);
         semu_apollo4_destroy(machine->soc);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
@@ -228,7 +261,9 @@ void semu_machine_destroy(semu_machine *machine)
     }
 }
 
-semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
+static semu_status reset_machine_state(semu_machine *machine,
+                                       uint32_t vector_table,
+                                       semu_error *error)
 {
     if (machine == NULL || machine->cpu == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "cannot reset null machine");
@@ -251,49 +286,131 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     {
         size_t i;
         for (i = 0u; i < machine->layer_count; ++i) {
-            machine->layers[i].hits = 0u;
+            if (semu_layer_enable(&machine->layers[i],
+                                  machine->layers[i].descriptor,
+                                  machine->profile.id, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
             if (machine->layers[i].descriptor == &semu_sapporo_222_no_device_layer &&
                 semu_sapporo_222_install_no_device(machine->bus,
                     &machine->layers[i], machine->logger, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;
             }
+            if (machine->layers[i].descriptor == &semu_sapporo_222_no_device_layer &&
+                semu_sapporo_devices_bind_no_device_fixtures(
+                    machine->devices, &machine->layers[i], machine->logger,
+                    error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
         }
     }
-    semu_cpu_reset(machine->cpu, machine->profile.vector_table, error);
+    semu_cpu_reset(machine->cpu, vector_table, error);
     machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
     return machine->stop_reason == SEMU_STOP_NONE ? SEMU_OK : error->code;
+}
+
+semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
+{
+    if (machine == NULL || machine->cpu == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "cannot reset null machine");
+        return SEMU_ERR_ARGUMENT;
+    }
+    machine->instruction_epoch = 0u;
+    machine->virtual_time_epoch = 0u;
+    return reset_machine_state(machine, machine->profile.vector_table, error);
+}
+
+static uint32_t resident_vector_table(const semu_machine *machine)
+{
+    size_t i;
+
+    for (i = 0u; i < machine->firmware.component_count; ++i) {
+        if (strcmp(machine->firmware.components[i].role, "resident") == 0) {
+            return machine->firmware.components[i].load_address;
+        }
+    }
+    return machine->profile.vector_table;
+}
+
+static semu_status reset_after_request(semu_machine *machine,
+                                       semu_error *error)
+{
+    const semu_cpu_state *state = semu_cpu_get_state(machine->cpu);
+    uint64_t now = semu_scheduler_now(machine->scheduler);
+
+    if (state == NULL || UINT64_MAX - machine->instruction_epoch <
+            state->instructions || UINT64_MAX - machine->virtual_time_epoch <
+            now) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "machine reset accounting overflow");
+        return SEMU_ERR_RANGE;
+    }
+    machine->instruction_epoch += state->instructions;
+    machine->virtual_time_epoch += now;
+    return reset_machine_state(machine, resident_vector_table(machine), error);
 }
 
 semu_stop_reason semu_machine_run(semu_machine *machine,
                                   const semu_run_limits *limits,
                                   semu_error *error)
 {
-    uint64_t initial_instructions;
-    uint64_t initial_time;
+    uint64_t executed = 0u;
+    uint64_t elapsed = 0u;
     if (machine == NULL || limits == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid run arguments");
         return SEMU_STOP_USER;
     }
-    initial_instructions = semu_machine_instructions(machine);
-    initial_time = semu_scheduler_now(machine->scheduler);
     machine->stop_reason = SEMU_STOP_NONE;
     while (machine->stop_reason == SEMU_STOP_NONE) {
         const semu_cpu_state *state = semu_cpu_get_state(machine->cpu);
+        uint64_t before_instructions;
+        uint64_t before_time;
+        uint64_t after_instructions;
+        uint64_t after_time;
+        semu_status step_status;
+        if (state == NULL) {
+            semu_error_set(error, SEMU_ERR_STATE,
+                           "machine CPU state is unavailable");
+            machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+            break;
+        }
         if (limits->max_instructions != 0u &&
-            state->instructions - initial_instructions >= limits->max_instructions) {
+            executed >= limits->max_instructions) {
             machine->stop_reason = SEMU_STOP_BUDGET;
             break;
         }
         if (limits->max_virtual_time_ns != 0u &&
-            semu_scheduler_now(machine->scheduler) - initial_time >=
-                limits->max_virtual_time_ns) {
+            elapsed >= limits->max_virtual_time_ns) {
             machine->stop_reason = SEMU_STOP_BUDGET;
             break;
         }
-        if (semu_cpu_step(machine->cpu, error) != SEMU_OK) {
+        before_instructions = state->instructions;
+        before_time = semu_scheduler_now(machine->scheduler);
+        step_status = semu_cpu_step(machine->cpu, error);
+        state = semu_cpu_get_state(machine->cpu);
+        after_instructions = state != NULL ? state->instructions : 0u;
+        after_time = semu_scheduler_now(machine->scheduler);
+        if (state == NULL || after_instructions < before_instructions ||
+            after_instructions - before_instructions >
+                UINT64_MAX - executed || after_time < before_time ||
+            UINT64_MAX - elapsed < after_time - before_time) {
+            semu_error_set(error, SEMU_ERR_RANGE,
+                           "machine run accounting overflow");
+            machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+            continue;
+        }
+        executed += after_instructions - before_instructions;
+        elapsed += after_time - before_time;
+        if (step_status != SEMU_OK) {
             machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
             if (machine->stop_reason == SEMU_STOP_NONE) {
+                machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+            }
+        } else if (semu_cpu_reset_requested(machine->cpu)) {
+            if (reset_after_request(machine, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
             }
         } else {
@@ -327,13 +444,14 @@ uint64_t semu_machine_instructions(const semu_machine *machine)
 {
     const semu_cpu_state *state = machine != NULL && machine->cpu != NULL
                                       ? semu_cpu_get_state(machine->cpu) : NULL;
-    return state != NULL ? state->instructions : 0u;
+    return state != NULL ? machine->instruction_epoch + state->instructions : 0u;
 }
 
 uint64_t semu_machine_virtual_time(const semu_machine *machine)
 {
     return machine != NULL && machine->scheduler != NULL
-               ? semu_scheduler_now(machine->scheduler) : 0u;
+               ? machine->virtual_time_epoch +
+                     semu_scheduler_now(machine->scheduler) : 0u;
 }
 
 uint32_t semu_machine_program_counter(const semu_machine *machine)

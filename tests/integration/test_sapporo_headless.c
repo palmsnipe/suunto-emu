@@ -13,7 +13,7 @@
  * Synthetic Sapporo startup guest.  Same Apollo4 core sequence as the
  * apollo4 guest: read CHIPREV, write/read CAL, write INTR, WFI.  This
  * proves the full Sapporo wiring (SoC init, device attach, I2C mux,
- * UART bridge, MSPI refusal) does not interfere with deterministic
+ * UART bridge, and optional MSPI flash) does not interfere with deterministic
  * startup.  The guest is hand-encoded Thumb-2, not authentic firmware.
  */
 #define GUEST_SIZE 256u
@@ -80,7 +80,8 @@ static int fixture_init(sapporo_fixture *fixture)
     if (semu_apollo4_init(fixture->soc, fixture->scheduler, irq_sink,
                            fixture, error) != SEMU_OK) return 0;
 
-    fixture->devices = semu_sapporo_devices_create(fixture->scheduler, error);
+    fixture->devices = semu_sapporo_devices_create(
+        fixture->scheduler, NULL, error);
     if (fixture->devices == NULL) return 0;
 
     if (semu_sapporo_devices_attach(fixture->devices, fixture->soc,

@@ -18,7 +18,7 @@ Only evidence recorded in `docs/migration-evidence.md` may advance a component b
 | Apollo4 clock/power/reset | firmware traces and prior emulator behavior | traced | Narrow clock/power register banks pass refusal tests; native reset transcript remains |
 | Apollo4 GPIO/timers/STIMER | firmware traces | unknown | register, IRQ, and WFI-wake tests pass |
 | Apollo4 UART/IOM/MSPI/DMA/MRAM | firmware traces | unknown | controller transcript and bounds tests pass |
-| Sapporo external flash | prior model plus native traffic | unknown | read/program/erase overlay tests pass |
+| Sapporo external flash | native MSPI2 boundary plus model | functional | ID/status/read, write-enable, page-program, sector-erase, overlay, and refusal tests pass |
 | Sapporo pressure sensor | observed bus transcript | functional | Identity and wrong-address refusal tests pass |
 | Sapporo OHR2 | observed transport; optional fixture | fixture-backed | CRC-framed identity and unknown-command refusal tests pass; native startup remains |
 | Sapporo LSM6DSL | observed bus transcript | functional | WHO_AM_I and framing tests pass; IRQ/FIFO expansion remains |

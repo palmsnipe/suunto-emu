@@ -1,5 +1,4 @@
 #include "armv7m_internal.h"
-
 static int valid_it_mask(unsigned mask)
 {
     return mask != 0u && mask <= 0x0fu;

@@ -40,6 +40,9 @@ semu_serial_endpoint semu_sapporo_cxd5610_endpoint(
 void semu_sapporo_cxd5610_set_exchange(
     semu_sapporo_cxd5610 *transport, semu_sapporo_cxd5610_exchange_fn exchange,
     void *exchange_context);
+void semu_sapporo_cxd5610_set_rx_sink(
+    semu_sapporo_cxd5610 *transport, semu_sapporo_cxd5610_byte_fn rx_sink,
+    void *rx_context);
 semu_status semu_sapporo_cxd5610_inject_rx(
     semu_sapporo_cxd5610 *transport, const uint8_t *bytes, size_t count,
     semu_error *error);

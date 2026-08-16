@@ -95,7 +95,19 @@ static semu_status multiply_short(semu_cpu *cpu, uint16_t first,
     unsigned ra = second >> 12u, rd = (second >> 8u) & 15u;
     unsigned rm = second & 15u, form = (second >> 4u) & 3u;
     uint64_t product;
-
+    int64_t signed_product;
+    if (op == 1u) {
+        if ((second & 0x00c0u) != 0u || !data_register(rn) ||
+            !data_register(rm) || !data_register(rd) ||
+            (ra != 15u && !data_register(ra)))
+            return refuse(cpu, first, second, pc, error);
+        signed_product = signed_lane(cpu->state.r[rn], 0u, 16u) *
+                         signed_lane(cpu->state.r[rm], 0u, 16u);
+        cpu->state.r[rd] = signed_bits(signed_product +
+                                       (ra == 15u ? 0 :
+                                        signed32(cpu->state.r[ra])));
+        return SEMU_OK;
+    }
     if (op != 0u || (second & 0x00c0u) != 0u || !data_register(rn) ||
         !data_register(rm) || !data_register(rd) ||
         (form == 0u && ra != 15u && !data_register(ra)) ||
@@ -173,7 +185,6 @@ static semu_status multiply_long(semu_cpu *cpu, uint16_t first,
     cpu->state.r[rdhi] = (uint32_t)(result >> 32u);
     return SEMU_OK;
 }
-
 static semu_status saturation(semu_cpu *cpu, uint16_t first,
                               uint16_t second, uint32_t pc,
                               semu_error *error)
@@ -258,7 +269,6 @@ static uint32_t parallel_lane(uint32_t left, uint32_t right,
     *ge = unsigned_result >= ((uint64_t)1u << width) ? 1u : 0u;
     return (uint32_t)unsigned_result & mask;
 }
-
 static semu_status parallel(semu_cpu *cpu, uint16_t first,
                             uint16_t second, uint32_t pc, semu_error *error)
 {
@@ -306,7 +316,6 @@ static semu_status parallel(semu_cpu *cpu, uint16_t first,
     cpu->state.xpsr = (cpu->state.xpsr & ~ARMV7M_XPSR_GE) | (ge << 16u);
     return SEMU_OK;
 }
-
 static semu_status miscellaneous(semu_cpu *cpu, uint16_t first,
                                  uint16_t second, uint32_t pc,
                                  semu_error *error)
@@ -462,14 +471,13 @@ static semu_status extend_add(semu_cpu *cpu, uint16_t first,
     cpu->state.r[rd] = result;
     return SEMU_OK;
 }
-
 semu_status armv7m_exec32_dsp(semu_cpu *cpu, uint16_t first,
                               uint16_t second, uint32_t pc,
                               semu_error *error)
 {
     if ((first & 0xff00u) == 0xfb00u) {
         unsigned op = (first >> 4u) & 15u;
-        if (op == 0u) return multiply_short(cpu, first, second, pc, error);
+        if (op <= 7u) return multiply_short(cpu, first, second, pc, error);
         return multiply_long(cpu, first, second, pc, error);
     }
     if ((first & 0xfff0u) == 0xeac0u)

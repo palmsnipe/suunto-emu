@@ -56,6 +56,11 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
     uint32_t value;
 
     SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd00u, &value));
+    SEMU_TEST_EQ_U64(context, 0x410fc241u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_write(fixture.bus, SCS + 0xd00u, 4u, 0u,
+                                    &fixture.error));
     SEMU_TEST_ASSERT(context, write_word(&fixture, 0x40u, 0x181u));
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0x100u, &value));
@@ -90,11 +95,22 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
                                          0x00000080u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0x400u, &value));
     SEMU_TEST_EQ_U64(context, 0x80u, value);
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x400u,
+                                         0x000000ffu));
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0x400u, &value));
+    SEMU_TEST_EQ_U64(context, 0xe0u, value);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd08u, 0x223u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd08u, &value));
     SEMU_TEST_EQ_U64(context, 0x200u, value);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd0cu,
                                          0x12340300u));
+    SEMU_TEST_ASSERT(context, !semu_cpu_reset_requested(fixture.cpu));
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd0cu,
+                                         0x05fa0304u));
+    SEMU_TEST_ASSERT(context, semu_cpu_reset_requested(fixture.cpu));
+    semu_cpu_reset(fixture.cpu, 0u, &fixture.error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, fixture.error.code);
+    SEMU_TEST_ASSERT(context, !semu_cpu_reset_requested(fixture.cpu));
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd0cu,
                                          0x05fa0300u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd0cu, &value));

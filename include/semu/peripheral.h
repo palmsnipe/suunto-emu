@@ -41,6 +41,8 @@ typedef struct semu_dma_request {
     uint32_t count;
     const semu_serial_endpoint *endpoint;
     uint8_t continuation;
+    /* Optional synchronous serial transaction template for endpoint DMA. */
+    semu_serial_transaction *transaction;
     semu_dma_completion_fn completion;
     void *completion_context;
 } semu_dma_request;

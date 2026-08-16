@@ -83,7 +83,7 @@ static void test_reset_values(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x24u, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x2cu, &value));
-    SEMU_TEST_EQ_U64(context, 0x3ffu, value);
+    SEMU_TEST_EQ_U64(context, 0x3fcu, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x100u, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x108u, &value));
@@ -110,9 +110,9 @@ static void test_requests_masks_and_callbacks(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x04u,
                                                       NEMA_MASK | 0x20u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x04u, &value));
-    SEMU_TEST_EQ_U64(context, NEMA_MASK, value);
+    SEMU_TEST_EQ_U64(context, NEMA_MASK | 0x20u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x08u, &value));
-    SEMU_TEST_EQ_U64(context, NEMA_MASK, value);
+    SEMU_TEST_EQ_U64(context, NEMA_MASK | 0x1e0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x24u,
                                                       UINT32_C(0xffffffff)));
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x2cu,
@@ -135,6 +135,42 @@ static void test_requests_masks_and_callbacks(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_observed_legacy_accesses(semu_test_context *context)
+{
+    callback_record record = { 0u };
+    power_fixture fixture;
+    uint32_t value = 0u;
+    uint32_t offset;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture, &record));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x14u,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x18u,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x1cu,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 0x8u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x28u,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x14u,
+                                                      0x3fu));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x1cu,
+                                                      0x8u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x24u,
+                                                      3u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x28u,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 3u, value);
+    for (offset = 0x140u; offset <= 0x188u; offset += 4u) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         write_register(&fixture, offset, 0u));
+    }
+    fixture_destroy(&fixture);
+}
+
 static void test_refusal_is_atomic(semu_test_context *context)
 {
     callback_record record = { 0u };
@@ -152,6 +188,8 @@ static void test_refusal_is_atomic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_bus_write(fixture.bus, SEMU_APOLLO4_POWER_BASE + 0x08u,
                                     4u, 0xffffffffu, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_register(&fixture, 0x140u, 1u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_bus_read(fixture.bus, SEMU_APOLLO4_POWER_BASE + 0x24u,
                                    2u, &value, &fixture.error));
@@ -176,7 +214,7 @@ static void test_reset_and_repeatability(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x00u, &value));
     SEMU_TEST_EQ_U64(context, 0x0du, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x2cu, &value));
-    SEMU_TEST_EQ_U64(context, 0x3ffu, value);
+    SEMU_TEST_EQ_U64(context, 0x3fcu, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x108u, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, 4u, record.count);
@@ -191,6 +229,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_reset_values),
         SEMU_TEST_CASE(test_requests_masks_and_callbacks),
+        SEMU_TEST_CASE(test_observed_legacy_accesses),
         SEMU_TEST_CASE(test_refusal_is_atomic),
         SEMU_TEST_CASE(test_reset_and_repeatability)
     };

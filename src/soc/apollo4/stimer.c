@@ -16,7 +16,10 @@ enum {
 #define STIMER_COMPARE_ENABLE_A UINT32_C(1u << 8)
 #define STIMER_COMPARE_ENABLE_C UINT32_C(1u << 10)
 #define STIMER_INTERRUPT_ENABLE_MASK UINT32_C(0x101)
-#define STIMER_IRQ_MASK UINT32_C(0x5)
+#define STIMER_IRQ_MASK UINT32_C(0x105)
+#define STIMER_FREQUENCY_HZ UINT64_C(32768)
+#define STIMER_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
+#define STIMER_COMPARE_WRITE_LATENCY UINT32_C(3)
 typedef struct stimer_compare {
     semu_apollo4_stimer *owner;
     unsigned number;
@@ -65,11 +68,26 @@ static semu_status validate_access(semu_apollo4_stimer *stimer,
     semu_error_clear(error);
     return SEMU_OK;
 }
+static uint32_t elapsed_ticks(uint64_t elapsed_ns)
+{
+    uint64_t seconds = elapsed_ns / STIMER_NANOSECONDS_PER_SECOND;
+    uint64_t remainder = elapsed_ns % STIMER_NANOSECONDS_PER_SECOND;
+    uint64_t seconds_mod = seconds % (UINT64_C(1) << 17);
+    uint64_t whole_ticks = seconds_mod * STIMER_FREQUENCY_HZ;
+    uint64_t partial_ticks = (remainder * STIMER_FREQUENCY_HZ) /
+                             STIMER_NANOSECONDS_PER_SECOND;
+    return (uint32_t)(whole_ticks + partial_ticks);
+}
 static uint32_t counter_now(const semu_apollo4_stimer *stimer)
 {
     uint64_t elapsed = semu_scheduler_now(stimer->scheduler) -
                        stimer->counter_epoch;
-    return stimer->counter_base + (uint32_t)elapsed;
+    return stimer->counter_base + elapsed_ticks(elapsed);
+}
+static uint64_t ticks_to_nanoseconds(uint32_t ticks)
+{
+    uint64_t numerator = (uint64_t)ticks * STIMER_NANOSECONDS_PER_SECOND;
+    return (numerator + STIMER_FREQUENCY_HZ - 1u) / STIMER_FREQUENCY_HZ;
 }
 static unsigned compare_number(uint32_t offset)
 {
@@ -106,6 +124,8 @@ static void cancel_compare(semu_apollo4_stimer *stimer, unsigned number)
         compare->event = 0u;
     }
 }
+static semu_status schedule_compare(semu_apollo4_stimer *stimer,
+                                    unsigned number, semu_error *error);
 static void compare_event(void *context, uint64_t now)
 {
     stimer_compare *compare = (stimer_compare *)context;
@@ -121,7 +141,10 @@ static void compare_event(void *context, uint64_t now)
         stimer->interrupt_enable == 0u) {
         return;
     }
-    if ((uint32_t)(current - compare->deadline) != 0u) {
+    if ((uint32_t)(current - compare->deadline) >= UINT32_C(0x80000000)) {
+        semu_error error;
+        semu_error_clear(&error);
+        (void)schedule_compare(stimer, number, &error);
         return;
     }
     set_irq(stimer, number, 1);
@@ -131,7 +154,8 @@ static semu_status schedule_compare(semu_apollo4_stimer *stimer,
 {
     stimer_compare *compare = &stimer->compare[number];
     uint32_t current = counter_now(stimer);
-    uint32_t delay = (uint32_t)(compare->deadline - current);
+    uint32_t delay_ticks = (uint32_t)(compare->deadline - current);
+    uint64_t delay_ns = ticks_to_nanoseconds(delay_ticks);
     semu_status status;
     cancel_compare(stimer, number);
     if (compare->enabled == 0u ||
@@ -139,7 +163,7 @@ static semu_status schedule_compare(semu_apollo4_stimer *stimer,
         stimer->interrupt_enable == 0u) {
         return SEMU_OK;
     }
-    status = semu_scheduler_schedule(stimer->scheduler, delay, compare_event,
+    status = semu_scheduler_schedule(stimer->scheduler, delay_ns, compare_event,
                                       compare, &compare->event, error);
     if (status == SEMU_OK) {
         compare->event_valid = 1u;
@@ -269,6 +293,14 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
         if ((value & 4u) != 0u) set_irq(stimer, 1u, 0);
     } else if (offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_C) {
         number = compare_number(offset);
+        /*
+         * Apollo advances the main counter by three ticks while committing a
+         * compare write.  The firmware reads the resulting absolute target,
+         * so model that latency before applying the relative value.  Event
+         * scheduling uses the same post-write counter and cannot drift behind
+         * the register-visible clock.
+         */
+        stimer->counter_base += STIMER_COMPARE_WRITE_LATENCY;
         current = counter_now(stimer);
         stimer->compare[number].deadline = current + value;
         stimer->compare[number].enabled = 1u;

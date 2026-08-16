@@ -104,7 +104,7 @@ static semu_status table_branch(semu_cpu *cpu, uint16_t first,
         return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second,
                                   error);
     if (rn == 15u) {
-        if (armv7m_literal_base(cpu, pc, &base, error) != SEMU_OK)
+        if (armv7m_add_address(cpu, pc, 4u, &base, error) != SEMU_OK)
             return error != NULL ? error->code : SEMU_ERR_RANGE;
     } else {
         base = cpu->state.r[rn];

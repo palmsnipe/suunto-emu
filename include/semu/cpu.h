@@ -32,6 +32,7 @@ semu_cpu_state *semu_cpu_get_state_mutable(semu_cpu *cpu);
 void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level);
 void semu_cpu_set_irq_priority(semu_cpu *cpu, unsigned irq, uint8_t priority);
 void semu_cpu_signal_event(semu_cpu *cpu);
+int semu_cpu_reset_requested(const semu_cpu *cpu);
 semu_stop_reason semu_cpu_stop_reason(const semu_cpu *cpu);
 uint32_t semu_cpu_fault_instruction(const semu_cpu *cpu);
 int semu_cpu_fault_address(const semu_cpu *cpu, uint32_t *address);

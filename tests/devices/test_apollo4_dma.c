@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "semu/peripheral.h"
 #include "../../src/soc/apollo4/dma.h"
@@ -24,6 +25,44 @@ typedef struct completion_log {
 } completion_log;
 
 static semu_serial_endpoint test_endpoint;
+
+static semu_transaction_result response_transfer(
+    void *context, semu_serial_transaction *transaction, semu_error *error)
+{
+    (void)context;
+    (void)error;
+    if (transaction == NULL || transaction->tx_size != 1u ||
+        transaction->tx == NULL || transaction->tx[0u] != 0x9fu ||
+        transaction->rx == NULL || transaction->rx_size != 3u) {
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    transaction->rx[0u] = 0x20u;
+    transaction->rx[1u] = 0xbbu;
+    transaction->rx[2u] = 0x19u;
+    return SEMU_TRANSACTION_OK;
+}
+
+typedef struct write_log {
+    unsigned count;
+    uint8_t bytes[4];
+} write_log;
+
+static semu_transaction_result write_transfer(
+    void *context, semu_serial_transaction *transaction, semu_error *error)
+{
+    write_log *log = (write_log *)context;
+    if (log == NULL || transaction == NULL || transaction->tx == NULL ||
+        transaction->tx_size != sizeof(log->bytes) ||
+        transaction->rx != NULL || transaction->rx_size != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "DMA write transaction shape is invalid");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    memcpy(log->bytes, transaction->tx, sizeof(log->bytes));
+    log->count++;
+    semu_error_clear(error);
+    return SEMU_TRANSACTION_OK;
+}
 
 static void completion_cb(void *context, semu_transaction_result result)
 {
@@ -76,6 +115,7 @@ static void make_request(semu_dma_request *req, semu_dma_direction dir,
     req->count = count;
     req->endpoint = &test_endpoint;
     req->continuation = 0u;
+    req->transaction = NULL;
     req->completion = log ? completion_cb : NULL;
     req->completion_context = log;
 }
@@ -113,6 +153,79 @@ static void test_valid_rx(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, log.count);
     SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_TRANSACTION_OK,
                      (uint64_t)log.result);
+    fixture_destroy(&f);
+}
+
+static void test_endpoint_response_reaches_guest(semu_test_context *context)
+{
+    dma_fixture f;
+    semu_dma_request req;
+    semu_serial_endpoint endpoint = {
+        "response", response_transfer, NULL
+    };
+    semu_serial_transaction transaction;
+    completion_log log = {0u};
+    semu_error err;
+    uint8_t command[] = { 0x9fu };
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&f));
+    make_request(&req, SEMU_DMA_FROM_ENDPOINT, 0x10001000u, 3u, &log);
+    transaction.address = 0u;
+    transaction.chip_select = 0u;
+    transaction.tx = command;
+    transaction.tx_size = sizeof(command);
+    transaction.rx = NULL;
+    transaction.rx_size = 0u;
+    req.endpoint = &endpoint;
+    req.transaction = &transaction;
+    semu_error_clear(&err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     semu_apollo4_dma_execute(f.dma, &req, &err));
+    SEMU_TEST_EQ_U64(context, 1u, log.count);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, log.result);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(f.bus, 0x10001000u, 1u, &value, &err));
+    SEMU_TEST_EQ_U64(context, 0x20u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(f.bus, 0x10001001u, 1u, &value, &err));
+    SEMU_TEST_EQ_U64(context, 0xbbu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(f.bus, 0x10001002u, 1u, &value, &err));
+    SEMU_TEST_EQ_U64(context, 0x19u, value);
+    fixture_destroy(&f);
+}
+
+static void test_endpoint_write_receives_guest_bytes(
+    semu_test_context *context)
+{
+    dma_fixture f;
+    semu_dma_request req;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    completion_log completion = {0u};
+    write_log writes = {0u};
+    semu_error err;
+    const uint8_t bytes[] = { 0x7fu, 0x01u, 0xd0u, 0xf0u };
+
+    SEMU_TEST_ASSERT(context, fixture_init(&f));
+    endpoint.name = "write";
+    endpoint.transfer = write_transfer;
+    endpoint.context = &writes;
+    make_request(&req, SEMU_DMA_TO_ENDPOINT, 0x10001000u,
+                 sizeof(bytes), &completion);
+    memset(&transaction, 0, sizeof(transaction));
+    transaction.tx = bytes;
+    transaction.tx_size = sizeof(bytes);
+    req.endpoint = &endpoint;
+    req.transaction = &transaction;
+    semu_error_clear(&err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     semu_apollo4_dma_execute(f.dma, &req, &err));
+    SEMU_TEST_EQ_U64(context, 1u, completion.count);
+    SEMU_TEST_EQ_U64(context, 1u, writes.count);
+    SEMU_TEST_EQ_U64(context, 0x7fu, writes.bytes[0u]);
+    SEMU_TEST_EQ_U64(context, 0xf0u, writes.bytes[3u]);
     fixture_destroy(&f);
 }
 
@@ -287,6 +400,8 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_valid_tx),
         SEMU_TEST_CASE(test_valid_rx),
+        SEMU_TEST_CASE(test_endpoint_response_reaches_guest),
+        SEMU_TEST_CASE(test_endpoint_write_receives_guest_bytes),
         SEMU_TEST_CASE(test_valid_flash_tx),
         SEMU_TEST_CASE(test_zero_count_refusal),
         SEMU_TEST_CASE(test_overflow_refusal),

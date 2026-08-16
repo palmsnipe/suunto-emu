@@ -11,7 +11,8 @@
  *   E-SAP-MAX17050-001:  IOM4 (I2C 0x36), IRQ10
  *   E-SAP-CXD5610-001:   UART1 (0x4001d000)
  *   E-SAP-OHR2-001:      IOM2 (I2C 0x10), IRQ8, GPIO62 ready
- * Unverified (omitted): E-SAP-FLASH-001, E-SAP-PANEL-001
+ * External flash is attached by the Sapporo device factory; the still-
+ * unverified panel role remains omitted: E-SAP-PANEL-001
  */
 
 #include "sapporo_wiring.h"

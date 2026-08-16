@@ -113,11 +113,10 @@ static void test_wiring_verified(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x4001d000u, w->address);
 }
 
-static void test_wiring_unverified_omitted(semu_test_context *context)
+static void test_wiring_panel_omitted(semu_test_context *context)
 {
-    /* External flash and panel have missing evidence — their roles are
-     * absent from the wiring enum entirely, so there is nothing to
-     * look up.  Verify that unknown roles beyond the enum return NULL. */
+    /* The panel has missing evidence and is absent from the wiring enum.
+     * External flash is attached by the device factory instead. */
     const semu_sapporo_wiring *w = semu_sapporo_wiring_find(
         (semu_sapporo_wire_role)999);
     SEMU_TEST_ASSERT(context, w == NULL);
@@ -161,7 +160,7 @@ int main(void)
         SEMU_TEST_CASE(test_components),
         SEMU_TEST_CASE(test_regions),
         SEMU_TEST_CASE(test_wiring_verified),
-        SEMU_TEST_CASE(test_wiring_unverified_omitted),
+        SEMU_TEST_CASE(test_wiring_panel_omitted),
         SEMU_TEST_CASE(test_wiring_no_duplicate_roles),
         SEMU_TEST_CASE(test_profile_hash_pinning)
     };

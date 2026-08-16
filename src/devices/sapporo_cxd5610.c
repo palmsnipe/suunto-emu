@@ -231,6 +231,15 @@ void semu_sapporo_cxd5610_set_exchange(
     if (transport != NULL) { transport->exchange = exchange;
         transport->exchange_context = exchange_context; }
 }
+void semu_sapporo_cxd5610_set_rx_sink(
+    semu_sapporo_cxd5610 *transport, semu_sapporo_cxd5610_byte_fn rx_sink,
+    void *rx_context)
+{
+    if (transport != NULL) {
+        transport->rx_sink = rx_sink;
+        transport->rx_context = rx_context;
+    }
+}
 semu_status semu_sapporo_cxd5610_inject_rx(
     semu_sapporo_cxd5610 *transport, const uint8_t *bytes, size_t count,
     semu_error *error)

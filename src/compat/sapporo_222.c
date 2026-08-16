@@ -110,6 +110,17 @@ static void build_calibration(uint8_t record[RECORD_SIZE], const char magic[4],
     finish_record(record, table);
 }
 
+static int intervention_is_unused(const semu_layer_state *state,
+                                   size_t intervention_index)
+{
+    if (state == NULL || state->descriptor == NULL ||
+        intervention_index >= state->descriptor->intervention_count ||
+        state->descriptor->interventions == NULL) {
+        return 0;
+    }
+    return state->descriptor->interventions[intervention_index].hits == 0u;
+}
+
 semu_status semu_sapporo_222_install_no_device(
     semu_bus *bus, semu_layer_state *state, semu_logger *logger,
     semu_error *error)
@@ -162,14 +173,14 @@ semu_transaction_result semu_sapporo_222_gps_exchange(
     };
     semu_sapporo_222_fixture_context *ctx =
         (semu_sapporo_222_fixture_context *)context;
-
     if (count != sizeof(expected) ||
         memcmp(request, expected, count) != 0) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "GPS fixture: unexpected request");
         return SEMU_TRANSACTION_REFUSE;
     }
-    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL) {
+    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL &&
+        intervention_is_unused(ctx->state, SEMU_SAPPORO_222_IV_GPS_STARTUP)) {
         if (semu_layer_intervention_hit(ctx->state, ctx->logger,
                 SEMU_SAPPORO_222_IV_GPS_STARTUP, error) != SEMU_OK) {
             return SEMU_TRANSACTION_REFUSE;
@@ -213,7 +224,8 @@ semu_transaction_result semu_sapporo_222_ohr_body_provider(
                        (unsigned)command);
         return SEMU_TRANSACTION_REFUSE;
     }
-    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL) {
+    if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL &&
+        intervention_is_unused(ctx->state, SEMU_SAPPORO_222_IV_OHR_STARTUP)) {
         if (semu_layer_intervention_hit(ctx->state, ctx->logger,
                 SEMU_SAPPORO_222_IV_OHR_STARTUP, error) != SEMU_OK) {
             return SEMU_TRANSACTION_REFUSE;

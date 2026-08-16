@@ -3,6 +3,7 @@
 
 #include "semu/apollo4.h"
 
+#include "auxiliary.h"
 #include "clock.h"
 #include "dma.h"
 #include "gpio.h"

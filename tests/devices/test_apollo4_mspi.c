@@ -171,6 +171,14 @@ static void mspi2_dma_request(semu_test_context *context)
                                SEMU_APOLLO4_MSPI_INTEN, 0x40u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DEVICE_CONFIG,
+                               0x12340000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI2_DEVICE_CONFIG, &value));
+    SEMU_TEST_EQ_U64(context, 0x12340000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
                                SEMU_APOLLO4_MSPI2_DMA_TARGET,
                                0x10001000u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,

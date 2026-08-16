@@ -16,6 +16,7 @@
 #define M2_COMMAND SEMU_APOLLO4_MSPI2_COMMAND
 #define M2_ADDRESS SEMU_APOLLO4_MSPI2_ADDRESS
 #define M2_DATA SEMU_APOLLO4_MSPI2_DATA
+#define M2_DEVICE_CONFIG SEMU_APOLLO4_MSPI2_DEVICE_CONFIG
 #define M2_INSTRUCTION SEMU_APOLLO4_MSPI2_INSTRUCTION
 #define M2_DMA_CONFIG SEMU_APOLLO4_MSPI2_DMA_CONFIG
 #define M2_DMA_STATUS SEMU_APOLLO4_MSPI2_DMA_STATUS
@@ -43,6 +44,8 @@ struct semu_apollo4_mspi {
     uint32_t status;
     uint32_t dma_status;
     int irq_level;
+    uint8_t dma_buffer[4100];
+    semu_serial_transaction dma_transaction;
 };
 
 static const semu_bus_device_ops mspi_ops = {
@@ -80,6 +83,12 @@ static int known_offset(const semu_apollo4_mspi *mspi, uint32_t offset)
                offset == M1_QUEUE_CONTROL || offset == M1_QUEUE_ADDRESS ||
                offset == M1_QUEUE_DEVICE || offset == M1_QUEUE_COUNT;
     }
+    /* The Renode MSPI2 model retains the aligned device-setup slots from
+       0x80 through 0x9c; only 0x94 has transfer semantics here. */
+    if (offset >= 0x80u && offset <= 0x9cu) return 1;
+    if (offset >= 0x30u && offset <= 0x44u) return 1;
+    if (offset == 0x20u) return 1;
+    if (offset >= 0x100u && offset <= 0x11cu) return 1;
     return offset == M2_COMMAND || offset == M2_ADDRESS || offset == M2_DATA ||
            offset == M2_INSTRUCTION || offset == M2_DMA_CONFIG ||
            offset == M2_DMA_STATUS || offset == M2_DMA_TARGET ||
@@ -184,7 +193,7 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
 {
     semu_dma_request request;
     uint32_t target = *reg(mspi, M2_DMA_TARGET);
-    uint32_t count = *reg(mspi, M2_DMA_COUNT) & UINT32_C(0xffffff);
+    uint32_t count = *reg(mspi, M2_DMA_COUNT) & UINT32_C(0xfff);
     semu_transaction_result result;
     if (value != 0x13u && value != 0x17u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -204,8 +213,51 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
     request.count = count;
     request.endpoint = &mspi->endpoint;
     request.continuation = (uint8_t)((value & 0x10u) != 0u);
+    request.transaction = NULL;
     request.completion = dma_complete;
     request.completion_context = mspi;
+    {
+        uint32_t instruction = *reg(mspi, M2_INSTRUCTION);
+        uint8_t command = request.direction == SEMU_DMA_FROM_ENDPOINT ?
+                              (uint8_t)((instruction >> 16u) & 0xffu) :
+                              (uint8_t)(instruction & 0xffu);
+        uint32_t address = *reg(mspi, M2_DMA_DEVICE) & UINT32_C(0xffffff);
+
+        if (request.direction == SEMU_DMA_FROM_ENDPOINT) {
+            mspi->dma_buffer[0u] = command;
+            if (command == 0x0cu) {
+                mspi->dma_buffer[1u] = (uint8_t)(address >> 16u);
+                mspi->dma_buffer[2u] = (uint8_t)(address >> 8u);
+                mspi->dma_buffer[3u] = (uint8_t)address;
+                mspi->dma_transaction.tx_size = 4u;
+            } else {
+                mspi->dma_transaction.tx_size = 1u;
+            }
+            mspi->dma_transaction.address = 0u;
+            mspi->dma_transaction.chip_select = 0u;
+            mspi->dma_transaction.tx = mspi->dma_buffer;
+            mspi->dma_transaction.rx = NULL;
+            mspi->dma_transaction.rx_size = 0u;
+            request.transaction = &mspi->dma_transaction;
+        } else if (command == 0x12u) {
+            if (count > sizeof(mspi->dma_buffer) - 4u ||
+                semu_bus_copy_out(mspi->bus, target, mspi->dma_buffer + 4u,
+                                  count, error) != SEMU_OK) {
+                return SEMU_ERR_RANGE;
+            }
+            mspi->dma_buffer[0u] = command;
+            mspi->dma_buffer[1u] = (uint8_t)(address >> 16u);
+            mspi->dma_buffer[2u] = (uint8_t)(address >> 8u);
+            mspi->dma_buffer[3u] = (uint8_t)address;
+            mspi->dma_transaction.address = 0u;
+            mspi->dma_transaction.chip_select = 0u;
+            mspi->dma_transaction.tx = mspi->dma_buffer;
+            mspi->dma_transaction.tx_size = (size_t)count + 4u;
+            mspi->dma_transaction.rx = NULL;
+            mspi->dma_transaction.rx_size = 0u;
+            request.transaction = &mspi->dma_transaction;
+        }
+    }
     result = mspi->dma_sink(mspi->dma_context, &request, error);
     if (result == SEMU_TRANSACTION_REFUSE) {
         semu_error_set(error, SEMU_ERR_STATE,
@@ -341,7 +393,17 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
     } else if (!is_mspi1(mspi) && offset == M2_COMMAND &&
                (value == 0xc1u || value == 0xe1u)) {
         uint8_t command = (uint8_t)(*reg(mspi, M2_DATA) & 0xffu);
-        status = endpoint_transfer(mspi, &command, 1u, error);
+        uint8_t frame[4];
+        size_t frame_size = 1u;
+        frame[0u] = command;
+        if (command == 0x21u) {
+            uint32_t address = *reg(mspi, M2_ADDRESS) & UINT32_C(0xffffff);
+            frame[1u] = (uint8_t)(address >> 16u);
+            frame[2u] = (uint8_t)(address >> 8u);
+            frame[3u] = (uint8_t)address;
+            frame_size = sizeof(frame);
+        }
+        status = endpoint_transfer(mspi, frame, frame_size, error);
         if (status != SEMU_OK) return status;
         *reg(mspi, offset) = value;
         mspi->status |= M2_COMMAND_DONE;

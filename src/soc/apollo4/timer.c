@@ -9,6 +9,7 @@
 #define TIMER_GLOBAL_STATUS 0x60u
 #define TIMER_GLOBAL_STATUS2 0x64u
 #define TIMER_GLOBAL_CLEAR 0x68u
+#define TIMER_AUXILIARY 0xe8u
 #define TIMER_PATTERN 0x104u
 #define TIMER_CONTROL 0x00u
 #define TIMER_VALUE 0x04u
@@ -36,7 +37,10 @@ struct semu_apollo4_timer {
     timer_channel channels[TIMER_CHANNEL_COUNT];
     uint32_t interrupt_mask;
     uint32_t pending;
+    uint32_t status_value;
+    uint8_t status_written;
     uint32_t output_control;
+    uint32_t auxiliary;
     uint32_t pattern;
 };
 static semu_status refuse(uint32_t offset, semu_error *error)
@@ -79,12 +83,18 @@ static int pwm_control(uint32_t channel, uint32_t control)
     return channel == 9u && (control == 0xa40u || control == 0xa41u ||
                              control == 0xa42u || control == 0xa44u);
 }
+static uint32_t control_readback(unsigned channel, uint32_t control)
+{
+    return pwm_control(channel, control) ? 0xa40u : control;
+}
 static int supported_control(uint32_t value)
 {
     static const uint32_t values[] = {
-        0u, 1u, 2u, 0x110u, 0x111u, 0x112u, 0x120u, 0x121u, 0x122u,
+        0u, 1u, 2u, 3u, 0x110u, 0x111u, 0x112u, 0x120u, 0x121u, 0x122u,
+        0x123u,
         0x140u, 0x142u, 0x144u, 0x220u, 0x221u, 0x222u,
-        0x1c20u, 0x1c21u, 0x1c22u, 0xa40u, 0xa41u, 0xa42u, 0xa44u
+        0x1c20u, 0x1c21u, 0x1c22u, 0x1c23u, 0xa40u, 0xa41u, 0xa42u,
+        0xa44u
     };
     size_t index;
     for (index = 0u; index < sizeof(values) / sizeof(values[0]); ++index)
@@ -206,7 +216,10 @@ void semu_apollo4_timer_reset(semu_apollo4_timer *timer)
     }
     timer->interrupt_mask = 0u;
     timer->pending = 0u;
+    timer->status_value = 0u;
+    timer->status_written = 0u;
     timer->output_control = 0u;
+    timer->auxiliary = 0u;
     timer->pattern = 0u;
 }
 semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
@@ -217,15 +230,20 @@ semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
     if (timer == NULL || value == NULL || !valid_access(offset, width))
         return refuse(offset, error);
     if (offset == TIMER_GLOBAL_MASK) *value = timer->interrupt_mask;
-    else if (offset == TIMER_GLOBAL_STATUS) *value = timer->pending;
+    else if (offset == TIMER_GLOBAL_STATUS)
+        *value = timer->status_written != 0u ? timer->status_value
+                                             : timer->pending;
     else if (offset == TIMER_GLOBAL_STATUS2) *value = 0u;
     else if (offset == TIMER_GLOBAL_CLEAR) *value = timer->output_control;
+    else if (offset == TIMER_AUXILIARY) *value = timer->auxiliary;
     else if (offset == TIMER_PATTERN) *value = timer->pattern;
     else if (is_channel_offset(offset)) {
         local = channel_offset(offset);
         channel = &timer->channels[channel_index(offset)];
         switch (local) {
-        case TIMER_CONTROL: *value = channel->control; break;
+        case TIMER_CONTROL:
+            *value = control_readback(channel_index(offset), channel->control);
+            break;
         case TIMER_VALUE:
             *value = counter_value(channel, semu_scheduler_now(timer->scheduler));
             break;
@@ -254,6 +272,12 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
             semu_error_clear(&local_error);
             (void)reschedule(&timer->channels[index], &local_error);
         }
+    } else if (offset == TIMER_GLOBAL_STATUS) {
+        if (value != 0u && value != 2u && value != 0x8000000u &&
+            value != 0x8000001u)
+            return refuse(offset, error);
+        timer->status_value = value;
+        timer->status_written = 1u;
     } else if (offset == TIMER_GLOBAL_CLEAR) {
         if (value != 1u && value != 0x30000u && value != 0x8000000u &&
             value != 0xc000000u)
@@ -262,10 +286,13 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         if (value == 1u) clear_pending(timer, 1u);
         if (value == 0x8000000u || value == 0xc000000u)
             clear_pending(timer, 1u << 13);
+    } else if (offset == TIMER_AUXILIARY) {
+        if (value != 0u && value != 0x12u) return refuse(offset, error);
+        timer->auxiliary = value;
     } else if (offset == TIMER_PATTERN) {
         if (value != 0u && value != 0x100u && value != 0x2000u &&
             value != 0x2100u && value != 0x10100u && value != 0x10101u &&
-            value != 0x12101u)
+            value != 0x12100u && value != 0x12101u)
             return refuse(offset, error);
         timer->pattern = value;
     } else if (!is_channel_offset(offset)) return refuse(offset, error);
@@ -279,7 +306,10 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
             channel->base_value = counter_value(channel,
                                                 semu_scheduler_now(timer->scheduler));
             channel->epoch = semu_scheduler_now(timer->scheduler);
-            channel->control = value;
+            channel->control = control_readback(index, value);
+        } else if (local == TIMER_VALUE) {
+            channel->base_value = value;
+            channel->epoch = semu_scheduler_now(timer->scheduler);
         } else if (local == TIMER_COMPARE0) channel->compare[0] = value;
         else if (local == TIMER_COMPARE1) channel->compare[1] = value;
         else if (local == TIMER_INTEN) {

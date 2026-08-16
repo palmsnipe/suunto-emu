@@ -2,8 +2,10 @@
 #define SEMU_SAPPORO_DEVICES_H
 
 #include "semu/apollo4.h"
+#include "semu/compat.h"
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
+#include "semu/storage.h"
 #include "../soc/apollo4/uart.h"
 
 /*
@@ -17,14 +19,27 @@
 typedef struct semu_sapporo_devices semu_sapporo_devices;
 
 semu_sapporo_devices *semu_sapporo_devices_create(
-    semu_scheduler *scheduler, semu_error *error);
+    semu_scheduler *scheduler, const semu_storage *flash_storage,
+    semu_error *error);
 void semu_sapporo_devices_destroy(semu_sapporo_devices *devices);
 void semu_sapporo_devices_reset(semu_sapporo_devices *devices);
+semu_status semu_sapporo_devices_bind_bus(semu_sapporo_devices *devices,
+                                           semu_bus *bus, semu_error *error);
+
+/*
+ * Enables the explicitly selected 2.22 startup fixtures.  Without this
+ * binding, the GPS and OHR endpoints remain fail-closed.
+ */
+semu_status semu_sapporo_devices_bind_no_device_fixtures(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error);
 
 /*
  * Attaches all verified device endpoints to the Apollo4 SoC controllers.
- * Flash evidence (E-SAP-FLASH-001) is missing, so MSPI2 receives a
- * refusal endpoint.  The caller must have called semu_apollo4_init first.
+ * A NULL flash_storage intentionally leaves MSPI2 on its refusal endpoint;
+ * the machine passes the validated resources base to enable the observed
+ * startup flash-read contract.  The caller must have called
+ * semu_apollo4_init first.
  */
 semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
                                          semu_apollo4 *soc,
@@ -42,8 +57,7 @@ const semu_serial_endpoint *semu_sapporo_devices_iom_endpoint(
 
 /*
  * Returns a pointer to the serial endpoint for the MSPI2 external flash.
- * The flash evidence (E-SAP-FLASH-001) is missing, so this endpoint
- * refuses all transfers fail-closed.
+ * When no storage was supplied, this is an explicit refusal endpoint.
  */
 const semu_serial_endpoint *semu_sapporo_devices_mspi_flash_endpoint(
     semu_sapporo_devices *devices);

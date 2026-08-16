@@ -6,9 +6,10 @@
 
 /*
  * Sapporo 2.22.60 verified wiring table (ticket 400).
- * Each record cites a verified device evidence ID.  Unverified roles
- * (external flash E-SAP-FLASH-001, panel E-SAP-PANEL-001) are omitted,
- * not zero-filled.  The table maps no memory and owns no device.
+ * Each record cites a verified device evidence ID.  The external-flash
+ * endpoint is owned by the Sapporo device factory, while the still-
+ * unverified panel role is omitted, not zero-filled.  The table maps no
+ * memory and owns no device.
  */
 
 typedef enum {

@@ -233,6 +233,10 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
     if (status != SEMU_OK) {
         goto fail;
     }
+    status = semu_apollo4_auxiliary_map(soc->bus, soc, error);
+    if (status != SEMU_OK) {
+        goto fail;
+    }
     soc->dma = semu_apollo4_dma_create(soc->bus, scheduler, error);
     if (soc->dma == NULL) {
         goto fail;

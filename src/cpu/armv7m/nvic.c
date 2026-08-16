@@ -1,5 +1,4 @@
 #include "armv7m_internal.h"
-
 static semu_status refuse(uint32_t offset, semu_error *error)
 {
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -283,7 +282,9 @@ semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
         for (index = 0u; index < width; ++index) {
             unsigned irq = offset - 0x400u + index;
             if (irq < ARMV7M_IMPLEMENTED_IRQ_COUNT)
-                *value |= (uint32_t)cpu->irq_priority[irq] << (index * 8u);
+                *value |= (uint32_t)(cpu->irq_priority[irq] &
+                                     ARMV7M_NVIC_PRIORITY_MASK) <<
+                          (index * 8u);
         }
         return SEMU_OK;
     }
@@ -311,7 +312,8 @@ semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,
         for (index = 0u; index < width; ++index) {
             unsigned irq = offset - 0x400u + index;
             if (irq < ARMV7M_IMPLEMENTED_IRQ_COUNT)
-                cpu->irq_priority[irq] = (uint8_t)(value >> (index * 8u));
+                cpu->irq_priority[irq] = (uint8_t)(value >> (index * 8u)) &
+                                         ARMV7M_NVIC_PRIORITY_MASK;
         }
         return SEMU_OK;
     }

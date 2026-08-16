@@ -134,11 +134,13 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     uint32_t second_value;
     uint32_t pc;
     uint32_t packed;
+    uint32_t it_flags;
     uint16_t first;
     uint16_t second = 0u;
     uint8_t old_itstate;
     int irq;
     int is_wide;
+    int preserve_it_flags;
     semu_status status;
 
     if (cpu == NULL) {
@@ -189,6 +191,11 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         advance_itstate(cpu);
         return finish_instruction(cpu, error);
     }
+    it_flags = cpu->state.xpsr & (ARMV7M_XPSR_N | ARMV7M_XPSR_Z |
+                                  ARMV7M_XPSR_C | ARMV7M_XPSR_V);
+    preserve_it_flags = old_itstate != 0u && (old_itstate & 7u) != 0u &&
+                        !is_wide && (first & 0xe000u) == 0x2000u &&
+                        ((first >> 11u) & 3u) == 0u;
     status = is_wide ? armv7m_exec32(cpu, first, second, pc, error)
                      : armv7m_exec16(cpu, first, pc, error);
     if (status != SEMU_OK) {
@@ -198,8 +205,14 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
          * halting. The handler has updated the PC and cleared the IT
          * state. Finish the instruction so the run loop can step into
          * the handler on the next call.
-         */
+        */
         return finish_instruction(cpu, error);
+    }
+    /* Thumb MOVS-immediate is flag-preserving when it is non-final in IT. */
+    if (preserve_it_flags) {
+        cpu->state.xpsr = (cpu->state.xpsr &
+                           ~(ARMV7M_XPSR_N | ARMV7M_XPSR_Z |
+                             ARMV7M_XPSR_C | ARMV7M_XPSR_V)) | it_flags;
     }
     if (old_itstate != 0u) {
         advance_itstate(cpu);
@@ -232,13 +245,18 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
 void semu_cpu_set_irq_priority(semu_cpu *cpu, unsigned irq, uint8_t priority)
 {
     if (cpu != NULL && irq < ARMV7M_IRQ_COUNT) {
-        cpu->irq_priority[irq] = priority;
+        cpu->irq_priority[irq] = priority & ARMV7M_NVIC_PRIORITY_MASK;
     }
 }
 
 void semu_cpu_signal_event(semu_cpu *cpu)
 {
     armv7m_sleep_event(cpu);
+}
+
+int semu_cpu_reset_requested(const semu_cpu *cpu)
+{
+    return cpu != NULL && cpu->reset_requested != 0u;
 }
 
 semu_stop_reason semu_cpu_stop_reason(const semu_cpu *cpu)
