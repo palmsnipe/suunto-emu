@@ -62,6 +62,10 @@ const semu_serial_endpoint *semu_sapporo_devices_iom_endpoint(
 const semu_serial_endpoint *semu_sapporo_devices_mspi_flash_endpoint(
     semu_sapporo_devices *devices);
 
+/* Returns the evidenced MSPI1 DIAP4 completion-only endpoint. */
+const semu_serial_endpoint *semu_sapporo_devices_mspi1_endpoint(
+    semu_sapporo_devices *devices);
+
 /*
  * Returns a pointer to the UART endpoint for the CXD5610 GPS transport.
  * The bridge wraps the CXD5610 serial endpoint in a byte-at-a-time

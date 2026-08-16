@@ -358,11 +358,11 @@ static int command_run(const run_arguments *arguments,
                     break;
                 }
             }
-            limits.max_instructions = executed + RUN_CHUNK_INSTRUCTIONS;
-            if (limits.max_instructions > instr_limit) {
-                limits.max_instructions = instr_limit;
+            limits.max_instructions = instr_limit - executed;
+            if (limits.max_instructions > RUN_CHUNK_INSTRUCTIONS) {
+                limits.max_instructions = RUN_CHUNK_INSTRUCTIONS;
             }
-            limits.max_virtual_time_ns = time_limit;
+            limits.max_virtual_time_ns = time_limit - now;
             reason = semu_machine_run(machine, &limits, &error);
             if (reason != SEMU_STOP_BUDGET) break;
         }

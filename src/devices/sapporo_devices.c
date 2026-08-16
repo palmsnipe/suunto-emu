@@ -52,6 +52,7 @@ struct semu_sapporo_devices {
     semu_serial_endpoint iom3_ep;
     semu_serial_endpoint iom4_ep;
     semu_serial_endpoint iom4_observed_ep;
+    semu_serial_endpoint mspi1_ep;
     semu_serial_endpoint mspi_ep;
     semu_serial_endpoint refuse_ep;
     semu_apollo4_uart_endpoint uart_ep;
@@ -93,6 +94,25 @@ static semu_transaction_result refuse_transfer(
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "no verified device at this IOM instance");
     return SEMU_TRANSACTION_REFUSE;
+}
+
+/* E-SAP-PANEL-001 is still missing.  MSPI1 nevertheless has an evidenced
+ * DIAP4 completion boundary: the controller stages a 16-byte descriptor
+ * head, writes control=3, and receives IRQ21 bit 9.  Accept that completion
+ * only; do not interpret it as a panel transfer or fabricate pixels. */
+static semu_transaction_result mspi1_completion_transfer(
+    void *context, semu_serial_transaction *transaction, semu_error *error)
+{
+    (void)context;
+    if (transaction == NULL || transaction->tx == NULL ||
+        transaction->tx_size != 16u || transaction->rx != NULL ||
+        transaction->rx_size != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "MSPI1 DIAP4 completion descriptor shape is unsupported");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    semu_error_clear(error);
+    return SEMU_TRANSACTION_OK;
 }
 
 static semu_transaction_result i2c_mux_transfer(
@@ -242,6 +262,9 @@ semu_sapporo_devices *semu_sapporo_devices_create(
     devices->iom4_observed_ep.transfer = observed_iom4_transfer;
     devices->iom4_observed_ep.context = NULL;
     i2c_bus_attach(&devices->iom4_bus, 0x28u, &devices->iom4_observed_ep);
+    devices->mspi1_ep.name = "sapporo.mspi1.diap4-completion";
+    devices->mspi1_ep.transfer = mspi1_completion_transfer;
+    devices->mspi1_ep.context = NULL;
     if (devices->flash != NULL) {
         devices->mspi_ep = semu_sapporo_flash_endpoint(devices->flash);
     } else {
@@ -360,6 +383,9 @@ semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
     if (semu_apollo4_iom_attach_endpoint(soc->iom4,
             semu_sapporo_devices_iom_endpoint(devices, 4u), error) != SEMU_OK)
         return error->code;
+    if (semu_apollo4_mspi_attach_endpoint(soc->mspi1,
+            &devices->mspi1_ep, error) != SEMU_OK)
+        return error->code;
     if (semu_apollo4_mspi_attach_endpoint(soc->mspi2,
             semu_sapporo_devices_mspi_flash_endpoint(devices),
             error) != SEMU_OK)
@@ -388,6 +414,12 @@ const semu_serial_endpoint *semu_sapporo_devices_mspi_flash_endpoint(
     semu_sapporo_devices *devices)
 {
     return devices != NULL ? &devices->mspi_ep : NULL;
+}
+
+const semu_serial_endpoint *semu_sapporo_devices_mspi1_endpoint(
+    semu_sapporo_devices *devices)
+{
+    return devices != NULL ? &devices->mspi1_ep : NULL;
 }
 
 const semu_apollo4_uart_endpoint *semu_sapporo_devices_uart_endpoint(

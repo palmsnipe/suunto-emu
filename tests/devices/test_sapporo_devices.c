@@ -227,6 +227,36 @@ static void test_mspi_flash_wired(semu_test_context *context)
     (void)remove(path);
 }
 
+static void test_mspi1_completion_endpoint(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_sapporo_devices *devices;
+    const semu_serial_endpoint *mspi1;
+    semu_serial_transaction txn;
+    uint8_t descriptor[16] = { 0 };
+
+    semu_error_clear(&error);
+    scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    devices = semu_sapporo_devices_create(scheduler, NULL, &error);
+    SEMU_TEST_ASSERT(context, devices != NULL);
+    mspi1 = semu_sapporo_devices_mspi1_endpoint(devices);
+    SEMU_TEST_ASSERT(context, mspi1 != NULL);
+
+    memset(&txn, 0, sizeof(txn));
+    txn.tx = descriptor;
+    txn.tx_size = sizeof(descriptor);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     mspi1->transfer(mspi1->context, &txn, &error));
+    txn.tx_size = sizeof(descriptor) - 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     mspi1->transfer(mspi1->context, &txn, &error));
+
+    semu_sapporo_devices_destroy(devices);
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_unknown_iom_refuses(semu_test_context *context)
 {
     semu_error error;
@@ -260,6 +290,7 @@ int main(void)
         SEMU_TEST_CASE(test_iom2_ohr2_via_mux),
         SEMU_TEST_CASE(test_mspi_flash_refuses),
         SEMU_TEST_CASE(test_mspi_flash_wired),
+        SEMU_TEST_CASE(test_mspi1_completion_endpoint),
         SEMU_TEST_CASE(test_unknown_iom_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
