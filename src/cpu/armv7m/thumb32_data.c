@@ -304,18 +304,18 @@ static semu_status conditional_branch(semu_cpu *cpu, uint16_t first,
 {
     unsigned condition = (first >> 6u) & 0xfu;
     uint32_t s = (first >> 10u) & 1u, j1 = (second >> 13u) & 1u;
-    uint32_t j2 = (second >> 11u) & 1u, i1 = (~(j1 ^ s)) & 1u;
-    uint32_t i2 = (~(j2 ^ s)) & 1u, encoded;
+    uint32_t j2 = (second >> 11u) & 1u, i1 = j2;
+    uint32_t i2 = j1, encoded;
 
     if (condition >= 14u)
         return refuse(cpu, first, second, pc, error);
     if (!armv7m_condition_passed(cpu, condition))
         return SEMU_OK;
-    encoded = (s << 24u) | (i1 << 23u) | (i2 << 22u) |
+    encoded = (s << 20u) | (i1 << 19u) | (i2 << 18u) |
               ((uint32_t)(first & 0x3fu) << 12u) |
               ((uint32_t)(second & 0x7ffu) << 1u);
     cpu->state.r[15] = pc + 4u +
-                       (uint32_t)armv7m_sign_extend(encoded, 25u);
+                       (uint32_t)armv7m_sign_extend(encoded, 21u);
     return SEMU_OK;
 }
 

@@ -372,15 +372,17 @@ static void test_branch_bounds_and_link(semu_test_context *context)
 static void test_conditional_branch_t3(semu_test_context *context)
 {
     /* B<cc>.W T3 encoding: first = 11110 S cond imm6,
-     * second = 10 J1 0 J2 imm11. For displacement +32 (S=0, I1=0,
-     * I2=0, imm6=0, imm11=0x10), J1=J2=1 (inverted from I1/I2).
+     * second = 10 J1 0 J2 imm11. In T3, I1 = J2 (bit 11) and
+     * I2 = J1 (bit 13), i.e. the J bits are swapped relative to T4
+     * and used directly (no inversion). For displacement +32 (S=0,
+     * I1=0, I2=0, imm6=0, imm11=0x10), J1=J2=0.
      * Target = pc + 4 + 32 = 0x124 when taken. */
     semu_cpu_state state = initial_state();
     semu_status status;
 
     /* BEQ.W (cond=EQ=0): Z=0 → not taken, falls through to pc+4. */
     state = initial_state();
-    SEMU_TEST_ASSERT(context, run32(0xf000u, 0xa810u, state, &status,
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0x8010u, state, &status,
                                     &state));
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
@@ -388,16 +390,16 @@ static void test_conditional_branch_t3(semu_test_context *context)
     /* BEQ.W (cond=EQ=0): Z=1 → taken, target = 0x124. */
     state = initial_state();
     state.xpsr |= XPSR_Z;
-    SEMU_TEST_ASSERT(context, run32(0xf000u, 0xa810u, state, &status,
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0x8010u, state, &status,
                                     &state));
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x124u, state.r[15]);
 
     /* BGT.W (cond=GT=0xC): Z=0 and N==V → taken. This encoding
      * (first=0xf300) collides with the DSP saturation dispatch and
-     * must be routed to branch_data via the branch pre-check. */
+     * must be routed to conditional_branch via the branch pre-check. */
     state = initial_state();
-    SEMU_TEST_ASSERT(context, run32(0xf300u, 0xa810u, state, &status,
+    SEMU_TEST_ASSERT(context, run32(0xf300u, 0x8010u, state, &status,
                                     &state));
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x124u, state.r[15]);
@@ -405,10 +407,40 @@ static void test_conditional_branch_t3(semu_test_context *context)
     /* BGT.W (cond=GT=0xC): Z=1 → not taken. */
     state = initial_state();
     state.xpsr |= XPSR_Z;
-    SEMU_TEST_ASSERT(context, run32(0xf300u, 0xa810u, state, &status,
+    SEMU_TEST_ASSERT(context, run32(0xf300u, 0x8010u, state, &status,
                                     &state));
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
+
+    /* Large positive offset with I1=1 (displacement +0x80010). In T3,
+     * I1 = J2 (bit 11) and I2 = J1 (bit 13), swapped from T4. So J2=1
+     * encodes I1=1. The 21-bit T3 sign extension must be used, not
+     * the 25-bit T4 extension. */
+    state = initial_state();
+    state.xpsr |= XPSR_Z;
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0x8808u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x80114u, state.r[15]);
+
+    /* Large positive offset with I2=1 (displacement +0x40010). J1=1
+     * encodes I2=1 in T3. Same 21-bit vs 25-bit regression check. */
+    state = initial_state();
+    state.xpsr |= XPSR_Z;
+    SEMU_TEST_ASSERT(context, run32(0xf000u, 0xa008u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x40114u, state.r[15]);
+
+    /* Negative offset with S=1, I1=1, I2=1 (displacement -0x80). Target
+     * = 0x100 + 4 - 0x80 = 0x84. A buggy 25-bit extension would produce
+     * a wildly different negative target. */
+    state = initial_state();
+    state.xpsr |= XPSR_Z;
+    SEMU_TEST_ASSERT(context, run32(0xf43fu, 0xafc0u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0x84u, state.r[15]);
 
     /* Refusal: cond=15 (undefined) with T3 encoding. */
     state = initial_state();
