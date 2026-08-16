@@ -187,6 +187,8 @@ static void test_exception_refusals_are_precise(semu_test_context *context)
                      semu_cpu_get_state(fixture.cpu)->r[15]);
     SEMU_TEST_EQ_U64(context, 0u,
                      semu_cpu_get_state(fixture.cpu)->xpsr & XPSR_T);
+    fixture.cpu->shcsr = 1u << 18;
+    fixture.cpu->irq_priority[0u] = 0xffu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, 6u,

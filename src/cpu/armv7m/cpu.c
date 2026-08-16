@@ -152,7 +152,8 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         return step_waiting_cpu(cpu, error);
     }
     if ((cpu->state.xpsr & ARMV7M_XPSR_T) == 0u) {
-        return armv7m_take_exception(cpu, 6u, error);
+        return armv7m_request_fault(cpu, 6u,
+                                     ARMV7M_CFSR_UFSR_INVSTATE, 0u, 0, error);
     }
     irq = armv7m_pending_exception(cpu);
     if (irq >= 0) {
@@ -164,13 +165,17 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         return armv7m_unsupported(cpu, pc, error);
     }
     if (armv7m_read(cpu, pc, 2u, &first_value, error) != SEMU_OK) {
-        return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (cpu->state.halted)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        return finish_instruction(cpu, error);
     }
     first = (uint16_t)first_value;
     is_wide = instruction_is_32bit(first);
     if (is_wide) {
         if (armv7m_read(cpu, pc + 2u, 2u, &second_value, error) != SEMU_OK) {
-            return error != NULL ? error->code : SEMU_ERR_RANGE;
+            if (cpu->state.halted)
+                return error != NULL ? error->code : SEMU_ERR_RANGE;
+            return finish_instruction(cpu, error);
         }
         second = (uint16_t)second_value;
         packed = ((uint32_t)first << 16) | second;
@@ -178,7 +183,6 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         packed = first;
     }
     cpu->fault_instruction = packed;
-
     old_itstate = cpu->itstate;
     if (old_itstate != 0u && !armv7m_condition_passed(cpu, old_itstate >> 4)) {
         cpu->state.r[15] = pc + (is_wide ? 4u : 2u);
@@ -188,7 +192,14 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     status = is_wide ? armv7m_exec32(cpu, first, second, pc, error)
                      : armv7m_exec16(cpu, first, pc, error);
     if (status != SEMU_OK) {
-        return status;
+        if (cpu->state.halted) return status;
+        /*
+         * A fault exception was taken (BusFault or HardFault) without
+         * halting. The handler has updated the PC and cleared the IT
+         * state. Finish the instruction so the run loop can step into
+         * the handler on the next call.
+         */
+        return finish_instruction(cpu, error);
     }
     if (old_itstate != 0u) {
         advance_itstate(cpu);

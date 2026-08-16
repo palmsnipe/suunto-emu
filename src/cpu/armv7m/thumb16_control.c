@@ -65,10 +65,6 @@ static semu_status special_data(semu_cpu *cpu, uint16_t instruction,
         return armv7m_unsupported(cpu, instruction, error);
     }
     right = armv7m_reg(cpu, rm, pc);
-    if ((right & 0xfffffff0u) != 0xfffffff0u &&
-        (right & 1u) == 0u) {
-        return armv7m_unsupported(cpu, instruction, error);
-    }
     if ((instruction & 0x0080u) != 0u) {
         cpu->state.r[14] = (pc + 2u) | 1u;
     }

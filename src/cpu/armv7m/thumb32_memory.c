@@ -64,11 +64,6 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
                 address += 4u;
             }
         }
-        if ((list & (1u << 15)) != 0u &&
-            ((values[15] & 1u) == 0u ||
-             ((values[15] & 0xfffffff0u) == 0xfffffff0u &&
-              values[15] != 0xfffffff9u && values[15] != 0xfffffffdu)))
-            return armv7m_unsupported(cpu, values[15], error);
     }
     if (load) {
         for (reg = 0u; reg < 15u; ++reg) {

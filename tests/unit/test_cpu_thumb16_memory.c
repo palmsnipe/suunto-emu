@@ -245,40 +245,76 @@ static int refusal(uint16_t instruction, uint32_t base, uint32_t offset,
     semu_cpu_fixture_destroy(&fixture); return result;
 }
 
+static void setup_hardfault_bkpt(semu_cpu_fixture *fixture)
+{
+    (void)semu_cpu_fixture_load_u32(fixture, 0x0cu, 0x201u);
+    (void)semu_cpu_fixture_load_u32(fixture, 0x200u, 0x0000be00u);
+}
+
 static void test_refusals_and_partial_fault(semu_test_context *context)
 {
     semu_cpu_fixture fixture = {0}; semu_cpu_state *state; uint32_t value;
 
-    SEMU_TEST_ASSERT(context, refusal(0x6008u, 0x601u, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(reg_transfer(6u, 2u, 1u, 0u),
                                       0xffffffffu, 1u, 0));
-    SEMU_TEST_ASSERT(context, refusal(0x6808u, 0x1000u, 0u, 1));
     SEMU_TEST_ASSERT(context, refusal(0xb400u, 0u, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xbc00u, 0u, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xc800u, 0u, 0u, 0));
+    /*
+     * LDR from unmapped address takes a BusFault (escalated to HardFault
+     * since SHCSR.BUSFAULTENA is clear) instead of halting.  The HardFault
+     * handler at 0x200 contains a BKPT that halts the CPU.
+     */
+    SEMU_TEST_ASSERT(context,
+        semu_cpu_fixture_init(&fixture,
+            (const uint8_t[]){0x08u, 0x68u, 0x00u, 0xbeu}, 4u));
+    setup_hardfault_bkpt(&fixture);
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[1] = 0x1000u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                     semu_cpu_stop_reason(fixture.cpu));
+    SEMU_TEST_ASSERT(context, semu_cpu_fault_address(fixture.cpu, &value));
+    SEMU_TEST_EQ_U64(context, 0x1000u, value);
+    semu_cpu_fixture_destroy(&fixture);
+    /*
+     * STMIA with partial fault: the first register is written before the
+     * second write triggers a BusFault.  The base register must not be
+     * updated (writeback did not occur).
+     */
     SEMU_TEST_ASSERT(context, semu_cpu_fixture_init(&fixture,
                                                     (const uint8_t[]){0x03u,
                                                         0xc2u, 0x00u, 0xbeu}, 4u));
+    setup_hardfault_bkpt(&fixture);
     state = semu_cpu_get_state_mutable(fixture.cpu);
     state->r[0] = 0xaaaaaaaau; state->r[1] = 0xbbbbbbbbu; state->r[2] = 0xffcu;
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, 0xaaaaaaaau, state->r[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, 0xffcu, state->r[2]);
-    SEMU_TEST_ASSERT(context, semu_cpu_fault_address(fixture.cpu, &value));
-    SEMU_TEST_EQ_U64(context, 0x1000u, value);
     SEMU_TEST_ASSERT(context, semu_bus_read(fixture.bus, 0xffcu, 4u, &value,
                                              &fixture.error) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, 0xaaaaaaaau, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                     semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
-
+    /*
+     * POP {PC} with a non-Thumb return address: the POP succeeds (clears
+     * EPSR.T), then the next instruction fetch takes an InvState fault
+     * that escalates to HardFault.
+     */
     SEMU_TEST_ASSERT(context, semu_cpu_fixture_init(&fixture,
                                                     (const uint8_t[]){0x00u,
                                                         0xbdu, 0x00u, 0xbeu}, 4u));
+    setup_hardfault_bkpt(&fixture);
     state = semu_cpu_get_state_mutable(fixture.cpu); state->r[13] = state->msp = 0x600u;
     SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x600u, 0x300u));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, 0x600u, state->r[13]);
-    SEMU_TEST_EQ_U64(context, 0x100u, state->r[15]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 0x604u, state->r[13]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                     semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
 }
 

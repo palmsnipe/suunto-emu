@@ -19,7 +19,20 @@ static int access_address(uint32_t base, uint32_t offset, unsigned width,
 {
     uint64_t value = (uint64_t)base + offset;
 
-    if ((value & (width - 1u)) != 0u || value + width > UINT64_C(0x100000000)) {
+    if (value + width > UINT64_C(0x100000000)) {
+        return 0;
+    }
+    *address = (uint32_t)value;
+    return 1;
+}
+
+static int access_address_aligned(uint32_t base, uint32_t offset,
+                                   unsigned width, uint32_t *address)
+{
+    uint64_t value = (uint64_t)base + offset;
+
+    if ((value & (width - 1u)) != 0u ||
+        value + width > UINT64_C(0x100000000)) {
         return 0;
     }
     *address = (uint32_t)value;
@@ -166,13 +179,13 @@ static semu_status push(semu_cpu *cpu, uint16_t instruction,
         return refuse(cpu, instruction, error);
     }
     if (cpu->state.r[13] < armv7m_bit_count(list) * 4u ||
-        !access_address(cpu->state.r[13] - armv7m_bit_count(list) * 4u,
+        !access_address_aligned(cpu->state.r[13] - armv7m_bit_count(list) * 4u,
                         0u, 4u, &address)) {
         return refuse(cpu, instruction, error);
     }
     for (reg = 0u; reg < 15u; ++reg) {
         if ((list & (1u << reg)) != 0u) {
-            if (!access_address(address, 0u, 4u, &address) ||
+            if (!access_address_aligned(address, 0u, 4u, &address) ||
                 armv7m_write(cpu, address, 4u, cpu->state.r[reg], error) !=
                     SEMU_OK) {
                 return error != NULL ? error->code : SEMU_ERR_RANGE;
@@ -200,7 +213,7 @@ static semu_status pop(semu_cpu *cpu, uint16_t instruction,
     if ((instruction & 0x0100u) != 0u) {
         list |= 1u << 15;
     }
-    if (list == 0u || !access_address(address, 0u, 4u, &address) ||
+    if (list == 0u || !access_address_aligned(address, 0u, 4u, &address) ||
         !add_u32(cpu->state.r[13], armv7m_bit_count(list) * 4u, &end)) {
         return refuse(cpu, instruction, error);
     }
@@ -214,10 +227,6 @@ static semu_status pop(semu_cpu *cpu, uint16_t instruction,
             address += 4u;
             count++;
         }
-    }
-    if ((list & (1u << 15)) != 0u &&
-        (values[count - 1u] & 1u) == 0u) {
-        return refuse(cpu, instruction, error);
     }
     count = 0u;
     for (reg = 0u; reg < 15u; ++reg) {
@@ -243,7 +252,7 @@ static semu_status multiple(semu_cpu *cpu, uint16_t instruction,
     unsigned reg;
     int load = (instruction & 0x0800u) != 0u;
 
-    if (list == 0u || !access_address(address, 0u, 4u, &address) ||
+    if (list == 0u || !access_address_aligned(address, 0u, 4u, &address) ||
         !add_u32(cpu->state.r[rn], armv7m_bit_count(list) * 4u, &end)) {
         return refuse(cpu, instruction, error);
     }
@@ -292,7 +301,7 @@ semu_status armv7m_exec16_memory(semu_cpu *cpu, uint16_t instruction,
     } else {
         status = refuse(cpu, instruction, error);
     }
-    if (status != SEMU_OK) {
+    if (status != SEMU_OK && cpu->state.halted) {
         cpu->state.r[15] = pc;
     }
     return status;

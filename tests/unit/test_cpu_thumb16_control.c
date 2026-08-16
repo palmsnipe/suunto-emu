@@ -287,8 +287,7 @@ static int refusal(uint16_t instruction, int unprivileged)
     uint8_t program[4];
     semu_cpu_fixture fixture = {0};
     semu_cpu_state *state;
-    uint32_t initial_r0 = instruction == 0x4700u ? 0x13579bdeu :
-                          0x13579bdfu;
+    uint32_t initial_r0 = 0x13579bdfu;
     int result;
 
     put16(program, 0u, instruction);
@@ -335,7 +334,6 @@ static void test_cps_and_refusals(semu_test_context *context)
     SEMU_TEST_ASSERT(context, refusal(0xb664u, 0));
     SEMU_TEST_ASSERT(context, refusal(SPECIAL(1u, 1u, 15u, 0u), 0));
     SEMU_TEST_ASSERT(context, refusal(BRANCH_REGISTER(1u, 15u), 0));
-    SEMU_TEST_ASSERT(context, refusal(0x4700u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xde00u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xb672u, 1));
 }

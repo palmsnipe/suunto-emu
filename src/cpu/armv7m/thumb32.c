@@ -24,7 +24,7 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         (first & 0xff80u) == 0xf900u) {
         semu_status status = armv7m_exec32_memory(cpu, first, second, pc,
                                                   error);
-        if (status != SEMU_OK) cpu->state.r[15] = pc;
+        if (status != SEMU_OK && cpu->state.halted) cpu->state.r[15] = pc;
         return status;
     }
     if (first == 0xf3bfu || first == 0xf3afu || first == 0xf3efu ||

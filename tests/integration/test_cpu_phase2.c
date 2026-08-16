@@ -191,14 +191,20 @@ static int phase_run_unmapped_fault(void)
     int ok;
 
     if (!semu_cpu_fixture_init(&fixture, program, sizeof(program))) return 0;
+    (void)semu_cpu_fixture_load_u32(&fixture, 0x0cu, 0x201u);
+    (void)semu_cpu_fixture_load_u32(&fixture, 0x200u, 0x0000be00u);
     state = semu_cpu_get_state_mutable(fixture.cpu);
     state->r[0] = UINT32_C(0x13579bdf);
     state->r[1] = 0x1000u;
     status = semu_cpu_fixture_step(&fixture);
-    ok = status == SEMU_ERR_RANGE &&
-         semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_UNMAPPED_ACCESS &&
-         state->r[0] == UINT32_C(0x13579bdf) && state->instructions == 0u &&
+    ok = status == SEMU_OK &&
+         semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_NONE &&
          semu_cpu_fault_address(fixture.cpu, &address) && address == 0x1000u;
+    if (ok) {
+        status = semu_cpu_fixture_step(&fixture);
+        ok = status == SEMU_OK &&
+             semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_HALT;
+    }
     semu_cpu_fixture_destroy(&fixture);
     return ok;
 }

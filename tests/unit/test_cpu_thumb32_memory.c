@@ -424,11 +424,13 @@ static void test_multiple_refuses_without_partial_mutation(
                                                          0xa5u));
     SEMU_TEST_ASSERT(context, semu_cpu_fixture_load_u32(&fixture, 0x204u,
                                                          0x300u));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      run_multiple(&fixture, 0xe8bdu, 0x8001u));
-    SEMU_TEST_EQ_U64(context, 0x200u, semu_cpu_get_state(fixture.cpu)->r[13]);
-    SEMU_TEST_EQ_U64(context, 0x100u, semu_cpu_get_state(fixture.cpu)->r[15]);
+    SEMU_TEST_EQ_U64(context, 0x208u, semu_cpu_get_state(fixture.cpu)->r[13]);
+    SEMU_TEST_EQ_U64(context, 0x300u, semu_cpu_get_state(fixture.cpu)->r[15]);
     SEMU_TEST_EQ_U64(context, 0xa5u, semu_cpu_get_state(fixture.cpu)->r[0]);
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & XPSR_T);
     semu_cpu_fixture_destroy(&fixture);
 }
 

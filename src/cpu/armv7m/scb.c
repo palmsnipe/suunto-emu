@@ -333,6 +333,10 @@ semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
     int escalate = 0;
 
     cpu->cfsr |= status_bits;
+    if (address_valid) {
+        cpu->fault_address = address;
+        cpu->has_fault_address = 1u;
+    }
     if (exception == 4u && address_valid) cpu->mmfar = address;
     if (exception == 5u && address_valid) cpu->bfar = address;
     if (current == 2u || current == 3u) {
@@ -420,6 +424,7 @@ void armv7m_scs_reset(void *context)
     cpu->fpca = 0u;
     cpu->fp_context_fault = 0u;
     cpu->stack_fault_active = 0u;
+    cpu->bus_fault_active = 0u;
     armv7m_systick_reset(cpu);
     cpu->stack_align = 1u;
 }

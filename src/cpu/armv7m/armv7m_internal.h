@@ -45,9 +45,18 @@
 #define ARMV7M_CFSR_MUNSTKERR (1u << 3)
 #define ARMV7M_CFSR_MSTKERR (1u << 4)
 #define ARMV7M_CFSR_MLSPERR (1u << 5)
+#define ARMV7M_CFSR_BFSR_IBUSERR (1u << 8)
+#define ARMV7M_CFSR_BFSR_PRECISERR (1u << 9)
+#define ARMV7M_CFSR_BFSR_IMPRECISERR (1u << 10)
 #define ARMV7M_CFSR_BFSR_UNSTKERR (1u << 11)
 #define ARMV7M_CFSR_BFSR_STKERR (1u << 12)
 #define ARMV7M_CFSR_BFSR_LSPERR (1u << 13)
+#define ARMV7M_CFSR_BFSR_BFARVALID (1u << 15)
+#define ARMV7M_CFSR_UFSR_DIVBYZERO (1u << 16)
+#define ARMV7M_CFSR_UFSR_UNALIGNED (1u << 17)
+#define ARMV7M_CFSR_UFSR_INVPC (1u << 18)
+#define ARMV7M_CFSR_UFSR_INVSTATE (1u << 19)
+#define ARMV7M_CFSR_UFSR_UNDEFINSTR (1u << 20)
 
 struct semu_cpu {
     semu_bus *bus;
@@ -82,6 +91,7 @@ struct semu_cpu {
     uint8_t fpca;
     uint8_t fp_context_fault;
     uint8_t stack_fault_active;
+    uint8_t bus_fault_active;
     uint8_t itstate;
     uint8_t event_register;
     uint8_t sleep_mode;

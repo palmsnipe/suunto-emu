@@ -27,20 +27,20 @@ static void test_cpu_contract_fetch_boundary(semu_test_context *context)
 {
     static const uint8_t program[] = {0x00u, 0xf0u};
     semu_cpu_fixture fixture;
-    uint32_t address = 0u;
+    const semu_cpu_state *state;
 
     SEMU_TEST_ASSERT(context,
         semu_cpu_fixture_init_at(&fixture, program, sizeof(program), 0xffeu));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
-                     semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_UNMAPPED_ACCESS,
+    SEMU_TEST_ASSERT(context,
+        semu_cpu_fixture_load_u32(&fixture, 0x0cu, 0x201u));
+    SEMU_TEST_ASSERT(context,
+        semu_cpu_fixture_load_u32(&fixture, 0x200u, 0x0000be00u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    state = semu_cpu_get_state(fixture.cpu);
+    SEMU_TEST_EQ_U64(context, 0x202u, state->r[15]);
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
                      semu_cpu_stop_reason(fixture.cpu));
-    SEMU_TEST_EQ_U64(context, 0xffeu,
-                     semu_cpu_get_state(fixture.cpu)->r[15]);
-    SEMU_TEST_EQ_U64(context, 0u,
-                     semu_cpu_get_state(fixture.cpu)->instructions);
-    SEMU_TEST_ASSERT(context, semu_cpu_fault_address(fixture.cpu, &address));
-    SEMU_TEST_EQ_U64(context, 0x1000u, address);
     semu_cpu_fixture_destroy(&fixture);
 }
 
@@ -95,18 +95,18 @@ static void test_cpu_contract_unmapped_fault_address(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      semu_cpu_fixture_init(&fixture, program,
                                             sizeof(program)));
+    SEMU_TEST_ASSERT(context,
+                     semu_cpu_fixture_load_u32(&fixture, 0x0cu, 0x201u));
+    SEMU_TEST_ASSERT(context,
+                     semu_cpu_fixture_load_u32(&fixture, 0x200u, 0x0000be00u));
     state = semu_cpu_get_state_mutable(fixture.cpu);
     state->r[1] = 0x1000u;
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
-                     semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_UNMAPPED_ACCESS,
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
                      semu_cpu_stop_reason(fixture.cpu));
     SEMU_TEST_ASSERT(context, semu_cpu_fault_address(fixture.cpu, &address));
     SEMU_TEST_EQ_U64(context, 0x1000u, address);
-    SEMU_TEST_EQ_U64(context, 0x1000u,
-                     semu_cpu_get_state(fixture.cpu)->r[1]);
-    SEMU_TEST_EQ_U64(context, 0u,
-                     semu_cpu_get_state(fixture.cpu)->instructions);
     semu_cpu_fixture_destroy(&fixture);
 }
 
