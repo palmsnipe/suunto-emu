@@ -9,10 +9,7 @@ semu_status armv7m_exec32(semu_cpu *cpu, uint16_t first, uint16_t second,
         (first & 0xff00u) == 0xee00u) {
         return armv7m_exec32_fpu(cpu, first, second, pc, error);
     }
-    if ((first & 0xfff0u) == 0xe840u ||
-        (first & 0xfff0u) == 0xe850u ||
-        (first & 0xfff0u) == 0xe8c0u ||
-        (first & 0xfff0u) == 0xe8d0u ||
+    if ((first & 0xfe40u) == 0xe840u ||
         (first & 0xfff0u) == 0xe880u ||
         (first & 0xfff0u) == 0xe890u ||
         (first & 0xfff0u) == 0xe8a0u ||

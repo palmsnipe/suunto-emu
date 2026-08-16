@@ -280,6 +280,71 @@ static semu_status indexed_transfer(semu_cpu *cpu, uint16_t first,
     return status;
 }
 
+static semu_status register_dual_transfer(semu_cpu *cpu, uint16_t first,
+                                            uint16_t second,
+                                            semu_error *error)
+{
+    unsigned rn = first & 15u;
+    unsigned rt = (second >> 12u) & 15u;
+    unsigned rt2 = (second >> 8u) & 15u;
+    uint32_t imm8 = (uint32_t)(second & 0xffu) << 2u;
+    int pre = (first & 0x0100u) != 0u;
+    int add = (first & 0x0080u) != 0u;
+    int writeback = (first & 0x0020u) != 0u;
+    int load = (first & 0x0010u) != 0u;
+    uint32_t base = cpu->state.r[rn];
+    uint32_t offset;
+    uint32_t address;
+    uint32_t address2;
+    uint32_t value0;
+    uint32_t value1;
+    semu_status status;
+
+    if (!pre && !writeback)
+        return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second,
+                                  error);
+    if (rn == 15u || rt == 15u || rt2 == 15u || (base & 3u) != 0u)
+        return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second,
+                                  error);
+    if (writeback && (rn == rt || rn == rt2))
+        return armv7m_unsupported(cpu, ((uint32_t)first << 16u) | second,
+                                  error);
+    if (add)
+        status = armv7m_add_address(cpu, base, imm8, &offset, error);
+    else
+        status = subtract_address(cpu, base, imm8, &offset, error);
+    if (status != SEMU_OK)
+        return error != NULL ? error->code : SEMU_ERR_RANGE;
+    address = pre ? offset : base;
+    status = armv7m_add_address(cpu, address, 4u, &address2, error);
+    if (status != SEMU_OK)
+        return error != NULL ? error->code : SEMU_ERR_RANGE;
+    if (!load) {
+        if (armv7m_validate_write(cpu, address, 4u, error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (armv7m_validate_write(cpu, address2, 4u, error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (armv7m_write(cpu, address, 4u, cpu->state.r[rt], error) !=
+            SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (armv7m_write(cpu, address2, 4u, cpu->state.r[rt2], error) !=
+            SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+    } else {
+        if (armv7m_read(cpu, address, 4u, &value0, error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        if (armv7m_read(cpu, address2, 4u, &value1, error) != SEMU_OK)
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        cpu->state.r[rt] = value0;
+        cpu->state.r[rt2] = value1;
+    }
+    if (writeback) {
+        if (rn == 13u) armv7m_set_sp(cpu, offset);
+        else cpu->state.r[rn] = offset;
+    }
+    return SEMU_OK;
+}
+
 semu_status armv7m_exec32_memory(semu_cpu *cpu, uint16_t first,
                                  uint16_t second, uint32_t pc,
                                  semu_error *error)
@@ -291,6 +356,8 @@ semu_status armv7m_exec32_memory(semu_cpu *cpu, uint16_t first,
         return armv7m_exec32_memory_exclusive(cpu, first, second, pc, error);
     if (is_multiple_prefix(first))
         return multiple_transfer(cpu, first, second, error);
+    if ((first & 0xfe40u) == 0xe840u)
+        return register_dual_transfer(cpu, first, second, error);
     if ((first & 0xff80u) == 0xf880u ||
         (first & 0xff80u) == 0xf980u) {
         return wide_transfer(cpu, first, second, pc, error);
