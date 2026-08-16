@@ -13,10 +13,10 @@
  * Nema backend and panel frame publication (ticket 513).
  * Wires framing -> state -> texture/draw -> completion into a frozen
  * backend callback.  Renders to an internal canonical RGB565LE
- * surface; generation increments once per physical publication, not
+ * surface; generation increments once per renderer publication, not
  * per draw.  Physical panel publication requires E-NEMA-PANEL-001
- * (missing); the backend renders diagnostics but publishes zero
- * physical frames.
+ * (missing); the backend publishes renderer output to the frontend
+ * but does not claim physical-panel frames.
  */
 
 #define NEMA_BACKEND_PANEL_WIDTH  240u

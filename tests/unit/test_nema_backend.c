@@ -272,6 +272,92 @@ static void test_repeat_hash(semu_test_context *context)
     semu_bus_destroy(bus2);
 }
 
+static int cb_invoked;
+static uint64_t cb_generation;
+
+static void test_frame_cb(void *context, const semu_frame *frame)
+{
+    (void)context;
+    cb_invoked = 1;
+    cb_generation = frame->generation;
+}
+
+static void test_frame_callback_invoked(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_nema_backend *backend;
+    const semu_frame *frame;
+    uint8_t cmd[128u];
+    uint32_t cmd_words = 0u;
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, backend != NULL);
+
+    memset(cmd, 0, sizeof(cmd));
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_BASE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, TEX_BASE);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_FSTRIDE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, FSTRIDE_RGB565_240);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_RESXY);
+    put_u32(cmd, (cmd_words + 1u) * 4u, RESXY_240x240);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_CLIPMIN);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_CLIPMAX);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00F000F0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT0_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT0_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT1_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00F00000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT1_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT2_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00F00000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT2_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00F00000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT3_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT3_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00F00000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_DRAW_COLOR);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x001Fu);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_DRAW_CMD);
+    put_u32(cmd, (cmd_words + 1u) * 4u, NEMA_DRAW_QUAD);
+    cmd_words += 2u;
+
+    load_cmd(bus, cmd, cmd_words * 4u, &err);
+    cb_invoked = 0;
+    cb_generation = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, cmd_words,
+                                   0u, test_frame_cb, NULL, &err));
+    SEMU_TEST_EQ_U64(context, 1, cb_invoked);
+    SEMU_TEST_EQ_U64(context, 1u, cb_generation);
+    frame = semu_nema_backend_frame(backend);
+    SEMU_TEST_ASSERT(context, frame != NULL);
+    SEMU_TEST_EQ_U64(context, 1u, frame->generation);
+    semu_nema_backend_destroy(backend);
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -279,7 +365,8 @@ int main(void)
         SEMU_TEST_CASE(test_clear_draw),
         SEMU_TEST_CASE(test_refusal_no_partial),
         SEMU_TEST_CASE(test_reset),
-        SEMU_TEST_CASE(test_repeat_hash)
+        SEMU_TEST_CASE(test_repeat_hash),
+        SEMU_TEST_CASE(test_frame_callback_invoked)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

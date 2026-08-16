@@ -7,6 +7,7 @@
 #include "semu/scheduler.h"
 #include "../compat/sapporo_222.h"
 #include "../devices/sapporo_devices.h"
+#include "../devices/sapporo_nema_gpu.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +19,11 @@ struct semu_machine {
     semu_cpu *cpu;
     semu_apollo4 *soc;
     semu_sapporo_devices *devices;
+    semu_nema_gpu *nema_gpu;
+    semu_display_backend_submit_fn display_backend_submit;
+    void *display_backend_context;
+    semu_frame_callback frame_callback;
+    void *frame_context;
     semu_logger *logger;
     semu_stop_reason stop_reason;
     semu_profile profile;
@@ -65,6 +71,16 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     }
     if (semu_sapporo_devices_attach(machine->devices, machine->soc,
                                      error) != SEMU_OK) {
+        return error->code;
+    }
+    machine->nema_gpu = semu_nema_gpu_create(machine->bus,
+        machine->display_backend_submit, machine->display_backend_context,
+        machine->frame_callback, machine->frame_context,
+        irq_sink, machine, error);
+    if (machine->nema_gpu == NULL) {
+        return error->code;
+    }
+    if (semu_nema_gpu_attach(machine->nema_gpu, error) != SEMU_OK) {
         return error->code;
     }
     return SEMU_OK;
@@ -174,6 +190,10 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->profile = *options->profile;
     machine->firmware = *options->firmware;
     machine->logger = options->logger;
+    machine->display_backend_submit = options->display_backend_submit;
+    machine->display_backend_context = options->display_backend_context;
+    machine->frame_callback = options->frame_callback;
+    machine->frame_context = options->frame_context;
     machine->bus = semu_bus_create(error);
     machine->scheduler = semu_scheduler_create(error);
     if (machine->bus == NULL || machine->scheduler == NULL ||
@@ -199,6 +219,7 @@ void semu_machine_destroy(semu_machine *machine)
 {
     if (machine != NULL) {
         semu_cpu_destroy(machine->cpu);
+        semu_nema_gpu_destroy(machine->nema_gpu);
         semu_sapporo_devices_destroy(machine->devices);
         semu_apollo4_destroy(machine->soc);
         semu_scheduler_destroy(machine->scheduler);
@@ -222,6 +243,7 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     semu_bus_reset(machine->bus);
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
+    semu_nema_gpu_reset(machine->nema_gpu);
     if (load_components(machine, &machine->firmware, error) != SEMU_OK) {
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return error->code;

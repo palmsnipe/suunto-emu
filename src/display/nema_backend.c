@@ -2,8 +2,9 @@
  * Nema backend and panel frame publication (ticket 513).
  * Wires framing -> state -> texture/draw -> completion into the
  * frozen backend callback.  Renders to an internal 240x240 RGB565LE
- * surface; refuses to publish physical frames until E-NEMA-PANEL-001
- * is verified (currently missing).
+ * surface; publishes renderer output to the frontend when a callback
+ * is provided.  Physical panel publication remains refused until
+ * E-NEMA-PANEL-001 is verified (MSPI/DIAP transport missing).
  */
 
 #include "nema_backend.h"
@@ -277,9 +278,16 @@ semu_transaction_result semu_nema_backend_submit(
         }
     }
 
-    /* E-NEMA-PANEL-001 is missing: do not publish physical frames. */
-    (void)frame_callback;
-    (void)frame_context;
+    /*
+     * Publish the renderer surface to the frontend when a callback is
+     * provided.  This is renderer output, not a physical-panel frame
+     * (E-NEMA-PANEL-001 remains missing for the MSPI/DIAP transport).
+     */
+    if (frame_callback != NULL) {
+        semu_surface_publish(backend->surface);
+        frame_callback(frame_context,
+                        semu_surface_frame(backend->surface));
+    }
 
     return SEMU_TRANSACTION_OK;
 }
