@@ -329,7 +329,7 @@ static void test_cps_and_refusals(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 
     SEMU_TEST_ASSERT(context, refusal(0xbf50u, 0));
-    SEMU_TEST_ASSERT(context, refusal(0xbfe1u, 0));
+    SEMU_TEST_ASSERT(context, refusal(0xbff1u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xba80u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xb664u, 0));
     SEMU_TEST_ASSERT(context, refusal(SPECIAL(1u, 1u, 15u, 0u), 0));

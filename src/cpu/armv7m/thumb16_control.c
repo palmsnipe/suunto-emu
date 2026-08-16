@@ -153,7 +153,7 @@ static semu_status miscellaneous(semu_cpu *cpu, uint16_t instruction,
         }
         condition = low >> 4;
         mask = low & 0x0fu;
-        if (condition >= 14u || !valid_it_mask(mask) ||
+        if (condition >= 15u || !valid_it_mask(mask) ||
             cpu->itstate != 0u) {
             return armv7m_unsupported(cpu, instruction, error);
         }
