@@ -48,19 +48,12 @@ static size_t page_size(const semu_storage *storage, uint64_t index)
     return remaining < STORAGE_PAGE_SIZE ? (size_t)remaining : STORAGE_PAGE_SIZE;
 }
 
-static storage_page *create_page(semu_storage *storage, uint64_t index,
-                                 semu_error *error)
+static storage_page *allocate_page(const semu_storage *storage, uint64_t index,
+                                   semu_error *error)
 {
-    storage_page **link = &storage->pages;
     storage_page *page;
     size_t amount;
 
-    while (*link != NULL && (*link)->index < index) {
-        link = &(*link)->next;
-    }
-    if (*link != NULL && (*link)->index == index) {
-        return *link;
-    }
     page = (storage_page *)malloc(sizeof(*page));
     if (page == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate storage page");
@@ -73,6 +66,23 @@ static storage_page *create_page(semu_storage *storage, uint64_t index,
         (void)memset(page->bytes + amount, storage->erased_value,
                      STORAGE_PAGE_SIZE - amount);
     }
+    return page;
+}
+
+static storage_page *create_page(semu_storage *storage, uint64_t index,
+                                 semu_error *error)
+{
+    storage_page **link = &storage->pages;
+    storage_page *page;
+
+    while (*link != NULL && (*link)->index < index) {
+        link = &(*link)->next;
+    }
+    if (*link != NULL && (*link)->index == index) {
+        return *link;
+    }
+    page = allocate_page(storage, index, error);
+    if (page == NULL) return NULL;
     page->next = *link;
     *link = page;
     ++storage->page_count;
@@ -103,6 +113,51 @@ static void prune_equal_pages(semu_storage *storage)
             link = &page->next;
         }
     }
+}
+
+static int base_page_is_erased(const semu_storage *storage, uint64_t index)
+{
+    const uint8_t *source = page_source(storage, index);
+    size_t amount = page_size(storage, index);
+    size_t offset;
+
+    for (offset = 0u; offset < amount; ++offset) {
+        if (source[offset] != storage->erased_value) return 0;
+    }
+    return 1;
+}
+
+static semu_status erase_full_pages(semu_storage *storage, uint64_t address,
+                                    size_t size, semu_error *error)
+{
+    storage_page **link = &storage->pages;
+    uint64_t first = address / STORAGE_PAGE_SIZE;
+    uint64_t count = (uint64_t)size / STORAGE_PAGE_SIZE;
+    uint64_t index;
+
+    while (*link != NULL && (*link)->index < first) {
+        link = &(*link)->next;
+    }
+    for (index = first; index < first + count; ++index) {
+        storage_page *page = *link;
+        if (page != NULL && page->index == index) {
+            (void)memset(page->bytes, storage->erased_value,
+                         STORAGE_PAGE_SIZE);
+            link = &page->next;
+        } else if (!base_page_is_erased(storage, index)) {
+            page = allocate_page(storage, index, error);
+            if (page == NULL) return SEMU_ERR_NOMEM;
+            (void)memset(page->bytes, storage->erased_value,
+                         STORAGE_PAGE_SIZE);
+            page->next = *link;
+            *link = page;
+            ++storage->page_count;
+            link = &page->next;
+        }
+    }
+    prune_equal_pages(storage);
+    semu_error_clear(error);
+    return SEMU_OK;
 }
 
 semu_storage *semu_storage_open(const char *path, uint64_t logical_size,
@@ -191,13 +246,35 @@ semu_status semu_storage_read(semu_storage *storage, uint64_t address,
                               void *data, size_t size, semu_error *error)
 {
     uint8_t *output = (uint8_t *)data;
-    size_t offset;
+    storage_page *page;
+    uint64_t index;
+    size_t offset = 0u;
+    size_t in_page;
     if (!range_valid(storage, address, size) || (size != 0u && data == NULL)) {
         semu_error_set(error, SEMU_ERR_RANGE, "storage read out of range");
         return SEMU_ERR_RANGE;
     }
-    for (offset = 0u; offset < size; ++offset) {
-        output[offset] = byte_at(storage, address + offset);
+    index = address / STORAGE_PAGE_SIZE;
+    in_page = (size_t)(address % STORAGE_PAGE_SIZE);
+    page = storage->pages;
+    while (page != NULL && page->index < index) {
+        page = page->next;
+    }
+    while (offset < size) {
+        size_t amount = STORAGE_PAGE_SIZE - in_page;
+        const uint8_t *source;
+        if (amount > size - offset) amount = size - offset;
+        if (page != NULL && page->index == index) {
+            source = page->bytes;
+            (void)memcpy(output + offset, source + in_page, amount);
+            page = page->next;
+        } else {
+            source = page_source(storage, index);
+            (void)memcpy(output + offset, source + in_page, amount);
+        }
+        offset += amount;
+        ++index;
+        in_page = 0u;
     }
     semu_error_clear(error);
     return SEMU_OK;
@@ -249,6 +326,10 @@ semu_status semu_storage_erase(semu_storage *storage, uint64_t address,
     if (!range_valid(storage, address, size)) {
         semu_error_set(error, SEMU_ERR_RANGE, "storage erase out of range");
         return SEMU_ERR_RANGE;
+    }
+    if ((address % STORAGE_PAGE_SIZE) == 0u &&
+        (size % STORAGE_PAGE_SIZE) == 0u) {
+        return erase_full_pages(storage, address, size, error);
     }
     for (offset = 0u; offset < size; ++offset) {
         uint64_t current = address + offset;

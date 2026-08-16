@@ -111,6 +111,7 @@ static void update_irq(semu_apollo4_mspi *mspi)
 
 static semu_status endpoint_transfer(semu_apollo4_mspi *mspi,
                                      uint8_t *tx, size_t tx_size,
+                                     uint32_t device_address,
                                      semu_error *error)
 {
     semu_serial_transaction transaction;
@@ -119,7 +120,11 @@ static semu_status endpoint_transfer(semu_apollo4_mspi *mspi,
         semu_error_set(error, SEMU_ERR_STATE, "Apollo4 MSPI endpoint is detached");
         return SEMU_ERR_STATE;
     }
-    transaction.address = 0u;
+    /* MSPI2's device-address register is 32-bit even though the observed
+       command frame carries only the low 24 address bits.  The flash
+       endpoint receives the high byte through this existing transaction
+       metadata field; IOM endpoints continue to use it as their bus address. */
+    transaction.address = (uint8_t)(device_address >> 24u);
     transaction.chip_select = 0u;
     transaction.tx = tx;
     transaction.tx_size = tx_size;
@@ -147,7 +152,7 @@ static semu_status complete_descriptor(semu_apollo4_mspi *mspi,
     semu_status status = semu_bus_copy_out(mspi->bus, descriptor, bytes,
                                            sizeof(bytes), error);
     if (status != SEMU_OK) return status;
-    status = endpoint_transfer(mspi, bytes, sizeof(bytes), error);
+    status = endpoint_transfer(mspi, bytes, sizeof(bytes), 0u, error);
     if (status != SEMU_OK) return status;
     mspi->status |= mask;
     update_irq(mspi);
@@ -167,7 +172,7 @@ static semu_status complete_queue(semu_apollo4_mspi *mspi, semu_error *error)
     }
     status = semu_bus_copy_out(mspi->bus, address, bytes, sizeof(bytes), error);
     if (status != SEMU_OK) return status;
-    status = endpoint_transfer(mspi, bytes, sizeof(bytes), error);
+    status = endpoint_transfer(mspi, bytes, sizeof(bytes), 0u, error);
     if (status != SEMU_OK) return status;
     mspi->status |= M1_QUEUE_DONE;
     update_irq(mspi);
@@ -221,7 +226,7 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
         uint8_t command = request.direction == SEMU_DMA_FROM_ENDPOINT ?
                               (uint8_t)((instruction >> 16u) & 0xffu) :
                               (uint8_t)(instruction & 0xffu);
-        uint32_t address = *reg(mspi, M2_DMA_DEVICE) & UINT32_C(0xffffff);
+        uint32_t address = *reg(mspi, M2_DMA_DEVICE);
 
         if (request.direction == SEMU_DMA_FROM_ENDPOINT) {
             mspi->dma_buffer[0u] = command;
@@ -233,7 +238,7 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
             } else {
                 mspi->dma_transaction.tx_size = 1u;
             }
-            mspi->dma_transaction.address = 0u;
+            mspi->dma_transaction.address = (uint8_t)(address >> 24u);
             mspi->dma_transaction.chip_select = 0u;
             mspi->dma_transaction.tx = mspi->dma_buffer;
             mspi->dma_transaction.rx = NULL;
@@ -249,7 +254,7 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
             mspi->dma_buffer[1u] = (uint8_t)(address >> 16u);
             mspi->dma_buffer[2u] = (uint8_t)(address >> 8u);
             mspi->dma_buffer[3u] = (uint8_t)address;
-            mspi->dma_transaction.address = 0u;
+            mspi->dma_transaction.address = (uint8_t)(address >> 24u);
             mspi->dma_transaction.chip_select = 0u;
             mspi->dma_transaction.tx = mspi->dma_buffer;
             mspi->dma_transaction.tx_size = (size_t)count + 4u;
@@ -394,16 +399,17 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
                (value == 0xc1u || value == 0xe1u)) {
         uint8_t command = (uint8_t)(*reg(mspi, M2_DATA) & 0xffu);
         uint8_t frame[4];
+        uint32_t address = 0u;
         size_t frame_size = 1u;
         frame[0u] = command;
         if (command == 0x21u) {
-            uint32_t address = *reg(mspi, M2_ADDRESS) & UINT32_C(0xffffff);
+            uint32_t address = *reg(mspi, M2_ADDRESS);
             frame[1u] = (uint8_t)(address >> 16u);
             frame[2u] = (uint8_t)(address >> 8u);
             frame[3u] = (uint8_t)address;
             frame_size = sizeof(frame);
         }
-        status = endpoint_transfer(mspi, frame, frame_size, error);
+        status = endpoint_transfer(mspi, frame, frame_size, address, error);
         if (status != SEMU_OK) return status;
         *reg(mspi, offset) = value;
         mspi->status |= M2_COMMAND_DONE;

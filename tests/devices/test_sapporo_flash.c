@@ -287,6 +287,95 @@ static void test_flash_refuses_invalid_transfers(semu_test_context *context)
     (void)remove(path);
 }
 
+static void test_flash_upper_half_address(semu_test_context *context)
+{
+    char path[128];
+    semu_storage *storage = open_storage(context, path, sizeof(path));
+    semu_sapporo_flash *flash;
+    semu_serial_endpoint ep;
+    semu_serial_transaction txn;
+    semu_error error;
+    uint8_t readback[2] = { 0u, 0u };
+    const uint8_t write_enable[] = { 0x06u };
+    const uint8_t program[] = {
+        0x12u, 0x00u, 0x00u, 0x20u, 0x0fu, 0xf0u
+    };
+    const uint8_t erase[] = { 0x21u, 0x00u, 0x00u, 0x23u };
+    const uint8_t read_command[] = { 0x0cu, 0x00u, 0x00u, 0x20u };
+
+    if (storage == NULL) return;
+    semu_error_clear(&error);
+    flash = semu_sapporo_flash_create(storage, FLASH_CAPACITY, 4096u, 256u,
+                                      &error);
+    SEMU_TEST_ASSERT(context, flash != NULL);
+    ep = semu_sapporo_flash_endpoint(flash);
+
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = read_command;
+    txn.tx_size = sizeof(read_command);
+    txn.rx = readback;
+    txn.rx_size = sizeof(readback);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0xffu, readback[0u]);
+    SEMU_TEST_EQ_U64(context, 0xffu, readback[1u]);
+
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = write_enable;
+    txn.tx_size = sizeof(write_enable);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = program;
+    txn.tx_size = sizeof(program);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+
+    memset(readback, 0u, sizeof(readback));
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = read_command;
+    txn.tx_size = sizeof(read_command);
+    txn.rx = readback;
+    txn.rx_size = sizeof(readback);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0x0fu, readback[0u]);
+    SEMU_TEST_EQ_U64(context, 0xf0u, readback[1u]);
+
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = write_enable;
+    txn.tx_size = sizeof(write_enable);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = erase;
+    txn.tx_size = sizeof(erase);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+
+    memset(readback, 0u, sizeof(readback));
+    memset(&txn, 0, sizeof(txn));
+    txn.address = 1u;
+    txn.tx = read_command;
+    txn.tx_size = sizeof(read_command);
+    txn.rx = readback;
+    txn.rx_size = sizeof(readback);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0xffu, readback[0u]);
+    SEMU_TEST_EQ_U64(context, 0xffu, readback[1u]);
+
+    semu_sapporo_flash_destroy(flash);
+    semu_storage_destroy(storage);
+    (void)remove(path);
+}
+
 static void test_flash_requires_geometry(semu_test_context *context)
 {
     char path[128];
@@ -312,6 +401,7 @@ int main(void)
         SEMU_TEST_CASE(test_flash_status_and_reset),
         SEMU_TEST_CASE(test_flash_program_and_erase),
         SEMU_TEST_CASE(test_flash_refuses_invalid_transfers),
+        SEMU_TEST_CASE(test_flash_upper_half_address),
         SEMU_TEST_CASE(test_flash_requires_geometry)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

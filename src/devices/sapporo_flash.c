@@ -46,6 +46,14 @@ static int frame_has(const semu_serial_transaction *transaction,
            transaction->rx_size == rx_size;
 }
 
+static uint32_t frame_address(const semu_serial_transaction *transaction)
+{
+    return ((uint32_t)transaction->address << 24u) |
+           ((uint32_t)transaction->tx[1u] << 16u) |
+           ((uint32_t)transaction->tx[2u] << 8u) |
+           (uint32_t)transaction->tx[3u];
+}
+
 static semu_transaction_result copy_read(
     semu_sapporo_flash *flash, semu_serial_transaction *transaction,
     uint32_t address, semu_error *error)
@@ -114,9 +122,7 @@ static semu_transaction_result program_page(
         return refuse(error, SEMU_ERR_RANGE,
                       "external flash page-program payload is too large");
     }
-    address = ((uint32_t)transaction->tx[1u] << 16u) |
-              ((uint32_t)transaction->tx[2u] << 8u) |
-              (uint32_t)transaction->tx[3u];
+    address = frame_address(transaction);
     if (address >= flash->capacity ||
         data_size > (size_t)(flash->capacity - address) ||
         address / flash->page_size !=
@@ -147,9 +153,7 @@ static semu_transaction_result erase_sector(
         return refuse(error, SEMU_ERR_UNSUPPORTED,
                       "external flash sector-erase shape is unsupported");
     }
-    address = ((uint32_t)transaction->tx[1u] << 16u) |
-              ((uint32_t)transaction->tx[2u] << 8u) |
-              (uint32_t)transaction->tx[3u];
+    address = frame_address(transaction);
     address &= ~(flash->sector_size - 1u);
     if (address > flash->capacity - flash->sector_size) {
         return refuse(error, SEMU_ERR_RANGE,
@@ -212,9 +216,7 @@ static semu_transaction_result flash_transfer(
             return refuse(error, SEMU_ERR_UNSUPPORTED,
                           "external flash read transaction shape is unsupported");
         }
-        address = ((uint32_t)transaction->tx[1u] << 16u) |
-                  ((uint32_t)transaction->tx[2u] << 8u) |
-                  (uint32_t)transaction->tx[3u];
+        address = frame_address(transaction);
         return copy_read(flash, transaction, address, error);
     case COMMAND_WRITE_ENABLE:
         if (transaction->tx_size != 1u || transaction->rx_size != 0u) {

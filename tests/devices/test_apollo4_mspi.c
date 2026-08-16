@@ -221,6 +221,44 @@ static void refusal_is_atomic(semu_test_context *context)
     destroy_fixture(&f);
 }
 
+static void mspi2_full_device_address(semu_test_context *context)
+{
+    fixture f = { 0 };
+    uint32_t value = 0u;
+    SEMU_TEST_ASSERT(context, init_fixture(&f, SEMU_APOLLO4_MSPI2_BASE,
+                                            SEMU_APOLLO4_MSPI2_IRQ));
+    f.dma_result = SEMU_TRANSACTION_OK;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_INSTRUCTION,
+                               0x000c0000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DMA_DEVICE,
+                               0x01000020u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DMA_TARGET,
+                               0x10001000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DMA_COUNT, 3u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DMA_CONFIG, 0x13u));
+    SEMU_TEST_ASSERT(context, f.request.transaction != NULL);
+    SEMU_TEST_EQ_U64(context, 1u, f.request.transaction->address);
+    SEMU_TEST_EQ_U64(context, 0x0cu, f.request.transaction->tx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, f.request.transaction->tx[1u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, f.request.transaction->tx[2u]);
+    SEMU_TEST_EQ_U64(context, 0x20u, f.request.transaction->tx[3u]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI2_DMA_STATUS, &value));
+    SEMU_TEST_EQ_U64(context, 2u, value);
+    destroy_fixture(&f);
+}
+
 static void endpoint_refusal_is_atomic(semu_test_context *context)
 {
     fixture f = { 0 };
@@ -283,7 +321,9 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(descriptor_and_irq), SEMU_TEST_CASE(queue_and_refusal),
-        SEMU_TEST_CASE(mspi2_dma_request), SEMU_TEST_CASE(refusal_is_atomic),
+        SEMU_TEST_CASE(mspi2_dma_request),
+        SEMU_TEST_CASE(mspi2_full_device_address),
+        SEMU_TEST_CASE(refusal_is_atomic),
         SEMU_TEST_CASE(endpoint_refusal_is_atomic),
         SEMU_TEST_CASE(mspi2_command_and_reset)
     };
