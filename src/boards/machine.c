@@ -8,6 +8,7 @@
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
 #include "../devices/sapporo_devices.h"
+#include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
 
@@ -27,6 +28,9 @@ struct semu_machine {
     void *display_backend_context;
     semu_frame_callback frame_callback;
     void *frame_context;
+    const char *external_flash_path;
+    semu_machine_input_poll_fn input_poll;
+    void *input_poll_context;
     uint64_t instruction_epoch;
     uint64_t virtual_time_epoch;
     semu_logger *logger;
@@ -77,9 +81,11 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     if (semu_sapporo_info1_map(machine->bus, error) != SEMU_OK) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
-    if (resources != NULL) {
+    if (machine->external_flash_path != NULL || resources != NULL) {
         machine->flash_storage = semu_storage_open(
-            resources->path, UINT64_C(0x02000000), 0xffu, error);
+            machine->external_flash_path != NULL ? machine->external_flash_path
+                                                 : resources->path,
+            UINT64_C(0x02000000), 0xffu, error);
         if (machine->flash_storage == NULL) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
@@ -169,10 +175,25 @@ static semu_status load_components(semu_machine *machine,
 {
     size_t i;
     for (i = 0u; i < firmware->component_count; ++i) {
+        if (machine->external_flash_path != NULL &&
+            strcmp(firmware->components[i].role, "resources") == 0) continue;
         semu_status status = load_file(machine->bus, &firmware->components[i], error);
         if (status != SEMU_OK) {
             return status;
         }
+    }
+    if (machine->external_flash_path != NULL) {
+        semu_component image = { "external-flash", "", "", 0u, 0u, { 0u } };
+        int written = snprintf(image.path, sizeof(image.path), "%s",
+                               machine->external_flash_path);
+        if (written < 0 || (size_t)written >= sizeof(image.path)) {
+            semu_error_set(error, SEMU_ERR_RANGE,
+                           "full external flash image path is too long");
+            return SEMU_ERR_RANGE;
+        }
+        image.load_address = UINT32_C(0x14000000);
+        image.size = UINT64_C(0x02000000);
+        return load_file(machine->bus, &image, error);
     }
     return SEMU_OK;
 }
@@ -214,6 +235,11 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     if (semu_manifest_validate(options->profile, options->firmware, error) != SEMU_OK) {
         return NULL;
     }
+    if (options->external_flash_path != NULL &&
+        semu_sapporo_flash_validate_image(options->external_flash_path,
+                                          error) != SEMU_OK) {
+        return NULL;
+    }
     machine = (semu_machine *)calloc(1u, sizeof(*machine));
     if (machine == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate machine");
@@ -226,6 +252,9 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->display_backend_context = options->display_backend_context;
     machine->frame_callback = options->frame_callback;
     machine->frame_context = options->frame_context;
+    machine->external_flash_path = options->external_flash_path;
+    machine->input_poll = options->input_poll;
+    machine->input_poll_context = options->input_poll_context;
     machine->bus = semu_bus_create(error);
     machine->scheduler = semu_scheduler_create(error);
     if (machine->bus == NULL || machine->scheduler == NULL ||
@@ -386,6 +415,14 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
             elapsed >= limits->max_virtual_time_ns) {
             machine->stop_reason = SEMU_STOP_BUDGET;
             break;
+        }
+        if (machine->input_poll != NULL && (executed % UINT64_C(4096)) == 0u) {
+            semu_stop_reason input_reason = machine->input_poll(
+                machine->input_poll_context, machine, error);
+            if (input_reason != SEMU_STOP_NONE) {
+                machine->stop_reason = input_reason;
+                break;
+            }
         }
         before_instructions = state->instructions;
         before_time = semu_scheduler_now(machine->scheduler);

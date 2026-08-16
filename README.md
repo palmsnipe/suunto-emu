@@ -32,6 +32,24 @@ make sdl
 make check-sdl
 ```
 
+For an authentic Sapporo UI session, use a validated private 32-MiB device
+flash dump in addition to the three firmware components. The dump must be
+kept outside the repository and contain the observed `1VSF` footer at device
+offset `0x00fc0000`:
+
+```sh
+make sdl
+build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --full-flash /private/path/sapporo.full-flash.bin \
+  --layer sapporo-2.22-no-device --max-instructions 1000000000
+```
+
+Arrow Up, Return, and Arrow Down forward the three Sapporo button edges into
+the interpreter. The current recovered OTA resource fragment remains useful
+for boot and renderer tests, but cannot provide the factory watch-face assets;
+the full-flash option refuses images with the wrong size or missing footer.
+
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.

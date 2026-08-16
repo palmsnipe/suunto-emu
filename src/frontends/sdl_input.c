@@ -60,7 +60,7 @@ int semu_sdl_input_process(semu_sdl_input_adapter *adapter,
     for (i = 0u; i < sizeof(default_scan) / sizeof(default_scan[0]); ++i) {
         if (event->key.scancode == default_scan[i].scancode) {
             out_key->key = default_scan[i].key;
-            out_key->down = (event->key.state == SDL_PRESSED) ? 1 : 0;
+            out_key->down = event->key.down ? 1 : 0;
             out_key->repeat = (int)event->key.repeat;
             out_key->sequence = adapter->sequence++;
             return 1;

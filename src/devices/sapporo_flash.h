@@ -20,6 +20,10 @@
 
 typedef struct semu_sapporo_flash semu_sapporo_flash;
 
+/* Validate the minimum observed shape of a private full-device image. */
+semu_status semu_sapporo_flash_validate_image(const char *path,
+                                               semu_error *error);
+
 semu_sapporo_flash *semu_sapporo_flash_create(
     const semu_storage *storage, uint32_t capacity, uint32_t sector_size,
     uint32_t page_size, semu_error *error);

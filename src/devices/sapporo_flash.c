@@ -1,5 +1,7 @@
 #include "sapporo_flash.h"
 
+#include "semu/hash.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +11,7 @@
 #define FLASH_PAGE_SIZE UINT32_C(0x100)
 #define FLASH_FACTORY_PAGE UINT32_C(0x00fff000)
 #define FLASH_XIP_BASE UINT32_C(0x14000000)
+#define FLASH_VSF_OFFSET UINT32_C(0x00fc0000)
 
 #define COMMAND_READ_ID UINT8_C(0x9f)
 #define COMMAND_MULTI_READ_ID UINT8_C(0xaf)
@@ -21,6 +24,7 @@
 #define COMMAND_SECTOR_ERASE UINT8_C(0x21)
 
 static const uint8_t flash_id[] = { 0x20u, 0xbbu, 0x19u };
+static const uint8_t flash_vsf_magic[] = { '1', 'V', 'S', 'F' };
 
 struct semu_sapporo_flash {
     const semu_storage *storage;
@@ -30,6 +34,48 @@ struct semu_sapporo_flash {
     uint32_t page_size;
     uint8_t write_enabled;
 };
+
+semu_status semu_sapporo_flash_validate_image(const char *path,
+                                               semu_error *error)
+{
+    semu_storage *storage;
+    uint8_t magic[sizeof(flash_vsf_magic)];
+    uint8_t digest[SEMU_SHA256_SIZE];
+    uint64_t actual_size;
+    semu_status status;
+
+    if (path == NULL || *path == '\0') {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "full external flash image path is required");
+        return SEMU_ERR_ARGUMENT;
+    }
+    status = semu_sha256_file(path, digest, &actual_size, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    if (actual_size != FLASH_CAPACITY) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "full external flash image must be exactly 32 MiB");
+        return SEMU_ERR_CONFLICT;
+    }
+    storage = semu_storage_open(path, FLASH_CAPACITY, 0xffu, error);
+    if (storage == NULL) {
+        return error != NULL ? error->code : SEMU_ERR_IO;
+    }
+    status = semu_storage_read(storage, FLASH_VSF_OFFSET, magic,
+                               sizeof(magic), error);
+    semu_storage_destroy(storage);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    if (memcmp(magic, flash_vsf_magic, sizeof(magic)) != 0) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "full external flash image has no 1VSF footer at 0xfc0000");
+        return SEMU_ERR_CONFLICT;
+    }
+    semu_error_clear(error);
+    return SEMU_OK;
+}
 
 static semu_transaction_result refuse(semu_error *error, semu_status status,
                                       const char *message)

@@ -1,5 +1,6 @@
 #include "semu/hash.h"
 #include "semu/machine.h"
+#include "sapporo_flash.h"
 #include "test.h"
 
 #include <stdio.h>
@@ -16,6 +17,37 @@ static int write_program(const char *path, uint8_t program[34])
         return 0;
     }
     return fclose(stream) == 0;
+}
+
+static int write_full_flash(const char *path)
+{
+    FILE *stream = fopen(path, "wb");
+    if (stream == NULL) return 0;
+    if (fseek(stream, 0x02000000L - 1L, SEEK_SET) != 0 ||
+        fputc(0xff, stream) == EOF || fseek(stream, 0x00fc0000L, SEEK_SET) != 0 ||
+        fputs("1VSF", stream) < 0) {
+        (void)fclose(stream);
+        return 0;
+    }
+    return fclose(stream) == 0;
+}
+
+typedef struct input_poll_fixture {
+    unsigned calls;
+    semu_status input_status;
+} input_poll_fixture;
+
+static semu_stop_reason stop_from_input_poll(void *context,
+                                              semu_machine *machine,
+                                              semu_error *error)
+{
+    input_poll_fixture *fixture = (input_poll_fixture *)context;
+    semu_input_event event = {
+        SEMU_INPUT_BUTTON, SEMU_BUTTON_UPPER, 0, 0, 0
+    };
+    ++fixture->calls;
+    fixture->input_status = semu_machine_input(machine, &event, error);
+    return SEMU_STOP_USER;
 }
 
 static void copy_text(char *destination, size_t capacity, const char *source)
@@ -75,6 +107,7 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
     semu_machine *machine;
     semu_error error;
     char path[128];
+    char flash_path[128];
     uint64_t size;
     uint64_t first_instructions;
     uint64_t first_time;
@@ -83,6 +116,9 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
         semu_test_temp_path(path, sizeof(path), "machine.bin"));
     SEMU_TEST_ASSERT(context, write_program(path, program));
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(flash_path, sizeof(flash_path), "machine-flash.bin"));
+    SEMU_TEST_ASSERT(context, write_full_flash(flash_path));
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
         make_contract(path, &profile, &firmware, &error));
@@ -91,6 +127,7 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
     memset(&options, 0, sizeof(options));
     options.profile = &profile;
     options.firmware = &firmware;
+    options.external_flash_path = flash_path;
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
 
@@ -119,12 +156,52 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
                      semu_machine_stop_reason(machine));
     semu_machine_destroy(machine);
     (void)remove(path);
+    (void)remove(flash_path);
+}
+
+static void test_input_poll_can_stop_and_inject(semu_test_context *context)
+{
+    uint8_t program[34] = {
+        0x00u, 0x01u, 0x00u, 0x10u,
+        0x21u, 0x00u, 0x00u, 0x00u,
+        [32] = 0x00u, [33] = 0xbeu
+    };
+    semu_firmware_manifest firmware;
+    semu_machine_options options;
+    semu_profile profile;
+    semu_machine *machine;
+    semu_run_limits limits = { 8u, 8u };
+    input_poll_fixture poll = { 0u, SEMU_ERR_STATE };
+    semu_error error;
+    char path[128];
+
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(path, sizeof(path), "machine-input.bin"));
+    SEMU_TEST_ASSERT(context, write_program(path, program));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    memset(&options, 0, sizeof(options));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    options.input_poll = stop_from_input_poll;
+    options.input_poll_context = &poll;
+    machine = semu_machine_create(&options, &error);
+    SEMU_TEST_ASSERT(context, machine != NULL);
+    if (machine != NULL) {
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_USER,
+                         semu_machine_run(machine, &limits, &error));
+        SEMU_TEST_EQ_U64(context, 1u, poll.calls);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, poll.input_status);
+        semu_machine_destroy(machine);
+    }
+    (void)remove(path);
 }
 
 int main(void)
 {
     static const semu_test_case cases[] = {
-        SEMU_TEST_CASE(test_repeated_reset_and_source_guard)
+        SEMU_TEST_CASE(test_repeated_reset_and_source_guard),
+        SEMU_TEST_CASE(test_input_poll_can_stop_and_inject)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

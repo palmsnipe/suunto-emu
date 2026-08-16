@@ -2,5 +2,5 @@
 
 int main(int argc, char **argv)
 {
-    return semu_cli_main(argc, argv, NULL, NULL);
+    return semu_cli_main(argc, argv, NULL, NULL, NULL, NULL);
 }

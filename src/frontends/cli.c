@@ -9,6 +9,7 @@
 #include "semu/types.h"
 
 #include "../display/nema_backend.h"
+#include "../devices/sapporo_flash.h"
 #include "input_replay.c"
 
 #include <errno.h>
@@ -27,8 +28,10 @@ typedef struct run_arguments {
     const char *trace;
     const char *until;
     const char *input_replay;
+    const char *full_flash;
     const char *layers[SEMU_MAX_LAYERS];
     size_t layer_count;
+    uint64_t max_instructions;
     uint64_t max_time;
     semu_cli_debug_options debug;
 } run_arguments;
@@ -42,7 +45,8 @@ static void usage(FILE *stream)
             "  suunto-emu validate --profile PROFILE --firmware MANIFEST\n"
             "  suunto-emu list-layers --profile PROFILE\n"
             "  suunto-emu run --profile PROFILE --firmware MANIFEST "
-            "[--layer ID] [--until wfi] [--max-time NS] "
+            "[--layer ID] [--full-flash PATH] [--until wfi] "
+            "[--max-instructions N] [--max-time NS] "
             "[--trace PATH] [--input-replay PATH] [--headless] "
             "[--report PATH] [--snapshot-load PATH] [--snapshot-save PATH] "
             "[--trace-capacity N] [--trace-overflow stop|truncate]\n");
@@ -117,12 +121,21 @@ static int parse_options(int argc, char **argv, int start,
             arguments->trace = value;
         } else if (strcmp(option, "--input-replay") == 0) {
             arguments->input_replay = value;
+        } else if (strcmp(option, "--full-flash") == 0) {
+            arguments->full_flash = value;
         } else if (strcmp(option, "--until") == 0) {
             arguments->until = value;
         } else if (strcmp(option, "--max-time") == 0) {
             if (!parse_u64(value, &arguments->max_time)) {
                 semu_error_set(error, SEMU_ERR_ARGUMENT,
                                "invalid --max-time value %s", value);
+                return 0;
+            }
+        } else if (strcmp(option, "--max-instructions") == 0) {
+            if (!parse_u64(value, &arguments->max_instructions) ||
+                arguments->max_instructions == 0u) {
+                semu_error_set(error, SEMU_ERR_ARGUMENT,
+                               "invalid --max-instructions value %s", value);
                 return 0;
             }
         } else if (strcmp(option, "--layer") == 0) {
@@ -226,6 +239,12 @@ static int command_validate(const run_arguments *arguments)
         fprintf(stderr, "validate: %s\n", error.text);
         return 2;
     }
+    if (arguments->full_flash != NULL &&
+        semu_sapporo_flash_validate_image(arguments->full_flash, &error) !=
+            SEMU_OK) {
+        fprintf(stderr, "validate: %s\n", error.text);
+        return 2;
+    }
     printf("valid profile=%s product=%s version=%s components=%lu\n",
            profile.id, firmware.product, firmware.version,
            (unsigned long)firmware.component_count);
@@ -256,7 +275,9 @@ static int replay_sink(void *context, const semu_input_event *event,
 }
 
 static int command_run(const run_arguments *arguments,
-                       semu_frame_callback frame_callback, void *frame_context)
+                       semu_frame_callback frame_callback, void *frame_context,
+                       semu_machine_input_poll_fn input_poll,
+                       void *input_poll_context)
 {
     semu_profile profile;
     semu_firmware_manifest firmware;
@@ -269,7 +290,9 @@ static int command_run(const run_arguments *arguments,
     semu_stop_reason reason;
     semu_nema_backend *backend = NULL;
     semu_input_replay *replay = NULL;
-    uint64_t instr_limit = CHECKPOINT_INSTRUCTION_LIMIT;
+    uint64_t instr_limit = arguments->max_instructions != 0u
+                               ? arguments->max_instructions
+                               : CHECKPOINT_INSTRUCTION_LIMIT;
     uint64_t time_limit = CHECKPOINT_TIME_LIMIT;
     semu_error_clear(&error);
     if (arguments->until != NULL && !is_named_checkpoint(arguments->until)) {
@@ -332,6 +355,9 @@ static int command_run(const run_arguments *arguments,
     options.frame_context = frame_context;
     options.display_backend_submit = semu_nema_backend_submit;
     options.display_backend_context = backend;
+    options.external_flash_path = arguments->full_flash;
+    options.input_poll = input_poll;
+    options.input_poll_context = input_poll_context;
     machine = semu_machine_create(&options, &error);
     if (machine == NULL) {
         fprintf(stderr, "run: %s\n", error.text);
@@ -382,11 +408,13 @@ static int command_run(const run_arguments *arguments,
     if (trace != stderr) {
         fclose(trace);
     }
-    return reason == SEMU_STOP_WFI_DEADLOCK || reason == SEMU_STOP_HALT ? 0 : 3;
+    return reason == SEMU_STOP_WFI_DEADLOCK || reason == SEMU_STOP_HALT ||
+                   reason == SEMU_STOP_USER ? 0 : 3;
 }
 
 int semu_cli_main(int argc, char **argv, semu_frame_callback frame_callback,
-                  void *frame_context)
+                  void *frame_context, semu_machine_input_poll_fn input_poll,
+                  void *input_poll_context)
 {
     run_arguments arguments;
     semu_error error;
@@ -415,7 +443,8 @@ int semu_cli_main(int argc, char **argv, semu_frame_callback frame_callback,
         return command_validate(&arguments);
     }
     if (strcmp(command, "run") == 0) {
-        return command_run(&arguments, frame_callback, frame_context);
+        return command_run(&arguments, frame_callback, frame_context,
+                           input_poll, input_poll_context);
     }
     fprintf(stderr, "unknown command %s\n", command);
     usage(stderr);
