@@ -186,9 +186,13 @@ static void test_irq_status_and_clear(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x120u, 0x401u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x204u, &v));
     SEMU_TEST_EQ_U64(context, ((UINT32_C(1) << 10) | UINT32_C(1)), v);
+    SEMU_TEST_EQ_U64(context, 1u, irq.count);
+    SEMU_TEST_EQ_U64(context, 1u, irq.level);
     SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x208u, 0xFFFFFFFFu));
     SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x204u, &v));
     SEMU_TEST_EQ_U64(context, 0u, v);
+    SEMU_TEST_EQ_U64(context, 2u, irq.count);
+    SEMU_TEST_EQ_U64(context, 0u, irq.level);
     fixture_destroy(&f);
 }
 

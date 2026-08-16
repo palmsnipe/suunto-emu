@@ -83,6 +83,8 @@ enum {
 #define IOM_CLOCK_STATUS_RESET UINT32_C(0x00200000)
 #define IOM_TIMING_STATUS_RESET UINT32_C(0x0000f270)
 
+static void update_irq(semu_apollo4_iom *iom);
+
 struct semu_apollo4_iom {
     semu_bus *bus;
     unsigned irq;
@@ -170,9 +172,7 @@ static int is_known_write(uint32_t offset)
 static void raise_irq(semu_apollo4_iom *iom, uint32_t bits)
 {
     iom->intstat |= bits;
-    if ((iom->intstat & iom->inten) != 0u && iom->irq_sink != NULL) {
-        iom->irq_sink(iom->irq_context, iom->irq, 1);
-    }
+    update_irq(iom);
 }
 
 static void update_irq(semu_apollo4_iom *iom)

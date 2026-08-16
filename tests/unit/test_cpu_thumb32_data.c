@@ -387,6 +387,15 @@ static void test_conditional_branch_t3(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
 
+    /* BPL.W shares its first halfword with the barrier family. The
+     * dispatcher must route this non-barrier-shaped operand to the branch
+     * decoder. */
+    state = initial_state();
+    SEMU_TEST_ASSERT(context, run32(0xf57fu, 0xae88u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0xfffffe14u, state.r[15]);
+
     /* BEQ.W (cond=EQ=0): Z=1 → taken, target = 0x124. */
     state = initial_state();
     state.xpsr |= XPSR_Z;
