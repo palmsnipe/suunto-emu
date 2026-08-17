@@ -324,12 +324,12 @@ static void test_cp11_double_single_transfer(semu_test_context *context)
 static void test_cp11_double_multiple_transfer(semu_test_context *context)
 {
     /* VLDmia D0-D3,[R0!] (CP11 double: 4 D regs = 8 S regs = 32 bytes)
-     * first=0xECB0 second=0x0B04
+     * first=0xECB0 second=0x0B08 (the immediate is 32-bit words)
      * VSTMia D0-D3,[R1!] (CP11 double store)
-     * first=0xECA1 second=0x0B04 */
+     * first=0xECA1 second=0x0B08 */
     static const uint8_t program[] = {
-        0xb0u, 0xecu, 0x04u, 0x0bu, /* vldmia r0!,{d0-d3} */
-        0xa1u, 0xecu, 0x04u, 0x0bu  /* vstmia r1!,{d0-d3} */
+        0xb0u, 0xecu, 0x08u, 0x0bu, /* vldmia r0!,{d0-d3} */
+        0xa1u, 0xecu, 0x08u, 0x0bu  /* vstmia r1!,{d0-d3} */
     };
     semu_cpu_fixture fixture;
     semu_cpu_state *state;
@@ -358,13 +358,13 @@ static void test_cp11_double_multiple_transfer(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 
     /* Refusal: CP11 double multiple with start+words>32.
-     * first=0xECB0 second=0xFB02 → start=30, count=2, words=4 → 34>32 */
+     * first=0xECB0 second=0xFB04 → start=30, count=4, words=4 → 34>32 */
     SEMU_TEST_ASSERT(context, init_enabled(&fixture, program,
                                            sizeof(program)));
     state = semu_cpu_get_state_mutable(fixture.cpu);
     state->r[0] = 0x600u;
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-                     armv7m_exec32(fixture.cpu, 0xecb0u, 0xfb02u,
+                     armv7m_exec32(fixture.cpu, 0xecb0u, 0xfb04u,
                                    0x100u, &fixture.error));
     SEMU_TEST_EQ_U64(context, 0x100u, state->r[15]);
     SEMU_TEST_EQ_U64(context, 0x600u, state->r[0]);

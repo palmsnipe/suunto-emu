@@ -134,13 +134,120 @@ static void observed_control_three(semu_test_context *context)
     timer = make_timer(&scheduler, &log, &error);
     SEMU_TEST_ASSERT(context, timer != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x3a0u, 4u, 3u,
+                     semu_apollo4_timer_write(timer, 0x200u, 4u, 3u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x200u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 3u, value);
+    SEMU_TEST_EQ_U64(context, 0u, log.count);
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void observed_ctimer8_readback(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    uint32_t value = 0u;
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x300u, 4u, 0x144u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x300u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x140u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x300u, 4u, 0x142u,
+                                              &error));
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void observed_ctimer0_readback(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    uint32_t value = 0u;
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x200u, 4u, 0x222u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x200u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x220u, value);
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void observed_ctimer13_controls(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    uint32_t value = 0u;
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x3a0u, 4u, 0x1d20u,
                                               &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_read(timer, 0x3a0u, 4u, &value,
                                              &error));
-    SEMU_TEST_EQ_U64(context, 3u, value);
-    SEMU_TEST_EQ_U64(context, 0u, log.count);
+    SEMU_TEST_EQ_U64(context, 0x1d20u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x3acu, 4u, 0x3cu,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x3acu, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x3cu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, 100u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x3a4u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_apollo4_timer_write(timer, 0x3a0u, 4u, 0xdeadu,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x3a0u, 4u, 0x1c22u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x3a0u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x1c20u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x3a0u, 4u, 0x1c21u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, 2500u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x3a4u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, 120000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x3a4u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 1u, value);
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
 }
@@ -165,6 +272,9 @@ static void observed_status_writes(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x8000000u, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_apollo4_timer_write(timer, 0x60u, 4u, 4u,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x60u, 4u, 1u,
                                               &error));
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
@@ -225,6 +335,66 @@ static void observed_auxiliary_register(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void observed_b4_register(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    uint32_t value = UINT32_C(0xffffffff);
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0xb4u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0xb4u, 4u, 0u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0xb4u, 4u,
+                                              UINT32_C(0x10000000), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_apollo4_timer_write(timer, 0xb4u, 4u, 1u,
+                                              &error));
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void observed_d8_register(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    uint32_t value = 99u;
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0xd8u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0xd8u, 4u,
+                                              0x1f000000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0xd8u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x1f000000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0xd8u, 4u, 0u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_apollo4_timer_write(timer, 0xd8u, 4u, 1u,
+                                              &error));
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -232,9 +402,14 @@ int main(void)
         SEMU_TEST_CASE(compare_irq_and_clear),
         SEMU_TEST_CASE(pwm_and_atomic_refusal),
         SEMU_TEST_CASE(observed_control_three),
+        SEMU_TEST_CASE(observed_ctimer8_readback),
+        SEMU_TEST_CASE(observed_ctimer0_readback),
+        SEMU_TEST_CASE(observed_ctimer13_controls),
         SEMU_TEST_CASE(observed_status_writes),
         SEMU_TEST_CASE(observed_value_write),
-        SEMU_TEST_CASE(observed_auxiliary_register)
+        SEMU_TEST_CASE(observed_auxiliary_register),
+        SEMU_TEST_CASE(observed_b4_register),
+        SEMU_TEST_CASE(observed_d8_register)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

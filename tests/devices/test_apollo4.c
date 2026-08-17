@@ -56,8 +56,22 @@ int main(void)
     CHECK(semu_bus_read(bus, 0x40004080u, 4u, &value, &error) ==
           SEMU_ERR_UNSUPPORTED);
 
+    CHECK(semu_bus_write(bus, 0x400B2024u, 4u, 0x80000000u, &error) ==
+          SEMU_OK);
+    CHECK(semu_bus_write(bus, 0x400B0001u, 1u, 0x40u, &error) == SEMU_OK);
+    CHECK(semu_bus_write(bus, 0x400B000Cu, 4u, 0x50000u, &error) ==
+          SEMU_OK);
+    CHECK(semu_bus_read(bus, 0x400B0010u, 4u, &value, &error) == SEMU_OK);
+    CHECK(value == 0u);
+    CHECK(semu_bus_write(bus, 0x400B2024u, 4u, 0u, &error) ==
+          SEMU_ERR_UNSUPPORTED);
+    CHECK(semu_bus_read(bus, 0x400B001Cu, 4u, &value, &error) ==
+          SEMU_ERR_UNSUPPORTED);
+
     CHECK(semu_apollo4_set_gpio_input(soc, 57u, 0, &error) == SEMU_OK);
     CHECK(semu_apollo4_get_gpio_input(soc, 57u) == 0);
+    CHECK(semu_bus_read(bus, 0x40010040u, 4u, &value, &error) == SEMU_OK);
+    CHECK((value & (1u << 25u)) == 0u);
     CHECK(semu_apollo4_set_gpio_input(soc, 128u, 0, &error) == SEMU_ERR_RANGE);
 
     semu_apollo4_reset(soc);

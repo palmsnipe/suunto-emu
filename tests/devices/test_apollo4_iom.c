@@ -25,8 +25,17 @@ typedef struct dma_log {
     uint32_t guest_address;
     uint32_t count_val;
     uint8_t continuation;
+    int transaction_seen;
+    uint8_t transaction_address;
+    size_t transaction_tx_size;
+    uint8_t transaction_tx0;
     semu_transaction_result result;
 } dma_log;
+
+typedef struct lsm6_phase_log {
+    int command_seen;
+    int held_read_seen;
+} lsm6_phase_log;
 
 static semu_serial_endpoint test_endpoint;
 
@@ -48,9 +57,26 @@ static semu_transaction_result dma_sink(void *context,
         log->guest_address = request->guest_address;
         log->count_val = request->count;
         log->continuation = request->continuation;
+        if (request->transaction != NULL) {
+            log->transaction_seen = 1;
+            log->transaction_address = request->transaction->address;
+            log->transaction_tx_size = request->transaction->tx_size;
+            log->transaction_tx0 = request->transaction->tx != NULL &&
+                                   request->transaction->tx_size != 0u
+                                       ? request->transaction->tx[0u] : 0u;
+        }
     }
     log->count++;
     semu_error_clear(error);
+    if (request->transaction != NULL && request->endpoint != NULL &&
+        request->endpoint->transfer != NULL) {
+        semu_transaction_result endpoint_result;
+        endpoint_result = request->endpoint->transfer(
+            request->endpoint->context, request->transaction, error);
+        if (endpoint_result != SEMU_TRANSACTION_OK) {
+            return endpoint_result;
+        }
+    }
     if (log->result == SEMU_TRANSACTION_REFUSE) {
         return SEMU_TRANSACTION_REFUSE;
     }
@@ -123,6 +149,66 @@ static void test_reset_values(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, rd(&f, 0x224u, &v));
     SEMU_TEST_EQ_U64(context, 0u, v);
     SEMU_TEST_EQ_U64(context, 0u, irq.count);
+    fixture_destroy(&f);
+}
+
+static semu_transaction_result lsm6_held_phase_probe(
+    void *context, semu_serial_transaction *transaction, semu_error *error)
+{
+    lsm6_phase_log *log = (lsm6_phase_log *)context;
+
+    if (transaction == NULL || transaction->address != 0u ||
+        transaction->chip_select != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "IOM0 LSM6 transaction address is invalid");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    if (transaction->tx_size == 1u && transaction->tx != NULL &&
+        transaction->tx[0u] == 0x8fu) {
+        log->command_seen = 1;
+    } else if (transaction->tx_size == 0u && log->command_seen) {
+        log->held_read_seen = 1;
+    } else {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "IOM0 LSM6 held-CS transaction shape is invalid");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    semu_error_clear(error);
+    return SEMU_TRANSACTION_OK;
+}
+
+static void test_lsm6_held_read_phase(semu_test_context *context)
+{
+    iom_fixture f;
+    irq_log irq = {0u};
+    dma_log dma = {0u};
+    lsm6_phase_log phases = {0};
+
+    SEMU_TEST_ASSERT(context, fixture_init(&f, &irq, &dma));
+    test_endpoint.name = "lsm6-probe";
+    test_endpoint.transfer = lsm6_held_phase_probe;
+    test_endpoint.context = &phases;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_iom_attach_endpoint(
+                         f.iom, &test_endpoint, &f.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_map_ram(f.bus, "iom-test-sram",
+                                      0x10000000u, 0x1000u, &f.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(f.bus, 0x10000000u, 1u, 0x8fu,
+                                    &f.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x21cu, 1u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x220u, 0x10000000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x2c4u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x218u, 0x03u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x120u, 0x181u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x220u, 0x10000001u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x218u, 0x01u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x120u, 0x102u));
+    SEMU_TEST_EQ_U64(context, 2u, dma.count);
+    SEMU_TEST_EQ_U64(context, 1u, phases.command_seen);
+    SEMU_TEST_EQ_U64(context, 1u, phases.held_read_seen);
+    SEMU_TEST_EQ_U64(context, 0u, dma.transaction_tx_size);
     fixture_destroy(&f);
 }
 
@@ -333,6 +419,7 @@ int main(void)
         SEMU_TEST_CASE(test_reset_values),
         SEMU_TEST_CASE(test_dma_request_emission),
         SEMU_TEST_CASE(test_p2m_dma_request),
+        SEMU_TEST_CASE(test_lsm6_held_read_phase),
         SEMU_TEST_CASE(test_irq_status_and_clear),
         SEMU_TEST_CASE(test_endpoint_refusal),
         SEMU_TEST_CASE(test_dma_refusal),

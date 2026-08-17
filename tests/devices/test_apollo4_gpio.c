@@ -118,6 +118,9 @@ static void test_pin_config_and_output(semu_test_context *context)
                                                       0x80000000u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x240u,
                                                       0x80000000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x240u,
+                                                     &value));
+    SEMU_TEST_EQ_U64(context, 0x80000000u, value);
     SEMU_TEST_EQ_U64(context, 2u, fixture.output_count);
     SEMU_TEST_EQ_U64(context, 127u, fixture.output_pin[0]);
     SEMU_TEST_EQ_U64(context, 1u, fixture.output_level[0]);

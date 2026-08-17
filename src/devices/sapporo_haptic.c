@@ -20,8 +20,8 @@
  *
  * The autotune state machine is: idle (0x00) → triggered (bit 0 written)
  * → complete (bit 1 set). Sample data is zero (synthetic no-fault state).
- * Unknown register, wrong address, and wrong direction refuse before
- * mutation. No wildcard readable/writable mask is used.
+ * The Renode endpoint retains the complete zero-backed 256-byte register
+ * array. Wrong address and register-window overflow refuse before mutation.
  */
 
 enum {
@@ -36,11 +36,6 @@ struct semu_sapporo_haptic {
     uint8_t registers[HAPTIC_REG_COUNT];
     uint8_t selected;
 };
-
-static int is_known_register(uint8_t reg)
-{
-    return reg == HAPTIC_AUTOTUNE_REG;
-}
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
 {
@@ -71,12 +66,12 @@ static semu_transaction_result transfer(void *context,
         if (t->tx_size == 0u) {
             return refuse(error, "read without register selection");
         }
+        if ((size_t)t->tx[0] + t->rx_size > HAPTIC_REG_COUNT) {
+            return refuse(error, "read register overflow");
+        }
         sensor->selected = t->tx[0];
         for (i = 0u; i < t->rx_size; ++i) {
             uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)i);
-            if (idx >= HAPTIC_REG_COUNT || !is_known_register((uint8_t)idx)) {
-                return refuse(error, "unknown read register");
-            }
             t->rx[i] = sensor->registers[idx];
         }
         sensor->selected = (uint8_t)(sensor->selected + (uint8_t)t->rx_size);
@@ -85,12 +80,12 @@ static semu_transaction_result transfer(void *context,
             semu_error_clear(error);
             return SEMU_TRANSACTION_OK;
         }
+        if ((size_t)t->tx[0] + t->tx_size - 1u > HAPTIC_REG_COUNT) {
+            return refuse(error, "write register overflow");
+        }
         sensor->selected = t->tx[0];
         for (i = 1u; i < t->tx_size; ++i) {
             uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)(i - 1u));
-            if (idx >= HAPTIC_REG_COUNT || !is_known_register((uint8_t)idx)) {
-                return refuse(error, "unknown write register");
-            }
             sensor->registers[idx] = t->tx[i];
             if ((uint8_t)idx == HAPTIC_AUTOTUNE_REG &&
                 (t->tx[i] & HAPTIC_AUTOTUNE_TRIGGER) != 0u) {

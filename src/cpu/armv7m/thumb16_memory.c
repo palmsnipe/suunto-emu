@@ -172,6 +172,7 @@ static semu_status push(semu_cpu *cpu, uint16_t instruction,
     uint32_t address;
     unsigned reg;
 
+
     if ((instruction & 0x0100u) != 0u) {
         list |= 1u << 14;
     }
@@ -209,6 +210,7 @@ static semu_status pop(semu_cpu *cpu, uint16_t instruction,
     uint32_t end;
     unsigned count = 0u;
     unsigned reg;
+
 
     if ((instruction & 0x0100u) != 0u) {
         list |= 1u << 15;

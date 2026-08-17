@@ -16,6 +16,9 @@ struct fixture {
     unsigned dma_count;
     semu_dma_request request;
     unsigned endpoint_count;
+    uint8_t endpoint_address;
+    uint8_t endpoint_tx[16];
+    size_t endpoint_tx_size;
 };
 
 static void irq(void *context, unsigned number, int level)
@@ -34,6 +37,10 @@ static semu_transaction_result transfer(void *context,
     (void)transaction;
     (void)error;
     f->endpoint_count++;
+    f->endpoint_address = transaction->address;
+    f->endpoint_tx_size = transaction->tx_size;
+    if (transaction->tx != NULL && transaction->tx_size <= sizeof(f->endpoint_tx))
+        (void)memcpy(f->endpoint_tx, transaction->tx, transaction->tx_size);
     return f->endpoint_result;
 }
 
@@ -119,6 +126,27 @@ static void descriptor_and_irq(semu_test_context *context)
     destroy_fixture(&f);
 }
 
+static void mspi1_retains_setup_registers(semu_test_context *context)
+{
+    fixture f = { 0 };
+    uint32_t value = 0u;
+    SEMU_TEST_ASSERT(context, init_fixture(&f, SEMU_APOLLO4_MSPI1_BASE,
+                                            SEMU_APOLLO4_MSPI1_IRQ));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI1_BASE, 0x90u,
+                               0x40e0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI1_BASE, 0x90u, &value));
+    SEMU_TEST_EQ_U64(context, 0x40e0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI1_BASE, 0x94u, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(f.bus, SEMU_APOLLO4_MSPI1_BASE + 0x90u,
+                                   2u, &value, &f.error));
+    destroy_fixture(&f);
+}
+
 static void queue_and_refusal(semu_test_context *context)
 {
     fixture f = { 0 };
@@ -196,9 +224,20 @@ static void mspi2_dma_request(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, f.irq_level);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI2_DMA_CONFIG, &value));
+    SEMU_TEST_EQ_U64(context, 0x14u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
                               SEMU_APOLLO4_MSPI2_DMA_STATUS,
                               &value));
     SEMU_TEST_EQ_U64(context, 2u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DMA_STATUS, 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI2_DMA_STATUS, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
     destroy_fixture(&f);
 }
 
@@ -256,6 +295,30 @@ static void mspi2_full_device_address(semu_test_context *context)
                      read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
                               SEMU_APOLLO4_MSPI2_DMA_STATUS, &value));
     SEMU_TEST_EQ_U64(context, 2u, value);
+    destroy_fixture(&f);
+}
+
+static void mspi2_erase_full_device_address(semu_test_context *context)
+{
+    fixture f = { 0 };
+    SEMU_TEST_ASSERT(context, init_fixture(&f, SEMU_APOLLO4_MSPI2_BASE,
+                                            SEMU_APOLLO4_MSPI2_IRQ));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DATA, 0x21u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_ADDRESS, 0x01000020u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_COMMAND, 0xc1u));
+    SEMU_TEST_EQ_U64(context, 1u, f.endpoint_count);
+    SEMU_TEST_EQ_U64(context, 1u, f.endpoint_address);
+    SEMU_TEST_EQ_U64(context, 4u, f.endpoint_tx_size);
+    SEMU_TEST_EQ_U64(context, 0x21u, f.endpoint_tx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, f.endpoint_tx[1u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, f.endpoint_tx[2u]);
+    SEMU_TEST_EQ_U64(context, 0x20u, f.endpoint_tx[3u]);
     destroy_fixture(&f);
 }
 
@@ -321,8 +384,10 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(descriptor_and_irq), SEMU_TEST_CASE(queue_and_refusal),
+        SEMU_TEST_CASE(mspi1_retains_setup_registers),
         SEMU_TEST_CASE(mspi2_dma_request),
         SEMU_TEST_CASE(mspi2_full_device_address),
+        SEMU_TEST_CASE(mspi2_erase_full_device_address),
         SEMU_TEST_CASE(refusal_is_atomic),
         SEMU_TEST_CASE(endpoint_refusal_is_atomic),
         SEMU_TEST_CASE(mspi2_command_and_reset)

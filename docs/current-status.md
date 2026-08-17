@@ -25,18 +25,20 @@ firmware bytes or frame pixels.
 
 ## Authentic-Firmware Boundary
 
-On 2026-08-13, user-supplied components matching all three profile hashes were
-validated and run twice with the named compatibility layer. Both bounded runs
-produced the same result:
+On 2026-08-17, user-supplied OTA components matching all three profile hashes
+were validated with the named compatibility layer. A long bounded OTA-only
+run produced:
 
 ```text
-stop=budget pc=0x001a2434 instructions=10000000 virtual_time_ns=10000000
+stop=budget pc=0x000b063e instructions=15000000000 virtual_time_ns=19882362078
 ```
 
-Both logs contained exactly one declared compatibility-layer hit. The address
-is a default-handler loop reached during reset/static initialization. This is a
-determinism checkpoint only: production startup, native Nema traffic, frames,
-and physical-button UI transitions have not been reached.
+The run reached production startup, the OTA resource-list boundary, the later
+version-pinned GPS running-status exchange, and continued through the native
+NEMA command interval without a reset, assertion, or device refusal. The SDL3
+frontend is wired to the renderer callback, so the three OTA components are
+sufficient for an OTA-only renderer/UI session. Physical-panel completion,
+panel wire bytes, and generic factory-runtime behavior remain unsupported.
 
 ## Next Actionable Ticket
 

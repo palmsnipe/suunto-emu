@@ -96,15 +96,14 @@ static int known_command(uint16_t command)
 static int sequence_allowed(const semu_sapporo_ohr2 *device,
                             uint16_t command, uint16_t sequence)
 {
-    if (!device->sequence_initialized) {
-        return sequence == 1u ||
-               (command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY &&
-                sequence == 0u);
-    }
-    if (sequence == device->expected_sequence) return 1;
-    return device->expected_sequence == 2u &&
-           device->state == SEMU_SAPPORO_OHR2_BSL &&
-           command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY && sequence == 0u;
+    /* E-SAP-OHR2-001: the Renode transport validates framing and CRC, then
+       echoes the firmware's command/sequence fields.  It does not impose a
+       monotonic sequence policy; startup legitimately repeats identity
+       probes with sequence zero. */
+    (void)device;
+    (void)command;
+    (void)sequence;
+    return 1;
 }
 
 static semu_transaction_result queue_response(

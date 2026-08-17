@@ -146,7 +146,7 @@ static void test_wrong_address(semu_test_context *context)
     semu_sapporo_max17050_destroy(sensor);
 }
 
-static void test_unknown_register(semu_test_context *context)
+static void test_register_array_boundary(semu_test_context *context)
 {
     semu_error error;
     semu_sapporo_max17050 *sensor;
@@ -157,8 +157,10 @@ static void test_unknown_register(semu_test_context *context)
     sensor = semu_sapporo_max17050_create(0x36u, &error);
     ep = semu_sapporo_max17050_endpoint(sensor);
 
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0x36u, 0x05u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x36u, 0x21u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0u, rx[1u]);
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -224,7 +226,7 @@ int main(void)
         SEMU_TEST_CASE(test_temperature_read),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
-        SEMU_TEST_CASE(test_unknown_register),
+        SEMU_TEST_CASE(test_register_array_boundary),
         SEMU_TEST_CASE(test_byte_order),
         SEMU_TEST_CASE(test_repeated_transcript)
     };

@@ -28,7 +28,19 @@ static void gpio_irq_adapter(void *context, unsigned irq, int level)
 
 static void timer_irq_adapter(void *context, unsigned channel, int level)
 {
-    irq_sink_dispatch(context, channel, level);
+    /* E-A4-TIMER-001: CTIMER channels 0..15 are wired to NVIC 67..82. */
+    if (channel < 16u) {
+        irq_sink_dispatch(context, 67u + channel, level);
+    }
+}
+
+static void stimer_irq_adapter(void *context, unsigned irq, int level)
+{
+    /* E-A4-STIMER-001: STIMER exposes its compare IRQs as IRQA..IRQI. */
+    if (irq >= SEMU_APOLLO4_STIMER_IRQ_A &&
+        irq <= SEMU_APOLLO4_STIMER_IRQ_I) {
+        irq_sink_dispatch(context, irq, level);
+    }
 }
 
 static semu_status clock_reset_cb(void *context, semu_error *error)
@@ -219,12 +231,17 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
         goto fail;
     }
     soc->stimer = semu_apollo4_stimer_create(soc->bus, scheduler,
-                                               timer_irq_adapter, soc, error);
+                                               stimer_irq_adapter, soc, error);
     if (soc->stimer == NULL) {
         goto fail;
     }
     soc->uart = semu_apollo4_uart_create(scheduler, error);
     if (soc->uart == NULL) {
+        goto fail;
+    }
+    status = semu_apollo4_uart_set_irq_sink(soc->uart, irq_sink_dispatch,
+                                             soc, error);
+    if (status != SEMU_OK) {
         goto fail;
     }
     status = semu_bus_map_device(soc->bus, "apollo4.uart1",
@@ -375,11 +392,19 @@ void semu_apollo4_reset(semu_apollo4 *soc)
 semu_status semu_apollo4_set_gpio_input(semu_apollo4 *soc, unsigned pin,
                                         int level, semu_error *error)
 {
+    semu_status status;
     if (soc == NULL || pin >= SEMU_APOLLO4_GPIO_COUNT) {
         semu_error_set(error, SEMU_ERR_RANGE, "invalid GPIO pin %u", pin);
         return SEMU_ERR_RANGE;
     }
+    status = soc->gpio != NULL
+                 ? semu_apollo4_gpio_set_input(soc->gpio, pin, level, error)
+                 : SEMU_OK;
+    if (status != SEMU_OK) {
+        return status;
+    }
     soc->gpio_level[pin] = level != 0;
+    semu_error_clear(error);
     return SEMU_OK;
 }
 

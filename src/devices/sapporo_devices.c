@@ -16,6 +16,7 @@
 #include "sapporo_ohr2.h"
 #include "sapporo_opt3007.h"
 #include "sapporo_tli493d.h"
+#include "sapporo_gps_compat.h"
 #include "../compat/sapporo_222.h"
 #include "../soc/apollo4/apollo4_internal.h"
 
@@ -36,6 +37,7 @@ typedef struct {
 
 struct semu_sapporo_devices {
     semu_scheduler *scheduler;
+    semu_apollo4 *soc;
     semu_sapporo_hsppad143 *pressure;
     semu_sapporo_lsm6dsl *accelerometer;
     semu_sapporo_tli493d *magnetometer;
@@ -58,6 +60,20 @@ struct semu_sapporo_devices {
     semu_apollo4_uart_endpoint uart_ep;
     semu_sapporo_222_fixture_context fixture_context;
 };
+
+/* E-SAP-OHR2-001: OHR2 ready is wired to the firmware's GPIO 62 input. */
+static void ohr_ready_signal(void *context, unsigned signal, int level)
+{
+    semu_sapporo_devices *devices = (semu_sapporo_devices *)context;
+    semu_error error;
+
+    if (devices == NULL || devices->soc == NULL ||
+        signal != SEMU_SAPPORO_OHR2_READY_SIGNAL) {
+        return;
+    }
+    semu_error_clear(&error);
+    (void)semu_apollo4_set_gpio_input(devices->soc, 62u, level, &error);
+}
 
 /* E-A4-IOM-001 records the first IOM4 target as an unidentified 0x28
  * endpoint.  The Renode boundary model accepts the observed 4-byte writes and
@@ -227,7 +243,8 @@ semu_sapporo_devices *semu_sapporo_devices_create(
         scheduler, NULL, NULL, NULL, NULL, NULL, NULL, error);
     if (devices->gps == NULL) goto fail;
     devices->ohr2 = semu_sapporo_ohr2_create(
-        NULL, NULL, no_device_ohr_provider, &devices->fixture_context, error);
+        ohr_ready_signal, devices, no_device_ohr_provider,
+        &devices->fixture_context, error);
     if (devices->ohr2 == NULL) goto fail;
     if (flash_storage != NULL) {
         devices->flash = semu_sapporo_flash_create(
@@ -308,6 +325,7 @@ void semu_sapporo_devices_reset(semu_sapporo_devices *devices)
     devices->fixture_context.state = NULL;
     devices->fixture_context.logger = NULL;
     semu_sapporo_cxd5610_set_exchange(devices->gps, NULL, NULL);
+    devices->fixture_context.gps_running_status_armed = 0;
     semu_sapporo_hsppad143_reset(devices->pressure);
     semu_sapporo_lsm6dsl_reset(devices->accelerometer);
     semu_sapporo_tli493d_reset(devices->magnetometer);
@@ -336,10 +354,6 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error)
 {
-    static const uint8_t startup_status[] = {
-        '$', 'P', 'S', 'S', '0', '0', '0', '0', '\r', '\n'
-    };
-
     if (devices == NULL || state == NULL || logger == NULL ||
         !state->enabled) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -348,15 +362,48 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
     }
     devices->fixture_context.state = state;
     devices->fixture_context.logger = logger;
+    devices->fixture_context.gps_running_status_armed = 0;
     semu_sapporo_cxd5610_set_exchange(
         devices->gps, semu_sapporo_222_gps_exchange,
         &devices->fixture_context);
-    if (semu_sapporo_cxd5610_inject_rx_after(
-            devices->gps, startup_status, sizeof(startup_status),
-            UINT64_C(200000000), error) != SEMU_OK) {
-        return error != NULL ? error->code : SEMU_ERR_STATE;
-    }
     semu_error_clear(error);
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_devices_apply_compat_hook(
+    semu_sapporo_devices *devices, semu_bus *bus, semu_cpu_state *cpu_state,
+    semu_layer_state *state, semu_logger *logger, semu_error *error)
+{
+    uint64_t state_hook_hits;
+    semu_status status;
+    if (devices == NULL || bus == NULL || cpu_state == NULL || state == NULL ||
+        logger == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo compatibility hook binding is incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    state_hook_hits = state->descriptor != NULL &&
+        state->descriptor->interventions != NULL &&
+        SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP <
+            state->descriptor->intervention_count
+        ? state->descriptor->interventions[
+              SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP].hits : 0u;
+    status = semu_sapporo_222_apply_firmware_hook(bus, cpu_state, state,
+                                                   logger, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_sapporo_gps_compat_apply(
+        devices->soc != NULL ? devices->soc->uart : NULL, bus, cpu_state,
+        devices->gps, &devices->fixture_context, error);
+    if (status != SEMU_OK) return status;
+    if (state->descriptor != NULL && state->descriptor->interventions != NULL &&
+        cpu_state->r[15] == UINT32_C(0x0010f610) && state_hook_hits == 1u &&
+        state->descriptor->interventions[
+            SEMU_SAPPORO_222_IV_GPS_STARTUP].hits == 0u) {
+        return semu_sapporo_222_arm_gps_startup(devices->gps, state, logger,
+                                                error);
+    }
     return SEMU_OK;
 }
 
@@ -369,6 +416,7 @@ semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
                        "attach requires devices and soc");
         return SEMU_ERR_ARGUMENT;
     }
+    devices->soc = soc;
     semu_sapporo_cxd5610_set_rx_sink(devices->gps,
                                      uart_bridge_receive, soc->uart);
     if (semu_apollo4_iom_attach_endpoint(soc->iom0,

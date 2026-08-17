@@ -121,6 +121,105 @@ static void test_separate_intervention_budgets(semu_test_context *context)
             SEMU_SAPPORO_222_IV_GPS_STARTUP, &error));
 }
 
+static void test_gps_state_hook(semu_test_context *context)
+{
+    semu_cpu_state cpu_state;
+    semu_bus *bus;
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+
+    memset(&cpu_state, 0, sizeof(cpu_state));
+    semu_error_clear(&error);
+    semu_log_init(&logger, NULL, SEMU_LOG_ERROR);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_ASSERT(context,
+        semu_bus_map_ram(bus, "sram", UINT32_C(0x10000000),
+                         UINT32_C(0x00180000), &error) == SEMU_OK);
+    SEMU_TEST_ASSERT(context,
+        semu_layer_enable_checked(&state, &semu_sapporo_222_no_device_layer,
+            "sapporo-2.22.60", correct_hashes, 3u, &error) == SEMU_OK);
+    cpu_state.r[0] = 1u;
+    cpu_state.r[4] = UINT32_C(0x1004271c);
+    cpu_state.r[15] = UINT32_C(0x0010f4fc);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state, &logger,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x0010f608), cpu_state.r[15]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x1004271c), cpu_state.r[0]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x0010f4fd), cpu_state.r[14]);
+    cpu_state.r[15] = UINT32_C(0x0010f4fc);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state, &logger,
+                                             &error));
+
+    memset(&cpu_state, 0, sizeof(cpu_state));
+    cpu_state.r[15] = UINT32_C(0x0010f4fc);
+    cpu_state.r[4] = UINT32_C(0x1004271c);
+    SEMU_TEST_ASSERT(context,
+        semu_layer_enable_checked(&state, &semu_sapporo_222_no_device_layer,
+            "sapporo-2.22.60", correct_hashes, 3u, &error) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state, &logger,
+                                             &error));
+
+    cpu_state.r[15] = UINT32_C(0x0010f6d8);
+    cpu_state.r[1] = 0u;
+    SEMU_TEST_ASSERT(context,
+        semu_bus_write(bus, cpu_state.r[4] + 0x1edu, 1u, 4u, &error) ==
+        SEMU_OK);
+    SEMU_TEST_ASSERT(context,
+        semu_bus_write(bus, cpu_state.r[4] + 0x1eeu, 1u, 2u, &error) ==
+        SEMU_OK);
+    cpu_state.r[0] = cpu_state.r[4];
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state,
+                                             &logger, &error));
+    {
+        uint32_t value = 0u;
+        SEMU_TEST_ASSERT(context,
+            semu_bus_read(bus, cpu_state.r[0] + 0x1edu, 1u, &value,
+                          &error) == SEMU_OK);
+        SEMU_TEST_EQ_U64(context, 2u, value);
+    }
+    semu_bus_destroy(bus);
+}
+
+static void test_resource_status_hook(semu_test_context *context)
+{
+    semu_cpu_state cpu_state;
+    semu_bus *bus;
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+
+    memset(&cpu_state, 0, sizeof(cpu_state));
+    semu_error_clear(&error);
+    semu_log_init(&logger, NULL, SEMU_LOG_ERROR);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_ASSERT(context,
+        semu_layer_enable_checked(&state, &semu_sapporo_222_no_device_layer,
+            "sapporo-2.22.60", correct_hashes, 3u, &error) == SEMU_OK);
+    cpu_state.r[15] = UINT32_C(0x001145be);
+    cpu_state.r[0] = UINT32_C(0x000000cc);
+    cpu_state.r[1] = UINT32_C(0x00000070);
+    cpu_state.r[2] = UINT32_C(0x00001d00);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state,
+                                             &logger, &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x000000c8), cpu_state.r[0]);
+    SEMU_TEST_EQ_U64(context, 1u, state.hits);
+
+    memset(&state, 0, sizeof(state));
+    cpu_state.r[0] = UINT32_C(0x000000cc);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+        semu_sapporo_222_apply_firmware_hook(bus, &cpu_state, &state,
+                                             &logger, &error));
+    semu_bus_destroy(bus);
+}
+
 static void test_production_install_and_checksum(semu_test_context *context)
 {
     semu_bus *bus;
@@ -181,6 +280,8 @@ int main(void)
         SEMU_TEST_CASE(test_disabled_intervention_refuses),
         SEMU_TEST_CASE(test_out_of_range_intervention),
         SEMU_TEST_CASE(test_separate_intervention_budgets),
+        SEMU_TEST_CASE(test_gps_state_hook),
+        SEMU_TEST_CASE(test_resource_status_hook),
         SEMU_TEST_CASE(test_production_install_and_checksum)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

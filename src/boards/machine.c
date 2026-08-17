@@ -12,7 +12,6 @@
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -292,6 +291,7 @@ void semu_machine_destroy(semu_machine *machine)
 
 static semu_status reset_machine_state(semu_machine *machine,
                                        uint32_t vector_table,
+                                       int preserve_ram,
                                        semu_error *error)
 {
     if (machine == NULL || machine->cpu == NULL) {
@@ -304,7 +304,7 @@ static semu_status reset_machine_state(semu_machine *machine,
         return error != NULL ? error->code : SEMU_ERR_CONFLICT;
     }
     semu_scheduler_reset(machine->scheduler);
-    semu_bus_reset(machine->bus);
+    if (!preserve_ram) semu_bus_reset(machine->bus);
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
     semu_nema_gpu_reset(machine->nema_gpu);
@@ -349,19 +349,7 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     }
     machine->instruction_epoch = 0u;
     machine->virtual_time_epoch = 0u;
-    return reset_machine_state(machine, machine->profile.vector_table, error);
-}
-
-static uint32_t resident_vector_table(const semu_machine *machine)
-{
-    size_t i;
-
-    for (i = 0u; i < machine->firmware.component_count; ++i) {
-        if (strcmp(machine->firmware.components[i].role, "resident") == 0) {
-            return machine->firmware.components[i].load_address;
-        }
-    }
-    return machine->profile.vector_table;
+    return reset_machine_state(machine, machine->profile.vector_table, 0, error);
 }
 
 static semu_status reset_after_request(semu_machine *machine,
@@ -379,7 +367,7 @@ static semu_status reset_after_request(semu_machine *machine,
     }
     machine->instruction_epoch += state->instructions;
     machine->virtual_time_epoch += now;
-    return reset_machine_state(machine, resident_vector_table(machine), error);
+    return reset_machine_state(machine, machine->profile.vector_table, 0, error);
 }
 
 semu_stop_reason semu_machine_run(semu_machine *machine,
@@ -421,6 +409,18 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 machine->input_poll_context, machine, error);
             if (input_reason != SEMU_STOP_NONE) {
                 machine->stop_reason = input_reason;
+                break;
+            }
+        }
+        if (machine->layer_count != 0u &&
+            machine->layers[0].descriptor ==
+                &semu_sapporo_222_no_device_layer) {
+            semu_status hook_status = semu_sapporo_devices_apply_compat_hook(
+                machine->devices, machine->bus,
+                semu_cpu_get_state_mutable(machine->cpu),
+                &machine->layers[0], machine->logger, error);
+            if (hook_status != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 break;
             }
         }

@@ -25,6 +25,8 @@ struct semu_apollo4_gpio {
     uint8_t direction[SEMU_APOLLO4_GPIO_COUNT];
     uint8_t edge[SEMU_APOLLO4_GPIO_COUNT];
     uint32_t output[SEMU_APOLLO4_GPIO_IRQ_BANKS];
+    uint32_t output_set[SEMU_APOLLO4_GPIO_IRQ_BANKS];
+    uint32_t output_clear[SEMU_APOLLO4_GPIO_IRQ_BANKS];
     uint32_t interrupt_enable[SEMU_APOLLO4_GPIO_IRQ_BANKS];
     uint32_t interrupt_status[SEMU_APOLLO4_GPIO_IRQ_BANKS];
     uint32_t pad_key;
@@ -113,6 +115,8 @@ static void reset_state(semu_apollo4_gpio *gpio, int report)
     memset(gpio->direction, 0, sizeof(gpio->direction));
     memset(gpio->edge, 0, sizeof(gpio->edge));
     memset(gpio->output, 0, sizeof(gpio->output));
+    memset(gpio->output_set, 0, sizeof(gpio->output_set));
+    memset(gpio->output_clear, 0, sizeof(gpio->output_clear));
     memset(gpio->interrupt_enable, 0, sizeof(gpio->interrupt_enable));
     memset(gpio->interrupt_status, 0, sizeof(gpio->interrupt_status));
     for (pin = 0u; pin < SEMU_APOLLO4_GPIO_COUNT; ++pin) {
@@ -197,6 +201,16 @@ semu_status semu_apollo4_gpio_read(void *context, uint32_t offset,
         }
         return SEMU_OK;
     }
+    bank = output_bank_register(offset, OUTPUT_SET0);
+    if (bank >= 0) {
+        *value = gpio->output_set[bank];
+        return SEMU_OK;
+    }
+    bank = output_bank_register(offset, OUTPUT_CLEAR0);
+    if (bank >= 0) {
+        *value = gpio->output_clear[bank];
+        return SEMU_OK;
+    }
     bank = interrupt_bank_register(offset, INTERRUPT_ENABLE0);
     if (bank >= 0) {
         *value = gpio->interrupt_enable[bank];
@@ -244,6 +258,7 @@ semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
     }
     bank = output_bank_register(offset, OUTPUT_SET0);
     if (bank >= 0) {
+        gpio->output_set[bank] = value;
         for (bit = 0u; bit < 32u; ++bit) {
             if ((value & (UINT32_C(1) << bit)) != 0u) {
                 unsigned pin_number = (unsigned)bank * 32u + bit;
@@ -256,6 +271,7 @@ semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
     }
     bank = output_bank_register(offset, OUTPUT_CLEAR0);
     if (bank >= 0) {
+        gpio->output_clear[bank] = value;
         for (bit = 0u; bit < 32u; ++bit) {
             if ((value & (UINT32_C(1) << bit)) != 0u) {
                 unsigned pin_number = (unsigned)bank * 32u + bit;

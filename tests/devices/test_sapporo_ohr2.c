@@ -153,7 +153,7 @@ static void test_state_sequence_and_fire_forget(semu_test_context *context)
     SEMU_TEST_ASSERT(context, memcmp(response + 9u, "MAIN\0", 5u) == 0);
     make_request(request, 1u, 3u);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     endpoint.transfer(endpoint.context, &transaction, &error));
+                     exchange(endpoint, request, response, &error));
     make_request(request, 6u, 3u);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      exchange(endpoint, request, response, &error));
@@ -180,7 +180,7 @@ static void test_refusals_reset_and_missing_body(semu_test_context *context)
         SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
     };
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     endpoint.transfer(endpoint.context, &transaction, &error));
+                     exchange(endpoint, request, response, &error));
     SEMU_TEST_EQ_U64(context, 0u, fixture.ready_count);
     request[0u] = 1u;
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
@@ -218,7 +218,6 @@ static void test_sequence_refusal_and_probe_reset(semu_test_context *context)
     semu_error error;
     semu_sapporo_ohr2 *device;
     semu_serial_endpoint endpoint;
-    semu_serial_transaction transaction;
     uint8_t request[59];
     uint8_t response[58];
 
@@ -230,11 +229,8 @@ static void test_sequence_refusal_and_probe_reset(semu_test_context *context)
     make_request(request, 0u, 1u);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      exchange(endpoint, request, response, &error));
-    transaction = (semu_serial_transaction){
-        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
-    };
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
     make_request(request, 0u, 0u);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      exchange(endpoint, request, response, &error));
@@ -242,8 +238,8 @@ static void test_sequence_refusal_and_probe_reset(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      exchange(endpoint, request, response, &error));
     make_request(request, 1u, 3u);
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
     semu_sapporo_ohr2_destroy(device);
 }
 

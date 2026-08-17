@@ -11,13 +11,22 @@
 #define TIMER_GLOBAL_CLEAR 0x68u
 #define TIMER_AUXILIARY 0xe8u
 #define TIMER_PATTERN 0x104u
+#define TIMER_OBSERVED_B4 0xb4u
+#define TIMER_OBSERVED_D8 0xd8u
 #define TIMER_CONTROL 0x00u
 #define TIMER_VALUE 0x04u
 #define TIMER_COMPARE0 0x08u
 #define TIMER_COMPARE1 0x0cu
 #define TIMER_INTEN 0x10u
 #define TIMER_ENABLE 0x1u
+#define TIMER_CLEAR 0x2u
+#define TIMER_FUNCTION_SHIFT 4u
+#define TIMER_FUNCTION_MASK 0xfu
+#define TIMER_FUNCTION_UPCOUNT 0x2u
 #define TIMER_INTEN_COMPARE 0x100u
+#define TIMER_CLOCK_SHIFT 8u
+#define TIMER_CLOCK_MASK 0xffu
+#define TIMER_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
 typedef struct timer_channel timer_channel;
 struct timer_channel {
     struct semu_apollo4_timer *owner;
@@ -42,6 +51,7 @@ struct semu_apollo4_timer {
     uint32_t output_control;
     uint32_t auxiliary;
     uint32_t pattern;
+    uint32_t observed_d8;
 };
 static semu_status refuse(uint32_t offset, semu_error *error)
 {
@@ -65,10 +75,36 @@ static int is_channel_offset(uint32_t offset)
     return offset >= TIMER_CHANNEL_BASE && offset <
            TIMER_CHANNEL_BASE + TIMER_CHANNEL_COUNT * TIMER_CHANNEL_STRIDE;
 }
+static uint64_t clock_hz(uint32_t control)
+{
+    switch ((control >> TIMER_CLOCK_SHIFT) & TIMER_CLOCK_MASK) {
+    case 0x02u: /* HFRC / 64, used by the observed CTIMER0 scheduler tick. */
+        return UINT64_C(1500000);
+    case 0x0cu: /* XT / 4, as used by the observed CTIMER13 calibration. */
+        return UINT64_C(8192);
+    case 0x0du: /* XT / 8, as used by the observed CTIMER13 calibration. */
+        return UINT64_C(4096);
+    case 0x1cu: /* Buck clock; retain the observed bounded test rate. */
+        return UINT64_C(8192);
+    default:
+        /* Existing unit-rate modes remain expressed in virtual ticks. */
+        return TIMER_NANOSECONDS_PER_SECOND;
+    }
+}
 static uint32_t counter_value(const timer_channel *channel, uint64_t now)
 {
-    uint64_t elapsed = now - channel->epoch;
-    return channel->base_value + (uint32_t)elapsed;
+    uint64_t elapsed;
+    uint64_t rate;
+    uint64_t ticks;
+    if ((channel->control & TIMER_ENABLE) == 0u) {
+        return channel->base_value;
+    }
+    elapsed = now - channel->epoch;
+    rate = clock_hz(channel->control);
+    ticks = (elapsed / TIMER_NANOSECONDS_PER_SECOND) * rate;
+    ticks += ((elapsed % TIMER_NANOSECONDS_PER_SECOND) * rate) /
+             TIMER_NANOSECONDS_PER_SECOND;
+    return channel->base_value + (uint32_t)ticks;
 }
 static void cancel_channel(timer_channel *channel)
 {
@@ -85,6 +121,14 @@ static int pwm_control(uint32_t channel, uint32_t control)
 }
 static uint32_t control_readback(unsigned channel, uint32_t control)
 {
+    /* E-A4-TIMER-001: Renode's Apollo4 timer does not retain CTIMER0/13 bit
+     * 1. The native setup writes 0x222/0x1c22/0x1d22 and reads back the
+     * corresponding values with that bit clear. */
+    if (channel == 13u || (channel == 0u && control >= 0x100u))
+        control &= ~UINT32_C(0x2);
+    if (control >= UINT32_C(0x100)) control &= ~TIMER_CLEAR;
+    /* The same model does not retain CTIMER8 bit 2: 0x144 reads as 0x140. */
+    if (channel == 8u) control &= ~UINT32_C(0x4);
     return pwm_control(channel, control) ? 0xa40u : control;
 }
 static int supported_control(uint32_t value)
@@ -94,7 +138,7 @@ static int supported_control(uint32_t value)
         0x123u,
         0x140u, 0x142u, 0x144u, 0x220u, 0x221u, 0x222u,
         0x1c20u, 0x1c21u, 0x1c22u, 0x1c23u, 0xa40u, 0xa41u, 0xa42u,
-        0xa44u
+        0xa44u, 0x1d20u, 0x1d21u, 0x1d22u, 0x1d23u
     };
     size_t index;
     for (index = 0u; index < sizeof(values) / sizeof(values[0]); ++index)
@@ -112,7 +156,14 @@ static uint64_t next_delay(const timer_channel *channel, uint64_t now)
         if (compare == 0u) continue;
         delta = (uint32_t)(compare - current);
         if (delta == 0u) delta = UINT32_MAX;
-        if (delta < best) best = delta;
+        if (clock_hz(channel->control) == TIMER_NANOSECONDS_PER_SECOND) {
+            if (delta < best) best = delta;
+        } else {
+            uint64_t rate = clock_hz(channel->control);
+            uint64_t delay = (delta * TIMER_NANOSECONDS_PER_SECOND) / rate;
+            if ((delta * TIMER_NANOSECONDS_PER_SECOND) % rate != 0u) ++delay;
+            if (delay < best) best = delay;
+        }
     }
     return best;
 }
@@ -124,7 +175,9 @@ static void timer_event(void *context, uint64_t now)
     channel->event_valid = 0u;
     channel->event = 0u;
     if ((channel->control & TIMER_ENABLE) == 0u || pwm_control(index, channel->control) ||
-        (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u ||
+        (((channel->control >> TIMER_FUNCTION_SHIFT) & TIMER_FUNCTION_MASK) !=
+             TIMER_FUNCTION_UPCOUNT &&
+         (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u) ||
         (timer->interrupt_mask & (1u << index)) == 0u) {
         return;
     }
@@ -149,7 +202,9 @@ static semu_status reschedule(timer_channel *channel, semu_error *error)
     uint64_t delay;
     cancel_channel(channel);
     if ((channel->control & TIMER_ENABLE) == 0u || pwm_control((unsigned)(channel - timer->channels), channel->control) ||
-        (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u ||
+        (((channel->control >> TIMER_FUNCTION_SHIFT) & TIMER_FUNCTION_MASK) !=
+             TIMER_FUNCTION_UPCOUNT &&
+         (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u) ||
         (timer->interrupt_mask &
          (1u << (unsigned)(channel - timer->channels))) == 0u)
         return SEMU_OK;
@@ -221,6 +276,7 @@ void semu_apollo4_timer_reset(semu_apollo4_timer *timer)
     timer->output_control = 0u;
     timer->auxiliary = 0u;
     timer->pattern = 0u;
+    timer->observed_d8 = 0u;
 }
 semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
                                     uint32_t offset, unsigned width,
@@ -237,6 +293,8 @@ semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
     else if (offset == TIMER_GLOBAL_CLEAR) *value = timer->output_control;
     else if (offset == TIMER_AUXILIARY) *value = timer->auxiliary;
     else if (offset == TIMER_PATTERN) *value = timer->pattern;
+    else if (offset == TIMER_OBSERVED_B4) *value = 0u;
+    else if (offset == TIMER_OBSERVED_D8) *value = timer->observed_d8;
     else if (is_channel_offset(offset)) {
         local = channel_offset(offset);
         channel = &timer->channels[channel_index(offset)];
@@ -273,7 +331,7 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
             (void)reschedule(&timer->channels[index], &local_error);
         }
     } else if (offset == TIMER_GLOBAL_STATUS) {
-        if (value != 0u && value != 2u && value != 0x8000000u &&
+        if (value != 0u && value != 1u && value != 2u && value != 0x8000000u &&
             value != 0x8000001u)
             return refuse(offset, error);
         timer->status_value = value;
@@ -295,6 +353,13 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
             value != 0x12100u && value != 0x12101u)
             return refuse(offset, error);
         timer->pattern = value;
+    } else if (offset == TIMER_OBSERVED_B4) {
+        if (value != 0u && value != UINT32_C(0x10000000))
+            return refuse(offset, error);
+    } else if (offset == TIMER_OBSERVED_D8) {
+        if (value != 0u && value != UINT32_C(0x1f000000))
+            return refuse(offset, error);
+        timer->observed_d8 = value;
     } else if (!is_channel_offset(offset)) return refuse(offset, error);
     else {
         index = channel_index(offset);
@@ -303,9 +368,14 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         old_channel = *channel;
         if (local == TIMER_CONTROL) {
             if (!supported_control(value)) return refuse(offset, error);
-            channel->base_value = counter_value(channel,
-                                                semu_scheduler_now(timer->scheduler));
-            channel->epoch = semu_scheduler_now(timer->scheduler);
+            if ((value & TIMER_CLEAR) != 0u) {
+                channel->base_value = 0u;
+                channel->epoch = semu_scheduler_now(timer->scheduler);
+            } else {
+                channel->base_value = counter_value(channel,
+                    semu_scheduler_now(timer->scheduler));
+                channel->epoch = semu_scheduler_now(timer->scheduler);
+            }
             channel->control = control_readback(index, value);
         } else if (local == TIMER_VALUE) {
             channel->base_value = value;

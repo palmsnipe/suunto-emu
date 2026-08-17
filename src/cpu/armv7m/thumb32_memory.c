@@ -28,7 +28,7 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
     }
     writeback = (first & 0x20u) != 0u;
     if (rn == 15u || list == 0u || (!load && (list & (1u << 15)) != 0u) ||
-        (writeback && (list & (1u << rn)) != 0u) || (base & 3u) != 0u) {
+        (writeback && (list & (1u << rn)) != 0u)) {
         return armv7m_unsupported(cpu, ((uint32_t)first << 16) | second,
                                   error);
     }

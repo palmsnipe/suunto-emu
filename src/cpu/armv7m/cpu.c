@@ -28,6 +28,25 @@ static int instruction_is_32bit(uint16_t instruction)
     return prefix == 0x1du || prefix == 0x1eu || prefix == 0x1fu;
 }
 
+static int thumb16_it_instruction_preserves_flags(uint16_t instruction)
+{
+    unsigned operation;
+
+    /* In an IT block, 16-bit instructions do not update APSR except for
+       CMP, CMN, and TST. */
+    if ((instruction & 0xf800u) == 0x2800u) {
+        return 0;
+    }
+    if ((instruction & 0xfc00u) == 0x4000u) {
+        operation = (instruction >> 6u) & 15u;
+        return operation != 8u && operation != 10u && operation != 11u;
+    }
+    if ((instruction & 0xfc00u) == 0x4400u) {
+        return ((instruction >> 8u) & 3u) != 1u;
+    }
+    return 1;
+}
+
 static semu_status finish_instruction(semu_cpu *cpu, semu_error *error)
 {
     semu_status status;
@@ -193,9 +212,8 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     }
     it_flags = cpu->state.xpsr & (ARMV7M_XPSR_N | ARMV7M_XPSR_Z |
                                   ARMV7M_XPSR_C | ARMV7M_XPSR_V);
-    preserve_it_flags = old_itstate != 0u && (old_itstate & 7u) != 0u &&
-                        !is_wide && (first & 0xe000u) == 0x2000u &&
-                        ((first >> 11u) & 3u) == 0u;
+    preserve_it_flags = old_itstate != 0u && !is_wide &&
+                        thumb16_it_instruction_preserves_flags(first);
     status = is_wide ? armv7m_exec32(cpu, first, second, pc, error)
                      : armv7m_exec16(cpu, first, pc, error);
     if (status != SEMU_OK) {

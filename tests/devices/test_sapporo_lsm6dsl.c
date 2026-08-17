@@ -135,19 +135,23 @@ static void test_wrong_chip_select(semu_test_context *context)
     semu_sapporo_lsm6dsl_destroy(sensor);
 }
 
-static void test_unknown_register(semu_test_context *context)
+static void test_configuration_register(semu_test_context *context)
 {
     semu_error error;
     semu_sapporo_lsm6dsl *sensor;
     semu_serial_endpoint ep;
+    uint8_t tx[] = { 0x01u, 0x42u };
     uint8_t rx[1];
 
     semu_error_clear(&error);
     sensor = semu_sapporo_lsm6dsl_create(0u, &error);
     ep = semu_sapporo_lsm6dsl_endpoint(sensor);
 
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0u, 0x80u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0u, tx, sizeof(tx), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, 0x81u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x42u, rx[0u]);
 
     semu_sapporo_lsm6dsl_destroy(sensor);
 }
@@ -202,7 +206,7 @@ int main(void)
         SEMU_TEST_CASE(test_two_phase_read),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_chip_select),
-        SEMU_TEST_CASE(test_unknown_register),
+        SEMU_TEST_CASE(test_configuration_register),
         SEMU_TEST_CASE(test_wrong_direction),
         SEMU_TEST_CASE(test_repeated_transcript)
     };

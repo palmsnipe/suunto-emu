@@ -41,6 +41,7 @@ static void test_gps_match(semu_test_context *context)
     semu_transaction_result result;
 
     init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
     scheduler = semu_scheduler_create(&error);
     SEMU_TEST_ASSERT(context, scheduler != NULL);
     transport = semu_sapporo_cxd5610_create(scheduler, NULL, NULL,
@@ -68,6 +69,7 @@ static void test_gps_miss(semu_test_context *context)
     semu_transaction_result result;
 
     init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
     ctx.state = &state;
     ctx.logger = &logger;
     result = semu_sapporo_222_gps_exchange(&ctx, bad, sizeof(bad),
@@ -87,6 +89,7 @@ static void test_ohr_match(semu_test_context *context)
     semu_transaction_result result;
 
     init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
     ctx.state = &state;
     ctx.logger = &logger;
     memset(request, 0, sizeof(request));
@@ -96,7 +99,7 @@ static void test_ohr_match(semu_test_context *context)
         request, response, &error);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, result);
     SEMU_TEST_EQ_U64(context, 1u, state.hits);
-    SEMU_TEST_ASSERT(context, memcmp(response + 9u, "OHR2", 4u) == 0);
+    SEMU_TEST_ASSERT(context, memcmp(response + 9u, "BSL\0", 4u) == 0);
 }
 
 static void test_ohr_unknown_command(semu_test_context *context)
@@ -115,11 +118,61 @@ static void test_ohr_unknown_command(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, result);
 }
 
+static void test_gps_running_status(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_sapporo_cxd5610 *transport;
+    semu_sapporo_222_fixture_context ctx;
+    static const uint8_t request[] = { '@', 'G', 'S', 'R', '\r', '\n' };
+
+    init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.state = &state;
+    ctx.logger = &logger;
+    scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    transport = semu_sapporo_cxd5610_create(scheduler, NULL, NULL,
+        dummy_rx, NULL, NULL, NULL, &error);
+    SEMU_TEST_ASSERT(context, transport != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_222_arm_gps_running_status(transport, &ctx, &error));
+    SEMU_TEST_EQ_U64(context, 1u, state.hits);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(scheduler, UINT64_C(10000000), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_sapporo_222_gps_exchange(&ctx, request, sizeof(request),
+                                       transport, &error));
+    semu_sapporo_cxd5610_destroy(transport);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void test_gps_running_status_refuses_unarmed(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    semu_sapporo_222_fixture_context ctx;
+    static const uint8_t request[] = { '@', 'G', 'S', 'R', '\r', '\n' };
+
+    init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.state = &state;
+    ctx.logger = &logger;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_sapporo_222_gps_exchange(&ctx, request, sizeof(request),
+                                       NULL, &error));
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_gps_match),
         SEMU_TEST_CASE(test_gps_miss),
+        SEMU_TEST_CASE(test_gps_running_status),
+        SEMU_TEST_CASE(test_gps_running_status_refuses_unarmed),
         SEMU_TEST_CASE(test_ohr_match),
         SEMU_TEST_CASE(test_ohr_unknown_command)
     };

@@ -1,5 +1,7 @@
 #include "auxiliary.h"
 
+#include "adc.h"
+
 #include <stddef.h>
 
 enum {
@@ -254,6 +256,10 @@ semu_status semu_apollo4_auxiliary_map(semu_bus *bus, void *context,
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Apollo4 auxiliary devices require bus and context");
         return SEMU_ERR_ARGUMENT;
+    }
+    status = semu_apollo4_adc_map(bus, context, error);
+    if (status != SEMU_OK) {
+        return status;
     }
     status = semu_bus_map_device(bus, "apollo4.cpu_complex",
                                  CPU_COMPLEX_BASE, CPU_COMPLEX_SIZE,

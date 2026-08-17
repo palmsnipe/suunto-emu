@@ -221,7 +221,10 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
     int writeback = (first & 0x0020u) != 0u;
     int load = (first & 0x0010u) != 0u;
     int is_double = (second & 0x0100u) != 0u;
-    unsigned words = is_double ? count * 2u : count;
+    /* The immediate is the number of 32-bit words for both S and D
+       register lists.  A D-register transfer therefore uses an even word
+       count; it does not double the encoded immediate. */
+    unsigned words = count;
     uint32_t values[32];
     uint32_t addresses[32];
     uint32_t address;
@@ -230,6 +233,7 @@ static semu_status multiple_transfer(semu_cpu *cpu, uint16_t first,
     unsigned index;
 
     if ((second & 0x0e00u) != 0x0a00u || rn == 15u || count == 0u ||
+        (is_double && (count & 1u) != 0u) ||
         count > 16u || start + words > 32u ||
         (push && (add || !writeback)))
         return refuse(cpu, first, second, error);

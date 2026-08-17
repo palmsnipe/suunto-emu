@@ -22,13 +22,13 @@
  *          Temperature 0x08=0x1900, VCell 0x09=0xC000 (3.84V).
  *
  * Register values are deterministic host-side battery fixtures, not
- * physical gauge evidence. Unknown register, wrong address, wrong length,
- * and overflow refuse before mutation. No wildcard readable/writable
- * mask is used.
+ * physical gauge evidence. The Renode model exposes a 256-entry
+ * zero-backed register array; only the four observed registers are non-zero.
+ * Wrong address and invalid transactions refuse before mutation.
  */
 
 enum {
-    MAX_REG_COUNT = 32u,
+    MAX_REG_COUNT = 256u,
     MAX_STATUS_REG = 0x00u,
     MAX_STATUS_VAL = 0x0000u,
     MAX_REPSOC_REG = 0x06u,
@@ -43,14 +43,6 @@ struct semu_sapporo_max17050 {
     uint8_t address;
     uint16_t registers[MAX_REG_COUNT];
 };
-
-static int is_known_register(uint8_t reg)
-{
-    return reg == MAX_STATUS_REG ||
-           reg == MAX_REPSOC_REG ||
-           reg == MAX_TEMP_REG ||
-           reg == MAX_VCELL_REG;
-}
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
 {
@@ -85,30 +77,18 @@ static semu_transaction_result transfer(void *context,
         return refuse(error, "no register pointer");
     }
     reg = t->tx[0];
-    if (reg >= MAX_REG_COUNT) {
-        return refuse(error, "register overflow");
-    }
     if (t->rx_size > 0u) {
         for (i = 0u; i < t->rx_size; ++i) {
-            if (!is_known_register(reg)) {
-                return refuse(error, "unknown read register");
-            }
             if ((i & 1u) == 0u) {
                 t->rx[i] = (uint8_t)(sensor->registers[reg] & 0xFFu);
             } else {
                 t->rx[i] = (uint8_t)((sensor->registers[reg] >> 8u) & 0xFFu);
                 reg = (uint8_t)(reg + 1u);
-                if (reg >= MAX_REG_COUNT) {
-                    return refuse(error, "register overflow");
-                }
             }
         }
     } else {
         for (i = 1u; i < t->tx_size; ++i) {
             size_t byte_idx = i - 1u;
-            if (!is_known_register(reg)) {
-                return refuse(error, "unknown write register");
-            }
             if ((byte_idx & 1u) == 0u) {
                 sensor->registers[reg] = (uint16_t)(
                     (sensor->registers[reg] & 0xFF00u) | t->tx[i]);
@@ -117,9 +97,6 @@ static semu_transaction_result transfer(void *context,
                     (sensor->registers[reg] & 0x00FFu) |
                     ((uint16_t)t->tx[i] << 8u));
                 reg = (uint8_t)(reg + 1u);
-                if (reg >= MAX_REG_COUNT) {
-                    return refuse(error, "register overflow");
-                }
             }
         }
     }

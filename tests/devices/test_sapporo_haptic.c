@@ -107,22 +107,23 @@ static void test_wrong_address(semu_test_context *context)
     semu_sapporo_haptic_destroy(sensor);
 }
 
-static void test_unknown_register(semu_test_context *context)
+static void test_configuration_registers(semu_test_context *context)
 {
     semu_error error;
     semu_sapporo_haptic *sensor;
     semu_serial_endpoint ep;
     uint8_t rx[1];
-    uint8_t tx[] = { 0x10u, 0x01u };
+    uint8_t tx[] = { 0x0du, 0x01u };
 
     semu_error_clear(&error);
     sensor = semu_sapporo_haptic_create(0x50u, &error);
     ep = semu_sapporo_haptic_endpoint(sensor);
 
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0x50u, 0x10u, rx, 1u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      do_write(&ep, 0x50u, tx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x0du, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x01u, rx[0u]);
 
     semu_sapporo_haptic_destroy(sensor);
 }
@@ -180,7 +181,7 @@ int main(void)
         SEMU_TEST_CASE(test_idle_state),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
-        SEMU_TEST_CASE(test_unknown_register),
+        SEMU_TEST_CASE(test_configuration_registers),
         SEMU_TEST_CASE(test_write_without_trigger),
         SEMU_TEST_CASE(test_repeated_transcript)
     };

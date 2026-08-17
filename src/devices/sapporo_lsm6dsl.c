@@ -20,8 +20,9 @@
  *
  * The firmware reads WHO_AM_I (0x0f) and FIFO_STATUS1-2 (0x3a-0x3b)
  * via two-phase held-CS SPI. Sample data is zero (synthetic).
- * Unknown register, wrong chip-select, wrong direction, and overflow
- * refuse before mutation. No wildcard readable/writable mask is used.
+ * The Renode fixture exposes the complete register array as deterministic
+ * zero-backed storage; wrong chip-select, wrong direction, and overflow
+ * refuse before mutation.
  */
 
 enum {
@@ -48,9 +49,9 @@ struct semu_sapporo_lsm6dsl {
 
 static int is_known_register(uint8_t reg)
 {
-    return reg == LSM6_WHO_AM_I_REG ||
-           reg == LSM6_FIFO_STATUS1_REG ||
-           reg == LSM6_FIFO_STATUS2_REG;
+    /* E-SAP-LSM6DSL-001: only identity/FIFO registers are non-zero, but the
+       observed endpoint accepts the complete zero-backed register array. */
+    return reg < LSM6_REG_COUNT;
 }
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)

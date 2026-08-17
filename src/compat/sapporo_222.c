@@ -24,9 +24,21 @@ static semu_layer_intervention sapporo_interventions[] = {
     { "gps-startup",
       "inject $PSS0000 response to @VER startup request",
       "E-SAP-COMPAT-GPS-001", 1u, 0u },
+    { "gps-state-startup",
+      "enter native GPS UART-open after successful startup service request",
+      "E-SAP-COMPAT-GPS-002", 1u, 0u },
+    { "gps-state-dispatch",
+      "translate the observed initial GPS dispatcher state 4 to state 2",
+      "E-SAP-COMPAT-GPS-003", 1u, 0u },
+    { "gps-running-status",
+      "arm the later @GSR to $PSS running-status exchange",
+      "E-SAP-COMPAT-GPS-004", 1u, 0u },
     { "ohr-startup",
       "supply synthetic BSL-to-MAIN startup body responses",
-      "E-SAP-COMPAT-OHR-001", 1u, 0u }
+      "E-SAP-COMPAT-OHR-001", 1u, 0u },
+    { "resource-status",
+      "translate the observed resource-wrapper 0xcc sentinel to success",
+      "E-SAP-COMPAT-RESOURCE-001", 1u, 0u }
 };
 
 const semu_layer_descriptor semu_sapporo_222_no_device_layer = {
@@ -40,7 +52,7 @@ const semu_layer_descriptor semu_sapporo_222_no_device_layer = {
     .interventions = sapporo_interventions,
     .intervention_count = sizeof(sapporo_interventions) /
                            sizeof(sapporo_interventions[0]),
-    .maximum_hits = 3u
+    .maximum_hits = 7u
 };
 
 static uint32_t firmware_checksum(const uint8_t *data, size_t size,
@@ -163,16 +175,162 @@ semu_status semu_sapporo_222_install_no_device(
         SEMU_SAPPORO_222_IV_PRODUCTION, error);
 }
 
+semu_status semu_sapporo_222_apply_firmware_hook(
+    semu_bus *bus, semu_cpu_state *cpu_state, semu_layer_state *state,
+    semu_logger *logger, semu_error *error)
+{
+    if (bus == NULL || cpu_state == NULL || state == NULL || logger == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo firmware hook arguments are incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (cpu_state->r[15] == UINT32_C(0x001145be) &&
+        cpu_state->r[0] == UINT32_C(0x000000cc) &&
+        cpu_state->r[1] == UINT32_C(0x00000070) &&
+        cpu_state->r[2] == UINT32_C(0x00001d00)) {
+        if (state->descriptor == NULL || !state->enabled) {
+            semu_error_set(error, SEMU_ERR_STATE,
+                           "disabled layer was invoked");
+            return SEMU_ERR_STATE;
+        }
+        if (!intervention_is_unused(state,
+                SEMU_SAPPORO_222_IV_RESOURCE_STATUS)) {
+            return SEMU_OK;
+        }
+        if (semu_layer_intervention_hit(state, logger,
+                SEMU_SAPPORO_222_IV_RESOURCE_STATUS, error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_STATE;
+        }
+        cpu_state->r[0] = UINT32_C(0x000000c8);
+        return SEMU_OK;
+    }
+    if (cpu_state->r[15] == UINT32_C(0x0010f6d8)) {
+        uint32_t current_state = 0u;
+        uint32_t expected_state = 0u;
+        semu_error read_error;
+        semu_error_clear(&read_error);
+        if (semu_bus_read(bus, cpu_state->r[0] + 0x1edu, 1u,
+                          &current_state, &read_error) != SEMU_OK ||
+            semu_bus_read(bus, cpu_state->r[0] + 0x1eeu, 1u,
+                          &expected_state, &read_error) != SEMU_OK) {
+            if (error != NULL) *error = read_error;
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
+        if (cpu_state->r[1] != 0u || current_state != 4u ||
+            expected_state != 2u) {
+            return SEMU_OK;
+        }
+        if (!intervention_is_unused(state,
+                SEMU_SAPPORO_222_IV_GPS_STATE_DISPATCH)) {
+            return SEMU_OK;
+        }
+        if (semu_layer_intervention_hit(state, logger,
+                SEMU_SAPPORO_222_IV_GPS_STATE_DISPATCH, error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_STATE;
+        }
+        return semu_bus_write(bus, cpu_state->r[0] + 0x1edu, 1u, 2u,
+                              error);
+    }
+    if (cpu_state->r[15] != UINT32_C(0x0010f4fc)) {
+        return SEMU_OK;
+    }
+    /* The synthetic call returns to this instruction after the native
+     * UART-open routine.  Let the original epilogue execute on that pass. */
+    if (!intervention_is_unused(state, SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP)) {
+        return SEMU_OK;
+    }
+    if (cpu_state->r[0] != 1u || cpu_state->r[4] < UINT32_C(0x10000000) ||
+        cpu_state->r[4] >= UINT32_C(0x10180000)) {
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "Sapporo GPS hook reached with unexpected state");
+        return SEMU_ERR_STATE;
+    }
+    if (semu_layer_intervention_hit(state, logger,
+            SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    cpu_state->r[0] = cpu_state->r[4];
+    cpu_state->r[14] = UINT32_C(0x0010f4fd);
+    cpu_state->r[15] = UINT32_C(0x0010f608);
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_222_arm_gps_startup(
+    semu_sapporo_cxd5610 *transport, semu_layer_state *state,
+    semu_logger *logger, semu_error *error)
+{
+    static const uint8_t response[] = {
+        '$', 'P', 'S', 'S', '0', '0', '0', '0', '\r', '\n'
+    };
+    if (transport == NULL || state == NULL || logger == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo GPS startup fixture arguments are incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (!intervention_is_unused(state, SEMU_SAPPORO_222_IV_GPS_STARTUP)) {
+        return SEMU_OK;
+    }
+    if (semu_layer_intervention_hit(state, logger,
+            SEMU_SAPPORO_222_IV_GPS_STARTUP, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    return semu_sapporo_cxd5610_inject_rx_after(transport, response,
+                                                 sizeof(response),
+                                                 UINT64_C(10000000), error);
+}
+
+semu_status semu_sapporo_222_arm_gps_running_status(
+    semu_sapporo_cxd5610 *transport,
+    semu_sapporo_222_fixture_context *context, semu_error *error)
+{
+    static const uint8_t response[] = {
+        '$', 'P', 'S', 'S', '0', '0', '0', '0', '\r', '\n'
+    };
+    if (transport == NULL || context == NULL || context->state == NULL ||
+        context->logger == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo GPS running-status fixture arguments are incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (!intervention_is_unused(context->state,
+                                SEMU_SAPPORO_222_IV_GPS_RUNNING_STATUS)) {
+        return SEMU_OK;
+    }
+    if (semu_layer_intervention_hit(context->state, context->logger,
+            SEMU_SAPPORO_222_IV_GPS_RUNNING_STATUS, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    if (semu_sapporo_cxd5610_inject_rx_after(transport, response,
+            sizeof(response), UINT64_C(10000000), error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    context->gps_running_status_armed = 1;
+    return SEMU_OK;
+}
+
 semu_transaction_result semu_sapporo_222_gps_exchange(
     void *context, const uint8_t *request, size_t count,
     semu_sapporo_cxd5610 *transport, semu_error *error)
 {
     static const uint8_t expected[] = { '@', 'V', 'E', 'R', '\r', '\n' };
-    static const uint8_t response[] = {
-        '$', 'P', 'S', 'S', '0', '0', '0', '0', '\r', '\n'
-    };
+    static const uint8_t running_status[] = { '@', 'G', 'S', 'R', '\r', '\n' };
     semu_sapporo_222_fixture_context *ctx =
         (semu_sapporo_222_fixture_context *)context;
+    if (count == sizeof(running_status) &&
+        memcmp(request, running_status, count) == 0) {
+        if (ctx == NULL || !ctx->gps_running_status_armed) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "GPS fixture: running-status exchange is not armed");
+            return SEMU_TRANSACTION_REFUSE;
+        }
+        if (semu_sapporo_cxd5610_inject_rx_after(transport,
+                (const uint8_t[]){ '$', 'P', 'S', 'S', '0', '0', '0', '0',
+                                   '\r', '\n' }, 10u,
+                UINT64_C(10000000), error) != SEMU_OK) {
+            return SEMU_TRANSACTION_REFUSE;
+        }
+        return SEMU_TRANSACTION_OK;
+    }
     if (count != sizeof(expected) ||
         memcmp(request, expected, count) != 0) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -181,14 +339,15 @@ semu_transaction_result semu_sapporo_222_gps_exchange(
     }
     if (ctx != NULL && ctx->state != NULL && ctx->logger != NULL &&
         intervention_is_unused(ctx->state, SEMU_SAPPORO_222_IV_GPS_STARTUP)) {
-        if (semu_layer_intervention_hit(ctx->state, ctx->logger,
-                SEMU_SAPPORO_222_IV_GPS_STARTUP, error) != SEMU_OK) {
+        if (semu_sapporo_222_arm_gps_startup(transport, ctx->state,
+                ctx->logger, error) != SEMU_OK) {
             return SEMU_TRANSACTION_REFUSE;
         }
-    }
-    if (semu_sapporo_cxd5610_inject_rx_after(transport, response,
-            sizeof(response), 10u, error) != SEMU_OK) {
-        return SEMU_TRANSACTION_REFUSE;
+    } else if (semu_sapporo_cxd5610_inject_rx_after(transport,
+            (const uint8_t[]){ '$', 'P', 'S', 'S', '0', '0', '0', '0',
+                               '\r', '\n' }, 10u,
+            UINT64_C(10000000), error) != SEMU_OK) {
+            return SEMU_TRANSACTION_REFUSE;
     }
     return SEMU_TRANSACTION_OK;
 }
@@ -203,13 +362,16 @@ semu_transaction_result semu_sapporo_222_ohr_body_provider(
     semu_sapporo_222_fixture_context *ctx =
         (semu_sapporo_222_fixture_context *)context;
     (void)sequence;
-    (void)state;
     (void)request_payload;
 
     switch (command) {
     case SEMU_SAPPORO_OHR2_COMMAND_IDENTITY:
         memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
-        memcpy(response_payload + 9u, "OHR2", 4u);
+        if (state == SEMU_SAPPORO_OHR2_MAIN) {
+            memcpy(response_payload + 9u, "MAIN", 4u);
+        } else {
+            memcpy(response_payload + 9u, "BSL", 3u);
+        }
         response_payload[13u] = 0u;
         break;
     case SEMU_SAPPORO_OHR2_COMMAND_CONFIGURE:

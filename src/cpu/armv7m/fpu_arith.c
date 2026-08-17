@@ -118,15 +118,20 @@ static int decode_arithmetic(uint16_t first, uint16_t second,
 static semu_fpu_eval execute_arithmetic(const semu_cpu_state *state,
                                         const fpu_decoded *decoded)
 {
-    uint32_t destination = state->s[decoded->d];
-    uint32_t left = state->s[decoded->n];
-    uint32_t right = state->s[decoded->m];
+    uint32_t destination = 0u;
+    uint32_t left;
+    uint32_t right = 0u;
     semu_fpu_eval product;
 
     if (decoded->operation == FPU_OP_ABS ||
         decoded->operation == FPU_OP_NEG ||
-        decoded->operation == FPU_OP_SQRT)
+        decoded->operation == FPU_OP_SQRT) {
         left = state->s[decoded->m];
+    } else {
+        destination = state->s[decoded->d];
+        left = state->s[decoded->n];
+        right = state->s[decoded->m];
+    }
     switch (decoded->operation) {
     case FPU_OP_ABS:
         return (semu_fpu_eval){semu_fpu_abs_bits(left), state->fpscr};

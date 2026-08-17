@@ -107,7 +107,7 @@ static void test_mcu_other_offsets_read_zero(semu_test_context *context)
     reset_fixture fixture;
     static const uint32_t offsets[] = { 0x28u, 0x44u, 0x60u, 0x80u,
                                         0x88u, 0x108u, 0x124u, 0x33cu,
-                                        0x42cu };
+                                        0x418u, 0x42cu, 0x250u };
     size_t i;
     uint32_t value = 0xDEADu;
 
@@ -130,6 +130,12 @@ static void test_mcu_write_accept_and_unknown_refuse(semu_test_context *context)
                      mcu_write(&fixture, 0x340u, UINT32_C(0x40)));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      mcu_write(&fixture, 0x380u, UINT32_C(0x80000000)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_write(&fixture, 0x60u, UINT32_C(0x1)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_write(&fixture, 0x80u, UINT32_C(0x2)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_write(&fixture, 0x418u, UINT32_C(0x3)));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      mcu_read(&fixture, 0x340u, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);

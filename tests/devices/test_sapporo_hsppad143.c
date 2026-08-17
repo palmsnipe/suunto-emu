@@ -94,39 +94,51 @@ static void test_wrong_address(semu_test_context *context)
     semu_sapporo_hsppad143_destroy(sensor);
 }
 
-static void test_unknown_register(semu_test_context *context)
-{
-    semu_error error;
-    semu_sapporo_hsppad143 *sensor;
-    semu_serial_endpoint ep;
-    uint8_t rx[1];
-    uint8_t tx[] = { 0x05u, 0x01u };
-
-    semu_error_clear(&error);
-    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
-    ep = semu_sapporo_hsppad143_endpoint(sensor);
-
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0x48u, 0x05u, rx, 1u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_write(&ep, 0x48u, tx, 2u, &error));
-
-    semu_sapporo_hsppad143_destroy(sensor);
-}
-
-static void test_multi_byte_read_refuses_unknown(semu_test_context *context)
+static void test_register_overflow(semu_test_context *context)
 {
     semu_error error;
     semu_sapporo_hsppad143 *sensor;
     semu_serial_endpoint ep;
     uint8_t rx[2];
+    uint8_t tx[] = { 0xffu, 0x01u, 0x02u };
 
     semu_error_clear(&error);
     sensor = semu_sapporo_hsppad143_create(0x48u, &error);
     ep = semu_sapporo_hsppad143_endpoint(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0x48u, 0x00u, rx, 2u, &error));
+                     do_read(&ep, 0x48u, 0xffu, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x48u, tx, 3u, &error));
+
+    semu_sapporo_hsppad143_destroy(sensor);
+}
+
+static void test_observed_sample_and_configuration(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_hsppad143 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[3];
+    const uint8_t writes[][2] = {
+        { 0x11u, 0x80u }, { 0x0eu, 0x03u },
+        { 0x0fu, 0xa5u }, { 0x13u, 0x3cu }
+    };
+    size_t i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
+    ep = semu_sapporo_hsppad143_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x04u, rx, 3u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0u, rx[1u]);
+    SEMU_TEST_EQ_U64(context, 0u, rx[2u]);
+    for (i = 0u; i < sizeof(writes) / sizeof(writes[0]); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_write(&ep, 0x48u, writes[i], 2u, &error));
+    }
 
     semu_sapporo_hsppad143_destroy(sensor);
 }
@@ -177,8 +189,8 @@ int main(void)
         SEMU_TEST_CASE(test_startup_transcript),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
-        SEMU_TEST_CASE(test_unknown_register),
-        SEMU_TEST_CASE(test_multi_byte_read_refuses_unknown),
+        SEMU_TEST_CASE(test_register_overflow),
+        SEMU_TEST_CASE(test_observed_sample_and_configuration),
         SEMU_TEST_CASE(test_empty_write),
         SEMU_TEST_CASE(test_repeated_transcript)
     };

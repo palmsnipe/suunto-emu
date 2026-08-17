@@ -79,9 +79,11 @@ static int known_offset(const semu_apollo4_mspi *mspi, uint32_t offset)
     if (offset == INTEN || offset == INTSTAT || offset == INTCLR ||
         offset == INTSET) return 1;
     if (is_mspi1(mspi)) {
-        return offset == M1_CONTROL || offset == M1_DESCRIPTOR ||
-               offset == M1_QUEUE_CONTROL || offset == M1_QUEUE_ADDRESS ||
-               offset == M1_QUEUE_DEVICE || offset == M1_QUEUE_COUNT;
+        /* E-A4-MSPI-001: Renode's Sapporo MSPI1 wrapper retains the complete
+           aligned register window.  The native setup touches product-specific
+           slots before the DIAP4 command registers, so rejecting unlisted
+           offsets here faults the firmware before the observed display path. */
+        return 1;
     }
     /* The Renode MSPI2 model retains the aligned device-setup slots from
        0x80 through 0x9c; only 0x94 has transfer semantics here. */
@@ -269,7 +271,7 @@ static semu_status emit_dma(semu_apollo4_mspi *mspi, uint32_t value,
                        "Apollo4 MSPI DMA request was refused");
         return SEMU_ERR_STATE;
     }
-    *reg(mspi, M2_DMA_CONFIG) = value;
+    *reg(mspi, M2_DMA_CONFIG) = value & ~UINT32_C(0x3);
     semu_error_clear(error);
     return SEMU_OK;
 }
@@ -379,6 +381,11 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
         update_irq(mspi);
         return SEMU_OK;
     }
+    if (!is_mspi1(mspi) && offset == M2_DMA_STATUS) {
+        mspi->dma_status &= ~value;
+        semu_error_clear(error);
+        return SEMU_OK;
+    }
     if (is_mspi1(mspi) && offset == M1_QUEUE_COUNT && value != 3u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 MSPI queue count is not evidenced");
@@ -403,7 +410,7 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
         size_t frame_size = 1u;
         frame[0u] = command;
         if (command == 0x21u) {
-            uint32_t address = *reg(mspi, M2_ADDRESS);
+            address = *reg(mspi, M2_ADDRESS);
             frame[1u] = (uint8_t)(address >> 16u);
             frame[2u] = (uint8_t)(address >> 8u);
             frame[3u] = (uint8_t)address;

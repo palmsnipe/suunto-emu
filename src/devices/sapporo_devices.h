@@ -3,6 +3,7 @@
 
 #include "semu/apollo4.h"
 #include "semu/compat.h"
+#include "semu/cpu.h"
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
 #include "semu/storage.h"
@@ -33,6 +34,10 @@ semu_status semu_sapporo_devices_bind_bus(semu_sapporo_devices *devices,
 semu_status semu_sapporo_devices_bind_no_device_fixtures(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error);
+
+semu_status semu_sapporo_devices_apply_compat_hook(
+    semu_sapporo_devices *devices, semu_bus *bus, semu_cpu_state *cpu_state,
+    semu_layer_state *state, semu_logger *logger, semu_error *error);
 
 /*
  * Attaches all verified device endpoints to the Apollo4 SoC controllers.

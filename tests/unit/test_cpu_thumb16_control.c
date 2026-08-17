@@ -266,7 +266,8 @@ static int run_ite_mov(uint32_t input, uint32_t expected, unsigned steps)
     state->xpsr = T;
     result = semu_cpu_fixture_run(&fixture, steps) == SEMU_OK &&
              state->r[1] == expected &&
-             (state->xpsr & (N | Z | C | V)) == (Z | C);
+             (state->xpsr & (N | Z | C | V)) ==
+                 (input == 1u ? (Z | C) : C);
     semu_cpu_fixture_destroy(&fixture);
     return result;
 }
@@ -275,6 +276,34 @@ static void test_it_conditional_mov_preserves_flags(semu_test_context *context)
 {
     SEMU_TEST_ASSERT(context, run_ite_mov(1u, 1u, 3u));
     SEMU_TEST_ASSERT(context, run_ite_mov(2u, 0u, 4u));
+}
+
+static void test_it_shift_preserves_flags(semu_test_context *context)
+{
+    static const uint16_t instructions[] = {
+        0x2800u, /* cmp r0, #0 */
+        0xbf28u, /* it cs */
+        0x0889u, /* lsrs r1, r1, #2 */
+        0xbe00u
+    };
+    uint8_t program[sizeof(instructions)];
+    semu_cpu_fixture fixture = {0};
+    semu_cpu_state *state;
+    unsigned index;
+
+    for (index = 0u; index < SEMU_ARRAY_LEN(instructions); ++index) {
+        put16(program, index * 2u, instructions[index]);
+    }
+    SEMU_TEST_ASSERT(context,
+                     semu_cpu_fixture_init(&fixture, program, sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = 0u;
+    state->r[1] = 0x200u;
+    state->xpsr = T;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_run(&fixture, 3u));
+    SEMU_TEST_EQ_U64(context, 0x80u, state->r[1]);
+    SEMU_TEST_EQ_U64(context, Z | C, state->xpsr & (N | Z | C | V));
+    semu_cpu_fixture_destroy(&fixture);
 }
 
 static void test_hints_sleep_and_bkpt(semu_test_context *context)
@@ -385,6 +414,7 @@ int main(void)
         SEMU_TEST_CASE(test_reverse_extend),
         SEMU_TEST_CASE(test_it),
         SEMU_TEST_CASE(test_it_conditional_mov_preserves_flags),
+        SEMU_TEST_CASE(test_it_shift_preserves_flags),
         SEMU_TEST_CASE(test_hints_sleep_and_bkpt),
         SEMU_TEST_CASE(test_cps_and_refusals)
     };

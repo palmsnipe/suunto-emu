@@ -204,6 +204,13 @@ static void test_decoder_ready_entry_and_refusals(semu_test_context *context)
                               &fixture.error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x7fc12345u, state->s[0]);
+    state->s[1] = 0x3f800000u;
+    status = armv7m_fpu_arith(fixture.cpu,
+                              unary_first(0xeeb1u, 0u),
+                              unary_second(0x0a40u, 0u, 1u),
+                              &fixture.error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, 0xbf800000u, state->s[0]);
     before = *state;
     fixture.error.code = SEMU_ERR_STATE;
     (void)strcpy(fixture.error.text, "sentinel");

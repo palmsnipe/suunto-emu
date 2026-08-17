@@ -13,13 +13,14 @@
  * C# model (SapporoHsppad143.cs) protocol:
  *   Write: first byte selects register, subsequent bytes write with
  *          auto-increment.
- *   Read:  reads from selected register with auto-increment.
+ *   Read:  reads from selected register with auto-increment; a repeated-start
+ *          read may omit the selector and retain the previous register.
  *   FinishTransmission: keeps selected register across repeated-start.
  *   Reset: identity 0x00=0x49, ready 0x03=0x11, variant 0x1c=0xe0.
  *
  * Sample values are zero (synthetic configuration, not physical measurements).
- * Unknown register, wrong address, wrong length, and overflow refuse before
- * mutation. No wildcard readable/writable mask array is used.
+ * The Renode model exposes the full 256-byte register file; only wrong
+ * address, invalid transaction shapes, and register-pointer overflow refuse.
  */
 
 enum {
@@ -37,13 +38,6 @@ struct semu_sapporo_hsppad143 {
     uint8_t registers[HSPPAD_REG_COUNT];
     uint8_t selected;
 };
-
-static int is_known_register(uint8_t reg)
-{
-    return reg == HSPPAD_IDENTITY_REG ||
-           reg == HSPPAD_READY_REG ||
-           reg == HSPPAD_VARIANT_REG;
-}
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
 {
@@ -65,17 +59,13 @@ static semu_transaction_result handle_read(semu_sapporo_hsppad143 *sensor,
                                            semu_error *error)
 {
     size_t i;
-    if (t->tx_size == 0u) {
-        return refuse(error, "read without register selection");
+    if (t->tx_size > 0u) {
+        sensor->selected = t->tx[0];
     }
-    sensor->selected = t->tx[0];
     for (i = 0u; i < t->rx_size; ++i) {
         uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)i);
         if (idx >= HSPPAD_REG_COUNT) {
             return refuse(error, "register overflow");
-        }
-        if (!is_known_register((uint8_t)idx)) {
-            return refuse(error, "unknown read register");
         }
         t->rx[i] = sensor->registers[idx];
     }
@@ -98,9 +88,6 @@ static semu_transaction_result handle_write(semu_sapporo_hsppad143 *sensor,
         uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)(i - 1u));
         if (idx >= HSPPAD_REG_COUNT) {
             return refuse(error, "register overflow");
-        }
-        if (!is_known_register((uint8_t)idx)) {
-            return refuse(error, "unknown write register");
         }
         sensor->registers[idx] = t->tx[i];
     }
