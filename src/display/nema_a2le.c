@@ -32,15 +32,28 @@ semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
                        x, y, width, height);
         return SEMU_ERR_UNSUPPORTED;
     }
-    /* stride must cover width: stride * 4 >= width */
-    if (stride * 4u < width) {
+    /* Check the multiplication before comparing stride to the width. */
+    if (stride > 0xFFFFFFFFu / 4u || stride * 4u < width) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "a2le: stride %u too small for width %u",
                        stride, width);
         return SEMU_ERR_UNSUPPORTED;
     }
 
-    byte_offset = y * stride + (x / 4u);
+    if (y > 0xFFFFFFFFu / stride) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "a2le: row offset overflow y %u * stride %u",
+                       y, stride);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    byte_offset = y * stride;
+    if ((x / 4u) > 0xFFFFFFFFu - byte_offset) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "a2le: byte offset overflow row 0x%08x + %u",
+                       byte_offset, x / 4u);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    byte_offset += x / 4u;
     sample_idx = x & 3u;
 
     if (base > 0xFFFFFFFFu - byte_offset) {

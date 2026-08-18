@@ -216,6 +216,28 @@ static void test_unsupported_sampling(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_a2le_address_overflow(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    uint8_t alpha = 0u;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+
+    /* stride*4 must be checked before the row-width comparison. */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_a2le_sample(bus, TEX_BASE, 0x40000001u, 1u, 1u,
+                         0u, 0u, &alpha, &err));
+
+    /* y*stride must not wrap into the beginning of the bus image. */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_a2le_sample(bus, TEX_BASE, 0x10000000u, 1u, 17u,
+                         0u, 16u, &alpha, &err));
+    semu_bus_destroy(bus);
+}
+
 static void test_bus_range_overflow(semu_test_context *context)
 {
     semu_error err;
@@ -271,6 +293,7 @@ int main(void)
         SEMU_TEST_CASE(test_out_of_range),
         SEMU_TEST_CASE(test_unsupported_format),
         SEMU_TEST_CASE(test_unsupported_sampling),
+        SEMU_TEST_CASE(test_a2le_address_overflow),
         SEMU_TEST_CASE(test_bus_range_overflow),
         SEMU_TEST_CASE(test_repeat_sample)
     };
