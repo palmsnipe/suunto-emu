@@ -8,6 +8,9 @@
 
 #include "sapporo_nema_gpu.h"
 
+#include "../display/nema_completion.h"
+#include "../display/nema_framing.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,11 +18,7 @@
 #define NEMA_REG_SETUP        0x094u
 #define NEMA_REG_CMDSTATUS    0x0e8u
 #define NEMA_REG_CMDRINGSTOP  0x0ecu
-#define NEMA_REG_CMDADDR      0x0f0u
-#define NEMA_REG_CMDSIZE      0x0f4u
-#define NEMA_REG_INTERRUPT    0x0f8u
 #define NEMA_REG_STATUS       0x0fcu
-#define NEMA_REG_CLID         0x148u
 #define NEMA_REG_MODULE_ID    0x1ecu
 #define NEMA_REG_CONFIG       0x1f0u
 #define NEMA_REG_FRAME_GEN    0x1f4u
@@ -40,11 +39,19 @@ struct semu_nema_gpu {
     void *frame_context;
     semu_apollo4_irq_fn irq_sink;
     void *irq_context;
+    semu_scheduler *scheduler;
+    nema_completion *completion;
     uint32_t registers[NEMA_REG_COUNT];
     int initialization_complete;
     uint32_t previous_ring_stop;
     uint32_t frame_generation;
 };
+
+typedef struct {
+    semu_nema_gpu *gpu;
+    size_t child_count;
+    semu_transaction_result result;
+} render_submission;
 
 static int is_command_register(uint32_t offset)
 {
@@ -76,6 +83,103 @@ static uint32_t normalize_ring_pointer(uint32_t raw)
     return raw & ~NEMA_RING_CTRL_MASK;
 }
 
+static void completion_reg_write(void *context, uint32_t offset,
+                                 uint32_t value)
+{
+    semu_nema_gpu *gpu = (semu_nema_gpu *)context;
+    if (gpu != NULL && offset < NEMA_GPU_SIZE && (offset & 3u) == 0u) {
+        gpu->registers[offset / 4u] = value;
+    }
+}
+
+static void completion_irq(void *context, unsigned irq, int asserted)
+{
+    semu_nema_gpu *gpu = (semu_nema_gpu *)context;
+    if (gpu != NULL && irq == NEMA_GPU_IRQ && gpu->irq_sink != NULL) {
+        gpu->irq_sink(gpu->irq_context, irq, asserted);
+    }
+}
+
+static void submit_child(void *context, uint32_t child_address,
+                         uint32_t child_entries)
+{
+    render_submission *submission = (render_submission *)context;
+    semu_nema_gpu *gpu = submission->gpu;
+    semu_error error;
+
+    if (submission->result != SEMU_TRANSACTION_OK) {
+        return;
+    }
+    if (gpu->backend_submit == NULL || child_entries == 0u) {
+        submission->result = SEMU_TRANSACTION_REFUSE;
+        return;
+    }
+    semu_error_clear(&error);
+    submission->result = gpu->backend_submit(
+        gpu->backend_context, gpu->bus, child_address, child_entries,
+        0u, gpu->frame_callback, gpu->frame_context, &error);
+    if (submission->result == SEMU_TRANSACTION_OK) {
+        ++submission->child_count;
+    }
+}
+
+static semu_status find_completion_marker(semu_nema_gpu *gpu,
+                                           uint32_t ring_base,
+                                           uint32_t ring_words,
+                                           uint32_t old_word,
+                                           uint32_t new_word,
+                                           uint32_t *list_id,
+                                           int *found,
+                                           semu_error *error)
+{
+    uint32_t submitted;
+    uint32_t i;
+
+    if (list_id == NULL || found == NULL || ring_words == 0u) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "nema: invalid completion scan arguments");
+        return SEMU_ERR_ARGUMENT;
+    }
+    *found = 0;
+    submitted = (new_word - old_word) % ring_words;
+    if (submitted == 0u) {
+        submitted = ring_words;
+    }
+    for (i = 0u; i < submitted; ++i) {
+        uint32_t index = (old_word + i) % ring_words;
+        uint32_t word;
+        semu_status status = semu_bus_read(
+            gpu->bus, ring_base + index * 4u, 4u, &word, error);
+        if (status != SEMU_OK) {
+            return status;
+        }
+        if (word == NEMA_REG_CLID) {
+            uint32_t next_index = (index + 1u) % ring_words;
+            uint32_t interrupt_index = (index + 2u) % ring_words;
+            uint32_t value_index = (index + 3u) % ring_words;
+            uint32_t interrupt_word;
+            uint32_t value_word;
+
+            status = semu_bus_read(gpu->bus,
+                ring_base + next_index * 4u, 4u, list_id, error);
+            if (status != SEMU_OK) return status;
+            status = semu_bus_read(gpu->bus,
+                ring_base + interrupt_index * 4u, 4u,
+                &interrupt_word, error);
+            if (status != SEMU_OK) return status;
+            status = semu_bus_read(gpu->bus,
+                ring_base + value_index * 4u, 4u, &value_word, error);
+            if (status != SEMU_OK) return status;
+            if (interrupt_word == NEMA_REG_INTERRUPT && value_word == 1u) {
+                *found = 1;
+                return SEMU_OK;
+            }
+        }
+    }
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
 {
     uint32_t address = gpu->registers[NEMA_REG_CMDADDR / 4u];
@@ -83,6 +187,7 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
     uint32_t stop = normalize_ring_pointer(raw_stop);
     semu_error error;
     semu_transaction_result result;
+    int immediate_completion = 0;
 
     if (gpu->backend_submit == NULL) {
         gpu->previous_ring_stop = stop;
@@ -107,24 +212,60 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
             return;
         }
 
-        semu_error_clear(&error);
-        if (new_word >= old_word) {
-            result = gpu->backend_submit(gpu->backend_context,
-                gpu->bus, gpu->previous_ring_stop, submitted, 0u,
-                gpu->frame_callback, gpu->frame_context, &error);
-        } else {
-            result = gpu->backend_submit(gpu->backend_context,
-                gpu->bus, address, word_count, 0u,
-                gpu->frame_callback, gpu->frame_context, &error);
+        {
+            render_submission submission;
+            uint32_t list_id = 0u;
+            int marker_found = 0;
+            semu_status status;
+
+            submission.gpu = gpu;
+            submission.child_count = 0u;
+            submission.result = SEMU_TRANSACTION_OK;
+            semu_error_clear(&error);
+            status = nema_framing_parse(gpu->bus, address, word_count,
+                old_word, new_word, submit_child, &submission, NULL, NULL,
+                &error);
+            if (status != SEMU_OK) {
+                result = SEMU_TRANSACTION_REFUSE;
+            } else if (submission.child_count != 0u) {
+                result = submission.result;
+                if (result == SEMU_TRANSACTION_OK) {
+                    status = find_completion_marker(gpu, address, word_count,
+                        old_word, new_word, &list_id, &marker_found, &error);
+                    if (status != SEMU_OK) {
+                        result = SEMU_TRANSACTION_REFUSE;
+                    } else if (marker_found &&
+                               (gpu->scheduler == NULL ||
+                                gpu->completion == NULL ||
+                                nema_completion_schedule(gpu->completion,
+                                    gpu->scheduler, list_id,
+                                    completion_reg_write, gpu,
+                                    completion_irq, gpu, &error) != SEMU_OK)) {
+                        result = SEMU_TRANSACTION_REFUSE;
+                    }
+                }
+            } else if (new_word >= old_word) {
+                result = gpu->backend_submit(gpu->backend_context,
+                    gpu->bus, gpu->previous_ring_stop, submitted, 0u,
+                    gpu->frame_callback, gpu->frame_context, &error);
+                immediate_completion = 1;
+            } else {
+                result = gpu->backend_submit(gpu->backend_context,
+                    gpu->bus, address, word_count, 0u,
+                    gpu->frame_callback, gpu->frame_context, &error);
+                immediate_completion = 1;
+            }
         }
 
         if (result == SEMU_TRANSACTION_OK) {
-            gpu->registers[NEMA_REG_INTERRUPT / 4u] = 1u;
             gpu->frame_generation++;
             gpu->registers[NEMA_REG_FRAME_GEN / 4u] =
                 gpu->frame_generation;
-            if (gpu->irq_sink != NULL) {
-                gpu->irq_sink(gpu->irq_context, NEMA_GPU_IRQ, 1);
+            if (immediate_completion) {
+                gpu->registers[NEMA_REG_INTERRUPT / 4u] = 1u;
+                if (gpu->irq_sink != NULL) {
+                    gpu->irq_sink(gpu->irq_context, NEMA_GPU_IRQ, 1);
+                }
             }
         }
     }
@@ -194,6 +335,7 @@ static void nema_gpu_reset_impl(void *context)
 {
     semu_nema_gpu *gpu = (semu_nema_gpu *)context;
     if (gpu != NULL) {
+        nema_completion_reset(gpu->completion);
         memset(gpu->registers, 0, sizeof(gpu->registers));
         gpu->initialization_complete = 0;
         gpu->previous_ring_stop = 0u;
@@ -214,6 +356,7 @@ semu_nema_gpu *semu_nema_gpu_create(semu_bus *bus,
     void *frame_context,
     semu_apollo4_irq_fn irq_sink,
     void *irq_context,
+    semu_scheduler *scheduler,
     semu_error *error)
 {
     semu_nema_gpu *gpu;
@@ -233,11 +376,20 @@ semu_nema_gpu *semu_nema_gpu_create(semu_bus *bus,
     gpu->frame_context = frame_context;
     gpu->irq_sink = irq_sink;
     gpu->irq_context = irq_context;
+    gpu->scheduler = scheduler;
+    if (nema_completion_create(&gpu->completion, error) != SEMU_OK) {
+        free(gpu);
+        return NULL;
+    }
     return gpu;
 }
 
 void semu_nema_gpu_destroy(semu_nema_gpu *gpu)
 {
+    if (gpu != NULL) {
+        nema_completion_cancel(gpu->completion);
+        nema_completion_destroy(gpu->completion);
+    }
     free(gpu);
 }
 

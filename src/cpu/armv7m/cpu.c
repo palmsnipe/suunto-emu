@@ -116,6 +116,7 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
     cpu->has_fault_address = 0u;
     cpu->vector_table = vector_table & ~0x7fu;
     cpu->prigroup = 0u;
+    cpu->pending_source_count = 0u;
     cpu->ccr = 1u << 9;
     cpu->itstate = 0u;
     cpu->event_register = 0u;
@@ -254,6 +255,15 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
         int was_pending = cpu->irq_level[irq] != 0u ||
                           cpu->irq_pending[irq] != 0u;
         cpu->irq_level[irq] = level != 0 ? 1u : 0u;
+        if (!was_pending && cpu->irq_level[irq] != 0u) {
+            if (cpu->pending_source_count != UINT16_MAX) {
+                ++cpu->pending_source_count;
+            }
+        } else if (was_pending && cpu->irq_level[irq] == 0u &&
+                   cpu->irq_pending[irq] == 0u &&
+                   cpu->pending_source_count != 0u) {
+            --cpu->pending_source_count;
+        }
         if (level != 0) cpu->irq_enabled[irq] = 1u;
         if (!was_pending && level != 0)
             armv7m_signal_pending_event(cpu, 16u + irq);

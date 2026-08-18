@@ -60,7 +60,15 @@ struct semu_sapporo_devices {
     semu_apollo4_uart_endpoint uart_ep;
     semu_sapporo_222_fixture_context fixture_context;
 };
-
+static void gps_awake_signal(void *context, unsigned channel, int level)
+{
+    semu_sapporo_devices *devices = (semu_sapporo_devices *)context;
+    semu_error error;
+    (void)channel;
+    if (devices == NULL || devices->soc == NULL) return;
+    semu_error_clear(&error);
+    (void)semu_apollo4_set_gpio_input(devices->soc, 24u, level, &error);
+}
 /* E-SAP-OHR2-001: OHR2 ready is wired to the firmware's GPIO 62 input. */
 static void ohr_ready_signal(void *context, unsigned signal, int level)
 {
@@ -382,6 +390,21 @@ semu_status semu_sapporo_devices_apply_compat_hook(
                        "Sapporo compatibility hook binding is incomplete");
         return SEMU_ERR_ARGUMENT;
     }
+    if (cpu_state->r[15] != UINT32_C(0x001145be) &&
+        cpu_state->r[15] != UINT32_C(0x0009d166) &&
+        cpu_state->r[15] != UINT32_C(0x001145e8) &&
+        cpu_state->r[15] != UINT32_C(0x0011469c) &&
+        cpu_state->r[15] != UINT32_C(0x0011470a) &&
+        cpu_state->r[15] != UINT32_C(0x0010f6d8) &&
+        cpu_state->r[15] != UINT32_C(0x0010f4fc) &&
+        cpu_state->r[15] != UINT32_C(0x0010f610) &&
+        cpu_state->r[15] != UINT32_C(0x0010f7c2) &&
+        cpu_state->r[15] != UINT32_C(0x0010f7b8) &&
+        cpu_state->r[15] != UINT32_C(0x0009aaec) &&
+        cpu_state->r[15] != UINT32_C(0x0009a3b8) &&
+        cpu_state->r[15] != UINT32_C(0x0010fbde)) {
+        return SEMU_OK;
+    }
     state_hook_hits = state->descriptor != NULL &&
         state->descriptor->interventions != NULL &&
         SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP <
@@ -406,7 +429,6 @@ semu_status semu_sapporo_devices_apply_compat_hook(
     }
     return SEMU_OK;
 }
-
 semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
                                          semu_apollo4 *soc,
                                          semu_error *error)
@@ -417,6 +439,8 @@ semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
         return SEMU_ERR_ARGUMENT;
     }
     devices->soc = soc;
+    semu_sapporo_cxd5610_set_awake_signal(devices->gps,
+                                          gps_awake_signal, devices);
     semu_sapporo_cxd5610_set_rx_sink(devices->gps,
                                      uart_bridge_receive, soc->uart);
     if (semu_apollo4_iom_attach_endpoint(soc->iom0,
@@ -444,7 +468,6 @@ semu_status semu_sapporo_devices_attach(semu_sapporo_devices *devices,
         return error->code;
     return SEMU_OK;
 }
-
 const semu_serial_endpoint *semu_sapporo_devices_iom_endpoint(
     semu_sapporo_devices *devices, unsigned instance)
 {

@@ -113,7 +113,7 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     machine->nema_gpu = semu_nema_gpu_create(machine->bus,
         machine->display_backend_submit, machine->display_backend_context,
         machine->frame_callback, machine->frame_context,
-        irq_sink, machine, error);
+        irq_sink, machine, machine->scheduler, error);
     if (machine->nema_gpu == NULL) {
         return error->code;
     }

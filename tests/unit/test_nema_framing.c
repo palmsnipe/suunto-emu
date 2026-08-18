@@ -107,6 +107,7 @@ static void test_complete_child(semu_test_context *context)
                              on_child, &cap, on_record, &cap, &error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, st);
     SEMU_TEST_EQ_U64(context, 1u, cap.children);
+    SEMU_TEST_EQ_U64(context, 8u, cap.child_entries[0u]);
     SEMU_TEST_EQ_U64(context, 4u, cap.count);
     SEMU_TEST_EQ_U64(context, 0x110u, cap.records[0u].reg_offset);
     SEMU_TEST_EQ_U64(context, 0x114u, cap.records[1u].reg_offset);

@@ -15,6 +15,7 @@ typedef struct sdl_frontend {
     sdl_presenter *presenter;
     semu_sdl_input_adapter *input_adapter;
     semu_input_mapper *input_mapper;
+    unsigned long frame_count;
     int failed;
 } sdl_frontend;
 
@@ -32,6 +33,12 @@ static void publish_frame(void *context, const semu_frame *frame)
         frontend->failed = 1;
         return;
     }
+    if (frontend->frame_count == 0u) {
+        fprintf(stderr, "SDL first-frame width=%u height=%u generation=%llu\n",
+                frame->width, frame->height,
+                (unsigned long long)frame->generation);
+    }
+    ++frontend->frame_count;
 }
 
 static semu_stop_reason poll_input(void *context, semu_machine *machine,

@@ -1,4 +1,5 @@
 #include "armv7m_internal.h"
+
 static semu_status refuse(uint32_t offset, semu_error *error)
 {
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -149,7 +150,21 @@ void armv7m_set_system_pending(semu_cpu *cpu, unsigned exception)
         cpu->system_pending[exception] != 0u)
         return;
     cpu->system_pending[exception] = 1u;
+    if (cpu->pending_source_count != UINT16_MAX) {
+        ++cpu->pending_source_count;
+    }
     armv7m_signal_pending_event(cpu, exception);
+}
+
+void armv7m_clear_system_pending(semu_cpu *cpu, unsigned exception)
+{
+    if (cpu == NULL || exception >= 16u ||
+        cpu->system_pending[exception] == 0u)
+        return;
+    cpu->system_pending[exception] = 0u;
+    if (cpu->pending_source_count != 0u) {
+        --cpu->pending_source_count;
+    }
 }
 
 void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq)
@@ -158,7 +173,21 @@ void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq)
         cpu->irq_pending[irq] != 0u)
         return;
     cpu->irq_pending[irq] = 1u;
+    if (cpu->pending_source_count != UINT16_MAX) {
+        ++cpu->pending_source_count;
+    }
     armv7m_signal_pending_event(cpu, 16u + irq);
+}
+
+void armv7m_clear_irq_pending(semu_cpu *cpu, unsigned irq)
+{
+    if (cpu == NULL || irq >= ARMV7M_IMPLEMENTED_IRQ_COUNT ||
+        cpu->irq_pending[irq] == 0u)
+        return;
+    cpu->irq_pending[irq] = 0u;
+    if (cpu->irq_level[irq] == 0u && cpu->pending_source_count != 0u) {
+        --cpu->pending_source_count;
+    }
 }
 
 int armv7m_pending_wake(const semu_cpu *cpu)
@@ -181,10 +210,10 @@ void armv7m_exception_entered(semu_cpu *cpu, unsigned exception)
 {
     if (exception >= 16u && exception < 16u + ARMV7M_IRQ_COUNT) {
         unsigned irq = exception - 16u;
-        cpu->irq_pending[irq] = 0u;
+        armv7m_clear_irq_pending(cpu, irq);
         cpu->irq_active[irq] = 1u;
     } else if (exception < 16u) {
-        cpu->system_pending[exception] = 0u;
+        armv7m_clear_system_pending(cpu, exception);
         cpu->system_active[exception] = 1u;
     }
     if (cpu->exception_depth != UINT8_MAX) ++cpu->exception_depth;
@@ -230,7 +259,7 @@ static void update_irq_bits(semu_cpu *cpu, unsigned word, uint32_t value,
         if (kind == 0u) cpu->irq_enabled[irq] = set != 0 ? 1u : 0u;
         else if (kind == 1u) {
             if (set != 0) armv7m_set_irq_pending(cpu, irq);
-            else cpu->irq_pending[irq] = 0u;
+            else armv7m_clear_irq_pending(cpu, irq);
         }
     }
 }

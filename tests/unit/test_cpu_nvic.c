@@ -278,13 +278,42 @@ static void test_nmi_mask_bypass_and_reserved_refusal(semu_test_context *context
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_pending_source_count_tracks_edges(semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, (uint64_t)-1,
+                     (uint64_t)armv7m_pending_exception(fixture.cpu));
+
+    semu_cpu_set_irq(fixture.cpu, 0u, 1);
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, 16u,
+                     (uint64_t)armv7m_pending_exception(fixture.cpu));
+    semu_cpu_set_irq(fixture.cpu, 0u, 0);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, (uint64_t)-1,
+                     (uint64_t)armv7m_pending_exception(fixture.cpu));
+
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd04u,
+                                         1u << 28));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd04u,
+                                         1u << 27));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_nvic_lifecycle_and_scs),
         SEMU_TEST_CASE(test_priority_pending_and_pendsv),
         SEMU_TEST_CASE(test_prigroup_masks_and_nested_return),
-        SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal)
+        SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal),
+        SEMU_TEST_CASE(test_pending_source_count_tracks_edges)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

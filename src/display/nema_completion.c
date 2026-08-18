@@ -27,6 +27,9 @@ static void completion_callback(void *context, uint64_t now_ns)
 {
     completion_entry *e = (completion_entry *)context;
     (void)now_ns;
+    if (!e->active) {
+        return;
+    }
     if (e->on_reg_write != NULL) {
         e->on_reg_write(e->reg_context, NEMA_REG_CLID, e->list_id);
         e->on_reg_write(e->reg_context, NEMA_REG_INTERRUPT, 1u);

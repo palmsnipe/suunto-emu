@@ -5,6 +5,7 @@
 #include "semu/bus.h"
 #include "semu/display.h"
 #include "semu/frame.h"
+#include "semu/scheduler.h"
 #include "semu/types.h"
 
 /*
@@ -27,6 +28,7 @@ semu_nema_gpu *semu_nema_gpu_create(semu_bus *bus,
     void *frame_context,
     semu_apollo4_irq_fn irq_sink,
     void *irq_context,
+    semu_scheduler *scheduler,
     semu_error *error);
 
 void semu_nema_gpu_destroy(semu_nema_gpu *gpu);

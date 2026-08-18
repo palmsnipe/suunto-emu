@@ -346,7 +346,9 @@ semu_status semu_apollo4_mspi_read(void *context, uint32_t offset,
                        "Apollo4 MSPI offset 0x%03x is unsupported", offset);
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (offset == INTSTAT) *value = mspi->status;
+    if (offset == INTSTAT) {
+        *value = mspi->status;
+    }
     else if (offset == M2_DMA_STATUS && !is_mspi1(mspi)) *value = mspi->dma_status;
     else *value = *reg(mspi, offset);
     semu_error_clear(error);

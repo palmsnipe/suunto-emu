@@ -257,13 +257,18 @@ static semu_transaction_result flash_transfer(
         semu_error_clear(error);
         return SEMU_TRANSACTION_OK;
     case COMMAND_OCTAL_READ:
+    {
+        semu_transaction_result result;
+
         if (transaction->tx_size != 4u || transaction->tx == NULL ||
             transaction->rx == NULL || transaction->rx_size == 0u) {
             return refuse(error, SEMU_ERR_UNSUPPORTED,
                           "external flash read transaction shape is unsupported");
         }
         address = frame_address(transaction);
-        return copy_read(flash, transaction, address, error);
+        result = copy_read(flash, transaction, address, error);
+        return result;
+    }
     case COMMAND_WRITE_ENABLE:
         if (transaction->tx_size != 1u || transaction->rx_size != 0u) {
             return refuse(error, SEMU_ERR_UNSUPPORTED,

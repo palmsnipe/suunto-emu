@@ -240,6 +240,16 @@ void semu_sapporo_cxd5610_set_rx_sink(
         transport->rx_context = rx_context;
     }
 }
+void semu_sapporo_cxd5610_set_awake_signal(
+    semu_sapporo_cxd5610 *transport, semu_peripheral_signal_fn signal,
+    void *context)
+{
+    if (transport != NULL) {
+        transport->awake_signal = signal;
+        transport->awake_context = context;
+        set_awake(transport, 0);
+    }
+}
 semu_status semu_sapporo_cxd5610_inject_rx(
     semu_sapporo_cxd5610 *transport, const uint8_t *bytes, size_t count,
     semu_error *error)

@@ -91,7 +91,8 @@ static semu_status scan_and_stage(semu_bus *bus,
                            child_addr);
             return SEMU_ERR_UNSUPPORTED;
         }
-        if (child_entries == 0u || child_entries > NEMA_MAX_LIST_WORDS) {
+        if (child_entries == 0u || child_entries > NEMA_MAX_LIST_WORDS ||
+            child_entries > (UINT32_MAX - child_addr) / 4u) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "nema: child entries %u out of range",
                            child_entries);

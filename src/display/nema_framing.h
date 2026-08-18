@@ -39,8 +39,9 @@ typedef void (*nema_child_fn)(void *context, uint32_t child_address,
 /*
  * Parses the ring between old_word and new_word (wrapping), finds
  * child-list submissions, and decodes register/value pairs from each
- * child list.  All records are staged before any callback is invoked;
- * on malformed input, returns SEMU_ERR_UNSUPPORTED without callbacks.
+ * child list.  CL_PUSH|CMDSIZE is a 32-bit entry count.  All records are
+ * staged before any callback is invoked; on malformed input, returns
+ * SEMU_ERR_UNSUPPORTED without callbacks.
  *
  * ring_base:   SRAM address of ring start (must be 4-byte aligned).
  * ring_words:  ring capacity in 32-bit words (must be > 0).

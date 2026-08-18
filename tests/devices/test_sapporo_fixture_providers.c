@@ -139,7 +139,7 @@ static void test_gps_running_status(semu_test_context *context)
     SEMU_TEST_ASSERT(context, transport != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_sapporo_222_arm_gps_running_status(transport, &ctx, &error));
-    SEMU_TEST_EQ_U64(context, 1u, state.hits);
+    SEMU_TEST_EQ_U64(context, 2u, state.hits);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_scheduler_advance(scheduler, UINT64_C(10000000), &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,

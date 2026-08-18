@@ -1,8 +1,10 @@
 #include "../../src/devices/sapporo_nema_gpu.h"
 #include "../../src/display/nema_backend.h"
+#include "../../src/display/nema_completion.h"
 #include "test.h"
 
 #include "semu/bus.h"
+#include "semu/scheduler.h"
 #include "semu/types.h"
 
 #include <string.h>
@@ -92,6 +94,46 @@ static uint32_t build_clear_cmd(uint8_t *cmd)
     return w;
 }
 
+static void load_small_child(semu_bus *bus, semu_error *error)
+{
+    uint8_t child[16u];
+    put_u32(child, 0u, 0x00000110u);
+    put_u32(child, 4u, 0u);
+    put_u32(child, 8u, 0x00000114u);
+    put_u32(child, 12u, 0u);
+    semu_bus_load(bus, TEX_BASE, child, sizeof(child), error);
+}
+
+static void configure_ring(semu_bus *bus, semu_error *error)
+{
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDADDR,
+                   4u, CMD_BASE, error);
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDSIZE,
+                   4u, 64u * 4u, error);
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
+                   4u, CMD_BASE | 0x6u, error);
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_STATUS,
+                   4u, 0u, error);
+}
+
+static void put_framed_child(uint8_t *ring, uint32_t offset,
+                             uint32_t child_size)
+{
+    put_u32(ring, offset + 0u, NEMA_REG_CMDADDR);
+    put_u32(ring, offset + 4u, TEX_BASE);
+    put_u32(ring, offset + 8u, NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
+    put_u32(ring, offset + 12u, child_size);
+}
+
+static void put_completion_marker(uint8_t *ring, uint32_t offset,
+                                  uint32_t list_id)
+{
+    put_u32(ring, offset + 0u, NEMA_REG_CLID);
+    put_u32(ring, offset + 4u, list_id);
+    put_u32(ring, offset + 8u, NEMA_REG_INTERRUPT);
+    put_u32(ring, offset + 12u, 1u);
+}
+
 static void test_module_id(semu_test_context *context)
 {
     semu_error err;
@@ -102,7 +144,7 @@ static void test_module_id(semu_test_context *context)
     bus = make_bus(&err);
     SEMU_TEST_ASSERT(context, bus != NULL);
     gpu = semu_nema_gpu_create(bus, NULL, NULL, NULL, NULL,
-                                NULL, NULL, &err);
+                                NULL, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_nema_gpu_attach(gpu, &err));
@@ -132,7 +174,7 @@ static void test_render_trigger(semu_test_context *context)
     SEMU_TEST_ASSERT(context, backend != NULL);
     gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
                                 test_frame_cb, NULL,
-                                test_irq_sink, NULL, &err);
+                                test_irq_sink, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
 
@@ -195,7 +237,7 @@ static void test_bootstrap_skipped(semu_test_context *context)
     SEMU_TEST_ASSERT(context, backend != NULL);
     gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
                                 test_frame_cb, NULL,
-                                test_irq_sink, NULL, &err);
+                                test_irq_sink, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
 
@@ -230,7 +272,7 @@ static void test_reset(semu_test_context *context)
     bus = make_bus(&err);
     SEMU_TEST_ASSERT(context, bus != NULL);
     gpu = semu_nema_gpu_create(bus, NULL, NULL, NULL, NULL,
-                                NULL, NULL, &err);
+                                NULL, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
 
@@ -245,13 +287,113 @@ static void test_reset(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_ring_completion_marker(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_scheduler *scheduler;
+    semu_nema_backend *backend;
+    semu_nema_gpu *gpu;
+    uint8_t ring[64u * 4u] = {0};
+    uint32_t val = 0u;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    scheduler = semu_scheduler_create(&err);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
+                     backend != NULL);
+    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+                                test_frame_cb, NULL, test_irq_sink, NULL,
+                                scheduler, &err);
+    SEMU_TEST_ASSERT(context, gpu != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
+    load_small_child(bus, &err);
+    configure_ring(bus, &err);
+
+    put_framed_child(ring, 0u, 4u);
+    semu_bus_load(bus, CMD_BASE, ring, 16u, &err);
+    cb_invoked = 0;
+    irq_level = -1;
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
+                   4u, CMD_BASE + 16u, &err);
+    SEMU_TEST_EQ_U64(context, 1, cb_invoked);
+    SEMU_TEST_EQ_U64(context, -1, irq_level);
+
+    put_framed_child(ring, 16u, 4u);
+    put_completion_marker(ring, 32u, 1u);
+    semu_bus_load(bus, CMD_BASE + 16u, ring + 16u, 32u, &err);
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
+                   4u, CMD_BASE + 48u, &err);
+    SEMU_TEST_EQ_U64(context, -1, irq_level);
+    semu_scheduler_advance(scheduler, NEMA_COMPLETION_DELAY_NS, &err);
+    SEMU_TEST_EQ_U64(context, 28u, irq_number);
+    SEMU_TEST_EQ_U64(context, 1, irq_level);
+    semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_CLID,
+                  4u, &val, &err);
+    SEMU_TEST_EQ_U64(context, 1u, val);
+    semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_INTERRUPT,
+                  4u, &val, &err);
+    SEMU_TEST_EQ_U64(context, 1u, val);
+
+    semu_nema_gpu_destroy(gpu);
+    semu_nema_backend_destroy(backend);
+    semu_scheduler_destroy(scheduler);
+    semu_bus_destroy(bus);
+}
+
+static void test_ring_completion_refuses_bad_size(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_scheduler *scheduler;
+    semu_nema_backend *backend;
+    semu_nema_gpu *gpu;
+    uint8_t ring[32u] = {0};
+    uint32_t val = 0u;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    scheduler = semu_scheduler_create(&err);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
+                     backend != NULL);
+    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+                                test_frame_cb, NULL, test_irq_sink, NULL,
+                                scheduler, &err);
+    SEMU_TEST_ASSERT(context, gpu != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
+    load_small_child(bus, &err);
+    configure_ring(bus, &err);
+    put_framed_child(ring, 0u, NEMA_MAX_LIST_WORDS + 1u);
+    put_completion_marker(ring, 16u, 7u);
+    semu_bus_load(bus, CMD_BASE, ring, sizeof(ring), &err);
+    cb_invoked = 0;
+    irq_level = -1;
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
+                   4u, CMD_BASE + 32u, &err);
+    SEMU_TEST_EQ_U64(context, 0, cb_invoked);
+    SEMU_TEST_EQ_U64(context, -1, irq_level);
+    semu_scheduler_advance(scheduler, NEMA_COMPLETION_DELAY_NS, &err);
+    semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_CLID,
+                  4u, &val, &err);
+    SEMU_TEST_EQ_U64(context, 0u, val);
+
+    semu_nema_gpu_destroy(gpu);
+    semu_nema_backend_destroy(backend);
+    semu_scheduler_destroy(scheduler);
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_module_id),
         SEMU_TEST_CASE(test_render_trigger),
         SEMU_TEST_CASE(test_bootstrap_skipped),
-        SEMU_TEST_CASE(test_reset)
+        SEMU_TEST_CASE(test_reset),
+        SEMU_TEST_CASE(test_ring_completion_marker),
+        SEMU_TEST_CASE(test_ring_completion_refuses_bad_size)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

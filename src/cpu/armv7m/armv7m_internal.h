@@ -76,6 +76,7 @@ struct semu_cpu {
     uint8_t system_priority[16];
     uint8_t system_pending[16];
     uint8_t system_active[16];
+    uint16_t pending_source_count;
     uint8_t exception_depth;
     uint8_t prigroup;
     uint32_t scr;
@@ -236,7 +237,9 @@ int armv7m_exception_can_preempt(const semu_cpu *cpu, unsigned exception);
 void armv7m_exception_entered(semu_cpu *cpu, unsigned exception);
 void armv7m_exception_returned(semu_cpu *cpu, unsigned exception);
 void armv7m_set_system_pending(semu_cpu *cpu, unsigned exception);
+void armv7m_clear_system_pending(semu_cpu *cpu, unsigned exception);
 void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq);
+void armv7m_clear_irq_pending(semu_cpu *cpu, unsigned irq);
 void armv7m_signal_pending_event(semu_cpu *cpu, unsigned exception);
 int armv7m_pending_wake(const semu_cpu *cpu);
 semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,

@@ -33,12 +33,21 @@ static semu_layer_intervention sapporo_interventions[] = {
     { "gps-running-status",
       "arm the later @GSR to $PSS running-status exchange",
       "E-SAP-COMPAT-GPS-004", 1u, 0u },
+    { "gps-awake-pulse",
+      "replay the observed GPIO24 awake pulse after GPS state 10",
+      "E-SAP-COMPAT-GPS-005", 8u, 0u },
     { "ohr-startup",
       "supply synthetic BSL-to-MAIN startup body responses",
       "E-SAP-COMPAT-OHR-001", 1u, 0u },
     { "resource-status",
       "translate the observed resource-wrapper 0xcc sentinel to success",
-      "E-SAP-COMPAT-RESOURCE-001", 1u, 0u }
+      "E-SAP-COMPAT-RESOURCE-001", 1u, 0u },
+    { "diap-worker-wake",
+      "replay the observed DIAP4 worker task handoff after the wait boundary",
+      "E-SAP-COMPAT-DIAP-001", 1u, 0u },
+    { "diap-worker-irq",
+      "replay the observed DIAP pending byte and IRQ21 wake after the DIAP4 worker handoff",
+      "E-SAP-COMPAT-DIAP-002", 1u, 0u }
 };
 
 const semu_layer_descriptor semu_sapporo_222_no_device_layer = {
@@ -193,15 +202,84 @@ semu_status semu_sapporo_222_apply_firmware_hook(
                            "disabled layer was invoked");
             return SEMU_ERR_STATE;
         }
-        if (!intervention_is_unused(state,
-                SEMU_SAPPORO_222_IV_RESOURCE_STATUS)) {
-            return SEMU_OK;
-        }
         if (semu_layer_intervention_hit(state, logger,
                 SEMU_SAPPORO_222_IV_RESOURCE_STATUS, error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
         cpu_state->r[0] = UINT32_C(0x000000c8);
+        /* The recovered no-device run reaches the same successful status
+         * boundary; the post-read hook fills the empty session slot before
+         * the provider's ordinary epilogue evaluates it. */
+        return SEMU_OK;
+    }
+    if (cpu_state->r[15] == UINT32_C(0x0009aaec)) {
+        uint32_t current = 0u;
+        uint32_t bitmap = 0u;
+        uint32_t isr_word = 0u;
+        uint32_t app_state = 0u;
+        if (semu_bus_read(bus, UINT32_C(0x10030370), 4u, &current,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x1003039c), 4u, &bitmap,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x10056608), 4u, &isr_word,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x10058510), 1u, &app_state,
+                          error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
+        if (cpu_state->r[0] == UINT32_C(0x10000000) &&
+            cpu_state->r[1] == UINT32_C(0xe000ed04) &&
+            current != UINT32_C(0x10033600) && bitmap == 1u &&
+            isr_word == UINT32_C(0x00010101) && app_state == 3u &&
+            intervention_is_unused(state,
+                SEMU_SAPPORO_222_IV_DIAP_WORKER_WAKE)) {
+            if (semu_layer_intervention_hit(state, logger,
+                    SEMU_SAPPORO_222_IV_DIAP_WORKER_WAKE, error) != SEMU_OK) {
+                return error != NULL ? error->code : SEMU_ERR_STATE;
+            }
+            if (semu_bus_write(bus, UINT32_C(0xe000ed04), 4u,
+                               UINT32_C(1) << 28u, error) != SEMU_OK) {
+                return error != NULL ? error->code : SEMU_ERR_STATE;
+            }
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
+        return SEMU_OK;
+    }
+    if (cpu_state->r[15] == UINT32_C(0x0009a3b8)) {
+        uint32_t current = 0u;
+        uint32_t bitmap = 0u;
+        uint32_t isr_word = 0u;
+        uint32_t app_state = 0u;
+        if (semu_bus_read(bus, UINT32_C(0x10030370), 4u, &current,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x1003039c), 4u, &bitmap,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x10056608), 4u, &isr_word,
+                          error) != SEMU_OK ||
+            semu_bus_read(bus, UINT32_C(0x10058510), 1u, &app_state,
+                          error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
+        if (current == UINT32_C(0x10033600) && bitmap == 1u &&
+            isr_word == UINT32_C(0x00010101) && app_state == 3u &&
+            intervention_is_unused(state,
+                SEMU_SAPPORO_222_IV_DIAP_WORKER_IRQ)) {
+            if (semu_layer_intervention_hit(state, logger,
+                    SEMU_SAPPORO_222_IV_DIAP_WORKER_IRQ, error) != SEMU_OK) {
+                return error != NULL ? error->code : SEMU_ERR_STATE;
+            }
+            if (semu_bus_write(bus, UINT32_C(0x10056a3c), 1u, 1u,
+                               error) != SEMU_OK) {
+                return error != NULL ? error->code : SEMU_ERR_STATE;
+            }
+            if (semu_bus_write(bus, UINT32_C(0xe000e200), 4u,
+                               UINT32_C(1) << 21u, error) != SEMU_OK) {
+                return error != NULL ? error->code : SEMU_ERR_STATE;
+            }
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         return SEMU_OK;
     }
     if (cpu_state->r[15] == UINT32_C(0x0010f6d8)) {
@@ -305,7 +383,26 @@ semu_status semu_sapporo_222_arm_gps_running_status(
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
     context->gps_running_status_armed = 1;
-    return SEMU_OK;
+    return semu_sapporo_222_arm_gps_awake_pulse(
+        transport, context, error);
+}
+
+semu_status semu_sapporo_222_arm_gps_awake_pulse(
+    semu_sapporo_cxd5610 *transport,
+    semu_sapporo_222_fixture_context *context, semu_error *error)
+{
+    if (transport == NULL || context == NULL || context->state == NULL ||
+        context->logger == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo GPS awake fixture arguments are incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_layer_intervention_hit(context->state, context->logger,
+            SEMU_SAPPORO_222_IV_GPS_AWAKE_PULSE, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    return semu_sapporo_cxd5610_pulse_awake_after(
+        transport, UINT64_C(100000000), error);
 }
 
 semu_transaction_result semu_sapporo_222_gps_exchange(

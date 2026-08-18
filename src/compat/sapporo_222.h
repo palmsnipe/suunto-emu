@@ -20,8 +20,11 @@ enum {
     SEMU_SAPPORO_222_IV_GPS_STATE_STARTUP,
     SEMU_SAPPORO_222_IV_GPS_STATE_DISPATCH,
     SEMU_SAPPORO_222_IV_GPS_RUNNING_STATUS,
+    SEMU_SAPPORO_222_IV_GPS_AWAKE_PULSE,
     SEMU_SAPPORO_222_IV_OHR_STARTUP,
     SEMU_SAPPORO_222_IV_RESOURCE_STATUS,
+    SEMU_SAPPORO_222_IV_DIAP_WORKER_WAKE,
+    SEMU_SAPPORO_222_IV_DIAP_WORKER_IRQ,
     SEMU_SAPPORO_222_IV_COUNT
 };
 
@@ -46,6 +49,10 @@ semu_status semu_sapporo_222_arm_gps_startup(
 /* Arm the observed later GPS open at 0x10f7c2: an unsolicited $PSS line and
  * an exact @GSR -> $PSS response are delivered through the normal UART path. */
 semu_status semu_sapporo_222_arm_gps_running_status(
+    semu_sapporo_cxd5610 *transport,
+    semu_sapporo_222_fixture_context *context, semu_error *error);
+
+semu_status semu_sapporo_222_arm_gps_awake_pulse(
     semu_sapporo_cxd5610 *transport,
     semu_sapporo_222_fixture_context *context, semu_error *error);
 

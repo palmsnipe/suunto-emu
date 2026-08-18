@@ -64,6 +64,19 @@ static semu_status gps_uart_reopen_boundary(
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
     }
+    /* The firmware immediately inserts a timed wait into the list embedded at
+       wait_address + 0x24.  Its observed intrusive-list routine starts at
+       the sentinel (list + 0x08), so an empty list must be self-linked and
+       carry the maximum deadline. */
+    if (semu_bus_write(bus, wait_address + 0x24u, 4u, 0u, error) != SEMU_OK ||
+        semu_bus_write(bus, wait_address + 0x2cu, 4u, UINT32_MAX, error) !=
+            SEMU_OK ||
+        semu_bus_write(bus, wait_address + 0x30u, 4u,
+                       wait_address + 0x2cu, error) != SEMU_OK ||
+        semu_bus_write(bus, wait_address + 0x34u, 4u,
+                       wait_address + 0x2cu, error) != SEMU_OK) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
     if (semu_bus_write(bus, wait_address + 0x00u, 4u, wait_address, error) !=
             SEMU_OK ||
         semu_bus_write(bus, wait_address + 0x04u, 4u, wait_address, error) !=
@@ -106,6 +119,13 @@ semu_status semu_sapporo_gps_compat_apply(
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "GPS compatibility boundary is incomplete");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (cpu_state->r[15] == UINT32_C(0x0010fbde)) {
+        if (semu_sapporo_222_arm_gps_awake_pulse(
+                gps, fixture_context, error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_STATE;
+        }
+        return SEMU_OK;
     }
     if (fixture_context->gps_running_status_armed) return SEMU_OK;
     running_status_trigger =

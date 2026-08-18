@@ -230,10 +230,12 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
             armv7m_set_system_pending(cpu, 2u);
         if ((bits & ICSR_PENDSVSET) != 0u)
             armv7m_set_system_pending(cpu, 14u);
-        if ((bits & ICSR_PENDSVCLR) != 0u) cpu->system_pending[14u] = 0u;
+        if ((bits & ICSR_PENDSVCLR) != 0u)
+            armv7m_clear_system_pending(cpu, 14u);
         if ((bits & ICSR_PENDSTSET) != 0u)
             armv7m_set_system_pending(cpu, 15u);
-        if ((bits & ICSR_PENDSTCLR) != 0u) cpu->system_pending[15u] = 0u;
+        if ((bits & ICSR_PENDSTCLR) != 0u)
+            armv7m_clear_system_pending(cpu, 15u);
         return SEMU_OK;
     case SCB_VTOR:
         cpu->vector_table = (cpu->vector_table & ~mask) | (bits & mask);
@@ -277,22 +279,22 @@ static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
         if ((mask & SHCSR_MEMFAULTPENDED) != 0u) {
             if ((bits & SHCSR_MEMFAULTPENDED) != 0u)
                 armv7m_set_system_pending(cpu, 4u);
-            else cpu->system_pending[4u] = 0u;
+            else armv7m_clear_system_pending(cpu, 4u);
         }
         if ((mask & SHCSR_BUSFAULTPENDED) != 0u) {
             if ((bits & SHCSR_BUSFAULTPENDED) != 0u)
                 armv7m_set_system_pending(cpu, 5u);
-            else cpu->system_pending[5u] = 0u;
+            else armv7m_clear_system_pending(cpu, 5u);
         }
         if ((mask & SHCSR_USGFAULTPENDED) != 0u) {
             if ((bits & SHCSR_USGFAULTPENDED) != 0u)
                 armv7m_set_system_pending(cpu, 6u);
-            else cpu->system_pending[6u] = 0u;
+            else armv7m_clear_system_pending(cpu, 6u);
         }
         if ((mask & SHCSR_SVCALLPENDED) != 0u) {
             if ((bits & SHCSR_SVCALLPENDED) != 0u)
                 armv7m_set_system_pending(cpu, 11u);
-            else cpu->system_pending[11u] = 0u;
+            else armv7m_clear_system_pending(cpu, 11u);
         }
         return SEMU_OK;
     case SCB_CFSR:
@@ -414,6 +416,7 @@ void armv7m_scs_reset(void *context)
     memset(cpu->irq_priority, 0, sizeof(cpu->irq_priority));
     memset(cpu->system_priority, 0, sizeof(cpu->system_priority));
     memset(cpu->system_pending, 0, sizeof(cpu->system_pending));
+    cpu->pending_source_count = 0u;
     memset(cpu->system_active, 0, sizeof(cpu->system_active));
     cpu->exception_depth = 0u;
     cpu->prigroup = 0u;
