@@ -55,7 +55,7 @@ static void test_reset(semu_test_context *context)
     semu_error error;
     semu_sapporo_hsppad143 *sensor;
     semu_serial_endpoint ep;
-    uint8_t tx[] = { 0x00u, 0xAAu };
+    uint8_t tx[] = { 0x0eu, 0xAAu };
     uint8_t rx[1];
 
     semu_error_clear(&error);
@@ -65,14 +65,14 @@ static void test_reset(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      do_write(&ep, 0x48u, tx, 2u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_read(&ep, 0x48u, 0x00u, rx, 1u, &error));
-    SEMU_TEST_EQ_U64(context, 0xAAu, rx[0u]);
+                     do_read(&ep, 0x48u, 0x0eu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x12u, rx[0u]);
 
     semu_sapporo_hsppad143_reset(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_read(&ep, 0x48u, 0x00u, rx, 1u, &error));
-    SEMU_TEST_EQ_U64(context, 0x49u, rx[0u]);
+                     do_read(&ep, 0x48u, 0x0eu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x13u, rx[0u]);
 
     semu_sapporo_hsppad143_destroy(sensor);
 }
@@ -153,8 +153,123 @@ static void test_empty_write(semu_test_context *context)
     sensor = semu_sapporo_hsppad143_create(0x48u, &error);
     ep = semu_sapporo_hsppad143_endpoint(sensor);
 
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      do_write(&ep, 0x48u, NULL, 0u, &error));
+
+    semu_sapporo_hsppad143_destroy(sensor);
+}
+
+static void test_register_map_defaults(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_hsppad143 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
+    ep = semu_sapporo_hsppad143_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x01u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x31u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x0eu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x13u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x0fu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0xa0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x12u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x10u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x13u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x38u, rx[0u]);
+
+    semu_sapporo_hsppad143_destroy(sensor);
+}
+
+static void test_configuration_masks(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_hsppad143 *sensor;
+    semu_serial_endpoint ep;
+    const uint8_t writes[][2] = {
+        { 0x0eu, 0xffu }, { 0x0fu, 0xffu }, { 0x10u, 0xffu },
+        { 0x11u, 0xffu }, { 0x12u, 0xffu }, { 0x13u, 0xffu }
+    };
+    const uint8_t expected[] = { 0x13u, 0xafu, 0x0au,
+                                 0x80u, 0x9fu, 0x3fu };
+    uint8_t rx[1];
+    size_t i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
+    ep = semu_sapporo_hsppad143_endpoint(sensor);
+
+    for (i = 0u; i < sizeof(writes) / sizeof(writes[0]); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_write(&ep, 0x48u, writes[i], 2u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_read(&ep, 0x48u, writes[i][0], rx, 1u, &error));
+        SEMU_TEST_EQ_U64(context, expected[i], rx[0u]);
+    }
+
+    semu_sapporo_hsppad143_destroy(sensor);
+}
+
+static void test_unknown_and_atomic_frames(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_hsppad143 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t read_only[] = { 0x00u, 0xaau };
+    uint8_t invalid_span[] = { 0x0eu, 0x11u, 0x22u, 0x33u,
+                               0x44u, 0x55u, 0x66u, 0x77u };
+    uint8_t rx[1];
+    semu_serial_transaction malformed = { 0x48u, 0u, NULL, 1u, NULL, 0u };
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
+    ep = semu_sapporo_hsppad143_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x48u, read_only, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0x48u, 0x07u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x48u, invalid_span,
+                              sizeof(invalid_span), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     ep.transfer(ep.context, &malformed, &error));
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x48u, 0x0eu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x13u, rx[0u]);
+
+    semu_sapporo_hsppad143_destroy(sensor);
+}
+
+static void test_repeated_start_retains_selector(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_hsppad143 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t selector = 0x1cu;
+    uint8_t rx[1];
+    semu_serial_transaction read_without_selector = {
+        0x48u, 0u, NULL, 0u, rx, sizeof(rx)
+    };
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_hsppad143_create(0x48u, &error);
+    ep = semu_sapporo_hsppad143_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0x48u, &selector, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &read_without_selector, &error));
+    SEMU_TEST_EQ_U64(context, 0xe0u, rx[0u]);
 
     semu_sapporo_hsppad143_destroy(sensor);
 }
@@ -192,6 +307,10 @@ int main(void)
         SEMU_TEST_CASE(test_register_overflow),
         SEMU_TEST_CASE(test_observed_sample_and_configuration),
         SEMU_TEST_CASE(test_empty_write),
+        SEMU_TEST_CASE(test_register_map_defaults),
+        SEMU_TEST_CASE(test_configuration_masks),
+        SEMU_TEST_CASE(test_unknown_and_atomic_frames),
+        SEMU_TEST_CASE(test_repeated_start_retains_selector),
         SEMU_TEST_CASE(test_repeated_transcript)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
