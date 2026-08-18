@@ -188,6 +188,8 @@ static int test_level_irq(void)
     CHECK(load_u32(&fixture, 16u * 4u, 0x1a1u));
     CHECK(semu_bus_load(fixture.bus, 0x1a0u, handler, sizeof(handler),
                         &fixture.error) == SEMU_OK);
+    CHECK(semu_bus_write(fixture.bus, 0xe000e100u, 4u, 1u,
+                         &fixture.error) == SEMU_OK);
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     CHECK(step_ok(&fixture));
     CHECK(semu_cpu_get_state(fixture.cpu)->instructions == 0u);

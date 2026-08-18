@@ -129,6 +129,45 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_irq_line_requires_nvic_enable(semu_test_context *context)
+{
+    static const uint8_t program[] = {
+        0x00u, 0xbfu,             /* nop */
+        0x00u, 0xbeu              /* bkpt */
+    };
+    semu_cpu_fixture fixture;
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context,
+                     semu_cpu_fixture_init(&fixture, program,
+                                            sizeof(program)));
+    SEMU_TEST_ASSERT(context,
+                     semu_cpu_fixture_load_u32(&fixture, 16u * 4u,
+                                                0x181u));
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_load(fixture.bus, 0x180u,
+                                   (const uint8_t[]){0x70u, 0x47u}, 2u,
+                                   &fixture.error) == SEMU_OK);
+
+    semu_cpu_set_irq(fixture.cpu, 0u, 1);
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0x100u, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0x200u, &value));
+    SEMU_TEST_EQ_U64(context, 1u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
+    SEMU_TEST_EQ_U64(context, 0x102u,
+                     semu_cpu_get_state(fixture.cpu)->r[15]);
+
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 16u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu);
+    semu_cpu_set_irq(fixture.cpu, 0u, 0);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_priority_pending_and_pendsv(semu_test_context *context)
 {
     semu_cpu_fixture fixture;
@@ -210,6 +249,7 @@ static void test_prigroup_masks_and_nested_return(semu_test_context *context)
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     semu_cpu_set_irq(fixture.cpu, 0u, 0);
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 2u));
     semu_cpu_set_irq(fixture.cpu, 1u, 1);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, 17u,
@@ -288,6 +328,7 @@ static void test_pending_source_count_tracks_edges(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, (uint64_t)-1,
                      (uint64_t)armv7m_pending_exception(fixture.cpu));
 
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
     SEMU_TEST_EQ_U64(context, 16u,
@@ -310,6 +351,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_nvic_lifecycle_and_scs),
+        SEMU_TEST_CASE(test_irq_line_requires_nvic_enable),
         SEMU_TEST_CASE(test_priority_pending_and_pendsv),
         SEMU_TEST_CASE(test_prigroup_masks_and_nested_return),
         SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal),

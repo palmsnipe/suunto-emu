@@ -1,7 +1,6 @@
 #include "cpu_fixture.h"
 #include "cpu_fixture.c"
 #include "test.h"
-
 #include "../../src/cpu/armv7m/armv7m_internal.h"
 
 #include <string.h>
@@ -184,6 +183,7 @@ static void test_reset_and_exception_clear_monitor(semu_test_context *context)
                                    sizeof(handler), &fixture.error));
     status = semu_cpu_fixture_step(&fixture);
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(fixture.bus, 0xe000e100u, 4u, 1u, &fixture.error));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     status = semu_cpu_fixture_step(&fixture);
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);

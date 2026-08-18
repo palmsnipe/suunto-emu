@@ -264,7 +264,6 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
                    cpu->pending_source_count != 0u) {
             --cpu->pending_source_count;
         }
-        if (level != 0) cpu->irq_enabled[irq] = 1u;
         if (!was_pending && level != 0)
             armv7m_signal_pending_event(cpu, 16u + irq);
     }

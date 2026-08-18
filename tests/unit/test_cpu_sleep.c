@@ -41,6 +41,7 @@ static void test_masked_unmasked_wake(semu_test_context *context)
     state = semu_cpu_get_state_mutable(fixture.cpu);
     state->primask = 1u;
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_ASSERT(context, !state->waiting_for_interrupt);
@@ -56,6 +57,7 @@ static void test_masked_unmasked_wake(semu_test_context *context)
     SEMU_TEST_ASSERT(context, load_irq_handler(&fixture, 0x180u));
     state = semu_cpu_get_state_mutable(fixture.cpu);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, 16u, state->xpsr & 0x1ffu);
@@ -146,6 +148,7 @@ static void test_sevonpend_sleeponexit_and_refusal(semu_test_context *context)
                                            sizeof(thread_program)));
     SEMU_TEST_ASSERT(context, load_irq_handler(&fixture, 0x180u));
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCB_SCR, SCR_SLEEPONEXIT));
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
