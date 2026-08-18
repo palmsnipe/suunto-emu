@@ -165,6 +165,30 @@ static void test_refusals_are_bounded(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_missing_fixture_refusal_is_atomic(
+    semu_test_context *context)
+{
+    static const uint8_t first[] = { '@', 'V', 'E' };
+    static const uint8_t second[] = { 'R', '\r', '\n' };
+    static const uint8_t valid[] = { '@', 'V', 'E', 'R', '\r', '\n' };
+    gps_fixture fixture;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     send(&fixture, first, sizeof(first)));
+    SEMU_TEST_EQ_U64(context, 3u, fixture.tx_count);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     send(&fixture, second, sizeof(second)));
+    SEMU_TEST_EQ_U64(context, 3u, fixture.tx_count);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.exchange_count);
+    semu_sapporo_cxd5610_reset(fixture.transport);
+    semu_sapporo_cxd5610_set_exchange(fixture.transport, exchange, &fixture);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     send(&fixture, valid, sizeof(valid)));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.exchange_count);
+    fixture_destroy(&fixture);
+}
+
 static void test_awake_pulse_and_reset(semu_test_context *context)
 {
     gps_fixture fixture;
@@ -226,6 +250,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_split_request_and_delayed_rx),
         SEMU_TEST_CASE(test_refusals_are_bounded),
+        SEMU_TEST_CASE(test_missing_fixture_refusal_is_atomic),
         SEMU_TEST_CASE(test_awake_pulse_and_reset),
         SEMU_TEST_CASE(test_reset_reentrancy_cancels_current_event)
     };

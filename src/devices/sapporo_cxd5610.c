@@ -132,16 +132,16 @@ static semu_transaction_result transfer(void *context,
                                "CXD5610 request framing is not evidenced");
                 return SEMU_TRANSACTION_REFUSE;
             }
+            if (transport->exchange == NULL) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                               "CXD5610 request has no response fixture");
+                return SEMU_TRANSACTION_REFUSE;
+            }
             memcpy(transport->pending, candidate, candidate_count);
             transport->pending_count = 0u;
             for (size_t byte = 0u; byte < transaction->tx_size; ++byte) {
                 trace_byte(transport, SEMU_SAPPORO_CXD5610_TX,
                            transaction->tx[byte]);
-            }
-            if (transport->exchange == NULL) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                               "CXD5610 request has no response fixture");
-                return SEMU_TRANSACTION_REFUSE;
             }
             result = transport->exchange(transport->exchange_context,
                                           candidate, candidate_count,
