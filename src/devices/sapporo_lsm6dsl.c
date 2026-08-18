@@ -1,7 +1,6 @@
 #include "sapporo_lsm6dsl.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 /*
  * E-SAP-LSM6DSL-001 verified trace
@@ -19,28 +18,33 @@
  *   Reset: WHO_AM_I 0x0f=0x6a, FIFO_STATUS2 0x3b=0x10 (EMPTY bit).
  *
  * The firmware reads WHO_AM_I (0x0f) and FIFO_STATUS1-2 (0x3a-0x3b)
- * via two-phase held-CS SPI. Sample data is zero (synthetic).
- * The Renode fixture exposes the complete register array as deterministic
- * zero-backed storage; wrong chip-select, wrong direction, and overflow
- * refuse before mutation.
+ * via two-phase held-CS SPI. CTRL3_C (0x12) is the documented startup
+ * configuration register. Output and FIFO payload bytes are zero (synthetic).
+ * The public register map is explicit: reserved and unobserved control
+ * registers refuse instead of becoming a wildcard register file.
  */
 
 enum {
-    LSM6_REG_COUNT = 128u,
     LSM6_READ_BIT = 0x80u,
     LSM6_INCREMENT_BIT = 0x40u,
     LSM6_REGISTER_MASK = 0x3fu,
     LSM6_WHO_AM_I_REG = 0x0fu,
     LSM6_WHO_AM_I_VAL = 0x6au,
+    LSM6_CTRL3_C_REG = 0x12u,
+    LSM6_CTRL3_C_RESET = 0x04u,
+    LSM6_CTRL3_C_SW_RESET = 0x01u,
+    LSM6_CTRL3_C_WRITE_MASK = 0xfeu,
     LSM6_FIFO_STATUS1_REG = 0x3au,
     LSM6_FIFO_STATUS1_VAL = 0x00u,
     LSM6_FIFO_STATUS2_REG = 0x3bu,
-    LSM6_FIFO_EMPTY = 0x10u
+    LSM6_FIFO_EMPTY = 0x10u,
+    LSM6_OUTPUT_FIRST = 0x20u,
+    LSM6_OUTPUT_LAST = 0x3fu
 };
 
 struct semu_sapporo_lsm6dsl {
     uint8_t chip_select;
-    uint8_t registers[LSM6_REG_COUNT];
+    uint8_t ctrl3_c;
     uint8_t reg;
     int have_command;
     int read;
@@ -49,9 +53,14 @@ struct semu_sapporo_lsm6dsl {
 
 static int is_known_register(uint8_t reg)
 {
-    /* E-SAP-LSM6DSL-001: only identity/FIFO registers are non-zero, but the
-       observed endpoint accepts the complete zero-backed register array. */
-    return reg < LSM6_REG_COUNT;
+    /* ST LSM6DSL datasheet: WHO_AM_I, CTRL3_C, and output/FIFO registers. */
+    return reg == LSM6_WHO_AM_I_REG || reg == LSM6_CTRL3_C_REG ||
+           (reg >= LSM6_OUTPUT_FIRST && reg <= LSM6_OUTPUT_LAST);
+}
+
+static int is_writable_register(uint8_t reg)
+{
+    return reg == LSM6_CTRL3_C_REG;
 }
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -62,21 +71,68 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 
 static void reset_state(semu_sapporo_lsm6dsl *sensor)
 {
-    memset(sensor->registers, 0, sizeof(sensor->registers));
-    sensor->registers[LSM6_WHO_AM_I_REG] = LSM6_WHO_AM_I_VAL;
-    sensor->registers[LSM6_FIFO_STATUS2_REG] = LSM6_FIFO_EMPTY;
+    sensor->ctrl3_c = LSM6_CTRL3_C_RESET;
     sensor->reg = 0u;
     sensor->have_command = 0;
     sensor->read = 0;
     sensor->increment = 0;
 }
 
-static void decode_command(semu_sapporo_lsm6dsl *sensor, uint8_t cmd)
+static uint8_t register_value(const semu_sapporo_lsm6dsl *sensor,
+                              uint8_t reg)
 {
-    sensor->read = (cmd & LSM6_READ_BIT) != 0u;
-    sensor->increment = sensor->read || (cmd & LSM6_INCREMENT_BIT) != 0u;
-    sensor->reg = (uint8_t)(cmd & LSM6_REGISTER_MASK);
-    sensor->have_command = 1;
+    if (reg == LSM6_WHO_AM_I_REG) {
+        return LSM6_WHO_AM_I_VAL;
+    }
+    if (reg == LSM6_CTRL3_C_REG) {
+        return sensor->ctrl3_c;
+    }
+    if (reg == LSM6_FIFO_STATUS2_REG) {
+        return LSM6_FIFO_EMPTY;
+    }
+    if (reg == LSM6_FIFO_STATUS1_REG) {
+        return LSM6_FIFO_STATUS1_VAL;
+    }
+    return 0u;
+}
+
+static int span_is_known(uint8_t start, size_t count, int writable,
+                         int increment)
+{
+    size_t i;
+
+    if (count == 0u || count > 128u) {
+        return 0;
+    }
+    for (i = 0u; i < count; ++i) {
+        uint16_t index = (uint16_t)start +
+                         (uint16_t)(increment ? i : 0u);
+        if (index > 0xffu || !is_known_register((uint8_t)index) ||
+            (writable && !is_writable_register((uint8_t)index))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void write_register(semu_sapporo_lsm6dsl *sensor, uint8_t reg,
+                           uint8_t value)
+{
+    if (reg == LSM6_CTRL3_C_REG) {
+        if ((value & LSM6_CTRL3_C_SW_RESET) != 0u) {
+            reset_state(sensor);
+        } else {
+            sensor->ctrl3_c = (uint8_t)(value & LSM6_CTRL3_C_WRITE_MASK);
+        }
+    }
+}
+
+static uint8_t next_register(uint8_t reg, size_t count, int increment)
+{
+    if (!increment) {
+        return reg;
+    }
+    return (uint8_t)((uint16_t)reg + (uint16_t)count);
 }
 
 static semu_transaction_result transfer(void *context,
@@ -84,6 +140,9 @@ static semu_transaction_result transfer(void *context,
                                          semu_error *error)
 {
     semu_sapporo_lsm6dsl *sensor = (semu_sapporo_lsm6dsl *)context;
+    uint8_t reg;
+    int read;
+    int increment;
     size_t i;
 
     if (sensor == NULL || t == NULL) {
@@ -92,39 +151,64 @@ static semu_transaction_result transfer(void *context,
     if (t->chip_select != sensor->chip_select) {
         return refuse(error, "wrong chip select");
     }
+    if ((t->tx_size > 0u && t->tx == NULL) ||
+        (t->rx_size > 0u && t->rx == NULL) ||
+        (t->tx_size == 0u && t->tx != NULL) ||
+        (t->rx_size == 0u && t->rx != NULL)) {
+        return refuse(error, "null or empty buffer");
+    }
     if (t->tx_size == 0u && !sensor->have_command) {
         return refuse(error, "no command");
     }
-    if (t->tx_size > 0u) {
-        decode_command(sensor, t->tx[0]);
+    if (t->tx_size == 0u) {
+        reg = sensor->reg;
+        read = sensor->read;
+        increment = sensor->increment;
+    } else {
+        uint8_t command = t->tx[0];
+        reg = (uint8_t)(command & LSM6_REGISTER_MASK);
+        read = (command & LSM6_READ_BIT) != 0u;
+        increment = read || (command & LSM6_INCREMENT_BIT) != 0u;
     }
     if (t->rx_size > 0u) {
-        if (!sensor->read) {
+        if (t->tx_size > 1u || !read ||
+            !span_is_known(reg, t->rx_size, 0, increment)) {
             return refuse(error, "read without read flag");
         }
         for (i = 0u; i < t->rx_size; ++i) {
-            if (!is_known_register(sensor->reg)) {
-                return refuse(error, "unknown read register");
-            }
-            t->rx[i] = sensor->registers[sensor->reg];
-            if (sensor->increment) {
-                sensor->reg = (uint8_t)((sensor->reg + 1u) & LSM6_REGISTER_MASK);
-            }
+            t->rx[i] = register_value(sensor, (uint8_t)(reg + i));
         }
-    } else if (t->tx_size > 1u) {
-        if (sensor->read) {
-            return refuse(error, "write with read flag");
+        reg = next_register(reg, t->rx_size, increment);
+    } else {
+        if (t->tx_size == 0u) {
+            return refuse(error, "empty phase");
+        }
+        if (t->tx_size == 1u) {
+            if (!is_known_register(reg)) {
+                return refuse(error, "unknown command register");
+            }
+            sensor->reg = reg;
+            sensor->read = read;
+            sensor->increment = increment;
+            sensor->have_command = 1;
+            semu_error_clear(error);
+            return SEMU_TRANSACTION_OK;
+        }
+        if (read || !span_is_known(reg, t->tx_size - 1u, 1, increment)) {
+            return refuse(error, "write with read flag or unknown register");
         }
         for (i = 1u; i < t->tx_size; ++i) {
-            if (!is_known_register(sensor->reg)) {
-                return refuse(error, "unknown write register");
-            }
-            sensor->registers[sensor->reg] = t->tx[i];
-            if (sensor->increment) {
-                sensor->reg = (uint8_t)((sensor->reg + 1u) & LSM6_REGISTER_MASK);
-            }
+            write_register(sensor, (uint8_t)(reg + (increment ? i - 1u : 0u)),
+                           t->tx[i]);
+        }
+        if (t->tx_size > 1u) {
+            reg = next_register(reg, t->tx_size - 1u, increment);
         }
     }
+    sensor->reg = reg;
+    sensor->read = read;
+    sensor->increment = increment;
+    sensor->have_command = 1;
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
 }
