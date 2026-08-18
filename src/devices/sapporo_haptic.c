@@ -20,21 +20,37 @@
  *
  * The autotune state machine is: idle (0x00) → triggered (bit 0 written)
  * → complete (bit 1 set). Sample data is zero (synthetic no-fault state).
- * The Renode endpoint retains the complete zero-backed 256-byte register
- * array. Wrong address and register-window overflow refuse before mutation.
+ * The identity of the PMIC is unresolved, so only the registers and waveform
+ * window observed by the native startup path are exposed. Unknown addresses
+ * and invalid spans refuse before mutation.
  */
 
 enum {
-    HAPTIC_REG_COUNT = 256u,
+    HAPTIC_FAULT_REG = 0x01u,
+    HAPTIC_CONFIG0_REG = 0x0du,
+    HAPTIC_CONFIG1_REG = 0x11u,
+    HAPTIC_CONFIG2_REG = 0x12u,
+    HAPTIC_CONFIG3_REG = 0x13u,
+    HAPTIC_CONFIG4_REG = 0x1du,
+    HAPTIC_CONFIG5_REG = 0x1eu,
     HAPTIC_AUTOTUNE_REG = 0x22u,
     HAPTIC_AUTOTUNE_TRIGGER = 0x01u,
-    HAPTIC_AUTOTUNE_COMPLETE = 0x02u
+    HAPTIC_AUTOTUNE_COMPLETE = 0x02u,
+    HAPTIC_WAVEFORM_FIRST = 0x40u,
+    HAPTIC_WAVEFORM_LAST = 0x43u
 };
 
 struct semu_sapporo_haptic {
     uint8_t address;
-    uint8_t registers[HAPTIC_REG_COUNT];
     uint8_t selected;
+    uint8_t config0;
+    uint8_t config1;
+    uint8_t config2;
+    uint8_t config3;
+    uint8_t config4;
+    uint8_t config5;
+    uint8_t autotune;
+    uint8_t waveform[4];
 };
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -45,8 +61,110 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 
 static void reset_state(semu_sapporo_haptic *sensor)
 {
-    memset(sensor->registers, 0, sizeof(sensor->registers));
     sensor->selected = 0u;
+    sensor->config0 = 0u;
+    sensor->config1 = 0u;
+    sensor->config2 = 0u;
+    sensor->config3 = 0u;
+    sensor->config4 = 0u;
+    sensor->config5 = 0u;
+    sensor->autotune = 0u;
+    (void)memset(sensor->waveform, 0, sizeof(sensor->waveform));
+}
+
+static int is_known_register(uint8_t reg)
+{
+    return reg == HAPTIC_FAULT_REG || reg == HAPTIC_CONFIG0_REG ||
+           reg == HAPTIC_CONFIG1_REG || reg == HAPTIC_CONFIG2_REG ||
+           reg == HAPTIC_CONFIG3_REG || reg == HAPTIC_CONFIG4_REG ||
+           reg == HAPTIC_CONFIG5_REG || reg == HAPTIC_AUTOTUNE_REG ||
+           (reg >= HAPTIC_WAVEFORM_FIRST && reg <= HAPTIC_WAVEFORM_LAST);
+}
+
+static int is_writable_register(uint8_t reg)
+{
+    return reg != HAPTIC_FAULT_REG && is_known_register(reg);
+}
+
+static uint8_t register_value(const semu_sapporo_haptic *sensor,
+                              uint8_t reg)
+{
+    switch (reg) {
+    case HAPTIC_CONFIG0_REG:
+        return sensor->config0;
+    case HAPTIC_CONFIG1_REG:
+        return sensor->config1;
+    case HAPTIC_CONFIG2_REG:
+        return sensor->config2;
+    case HAPTIC_CONFIG3_REG:
+        return sensor->config3;
+    case HAPTIC_CONFIG4_REG:
+        return sensor->config4;
+    case HAPTIC_CONFIG5_REG:
+        return sensor->config5;
+    case HAPTIC_AUTOTUNE_REG:
+        return sensor->autotune;
+    default:
+        if (reg >= HAPTIC_WAVEFORM_FIRST &&
+            reg <= HAPTIC_WAVEFORM_LAST) {
+            return sensor->waveform[reg - HAPTIC_WAVEFORM_FIRST];
+        }
+        return 0u;
+    }
+}
+
+static void write_register(semu_sapporo_haptic *sensor, uint8_t reg,
+                           uint8_t value)
+{
+    switch (reg) {
+    case HAPTIC_CONFIG0_REG:
+        sensor->config0 = value;
+        break;
+    case HAPTIC_CONFIG1_REG:
+        sensor->config1 = value;
+        break;
+    case HAPTIC_CONFIG2_REG:
+        sensor->config2 = value;
+        break;
+    case HAPTIC_CONFIG3_REG:
+        sensor->config3 = value;
+        break;
+    case HAPTIC_CONFIG4_REG:
+        sensor->config4 = value;
+        break;
+    case HAPTIC_CONFIG5_REG:
+        sensor->config5 = value;
+        break;
+    case HAPTIC_AUTOTUNE_REG:
+        sensor->autotune = value;
+        if ((value & HAPTIC_AUTOTUNE_TRIGGER) != 0u) {
+            sensor->autotune |= HAPTIC_AUTOTUNE_COMPLETE;
+        }
+        break;
+    default:
+        if (reg >= HAPTIC_WAVEFORM_FIRST &&
+            reg <= HAPTIC_WAVEFORM_LAST) {
+            sensor->waveform[reg - HAPTIC_WAVEFORM_FIRST] = value;
+        }
+        break;
+    }
+}
+
+static int span_is_valid(uint8_t start, size_t count, int writable)
+{
+    size_t i;
+
+    if (count == 0u || count > 256u) {
+        return 0;
+    }
+    for (i = 0u; i < count; ++i) {
+        uint16_t reg = (uint16_t)start + (uint16_t)i;
+        if (reg > 0xffu || !is_known_register((uint8_t)reg) ||
+            (writable && !is_writable_register((uint8_t)reg))) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static semu_transaction_result transfer(void *context,
@@ -62,40 +180,49 @@ static semu_transaction_result transfer(void *context,
     if (t->address != sensor->address) {
         return refuse(error, "wrong address");
     }
+    if ((t->tx_size > 0u && t->tx == NULL) ||
+        (t->rx_size > 0u && t->rx == NULL) ||
+        (t->tx_size == 0u && t->tx != NULL) ||
+        (t->rx_size == 0u && t->rx != NULL)) {
+        return refuse(error, "null or empty buffer");
+    }
     if (t->rx_size > 0u) {
-        if (t->tx_size == 0u) {
-            return refuse(error, "read without register selection");
+        uint8_t start = sensor->selected;
+        if (t->tx_size > 1u) {
+            return refuse(error, "read selector shape");
         }
-        if ((size_t)t->tx[0] + t->rx_size > HAPTIC_REG_COUNT) {
-            return refuse(error, "read register overflow");
+        if (t->tx_size == 1u) {
+            start = t->tx[0u];
         }
-        sensor->selected = t->tx[0];
+        if (!span_is_valid(start, t->rx_size, 0)) {
+            return refuse(error, "unsupported read span");
+        }
         for (i = 0u; i < t->rx_size; ++i) {
-            uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)i);
-            t->rx[i] = sensor->registers[idx];
+            t->rx[i] = register_value(sensor, (uint8_t)(start + i));
         }
-        sensor->selected = (uint8_t)(sensor->selected + (uint8_t)t->rx_size);
+        sensor->selected = (uint8_t)(start + t->rx_size);
     } else {
+        uint8_t start;
         if (t->tx_size == 0u) {
+            return refuse(error, "empty write");
+        }
+        start = t->tx[0u];
+        if (!is_known_register(start)) {
+            return refuse(error, "unknown register selector");
+        }
+        if (t->tx_size == 1u) {
+            sensor->selected = start;
             semu_error_clear(error);
             return SEMU_TRANSACTION_OK;
         }
-        if ((size_t)t->tx[0] + t->tx_size - 1u > HAPTIC_REG_COUNT) {
-            return refuse(error, "write register overflow");
+        if (!span_is_valid(start, t->tx_size - 1u, 1)) {
+            return refuse(error, "unsupported write span");
         }
-        sensor->selected = t->tx[0];
+        /* Validate the full frame before applying any configuration byte. */
         for (i = 1u; i < t->tx_size; ++i) {
-            uint16_t idx = (uint16_t)(sensor->selected + (uint16_t)(i - 1u));
-            sensor->registers[idx] = t->tx[i];
-            if ((uint8_t)idx == HAPTIC_AUTOTUNE_REG &&
-                (t->tx[i] & HAPTIC_AUTOTUNE_TRIGGER) != 0u) {
-                sensor->registers[idx] |= HAPTIC_AUTOTUNE_COMPLETE;
-            }
+            write_register(sensor, (uint8_t)(start + i - 1u), t->tx[i]);
         }
-        if (t->tx_size > 1u) {
-            sensor->selected = (uint8_t)(sensor->selected +
-                                         (uint8_t)(t->tx_size - 1u));
-        }
+        sensor->selected = (uint8_t)(start + t->tx_size - 1u);
     }
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
