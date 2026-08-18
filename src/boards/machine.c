@@ -447,6 +447,7 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
             }
         } else if (semu_cpu_reset_requested(machine->cpu)) {
+            semu_log_write(machine->logger, SEMU_LOG_WARNING, "cpu", "machine-reset-request", "pc=0x%08x instructions=%llu", semu_machine_program_counter(machine), (unsigned long long)state->instructions);
             if (reset_after_request(machine, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
             }
