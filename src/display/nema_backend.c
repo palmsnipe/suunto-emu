@@ -24,9 +24,15 @@ struct semu_nema_backend {
     int draw_failed;
 };
 
+typedef struct {
+    semu_nema_backend *backend;
+    semu_bus *bus;
+} nema_draw_context;
+
 static void on_draw(void *context, const nema_draw_snapshot *snap)
 {
-    semu_nema_backend *backend = (semu_nema_backend *)context;
+    nema_draw_context *draw_context = (nema_draw_context *)context;
+    semu_nema_backend *backend = draw_context->backend;
     raster_target target;
     raster_bounds clip;
     uint32_t stride;
@@ -83,10 +89,10 @@ static void on_draw(void *context, const nema_draw_snapshot *snap)
         src.height = snap->src_height;
 
         if (snap->src_format == NEMA_FMT_RGB565) {
-            st = draw_texture(&target, &clip, NULL, &src, 0u, 0u,
+            st = draw_texture(&target, &clip, draw_context->bus, &src, 0u, 0u,
                                dst_x, dst_y, w, h, NULL, &err);
         } else if (snap->src_format == NEMA_FMT_A2LE) {
-            st = draw_mask(&target, &clip, NULL, &src, 0u, 0u,
+            st = draw_mask(&target, &clip, draw_context->bus, &src, 0u, 0u,
                             dst_x, dst_y, w, h,
                             NEMA_BL_SIMPLE, snap->tex_color, NULL, &err);
         } else {
@@ -182,6 +188,7 @@ semu_transaction_result semu_nema_backend_submit(
     uint32_t i;
     uint8_t *pixels;
     uint32_t stride;
+    nema_draw_context draw_context;
 
     (void)virtual_time_ns;
 
@@ -212,6 +219,8 @@ semu_transaction_result semu_nema_backend_submit(
     }
     memcpy(backend->backup, pixels, NEMA_BACKEND_PANEL_BYTES);
 
+    draw_context.backend = backend;
+    draw_context.bus = bus;
     backend->draw_failed = 0;
     nema_state_begin_list(backend->state, 0u);
 
@@ -260,7 +269,8 @@ semu_transaction_result semu_nema_backend_submit(
         rec.value = val_word;
         rec.source_addr = command_ring_address + (i + 1u) * 4u;
 
-        st = nema_state_record(backend->state, &rec, on_draw, backend, error);
+        st = nema_state_record(backend->state, &rec, on_draw,
+                               &draw_context, error);
         if (st != SEMU_OK || backend->draw_failed) {
             memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
             if (!backend->draw_failed) {

@@ -11,6 +11,7 @@
 #define SRAM_SIZE 0x00100000u
 #define CMD_BASE  (SRAM_BASE + 0x10000u)
 #define TEX_BASE  (SRAM_BASE + 0x20000u)
+#define SRC_BASE  (SRAM_BASE + 0x30000u)
 
 #define FSTRIDE_RGB565_240  0x040001E0u
 #define RESXY_240x240       0x00F000F0u
@@ -157,6 +158,92 @@ static void test_refusal_no_partial(semu_test_context *context)
     SEMU_TEST_ASSERT(context, frame != NULL);
     /* Surface should be unchanged (all zeros from creation) */
     SEMU_TEST_EQ_U64(context, 0u, frame->pixels[0]);
+    semu_nema_backend_destroy(backend);
+    semu_bus_destroy(bus);
+}
+
+static void test_source_draw_uses_bus(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_nema_backend *backend;
+    const semu_frame *frame;
+    uint8_t cmd[256u];
+    uint8_t source_pixel[2u] = {0x00u, 0xF8u};
+    uint32_t cmd_words = 0u;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, backend != NULL);
+    semu_bus_load(bus, SRC_BASE, source_pixel, sizeof(source_pixel), &err);
+
+    memset(cmd, 0, sizeof(cmd));
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_BASE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, TEX_BASE);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_FSTRIDE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, FSTRIDE_RGB565_240);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX0_RESXY);
+    put_u32(cmd, (cmd_words + 1u) * 4u, RESXY_240x240);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX1_BASE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, SRC_BASE);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX1_FSTRIDE);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x04000002u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX1_RESXY);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010001u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_TEX_COLOR);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0xFFFFFFFFu);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_CLIPMIN);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_CLIPMAX);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010001u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT0_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT0_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT1_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT1_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT2_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT2_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT3_X);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_POINT3_Y);
+    put_u32(cmd, (cmd_words + 1u) * 4u, 0x00010000u);
+    cmd_words += 2u;
+    put_u32(cmd, cmd_words * 4u, NEMA_REG_DRAW_CMD);
+    put_u32(cmd, (cmd_words + 1u) * 4u, NEMA_DRAW_QUAD);
+    cmd_words += 2u;
+
+    load_cmd(bus, cmd, cmd_words * 4u, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, cmd_words,
+                                   0u, NULL, NULL, &err));
+    frame = semu_nema_backend_frame(backend);
+    SEMU_TEST_ASSERT(context, frame != NULL);
+    SEMU_TEST_EQ_U64(context, 0xF800u,
+        (uint16_t)(frame->pixels[0] | (frame->pixels[1] << 8)));
+
     semu_nema_backend_destroy(backend);
     semu_bus_destroy(bus);
 }
@@ -363,6 +450,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_null_path),
         SEMU_TEST_CASE(test_clear_draw),
+        SEMU_TEST_CASE(test_source_draw_uses_bus),
         SEMU_TEST_CASE(test_refusal_no_partial),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_repeat_hash),
