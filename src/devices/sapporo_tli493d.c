@@ -12,10 +12,12 @@
  *   plus 7 startup responses (status=200).
  *
  * C# model (SapporoTli493dW2bw.cs) protocol:
- *   Write: first byte selects register (mask 0x1f), subsequent bytes
- *          write with auto-increment.
+ *   Write: the observed two-byte transactions select register 0x10 or 0x11
+ *          and write one value byte. Pointer bits outside the 0x1f register
+ *          address are invalid; they are not silently aliased.
  *   Read:  always starts from register 0, reads count bytes with
- *          auto-increment.
+ *          auto-increment. The native driver uses seven-byte sample reads
+ *          and a 23-byte initialization read.
  *   FinishTransmission: no-op.
  *   Reset: DIAG 0x06=0x44 (power-down bit 6 + frame-valid bit 2).
  *
@@ -27,7 +29,9 @@
 enum {
     TLI_REG_COUNT = 32u,
     TLI_REGISTER_MASK = 0x1fu,
-    TLI_READ_LIMIT = 23u,
+    TLI_READ_LAST = 0x16u,
+    TLI_SAMPLE_READ_SIZE = 7u,
+    TLI_INITIALIZATION_READ_SIZE = 23u,
     TLI_DIAG_REG = 0x06u,
     TLI_DIAG_VAL = 0x44u,
     TLI_CONFIG_FIRST = 0x10u,
@@ -41,12 +45,45 @@ struct semu_sapporo_tli493d {
 
 static int is_readable(uint8_t reg)
 {
-    return reg < TLI_READ_LIMIT;
+    switch (reg) {
+    case 0x00u:
+    case 0x01u:
+    case 0x02u:
+    case 0x03u:
+    case 0x04u:
+    case 0x05u:
+    case 0x06u:
+    case 0x07u:
+    case 0x08u:
+    case 0x09u:
+    case 0x0au:
+    case 0x0bu:
+    case 0x0cu:
+    case 0x0du:
+    case 0x0eu:
+    case 0x0fu:
+    case 0x10u:
+    case 0x11u:
+    case 0x12u:
+    case 0x13u:
+    case 0x14u:
+    case 0x15u:
+    case TLI_READ_LAST:
+        return 1;
+    default:
+        return 0;
+    }
 }
 
 static int is_writable(uint8_t reg)
 {
     return reg >= TLI_CONFIG_FIRST && reg <= TLI_CONFIG_LAST;
+}
+
+static int is_supported_read_size(size_t size)
+{
+    return size == TLI_SAMPLE_READ_SIZE ||
+           size == TLI_INITIALIZATION_READ_SIZE;
 }
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -75,28 +112,32 @@ static semu_transaction_result transfer(void *context,
         return refuse(error, "wrong address");
     }
     if (t->rx_size > 0u) {
-        uint8_t reg = 0u;
+        if (t->tx != NULL || t->tx_size != 0u || t->rx == NULL ||
+            !is_supported_read_size(t->rx_size)) {
+            return refuse(error, "unsupported read shape");
+        }
         for (i = 0u; i < t->rx_size; ++i) {
-            if (!is_readable(reg)) {
+            if (!is_readable((uint8_t)i)) {
                 return refuse(error, "read boundary");
             }
-            t->rx[i] = sensor->registers[reg];
-            reg = (uint8_t)((reg + 1u) & TLI_REGISTER_MASK);
+        }
+        for (i = 0u; i < t->rx_size; ++i) {
+            t->rx[i] = sensor->registers[i];
         }
     } else {
         uint8_t reg;
-        if (t->tx_size == 0u) {
-            semu_error_clear(error);
-            return SEMU_TRANSACTION_OK;
+        if (t->rx != NULL || t->tx == NULL || t->tx_size != 2u) {
+            return refuse(error, "unsupported write shape");
         }
-        reg = (uint8_t)(t->tx[0] & TLI_REGISTER_MASK);
-        for (i = 1u; i < t->tx_size; ++i) {
-            if (!is_writable(reg)) {
-                return refuse(error, "unknown write register");
-            }
-            sensor->registers[reg] = t->tx[i];
-            reg = (uint8_t)((reg + 1u) & TLI_REGISTER_MASK);
+        if ((t->tx[0] & (uint8_t)~TLI_REGISTER_MASK) != 0u) {
+            return refuse(error, "invalid register pointer");
         }
+        reg = t->tx[0];
+        if (!is_writable(reg)) {
+            return refuse(error, "unknown write register");
+        }
+        /* The complete two-byte frame was validated before this mutation. */
+        sensor->registers[reg] = t->tx[1];
     }
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
