@@ -156,6 +156,50 @@ static void test_configuration_register(semu_test_context *context)
     semu_sapporo_lsm6dsl_destroy(sensor);
 }
 
+static void test_observed_startup_configuration(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_lsm6dsl *sensor;
+    semu_serial_endpoint ep;
+    const uint8_t writes[][6] = {
+        { 0x11u, 0x00u },
+        { 0x15u, 0x00u },
+        { 0x12u, 0x01u },
+        { 0x06u, 0x18u, 0x00u, 0x01u, 0x01u, 0x1eu },
+        { 0x1bu, 0x01u },
+        { 0x1cu, 0x00u },
+        { 0x1eu, 0x00u },
+        { 0x1eu, 0x20u }
+    };
+    const size_t sizes[] = { 2u, 2u, 2u, 6u, 2u, 2u, 2u, 2u };
+    uint8_t invalid[] = { 0x1fu, 0xa5u };
+    uint8_t read_command = 0x91u;
+    uint8_t later_read_command = 0x9eu;
+    uint8_t rx[1];
+    size_t i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_lsm6dsl_create(0u, &error);
+    ep = semu_sapporo_lsm6dsl_endpoint(sensor);
+    for (i = 0u; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_write(&ep, 0u, writes[i], sizes[i], &error));
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, read_command, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, later_read_command, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x20u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0u, invalid, sizeof(invalid), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0u, later_read_command, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x20u, rx[0u]);
+
+    semu_sapporo_lsm6dsl_destroy(sensor);
+}
+
 static void test_wrong_direction(semu_test_context *context)
 {
     semu_error error;
@@ -179,7 +223,7 @@ static void test_register_refusals_are_atomic(semu_test_context *context)
     semu_sapporo_lsm6dsl *sensor;
     semu_serial_endpoint ep;
     uint8_t read_only[] = { 0x0fu, 0xaau };
-    uint8_t invalid_burst[] = { 0x52u, 0x11u, 0x22u };
+    uint8_t invalid_burst[] = { 0x5fu, 0x11u, 0x22u };
     uint8_t rx[2] = { 0xaau, 0xbbu };
 
     semu_error_clear(&error);
@@ -189,7 +233,7 @@ static void test_register_refusals_are_atomic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      do_write(&ep, 0u, read_only, sizeof(read_only), &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0u, 0x82u, rx, 1u, &error));
+                     do_read(&ep, 0u, 0x8bu, rx, 1u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      do_write(&ep, 0u, invalid_burst,
                               sizeof(invalid_burst), &error));
@@ -237,6 +281,7 @@ int main(void)
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_chip_select),
         SEMU_TEST_CASE(test_configuration_register),
+        SEMU_TEST_CASE(test_observed_startup_configuration),
         SEMU_TEST_CASE(test_wrong_direction),
         SEMU_TEST_CASE(test_register_refusals_are_atomic),
         SEMU_TEST_CASE(test_repeated_transcript)

@@ -128,6 +128,57 @@ static void test_configuration_registers(semu_test_context *context)
     semu_sapporo_haptic_destroy(sensor);
 }
 
+static void test_observed_status_read_only(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_haptic *sensor;
+    semu_serial_endpoint ep;
+    uint8_t tx[] = { 0x08u, 0x01u };
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_haptic_create(0x50u, &error);
+    ep = semu_sapporo_haptic_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x08u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x50u, tx, sizeof(tx), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x08u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+
+    semu_sapporo_haptic_destroy(sensor);
+}
+
+static void test_observed_waveform_selector(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_haptic *sensor;
+    semu_serial_endpoint ep;
+    uint8_t select[] = { 0x09u, 0x12u };
+    uint8_t unknown[] = { 0x0au, 0x01u };
+    uint8_t rx[1];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_haptic_create(0x50u, &error);
+    ep = semu_sapporo_haptic_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0x50u, select, sizeof(select), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x09u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x12u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x50u, unknown, sizeof(unknown), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x09u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x12u, rx[0u]);
+
+    semu_sapporo_haptic_destroy(sensor);
+}
+
 static void test_write_without_trigger(semu_test_context *context)
 {
     semu_error error;
@@ -214,6 +265,8 @@ int main(void)
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
         SEMU_TEST_CASE(test_configuration_registers),
+        SEMU_TEST_CASE(test_observed_status_read_only),
+        SEMU_TEST_CASE(test_observed_waveform_selector),
         SEMU_TEST_CASE(test_write_without_trigger),
         SEMU_TEST_CASE(test_waveform_and_refusal_boundary),
         SEMU_TEST_CASE(test_repeated_transcript)

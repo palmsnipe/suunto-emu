@@ -1,6 +1,7 @@
 #include "sapporo_lsm6dsl.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 /*
  * E-SAP-LSM6DSL-001 verified trace
@@ -44,7 +45,7 @@ enum {
 
 struct semu_sapporo_lsm6dsl {
     uint8_t chip_select;
-    uint8_t ctrl3_c;
+    uint8_t config[0x1fu];
     uint8_t reg;
     int have_command;
     int read;
@@ -53,14 +54,20 @@ struct semu_sapporo_lsm6dsl {
 
 static int is_known_register(uint8_t reg)
 {
-    /* ST LSM6DSL datasheet: WHO_AM_I, CTRL3_C, and output/FIFO registers. */
-    return reg == LSM6_WHO_AM_I_REG || reg == LSM6_CTRL3_C_REG ||
+    /* E-SAP-LSM6DSL-001: these control spans are present in the native
+       startup/configuration transcript; unobserved registers remain closed. */
+    return (reg >= 0x01u && reg <= 0x0au) || reg == 0x0du ||
+           reg == 0x0eu || (reg >= 0x10u && reg <= 0x1au) ||
+           reg == 0x1bu || reg == 0x1cu || reg == 0x1eu ||
+           reg == LSM6_WHO_AM_I_REG ||
            (reg >= LSM6_OUTPUT_FIRST && reg <= LSM6_OUTPUT_LAST);
 }
 
 static int is_writable_register(uint8_t reg)
 {
-    return reg == LSM6_CTRL3_C_REG;
+    return (reg >= 0x01u && reg <= 0x0au) || reg == 0x0du ||
+           reg == 0x0eu || (reg >= 0x10u && reg <= 0x1au) ||
+           reg == 0x1bu || reg == 0x1cu || reg == 0x1eu;
 }
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -71,7 +78,8 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 
 static void reset_state(semu_sapporo_lsm6dsl *sensor)
 {
-    sensor->ctrl3_c = LSM6_CTRL3_C_RESET;
+    memset(sensor->config, 0, sizeof(sensor->config));
+    sensor->config[LSM6_CTRL3_C_REG] = LSM6_CTRL3_C_RESET;
     sensor->reg = 0u;
     sensor->have_command = 0;
     sensor->read = 0;
@@ -85,7 +93,10 @@ static uint8_t register_value(const semu_sapporo_lsm6dsl *sensor,
         return LSM6_WHO_AM_I_VAL;
     }
     if (reg == LSM6_CTRL3_C_REG) {
-        return sensor->ctrl3_c;
+        return sensor->config[reg];
+    }
+    if (reg <= 0x1eu && is_writable_register(reg)) {
+        return sensor->config[reg];
     }
     if (reg == LSM6_FIFO_STATUS2_REG) {
         return LSM6_FIFO_EMPTY;
@@ -122,8 +133,10 @@ static void write_register(semu_sapporo_lsm6dsl *sensor, uint8_t reg,
         if ((value & LSM6_CTRL3_C_SW_RESET) != 0u) {
             reset_state(sensor);
         } else {
-            sensor->ctrl3_c = (uint8_t)(value & LSM6_CTRL3_C_WRITE_MASK);
+            sensor->config[reg] = (uint8_t)(value & LSM6_CTRL3_C_WRITE_MASK);
         }
+    } else if (is_writable_register(reg)) {
+        sensor->config[reg] = value;
     }
 }
 

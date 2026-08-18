@@ -459,7 +459,6 @@ semu_transaction_result semu_sapporo_222_ohr_body_provider(
     semu_sapporo_222_fixture_context *ctx =
         (semu_sapporo_222_fixture_context *)context;
     (void)sequence;
-    (void)request_payload;
 
     switch (command) {
     case SEMU_SAPPORO_OHR2_COMMAND_IDENTITY:
@@ -472,10 +471,14 @@ semu_transaction_result semu_sapporo_222_ohr_body_provider(
         response_payload[13u] = 0u;
         break;
     case SEMU_SAPPORO_OHR2_COMMAND_CONFIGURE:
-    case SEMU_SAPPORO_OHR2_COMMAND_ECHO:
     case SEMU_SAPPORO_OHR2_COMMAND_RESULT_13:
     case SEMU_SAPPORO_OHR2_COMMAND_RESULT_14:
         memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        break;
+    case SEMU_SAPPORO_OHR2_COMMAND_ECHO:
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        memcpy(response_payload + 4u, request_payload + 4u,
+               SEMU_SAPPORO_OHR2_PAYLOAD_SIZE - 4u);
         break;
     default:
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,

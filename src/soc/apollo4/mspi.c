@@ -404,12 +404,17 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
         status = complete_queue(mspi, error);
         if (status != SEMU_OK) return status;
         *reg(mspi, offset) = value;
-    } else if (!is_mspi1(mspi) && offset == M2_COMMAND &&
-               (value == 0xc1u || value == 0xe1u)) {
+    } else if (!is_mspi1(mspi) && offset == M2_COMMAND) {
         uint8_t command = (uint8_t)(*reg(mspi, M2_DATA) & 0xffu);
         uint8_t frame[4];
         uint32_t address = 0u;
         size_t frame_size = 1u;
+
+        if (value != 0xc1u && value != 0xe1u) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "Apollo4 MSPI2 command control is not evidenced");
+            return SEMU_ERR_UNSUPPORTED;
+        }
         frame[0u] = command;
         if (command == 0x21u) {
             address = *reg(mspi, M2_ADDRESS);
@@ -418,8 +423,12 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
             frame[3u] = (uint8_t)address;
             frame_size = sizeof(frame);
         }
-        status = endpoint_transfer(mspi, frame, frame_size, address, error);
-        if (status != SEMU_OK) return status;
+        /* E-A4-MSPI-001 records command 0x35 as a controller completion
+           boundary; it does not issue a flash transaction. */
+        if (command == 0x06u || command == 0x21u) {
+            status = endpoint_transfer(mspi, frame, frame_size, address, error);
+            if (status != SEMU_OK) return status;
+        }
         *reg(mspi, offset) = value;
         mspi->status |= M2_COMMAND_DONE;
         update_irq(mspi);

@@ -27,6 +27,8 @@
 
 enum {
     HAPTIC_FAULT_REG = 0x01u,
+    HAPTIC_STATUS_REG = 0x08u,
+    HAPTIC_WAVEFORM_SELECT_REG = 0x09u,
     HAPTIC_CONFIG0_REG = 0x0du,
     HAPTIC_CONFIG1_REG = 0x11u,
     HAPTIC_CONFIG2_REG = 0x12u,
@@ -43,6 +45,7 @@ enum {
 struct semu_sapporo_haptic {
     uint8_t address;
     uint8_t selected;
+    uint8_t waveform_select;
     uint8_t config0;
     uint8_t config1;
     uint8_t config2;
@@ -62,6 +65,7 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 static void reset_state(semu_sapporo_haptic *sensor)
 {
     sensor->selected = 0u;
+    sensor->waveform_select = 0u;
     sensor->config0 = 0u;
     sensor->config1 = 0u;
     sensor->config2 = 0u;
@@ -74,7 +78,9 @@ static void reset_state(semu_sapporo_haptic *sensor)
 
 static int is_known_register(uint8_t reg)
 {
-    return reg == HAPTIC_FAULT_REG || reg == HAPTIC_CONFIG0_REG ||
+    return reg == HAPTIC_FAULT_REG || reg == HAPTIC_STATUS_REG ||
+           reg == HAPTIC_WAVEFORM_SELECT_REG ||
+           reg == HAPTIC_CONFIG0_REG ||
            reg == HAPTIC_CONFIG1_REG || reg == HAPTIC_CONFIG2_REG ||
            reg == HAPTIC_CONFIG3_REG || reg == HAPTIC_CONFIG4_REG ||
            reg == HAPTIC_CONFIG5_REG || reg == HAPTIC_AUTOTUNE_REG ||
@@ -83,13 +89,18 @@ static int is_known_register(uint8_t reg)
 
 static int is_writable_register(uint8_t reg)
 {
-    return reg != HAPTIC_FAULT_REG && is_known_register(reg);
+    return reg != HAPTIC_FAULT_REG && reg != HAPTIC_STATUS_REG &&
+           is_known_register(reg);
 }
 
 static uint8_t register_value(const semu_sapporo_haptic *sensor,
                               uint8_t reg)
 {
     switch (reg) {
+    case HAPTIC_STATUS_REG:
+        return 0u;
+    case HAPTIC_WAVEFORM_SELECT_REG:
+        return sensor->waveform_select;
     case HAPTIC_CONFIG0_REG:
         return sensor->config0;
     case HAPTIC_CONFIG1_REG:
@@ -117,6 +128,9 @@ static void write_register(semu_sapporo_haptic *sensor, uint8_t reg,
                            uint8_t value)
 {
     switch (reg) {
+    case HAPTIC_WAVEFORM_SELECT_REG:
+        sensor->waveform_select = value;
+        break;
     case HAPTIC_CONFIG0_REG:
         sensor->config0 = value;
         break;

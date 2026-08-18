@@ -22,7 +22,8 @@
  *
  * Register values are deterministic host-side battery fixtures, not physical
  * gauge evidence. The public datasheet has a 256-word map, but this endpoint
- * promotes only the four registers observed in the authentic Sapporo trace.
+ * promotes only the selectors observed in the authentic Sapporo startup
+ * command trace: 0x00, 0x06, 0x08, 0x09, 0x0b, 0x19, and 0x21.
  * Unobserved writes, reserved registers, and partial words refuse.
  */
 
@@ -34,7 +35,11 @@ enum {
     MAX_TEMP_REG = 0x08u,
     MAX_TEMP_VAL = 0x1900u,
     MAX_VCELL_REG = 0x09u,
-    MAX_VCELL_VAL = 0xC000u
+    MAX_VCELL_VAL = 0xC000u,
+    MAX_AVERAGE_VCELL_REG = 0x19u,
+    MAX_AVERAGE_VCELL_VAL = 0xC000u,
+    MAX_OBSERVED_ZERO_REG = 0x0bu,
+    MAX_OBSERVED_LATER_REG = 0x21u
 };
 
 struct semu_sapporo_max17050 {
@@ -62,7 +67,9 @@ static void reset_state(semu_sapporo_max17050 *sensor)
 static int is_observed_register(uint8_t reg)
 {
     return reg == MAX_STATUS_REG || reg == MAX_REPSOC_REG ||
-           reg == MAX_TEMP_REG || reg == MAX_VCELL_REG;
+           reg == MAX_TEMP_REG || reg == MAX_VCELL_REG ||
+           reg == MAX_AVERAGE_VCELL_REG || reg == MAX_OBSERVED_ZERO_REG ||
+           reg == MAX_OBSERVED_LATER_REG;
 }
 
 static uint16_t register_value(const semu_sapporo_max17050 *sensor,
@@ -77,6 +84,11 @@ static uint16_t register_value(const semu_sapporo_max17050 *sensor,
         return sensor->temperature;
     case MAX_VCELL_REG:
         return sensor->vcell;
+    case MAX_AVERAGE_VCELL_REG:
+        return MAX_AVERAGE_VCELL_VAL;
+    case MAX_OBSERVED_ZERO_REG:
+    case MAX_OBSERVED_LATER_REG:
+        return 0u;
     default:
         return 0u;
     }

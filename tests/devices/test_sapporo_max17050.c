@@ -155,7 +155,31 @@ static void test_unknown_register_refusal(semu_test_context *context)
     ep = semu_sapporo_max17050_endpoint(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
-                     do_read(&ep, 0x36u, 0x21u, rx, 2u, &error));
+                     do_read(&ep, 0x36u, 0x22u, rx, 2u, &error));
+
+    semu_sapporo_max17050_destroy(sensor);
+}
+
+static void test_observed_later_registers(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_max17050 *sensor;
+    semu_serial_endpoint ep;
+    const uint8_t registers[] = { 0x0bu, 0x19u, 0x21u };
+    const uint16_t values[] = { 0x0000u, 0xC000u, 0x0000u };
+    uint8_t rx[2];
+    size_t i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_max17050_create(0x36u, &error);
+    ep = semu_sapporo_max17050_endpoint(sensor);
+    for (i = 0u; i < sizeof(registers) / sizeof(registers[0]); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_read(&ep, 0x36u, registers[i], rx, 2u,
+                                 &error));
+        SEMU_TEST_EQ_U64(context, (uint8_t)values[i], rx[0u]);
+        SEMU_TEST_EQ_U64(context, (uint8_t)(values[i] >> 8u), rx[1u]);
+    }
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -249,6 +273,7 @@ int main(void)
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
         SEMU_TEST_CASE(test_unknown_register_refusal),
+        SEMU_TEST_CASE(test_observed_later_registers),
         SEMU_TEST_CASE(test_byte_order),
         SEMU_TEST_CASE(test_write_and_shape_refusals),
         SEMU_TEST_CASE(test_repeated_transcript)

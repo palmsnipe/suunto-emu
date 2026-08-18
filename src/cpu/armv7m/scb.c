@@ -128,7 +128,8 @@ static void write_shpr(semu_cpu *cpu, uint32_t offset, unsigned width,
         uint32_t address = offset + byte;
         if (system_priority_byte(address, &exception)) {
             cpu->system_priority[exception] =
-                (uint8_t)(value >> (byte * 8u));
+                (uint8_t)(value >> (byte * 8u)) &
+                ARMV7M_NVIC_PRIORITY_MASK;
         }
     }
 }

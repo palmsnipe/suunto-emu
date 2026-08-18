@@ -118,7 +118,7 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd18u,
                                          0x00030201u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd18u, &value));
-    SEMU_TEST_EQ_U64(context, 0x00030201u, value);
+    SEMU_TEST_EQ_U64(context, 0x00000000u, value);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd88u,
                                          0x00f00000u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd88u, &value));
@@ -126,6 +126,27 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_bus_read(fixture.bus, SCS + 0x0fcu, 4u, &value,
                                    &fixture.error));
+    semu_cpu_fixture_destroy(&fixture);
+}
+
+static void test_system_priority_mask_and_refusal(semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+    uint32_t value;
+    uint32_t before;
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd20u,
+                                         0xffffffffu));
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd20u, &value));
+    SEMU_TEST_EQ_U64(context, 0xe0e00000u, value);
+    before = value;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_write(fixture.bus, SCS + 0xd21u, 2u,
+                                    0u, &fixture.error));
+    SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd20u, &value));
+    SEMU_TEST_EQ_U64(context, before, value);
     semu_cpu_fixture_destroy(&fixture);
 }
 
@@ -293,7 +314,7 @@ static void test_nmi_mask_bypass_and_reserved_refusal(semu_test_context *context
     SEMU_TEST_ASSERT(context, write_byte(&fixture, SCS + 0xd22u, 0x77u));
     SEMU_TEST_ASSERT(context, write_byte(&fixture, SCS + 0xd23u, 0x88u));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd20u, &value));
-    SEMU_TEST_EQ_U64(context, 0x88770000u, value);
+    SEMU_TEST_EQ_U64(context, 0x80600000u, value);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd04u,
                                          1u << 31));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd04u, &value));
@@ -355,7 +376,8 @@ int main(void)
         SEMU_TEST_CASE(test_priority_pending_and_pendsv),
         SEMU_TEST_CASE(test_prigroup_masks_and_nested_return),
         SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal),
-        SEMU_TEST_CASE(test_pending_source_count_tracks_edges)
+        SEMU_TEST_CASE(test_pending_source_count_tracks_edges),
+        SEMU_TEST_CASE(test_system_priority_mask_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

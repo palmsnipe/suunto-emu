@@ -365,7 +365,7 @@ static void mspi2_command_and_reset(semu_test_context *context)
                                SEMU_APOLLO4_MSPI_INTEN, 1u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
-                               SEMU_APOLLO4_MSPI2_DATA, 0x9fu));
+                               SEMU_APOLLO4_MSPI2_DATA, 0x06u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
                                SEMU_APOLLO4_MSPI2_COMMAND, 0xc1u));
@@ -380,6 +380,34 @@ static void mspi2_command_and_reset(semu_test_context *context)
     destroy_fixture(&f);
 }
 
+static void mspi2_setup_completion_and_refusal(semu_test_context *context)
+{
+    fixture f = { 0 };
+    uint32_t value = 99u;
+    SEMU_TEST_ASSERT(context, init_fixture(&f, SEMU_APOLLO4_MSPI2_BASE,
+                                            SEMU_APOLLO4_MSPI2_IRQ));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_DATA, 0x35u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_COMMAND, 0xc1u));
+    SEMU_TEST_EQ_U64(context, 0u, f.endpoint_count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI_INTSTAT, &value));
+    SEMU_TEST_EQ_U64(context, 1u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                               SEMU_APOLLO4_MSPI2_COMMAND, 0xc0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_reg(&f, SEMU_APOLLO4_MSPI2_BASE,
+                              SEMU_APOLLO4_MSPI2_COMMAND, &value));
+    SEMU_TEST_EQ_U64(context, 0xc1u, value);
+    SEMU_TEST_EQ_U64(context, 0u, f.endpoint_count);
+    destroy_fixture(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -390,7 +418,8 @@ int main(void)
         SEMU_TEST_CASE(mspi2_erase_full_device_address),
         SEMU_TEST_CASE(refusal_is_atomic),
         SEMU_TEST_CASE(endpoint_refusal_is_atomic),
-        SEMU_TEST_CASE(mspi2_command_and_reset)
+        SEMU_TEST_CASE(mspi2_command_and_reset),
+        SEMU_TEST_CASE(mspi2_setup_completion_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
