@@ -11,37 +11,54 @@
  *   register 0x01=0xC600 big-endian) and P2M result reads (count=2,
  *   pointer 0x00), plus 4 completion responses (status=200).
  *
- * C# model (SapporoOpt3007.cs) protocol:
- *   Write: first byte selects register pointer, subsequent bytes write
- *          with auto-increment. The OPT3007 uses 16-bit registers;
- *          config 0x01 is written as big-endian 0xC600 (0xC6, 0x00).
- *   Read:  reads from selected pointer with auto-increment.
- *   FinishTransmission: no-op.
- *   Reset: all registers cleared to 0x00.
+ * The public OPT3007 datasheet defines six 16-bit registers. This model keeps
+ * the result deterministic at zero lux and defers conversion timing, but
+ * implements the documented register map, power-on values, read-only IDs, and
+ * configuration write mask. All register data is big-endian on the wire.
  *
- * The result register (pointer 0x00) is an explicit zero-lux fixture
- * (0x0000). The config register (pointer 0x01) is readable/writable.
- * Unknown pointer, wrong address, wrong length, and wrong byte order
- * refuse before mutation. No wildcard readable/writable mask is used.
+ * The native Sapporo path uses only config 0x01 and result 0x00. The remaining
+ * registers are included for hardware-compatible inspection and are not used
+ * as an unobserved startup requirement.
  */
 
 enum {
     OPT_RESULT_PTR = 0x00u,
     OPT_CONFIG_PTR = 0x01u,
+    OPT_LOW_LIMIT_PTR = 0x02u,
+    OPT_HIGH_LIMIT_PTR = 0x03u,
+    OPT_MANUFACTURER_ID_PTR = 0x7eu,
+    OPT_DEVICE_ID_PTR = 0x7fu,
     OPT_REG_SIZE = 2u
 };
 
+#define OPT_CONFIG_RESET 0xc810u
+#define OPT_LOW_LIMIT_RESET 0xc000u
+#define OPT_HIGH_LIMIT_RESET 0xbfffu
+#define OPT_MANUFACTURER_ID 0x5449u
+#define OPT_DEVICE_ID 0x3001u
+
+/* RN[3:0], CT, M[1:0], POL, ME, and FC[1:0] are writable. */
+#define OPT_CONFIG_WRITE_MASK 0xfe0fu
+
 struct semu_sapporo_opt3007 {
     uint8_t address;
-    uint8_t result_high;
-    uint8_t result_low;
-    uint8_t config_high;
-    uint8_t config_low;
+    uint16_t result;
+    uint16_t config;
+    uint16_t low_limit;
+    uint16_t high_limit;
 };
 
 static int is_known_pointer(uint8_t ptr)
 {
-    return ptr == OPT_RESULT_PTR || ptr == OPT_CONFIG_PTR;
+    return ptr == OPT_RESULT_PTR || ptr == OPT_CONFIG_PTR ||
+           ptr == OPT_LOW_LIMIT_PTR || ptr == OPT_HIGH_LIMIT_PTR ||
+           ptr == OPT_MANUFACTURER_ID_PTR || ptr == OPT_DEVICE_ID_PTR;
+}
+
+static int is_writable_pointer(uint8_t ptr)
+{
+    return ptr == OPT_CONFIG_PTR || ptr == OPT_LOW_LIMIT_PTR ||
+           ptr == OPT_HIGH_LIMIT_PTR;
 }
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -52,10 +69,37 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 
 static void reset_state(semu_sapporo_opt3007 *sensor)
 {
-    sensor->result_high = 0u;
-    sensor->result_low = 0u;
-    sensor->config_high = 0u;
-    sensor->config_low = 0u;
+    sensor->result = 0u;
+    sensor->config = OPT_CONFIG_RESET;
+    sensor->low_limit = OPT_LOW_LIMIT_RESET;
+    sensor->high_limit = OPT_HIGH_LIMIT_RESET;
+}
+
+static uint16_t register_value(const semu_sapporo_opt3007 *sensor,
+                               uint8_t ptr)
+{
+    switch (ptr) {
+    case OPT_RESULT_PTR:
+        return sensor->result;
+    case OPT_CONFIG_PTR:
+        return sensor->config;
+    case OPT_LOW_LIMIT_PTR:
+        return sensor->low_limit;
+    case OPT_HIGH_LIMIT_PTR:
+        return sensor->high_limit;
+    case OPT_MANUFACTURER_ID_PTR:
+        return OPT_MANUFACTURER_ID;
+    case OPT_DEVICE_ID_PTR:
+        return OPT_DEVICE_ID;
+    default:
+        return 0u;
+    }
+}
+
+static void write_be16(uint8_t *bytes, uint16_t value)
+{
+    bytes[0u] = (uint8_t)(value >> 8u);
+    bytes[1u] = (uint8_t)value;
 }
 
 static semu_transaction_result transfer(void *context,
@@ -64,6 +108,7 @@ static semu_transaction_result transfer(void *context,
 {
     semu_sapporo_opt3007 *sensor = (semu_sapporo_opt3007 *)context;
     uint8_t ptr;
+    uint16_t value;
 
     if (sensor == NULL || t == NULL) {
         return refuse(error, "null transaction");
@@ -71,41 +116,42 @@ static semu_transaction_result transfer(void *context,
     if (t->address != sensor->address) {
         return refuse(error, "wrong address");
     }
-    if (t->tx_size == 0u) {
-        return refuse(error, "no pointer");
+    if (t->tx == NULL || t->tx_size == 0u) {
+        return refuse(error, "missing register pointer");
     }
     ptr = t->tx[0];
     if (!is_known_pointer(ptr)) {
         return refuse(error, "unknown pointer");
     }
     if (t->rx_size > 0u) {
-        if (t->rx_size > OPT_REG_SIZE) {
-            return refuse(error, "read length exceeds register");
+        if (t->tx_size != 1u || t->rx_size != OPT_REG_SIZE ||
+            t->rx == NULL) {
+            return refuse(error, "read requires one pointer and two bytes");
         }
-        if (ptr == OPT_RESULT_PTR) {
-            t->rx[0u] = sensor->result_high;
-            if (t->rx_size > 1u) {
-                t->rx[1u] = sensor->result_low;
-            }
-        } else {
-            t->rx[0u] = sensor->config_high;
-            if (t->rx_size > 1u) {
-                t->rx[1u] = sensor->config_low;
-            }
-        }
+        value = register_value(sensor, ptr);
+        write_be16(t->rx, value);
     } else {
-        size_t data_count = t->tx_size - 1u;
-        if (ptr == OPT_RESULT_PTR) {
-            return refuse(error, "result register is read-only");
+        if (t->rx != NULL || t->tx_size != 1u + OPT_REG_SIZE) {
+            return refuse(error, "write requires one pointer and two bytes");
         }
-        if (data_count > OPT_REG_SIZE) {
-            return refuse(error, "write length exceeds register");
+        if (!is_writable_pointer(ptr)) {
+            return refuse(error, "register is read-only");
         }
-        if (data_count >= 1u) {
-            sensor->config_high = t->tx[1u];
-        }
-        if (data_count >= 2u) {
-            sensor->config_low = t->tx[2u];
+        value = (uint16_t)(((uint16_t)t->tx[1u] << 8u) | t->tx[2u]);
+        switch (ptr) {
+        case OPT_CONFIG_PTR:
+            sensor->config = (uint16_t)((sensor->config &
+                                         (uint16_t)~OPT_CONFIG_WRITE_MASK) |
+                                        (value & OPT_CONFIG_WRITE_MASK));
+            break;
+        case OPT_LOW_LIMIT_PTR:
+            sensor->low_limit = value;
+            break;
+        case OPT_HIGH_LIMIT_PTR:
+            sensor->high_limit = value;
+            break;
+        default:
+            return refuse(error, "register is not writable");
         }
     }
     semu_error_clear(error);
