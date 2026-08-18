@@ -62,8 +62,8 @@ validate_ledger() {
             count++
         }
         END {
-            if (count != 33) {
-                print "expected 33 evidence rows, found " count > "/dev/stderr"
+            if (count != 35) {
+                print "expected 35 evidence rows, found " count > "/dev/stderr"
                 bad = 1
             }
             exit bad
@@ -104,6 +104,8 @@ E-NEMA-TEXTURE-001
 E-NEMA-A2LE-001
 E-NEMA-PANEL-001
 E-SAP-INPUT-REPLAY-001
+E-SAP-COMPAT-RESOURCE-001
+E-SAP-COMPAT-GPS-004
 EOF
 )
     actual_ids=$(awk -F '\t' 'NR > 1 { print $1 }' "$ledger")
