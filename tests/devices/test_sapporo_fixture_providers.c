@@ -29,6 +29,18 @@ static void dummy_rx(void *context, uint8_t value, uint64_t virtual_time_ns)
     (void)virtual_time_ns;
 }
 
+typedef struct awake_capture {
+    unsigned edges;
+} awake_capture;
+
+static void capture_awake(void *context, unsigned channel, int level)
+{
+    awake_capture *capture = (awake_capture *)context;
+    (void)channel;
+    (void)level;
+    if (capture != NULL) ++capture->edges;
+}
+
 static void test_gps_match(semu_test_context *context)
 {
     semu_layer_state state;
@@ -161,25 +173,32 @@ static void test_gps_running_status(semu_test_context *context)
     semu_scheduler *scheduler;
     semu_sapporo_cxd5610 *transport;
     semu_sapporo_222_fixture_context ctx;
+    awake_capture awake;
     static const uint8_t request[] = { '@', 'G', 'S', 'R', '\r', '\n' };
 
     init_layer(&state, &logger, &error);
     memset(&ctx, 0, sizeof(ctx));
+    memset(&awake, 0, sizeof(awake));
     ctx.state = &state;
     ctx.logger = &logger;
     scheduler = semu_scheduler_create(&error);
     SEMU_TEST_ASSERT(context, scheduler != NULL);
-    transport = semu_sapporo_cxd5610_create(scheduler, NULL, NULL,
+    transport = semu_sapporo_cxd5610_create(scheduler, capture_awake, &awake,
         dummy_rx, NULL, NULL, NULL, &error);
     SEMU_TEST_ASSERT(context, transport != NULL);
+    awake.edges = 0u;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_sapporo_222_arm_gps_running_status(transport, &ctx, &error));
-    SEMU_TEST_EQ_U64(context, 2u, state.hits);
+    SEMU_TEST_EQ_U64(context, 1u, state.hits);
+    SEMU_TEST_EQ_U64(context, 0u, awake.edges);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_scheduler_advance(scheduler, UINT64_C(10000000), &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         semu_sapporo_222_gps_exchange(&ctx, request, sizeof(request),
                                        transport, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(scheduler, UINT64_C(90000000), &error));
+    SEMU_TEST_EQ_U64(context, 0u, awake.edges);
     semu_sapporo_cxd5610_destroy(transport);
     semu_scheduler_destroy(scheduler);
 }

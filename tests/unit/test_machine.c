@@ -6,17 +6,22 @@
 #include <stdio.h>
 #include <string.h>
 
-static int write_program(const char *path, uint8_t program[34])
+static int write_bytes(const char *path, const uint8_t *program, size_t size)
 {
     FILE *stream = fopen(path, "wb");
     if (stream == NULL) {
         return 0;
     }
-    if (fwrite(program, 1u, 34u, stream) != 34u) {
+    if (fwrite(program, 1u, size, stream) != size) {
         (void)fclose(stream);
         return 0;
     }
     return fclose(stream) == 0;
+}
+
+static int write_program(const char *path, uint8_t program[34])
+{
+    return write_bytes(path, program, 34u);
 }
 
 static int write_full_flash(const char *path)
@@ -197,11 +202,79 @@ static void test_input_poll_can_stop_and_inject(semu_test_context *context)
     (void)remove(path);
 }
 
+static void test_button_input_polarity_and_refusal(
+    semu_test_context *context)
+{
+    static const uint8_t program[64] = {
+        0x00u, 0x01u, 0x00u, 0x10u, /* MSP = 0x10000100 */
+        0x21u, 0x00u, 0x00u, 0x00u, /* reset = 0x00000021 */
+        [0x20] = 0x06u, 0x48u,       /* ldr r0, [pc, #24] */
+        [0x22] = 0x01u, 0x68u,       /* ldr r1, [r0] */
+        [0x24] = 0x89u, 0x0eu,       /* lsrs r1, r1, #26 */
+        [0x26] = 0x01u, 0x22u,       /* movs r2, #1 */
+        [0x28] = 0x11u, 0x40u,       /* ands r1, r2 */
+        [0x2a] = 0x00u, 0x29u,       /* cmp r1, #0 */
+        [0x2c] = 0x00u, 0xd0u,       /* beq pressed */
+        [0x2e] = 0x00u, 0xbeu,       /* released: halt */
+        [0x30] = 0x30u, 0xbfu,       /* pressed: wfi */
+        [0x32] = 0x00u, 0xbeu,       /* unexpected wake: halt */
+        [0x3c] = 0x08u, 0x02u, 0x01u, 0x40u /* GPIO input bank 1 */
+    };
+    semu_firmware_manifest firmware;
+    semu_machine_options options;
+    semu_profile profile;
+    semu_machine *machine;
+    semu_run_limits limits = { 32u, UINT64_C(1000000) };
+    semu_input_event event;
+    semu_error error;
+    char path[128];
+
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(path, sizeof(path), "machine-button.bin"));
+    SEMU_TEST_ASSERT(context, write_bytes(path, program, sizeof(program)));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    memset(&options, 0, sizeof(options));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    machine = semu_machine_create(&options, &error);
+    SEMU_TEST_ASSERT(context, machine != NULL);
+    if (machine != NULL) {
+        event = (semu_input_event){
+            SEMU_INPUT_BUTTON, 3u, 0, 0, 0
+        };
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                         semu_machine_run(machine, &limits, &error));
+
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_reset(machine, &error));
+        event.code = SEMU_BUTTON_MIDDLE;
+        event.value = 0;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_WFI_DEADLOCK,
+                         semu_machine_run(machine, &limits, &error));
+
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_reset(machine, &error));
+        event.value = 1;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                         semu_machine_run(machine, &limits, &error));
+        semu_machine_destroy(machine);
+    }
+    (void)remove(path);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_repeated_reset_and_source_guard),
-        SEMU_TEST_CASE(test_input_poll_can_stop_and_inject)
+        SEMU_TEST_CASE(test_input_poll_can_stop_and_inject),
+        SEMU_TEST_CASE(test_button_input_polarity_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

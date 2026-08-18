@@ -470,7 +470,7 @@ semu_status semu_machine_input(semu_machine *machine,
         return SEMU_ERR_UNSUPPORTED;
     }
     return semu_apollo4_set_gpio_input(machine->soc, pins[event->code],
-                                       event->value == 0, error);
+                                       event->value != 0, error);
 }
 
 semu_stop_reason semu_machine_stop_reason(const semu_machine *machine)

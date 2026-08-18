@@ -383,8 +383,8 @@ semu_status semu_sapporo_222_arm_gps_running_status(
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
     context->gps_running_status_armed = 1;
-    return semu_sapporo_222_arm_gps_awake_pulse(
-        transport, context, error);
+    semu_error_clear(error);
+    return SEMU_OK;
 }
 
 semu_status semu_sapporo_222_arm_gps_awake_pulse(
