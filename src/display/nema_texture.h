@@ -18,6 +18,9 @@
 #define NEMA_TEX_FMT_A2LE     0x28u
 #define NEMA_TEX_FMT_TSC6A    0x17u
 
+/* Only the observed point/nearest sampling mode is implemented. */
+#define NEMA_TEX_SAMPLING_NEAREST 0x00u
+
 #define NEMA_TEX_MAX_DIM 512u
 
 typedef struct {

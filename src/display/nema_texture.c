@@ -37,6 +37,18 @@ static semu_status validate_format_dims(const nema_texture_desc *d,
     return SEMU_OK;
 }
 
+static semu_status validate_sampling(const nema_texture_desc *d,
+                                     semu_error *error)
+{
+    if (d->sampling != NEMA_TEX_SAMPLING_NEAREST) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "texture: sampling mode 0x%02x unsupported",
+                       d->sampling);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
+}
+
 semu_status nema_texture_validate(semu_bus *bus,
                                    const nema_texture_desc *desc,
                                    semu_error *error)
@@ -51,6 +63,8 @@ semu_status nema_texture_validate(semu_bus *bus,
         return SEMU_ERR_ARGUMENT;
     }
     st = validate_format_dims(desc, error);
+    if (st != SEMU_OK) return st;
+    st = validate_sampling(desc, error);
     if (st != SEMU_OK) return st;
 
     min_bpr = bytes_per_row(desc->format, desc->width);
