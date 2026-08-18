@@ -105,7 +105,6 @@ static void test_reset(semu_test_context *context)
     semu_error error;
     semu_sapporo_max17050 *sensor;
     semu_serial_endpoint ep;
-    uint8_t tx[] = { 0x00u, 0xFFu, 0xFFu };
     uint8_t rx[2];
 
     semu_error_clear(&error);
@@ -113,18 +112,16 @@ static void test_reset(semu_test_context *context)
     ep = semu_sapporo_max17050_endpoint(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_write(&ep, 0x36u, tx, 3u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_read(&ep, 0x36u, 0x00u, rx, 2u, &error));
-    SEMU_TEST_EQ_U64(context, 0xFFu, rx[0u]);
-    SEMU_TEST_EQ_U64(context, 0xFFu, rx[1u]);
+                     do_read(&ep, 0x36u, 0x06u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x32u, rx[1u]);
 
     semu_sapporo_max17050_reset(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_read(&ep, 0x36u, 0x00u, rx, 2u, &error));
+                     do_read(&ep, 0x36u, 0x09u, rx, 2u, &error));
     SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
-    SEMU_TEST_EQ_U64(context, 0x00u, rx[1u]);
+    SEMU_TEST_EQ_U64(context, 0xC0u, rx[1u]);
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -146,7 +143,7 @@ static void test_wrong_address(semu_test_context *context)
     semu_sapporo_max17050_destroy(sensor);
 }
 
-static void test_register_array_boundary(semu_test_context *context)
+static void test_unknown_register_refusal(semu_test_context *context)
 {
     semu_error error;
     semu_sapporo_max17050 *sensor;
@@ -157,10 +154,8 @@ static void test_register_array_boundary(semu_test_context *context)
     sensor = semu_sapporo_max17050_create(0x36u, &error);
     ep = semu_sapporo_max17050_endpoint(sensor);
 
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      do_read(&ep, 0x36u, 0x21u, rx, 2u, &error));
-    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
-    SEMU_TEST_EQ_U64(context, 0u, rx[1u]);
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -170,7 +165,6 @@ static void test_byte_order(semu_test_context *context)
     semu_error error;
     semu_sapporo_max17050 *sensor;
     semu_serial_endpoint ep;
-    uint8_t tx[] = { 0x00u, 0x34u, 0x12u };
     uint8_t rx[2];
 
     semu_error_clear(&error);
@@ -178,11 +172,39 @@ static void test_byte_order(semu_test_context *context)
     ep = semu_sapporo_max17050_endpoint(sensor);
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
-                     do_write(&ep, 0x36u, tx, 3u, &error));
+                     do_read(&ep, 0x36u, 0x09u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0xC0u, rx[1u]);
+
+    semu_sapporo_max17050_destroy(sensor);
+}
+
+static void test_write_and_shape_refusals(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_max17050 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t write_frame[] = { 0x00u, 0x34u, 0x12u };
+    uint8_t rx[2] = { 0xaau, 0xbbu };
+    semu_serial_transaction malformed = {
+        0x36u, 0u, NULL, 1u, rx, sizeof(rx)
+    };
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_max17050_create(0x36u, &error);
+    ep = semu_sapporo_max17050_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x36u, write_frame,
+                              sizeof(write_frame), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     ep.transfer(ep.context, &malformed, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0x36u, 0x00u, rx, 1u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                      do_read(&ep, 0x36u, 0x00u, rx, 2u, &error));
-    SEMU_TEST_EQ_U64(context, 0x34u, rx[0u]);
-    SEMU_TEST_EQ_U64(context, 0x12u, rx[1u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[1u]);
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -226,8 +248,9 @@ int main(void)
         SEMU_TEST_CASE(test_temperature_read),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
-        SEMU_TEST_CASE(test_register_array_boundary),
+        SEMU_TEST_CASE(test_unknown_register_refusal),
         SEMU_TEST_CASE(test_byte_order),
+        SEMU_TEST_CASE(test_write_and_shape_refusals),
         SEMU_TEST_CASE(test_repeated_transcript)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

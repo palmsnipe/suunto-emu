@@ -1,7 +1,6 @@
 #include "sapporo_max17050.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 /*
  * E-SAP-MAX17050-001 verified trace
@@ -21,14 +20,13 @@
  *   Reset: Status 0x00=0x0000 (POR=0), RepSOC 0x06=0x3200 (50%),
  *          Temperature 0x08=0x1900, VCell 0x09=0xC000 (3.84V).
  *
- * Register values are deterministic host-side battery fixtures, not
- * physical gauge evidence. The Renode model exposes a 256-entry
- * zero-backed register array; only the four observed registers are non-zero.
- * Wrong address and invalid transactions refuse before mutation.
+ * Register values are deterministic host-side battery fixtures, not physical
+ * gauge evidence. The public datasheet has a 256-word map, but this endpoint
+ * promotes only the four registers observed in the authentic Sapporo trace.
+ * Unobserved writes, reserved registers, and partial words refuse.
  */
 
 enum {
-    MAX_REG_COUNT = 256u,
     MAX_STATUS_REG = 0x00u,
     MAX_STATUS_VAL = 0x0000u,
     MAX_REPSOC_REG = 0x06u,
@@ -41,7 +39,10 @@ enum {
 
 struct semu_sapporo_max17050 {
     uint8_t address;
-    uint16_t registers[MAX_REG_COUNT];
+    uint16_t status;
+    uint16_t repsoc;
+    uint16_t temperature;
+    uint16_t vcell;
 };
 
 static semu_transaction_result refuse(semu_error *error, const char *reason)
@@ -52,11 +53,39 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
 
 static void reset_state(semu_sapporo_max17050 *sensor)
 {
-    memset(sensor->registers, 0, sizeof(sensor->registers));
-    sensor->registers[MAX_STATUS_REG] = MAX_STATUS_VAL;
-    sensor->registers[MAX_REPSOC_REG] = MAX_REPSOC_VAL;
-    sensor->registers[MAX_TEMP_REG] = MAX_TEMP_VAL;
-    sensor->registers[MAX_VCELL_REG] = MAX_VCELL_VAL;
+    sensor->status = MAX_STATUS_VAL;
+    sensor->repsoc = MAX_REPSOC_VAL;
+    sensor->temperature = MAX_TEMP_VAL;
+    sensor->vcell = MAX_VCELL_VAL;
+}
+
+static int is_observed_register(uint8_t reg)
+{
+    return reg == MAX_STATUS_REG || reg == MAX_REPSOC_REG ||
+           reg == MAX_TEMP_REG || reg == MAX_VCELL_REG;
+}
+
+static uint16_t register_value(const semu_sapporo_max17050 *sensor,
+                               uint8_t reg)
+{
+    switch (reg) {
+    case MAX_STATUS_REG:
+        return sensor->status;
+    case MAX_REPSOC_REG:
+        return sensor->repsoc;
+    case MAX_TEMP_REG:
+        return sensor->temperature;
+    case MAX_VCELL_REG:
+        return sensor->vcell;
+    default:
+        return 0u;
+    }
+}
+
+static void write_little_endian(uint8_t *bytes, uint16_t value)
+{
+    bytes[0u] = (uint8_t)value;
+    bytes[1u] = (uint8_t)(value >> 8u);
 }
 
 static semu_transaction_result transfer(void *context,
@@ -65,7 +94,6 @@ static semu_transaction_result transfer(void *context,
 {
     semu_sapporo_max17050 *sensor = (semu_sapporo_max17050 *)context;
     uint8_t reg;
-    size_t i;
 
     if (sensor == NULL || t == NULL) {
         return refuse(error, "null transaction");
@@ -73,32 +101,22 @@ static semu_transaction_result transfer(void *context,
     if (t->address != sensor->address) {
         return refuse(error, "wrong address");
     }
-    if (t->tx_size == 0u) {
-        return refuse(error, "no register pointer");
+    if (t->tx == NULL || t->tx_size == 0u ||
+        (t->rx_size > 0u && t->rx == NULL) ||
+        (t->rx_size == 0u && t->rx != NULL)) {
+        return refuse(error, "invalid transaction buffers");
     }
-    reg = t->tx[0];
+    if (t->tx_size != 1u) {
+        return refuse(error, "unobserved write transaction");
+    }
+    reg = t->tx[0u];
     if (t->rx_size > 0u) {
-        for (i = 0u; i < t->rx_size; ++i) {
-            if ((i & 1u) == 0u) {
-                t->rx[i] = (uint8_t)(sensor->registers[reg] & 0xFFu);
-            } else {
-                t->rx[i] = (uint8_t)((sensor->registers[reg] >> 8u) & 0xFFu);
-                reg = (uint8_t)(reg + 1u);
-            }
+        if (t->rx_size != 2u || !is_observed_register(reg)) {
+            return refuse(error, "unsupported read register or length");
         }
+        write_little_endian(t->rx, register_value(sensor, reg));
     } else {
-        for (i = 1u; i < t->tx_size; ++i) {
-            size_t byte_idx = i - 1u;
-            if ((byte_idx & 1u) == 0u) {
-                sensor->registers[reg] = (uint16_t)(
-                    (sensor->registers[reg] & 0xFF00u) | t->tx[i]);
-            } else {
-                sensor->registers[reg] = (uint16_t)(
-                    (sensor->registers[reg] & 0x00FFu) |
-                    ((uint16_t)t->tx[i] << 8u));
-                reg = (uint8_t)(reg + 1u);
-            }
-        }
+        return refuse(error, "unobserved write transaction");
     }
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
