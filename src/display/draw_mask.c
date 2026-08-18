@@ -24,6 +24,7 @@ semu_status draw_mask(raster_target *target,
     raster_bounds region;
     int32_t dx, dy;
     uint32_t rw, rh, row, col;
+    uint32_t source_dx, source_dy;
     uint16_t *stage;
     rgb8 tint;
     semu_status st;
@@ -49,9 +50,14 @@ semu_status draw_mask(raster_target *target,
     st = nema_texture_validate(bus, mask, error);
     if (st != SEMU_OK) return st;
 
-    /* Check mask range covers the region */
-    if (mask_x + (uint32_t)dx + rw > mask->width ||
-        mask_y + (uint32_t)dy + rh > mask->height) {
+    /* Check each addition by subtraction so extreme coordinates cannot wrap. */
+    source_dx = (uint32_t)dx;
+    source_dy = (uint32_t)dy;
+    if (mask_x > mask->width || mask_y > mask->height ||
+        source_dx > mask->width - mask_x ||
+        source_dy > mask->height - mask_y ||
+        rw > mask->width - mask_x - source_dx ||
+        rh > mask->height - mask_y - source_dy) {
         semu_error_set(error, SEMU_ERR_RANGE,
                        "draw_mask: mask range exceeds texture");
         return SEMU_ERR_RANGE;
@@ -74,8 +80,8 @@ semu_status draw_mask(raster_target *target,
     /* Sample all mask pixels and compute staged output */
     for (row = 0u; row < rh; ++row) {
         for (col = 0u; col < rw; ++col) {
-            uint32_t mx = mask_x + (uint32_t)dx + col;
-            uint32_t my = mask_y + (uint32_t)dy + row;
+            uint32_t mx = mask_x + source_dx + col;
+            uint32_t my = mask_y + source_dy + row;
             uint8_t alpha;
             uint32_t tx = region.min_x + col;
             uint32_t ty = region.min_y + row;

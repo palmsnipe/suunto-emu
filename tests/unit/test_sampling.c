@@ -268,6 +268,41 @@ static void test_source_boundary(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_source_coordinate_overflow(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    raster_target t = make_target();
+    raster_bounds clip = {1u, 0u, 2u, 1u};
+    nema_texture_desc src = {0};
+    nema_texture_desc mask = {0};
+    uint8_t src_pixel[2u] = {0x00u, 0xF8u};
+    uint8_t mask_pixel[1u] = {0xFFu};
+    uint16_t initial = pixel_at(1u, 0u);
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_bus_load(bus, TEX_BASE, src_pixel, sizeof(src_pixel), &err);
+    semu_bus_load(bus, MASK_BASE, mask_pixel, sizeof(mask_pixel), &err);
+
+    src.base = TEX_BASE; src.format = NEMA_TEX_FMT_RGB565;
+    src.stride = 2u; src.width = 1u; src.height = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        draw_texture(&t, &clip, bus, &src, 0xFFFFFFFFu, 0u,
+                     0u, 0u, 2u, 1u, NULL, &err));
+    SEMU_TEST_EQ_U64(context, initial, pixel_at(1u, 0u));
+
+    mask.base = MASK_BASE; mask.format = NEMA_TEX_FMT_A2LE;
+    mask.stride = 1u; mask.width = 1u; mask.height = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        draw_mask(&t, &clip, bus, &mask, 0xFFFFFFFFu, 0u,
+                  0u, 0u, 2u, 1u, NEMA_BL_SIMPLE,
+                  0x00FF0000u, NULL, &err));
+    SEMU_TEST_EQ_U64(context, initial, pixel_at(1u, 0u));
+    semu_bus_destroy(bus);
+}
+
 static void test_repeat_hash(semu_test_context *context)
 {
     semu_error err;
@@ -314,6 +349,7 @@ int main(void)
         SEMU_TEST_CASE(test_mask_intermediate_refused),
         SEMU_TEST_CASE(test_unsupported_blend_mode),
         SEMU_TEST_CASE(test_source_boundary),
+        SEMU_TEST_CASE(test_source_coordinate_overflow),
         SEMU_TEST_CASE(test_repeat_hash)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

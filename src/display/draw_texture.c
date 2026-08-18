@@ -21,6 +21,7 @@ semu_status draw_texture(raster_target *target,
     raster_bounds region;
     int32_t dx, dy;
     uint32_t rw, rh, row, col;
+    uint32_t source_dx, source_dy;
     uint16_t *stage;
     semu_status st;
 
@@ -46,8 +47,14 @@ semu_status draw_texture(raster_target *target,
     st = nema_texture_validate(bus, src, error);
     if (st != SEMU_OK) return st;
 
-    /* Check source range covers the region we need */
-    if (src_x + dx + rw > src->width || src_y + dy + rh > src->height) {
+    /* Check each addition by subtraction so extreme coordinates cannot wrap. */
+    source_dx = (uint32_t)dx;
+    source_dy = (uint32_t)dy;
+    if (src_x > src->width || src_y > src->height ||
+        source_dx > src->width - src_x ||
+        source_dy > src->height - src_y ||
+        rw > src->width - src_x - source_dx ||
+        rh > src->height - src_y - source_dy) {
         semu_error_set(error, SEMU_ERR_RANGE,
                        "draw_texture: source range exceeds texture");
         return SEMU_ERR_RANGE;
@@ -63,8 +70,8 @@ semu_status draw_texture(raster_target *target,
     for (row = 0u; row < rh; ++row) {
         for (col = 0u; col < rw; ++col) {
             nema_texel t;
-            uint32_t sx = src_x + (uint32_t)dx + col;
-            uint32_t sy = src_y + (uint32_t)dy + row;
+            uint32_t sx = src_x + source_dx + col;
+            uint32_t sy = src_y + source_dy + row;
             st = nema_texture_sample(bus, src, sx, sy, &t, error);
             if (st != SEMU_OK) {
                 free(stage);
