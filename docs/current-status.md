@@ -72,23 +72,25 @@ boundary.
 SDL also accepts the same `middle-language` and `lower-transition` checkpoints
 without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
 Down are delivered through the semantic input mapper; after a quiet settled
-post-button frame the window pauses for another live button edge so the setup
+post-button frame the window pauses for the next live button edge so the setup
 UI can be navigated manually. Pressing that edge returns control to the guest
-immediately; replay checkpoints retain their deterministic stop behavior.
+immediately and rearms the next settled frame; replay checkpoints retain their
+deterministic stop behavior.
 
-## Next Actionable Ticket
+## Next Actionable Work
 
-Phase 1 is complete. Three independent tickets are ready:
+The ticket index currently has no `ready` tickets: Phases 0–6 are complete, and
+the Phase 7 expansion templates remain blocked until their product-specific
+evidence is instantiated. The practical work queue is:
 
-- 180 pins primary CPU references and the instruction-vector contract.
-- 295 inventories Phase 3–5 evidence and explicitly marks missing observations.
-- 298 freezes transcript helpers and shared peripheral/display integration seams.
+- Audit the available later-Sapporo packages and traces, then instantiate one
+  observed-gap task only if an exact failing transaction and provenance exist.
+- Continue the Sapporo setup flow from the cached UI checkpoint, adding only
+  the next reproducible transition and its input/refusal regression. This is
+  still an SDL renderer milestone, not a physical-panel claim.
+- Measure snapshot-resume and frame-loop cost before making any performance
+  change; retain deterministic virtual time and guest behavior.
 
-Ticket 190 follows 180. Existing CPU code is deliberately treated as a partial
-starting point, not as completion of Phase 2. Full Thumb-2/DSP, FPU arithmetic
-and stacking, NVIC priorities/nesting, SysTick/PendSV behavior, and fault
-escalation remain required before Apollo4/Sapporo boot work can pass.
-
-The next authentic investigation should capture the fault/exception path that
-enters `0x001a2434`, then add the narrowest synthetic CPU or controller
-regression before changing execution behavior.
+The blocked Phase 7 templates must not be treated as permission to infer later
+product wiring, storage, display, or input behavior. Missing evidence remains a
+refusal until a read-only native package or trace supplies the exact contract.

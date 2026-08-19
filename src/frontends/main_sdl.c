@@ -114,8 +114,9 @@ static semu_stop_reason process_normalized_key(sdl_frontend *frontend,
     if (input.value == 0) {
         semu_sdl_button_hold_note_press(&frontend->button_hold, &input, key);
         observe_live_input(frontend, &input);
-        if (wait_for_button) {
-            semu_live_frame_gate_consume(&frontend->live_checkpoint);
+        if (wait_for_button && frontend->live_checkpoint.ready) {
+            semu_live_frame_gate_consume(&frontend->live_checkpoint,
+                                         frontend->frame_count);
         }
     }
     return SEMU_STOP_NONE;
@@ -163,8 +164,9 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
         SEMU_STOP_NONE) {
         return SEMU_STOP_DEVICE_REFUSED;
     }
-    wait_for_button = frontend->live_checkpoint.ready &&
-                      !frontend->live_checkpoint.consumed &&
+    wait_for_button = semu_live_frame_gate_waiting(
+                          &frontend->live_checkpoint,
+                          frontend->frame_count) &&
                       !semu_sdl_button_hold_waiting(&frontend->button_hold,
                                                     now_ns);
     for (;;) {
@@ -219,11 +221,17 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                 &frontend->button_hold, &key, now_ns)) {
             continue;
         }
+        if (key.down && !key.repeat &&
+            !semu_sdl_button_hold_press_allowed(&frontend->button_hold,
+                                                &key, now_ns)) {
+            continue;
+        }
         if (process_normalized_key(frontend, machine, &key,
                                    wait_for_button, error) != SEMU_STOP_NONE) {
             return SEMU_STOP_DEVICE_REFUSED;
         }
-        if (wait_for_button && frontend->live_checkpoint.consumed) {
+        if (wait_for_button && !semu_live_frame_gate_waiting(
+                &frontend->live_checkpoint, frontend->frame_count)) {
             return SEMU_STOP_NONE;
         }
     }

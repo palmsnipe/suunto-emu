@@ -37,7 +37,7 @@ void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     uint64_t frame_count, const semu_input_event *input)
 {
     if (gate == NULL || input == NULL || gate->required_button < 0 ||
-        gate->input_seen || gate->ready || gate->consumed ||
+        gate->input_seen || gate->ready ||
         input->kind != SEMU_INPUT_BUTTON || input->value != 0 ||
         input->code != (uint32_t)gate->required_button) {
         return;
@@ -47,11 +47,23 @@ void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     reset_stability(gate);
 }
 
+int semu_live_frame_gate_waiting(const semu_live_frame_gate *gate,
+    uint64_t frame_count)
+{
+    if (gate == NULL || gate->required_button < 0) {
+        return 0;
+    }
+    if (!gate->input_seen) {
+        return frame_count != 0u;
+    }
+    return gate->ready;
+}
+
 int semu_live_frame_gate_observe(semu_live_frame_gate *gate,
     uint64_t frame_count, uint64_t now_ns, const semu_frame *frame)
 {
     if (gate == NULL || frame == NULL || gate->required_button < 0 ||
-        !gate->input_seen || gate->ready || gate->consumed ||
+        !gate->input_seen || gate->ready ||
         frame_count <= gate->frame_baseline || !frame_has_pixels(frame)) {
         return 0;
     }
@@ -65,7 +77,7 @@ int semu_live_frame_gate_settle(semu_live_frame_gate *gate,
     uint64_t frame_count, uint64_t now_ns)
 {
     uint64_t deadline;
-    if (gate == NULL || gate->ready || gate->consumed ||
+    if (gate == NULL || gate->ready ||
         !gate->candidate_valid || frame_count != gate->candidate_frame_count ||
         now_ns < gate->last_frame_time) {
         return 0;
@@ -82,11 +94,13 @@ int semu_live_frame_gate_settle(semu_live_frame_gate *gate,
     return 1;
 }
 
-void semu_live_frame_gate_consume(semu_live_frame_gate *gate)
+void semu_live_frame_gate_consume(semu_live_frame_gate *gate,
+    uint64_t frame_count)
 {
-    if (gate == NULL) {
+    if (gate == NULL || !gate->ready) {
         return;
     }
     gate->ready = 0;
-    gate->consumed = 1;
+    gate->frame_baseline = frame_count;
+    reset_stability(gate);
 }

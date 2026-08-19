@@ -11,7 +11,7 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
 fi
 
 manifest=$1
-snapshot=${2:-${SEMU_SAPPORO_UI_SNAPSHOT:-/tmp/suunto-sapporo-ui-preframe.sems}}
+snapshot=${2:-${SEMU_SAPPORO_UI_SNAPSHOT:-/tmp/suunto-ui-preframe.sems}}
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 headless="$root_dir/build/suunto-emu"
 sdl="$root_dir/build/suunto-emu-sdl"

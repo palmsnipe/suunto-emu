@@ -97,12 +97,12 @@ frame boundary:
 build/suunto-emu run \
   --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
   --layer sapporo-2.22-no-device --max-instructions 450800000 \
-  --snapshot-save /tmp/sapporo-ui-preframe.sems
+  --snapshot-save /tmp/suunto-ui-preframe.sems
 
 build/suunto-emu-sdl run \
   --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
   --layer sapporo-2.22-no-device --until normal-frame \
-  --snapshot-load /tmp/sapporo-ui-preframe.sems \
+  --snapshot-load /tmp/suunto-ui-preframe.sems \
   --max-instructions 450900000 --wait-for-quit
 ```
 
@@ -116,7 +116,7 @@ once and reuses it:
 sh tools/run_sapporo_ui.sh /path/to/firmware.semu
 ```
 
-The first Return/Enter opens the language screen; after its transition settles,
+The first Return/Enter opens the language screen; after each transition settles,
 the next Up, Down, or Return/Enter edge continues into setup. Pass a second
 argument to choose the checkpoint path. Remove that specific file when the
 emulator or compatibility implementation changes and a fresh boundary is

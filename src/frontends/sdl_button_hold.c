@@ -11,6 +11,24 @@ static uint64_t release_deadline(uint64_t now_ns)
     return now_ns + SEMU_SDL_BUTTON_HOLD_NS;
 }
 
+int semu_sdl_button_hold_press_allowed(
+    const semu_sdl_button_hold *hold, const semu_normalized_key *key,
+    uint64_t now_ns)
+{
+    uint32_t button;
+    if (hold == NULL || key == NULL || !key->down || key->repeat) {
+        return 0;
+    }
+    for (button = 0u; button < SEMU_SDL_BUTTON_COUNT; ++button) {
+        if (hold->active_key[button].key == key->key &&
+            (hold->pending[button] ||
+             now_ns < hold->stable_deadline[button])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void semu_sdl_button_hold_init(semu_sdl_button_hold *hold)
 {
     if (hold != NULL) {
@@ -87,6 +105,7 @@ uint32_t semu_sdl_button_hold_flush(semu_sdl_button_hold *hold,
             }
             hold->pending[button] = 0u;
             hold->active[button] = 0u;
+            hold->stable_deadline[button] = release_deadline(now_ns);
         }
     }
     return count;

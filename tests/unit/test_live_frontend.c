@@ -18,6 +18,10 @@ static void test_live_gate_requires_quiet_frame(semu_test_context *context)
     };
 
     semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_waiting(&gate, 0u));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_waiting(&gate, 1u));
     event.value = 1;
     semu_live_frame_gate_note_input(&gate, 4u, &event);
     event.value = 0;
@@ -27,6 +31,8 @@ static void test_live_gate_requires_quiet_frame(semu_test_context *context)
 
     event.code = SEMU_BUTTON_MIDDLE;
     semu_live_frame_gate_note_input(&gate, 4u, &event);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_waiting(&gate, 4u));
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_observe(&gate, 5u, 100u, &frame));
     SEMU_TEST_EQ_U64(context, 1u,
@@ -85,13 +91,24 @@ static void test_live_gate_consumes_next_button_edge(
             100u + SEMU_LIVE_FRAME_SETTLE_NS));
     SEMU_TEST_EQ_U64(context, 1u, gate.ready);
 
-    semu_live_frame_gate_consume(&gate);
+    semu_live_frame_gate_consume(&gate, 2u);
     SEMU_TEST_EQ_U64(context, 0u, gate.ready);
-    SEMU_TEST_EQ_U64(context, 1u, gate.consumed);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_waiting(&gate, 2u));
     event.code = SEMU_BUTTON_LOWER;
     semu_live_frame_gate_note_input(&gate, 3u, &event);
-    SEMU_TEST_EQ_U64(context, 1u, gate.consumed);
     SEMU_TEST_EQ_U64(context, 1u, gate.input_seen);
+    semu_live_frame_gate_observe(&gate, 3u, 200u, &frame);
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_settle(&gate, 3u,
+            200u + SEMU_LIVE_FRAME_SETTLE_NS));
+    SEMU_TEST_EQ_U64(context, 1u, gate.ready);
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_waiting(&gate, 3u));
+    semu_live_frame_gate_consume(&gate, 3u);
+    SEMU_TEST_EQ_U64(context, 0u, gate.ready);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_waiting(&gate, 3u));
 }
 
 static void test_sdl_button_hold_is_bounded_and_atomic(
@@ -112,6 +129,8 @@ static void test_sdl_button_hold_is_bounded_and_atomic(
         semu_sdl_button_hold_note_release(&hold, &wrong_release, 100u));
     SEMU_TEST_EQ_U64(context, 1u,
         semu_sdl_button_hold_note_release(&hold, &release, 100u));
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_sdl_button_hold_press_allowed(&hold, &down, 100u));
     SEMU_TEST_EQ_U64(context, 1u,
         semu_sdl_button_hold_waiting(&hold, 100u));
     SEMU_TEST_EQ_U64(context, 0u,
@@ -122,6 +141,18 @@ static void test_sdl_button_hold_is_bounded_and_atomic(
             SEMU_SDL_BUTTON_HOLD_NS, output, SEMU_SDL_BUTTON_COUNT));
     SEMU_TEST_EQ_U64(context, SEMU_INPUT_KEY_MIDDLE, output[0].key);
     SEMU_TEST_EQ_U64(context, 0u, output[0].down);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_sdl_button_hold_press_allowed(&hold, &down,
+            100u + (2u * SEMU_SDL_BUTTON_HOLD_NS) - 1u));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_sdl_button_hold_press_allowed(&hold, &down,
+            100u + (2u * SEMU_SDL_BUTTON_HOLD_NS)));
+    {
+        semu_normalized_key other_down = {SEMU_INPUT_KEY_UPPER, 1, 0, 4};
+        SEMU_TEST_EQ_U64(context, 1u,
+            semu_sdl_button_hold_press_allowed(&hold, &other_down,
+                100u + SEMU_SDL_BUTTON_HOLD_NS));
+    }
     SEMU_TEST_EQ_U64(context, 0u,
         semu_sdl_button_hold_flush(&hold, UINT64_MAX, output,
                                    SEMU_SDL_BUTTON_COUNT));
