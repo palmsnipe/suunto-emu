@@ -411,8 +411,18 @@ semu_transaction_result semu_sapporo_222_gps_exchange(
 {
     static const uint8_t expected[] = { '@', 'V', 'E', 'R', '\r', '\n' };
     static const uint8_t running_status[] = { '@', 'G', 'S', 'R', '\r', '\n' };
+    static const uint8_t use_command[] = {
+        '@', 'G', 'U', 'S', 'E', ' ', '0', '\r', '\n'
+    };
     semu_sapporo_222_fixture_context *ctx =
         (semu_sapporo_222_fixture_context *)context;
+    if (count == sizeof(use_command) &&
+        memcmp(request, use_command, count) == 0) {
+        /* The native state-10 exchange accepts @GUSE 0 and produces no
+         * response; the following state-12 poll is a separate boundary. */
+        semu_error_clear(error);
+        return SEMU_TRANSACTION_OK;
+    }
     if (count == sizeof(running_status) &&
         memcmp(request, running_status, count) == 0) {
         if (ctx == NULL || !ctx->gps_running_status_armed) {

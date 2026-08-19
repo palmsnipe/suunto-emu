@@ -90,6 +90,60 @@ static void test_gps_miss(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, state.hits);
 }
 
+static void test_gps_use_command(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_sapporo_cxd5610 *transport;
+    semu_sapporo_222_fixture_context fixture;
+    static const uint8_t request[] = {
+        '@', 'G', 'U', 'S', 'E', ' ', '0', '\r', '\n'
+    };
+
+    init_layer(&state, &logger, &error);
+    memset(&fixture, 0, sizeof(fixture));
+    fixture.state = &state;
+    fixture.logger = &logger;
+    scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    transport = semu_sapporo_cxd5610_create(scheduler, NULL, NULL,
+        dummy_rx, NULL, NULL, NULL, &error);
+    SEMU_TEST_ASSERT(context, transport != NULL);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_sapporo_222_gps_exchange(&fixture, request, sizeof(request),
+                                       transport, &error));
+    SEMU_TEST_EQ_U64(context, 0u, state.hits);
+    SEMU_TEST_ASSERT(context, !semu_scheduler_has_events(scheduler));
+
+    semu_sapporo_cxd5610_destroy(transport);
+    semu_scheduler_destroy(scheduler);
+}
+
+static void test_gps_use_command_mismatch(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    semu_sapporo_222_fixture_context fixture;
+    static const uint8_t request[] = {
+        '@', 'G', 'U', 'S', 'E', ' ', '1', '\r', '\n'
+    };
+
+    init_layer(&state, &logger, &error);
+    memset(&fixture, 0, sizeof(fixture));
+    fixture.state = &state;
+    fixture.logger = &logger;
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_sapporo_222_gps_exchange(&fixture, request, sizeof(request),
+                                       NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, state.hits);
+    SEMU_TEST_ASSERT(context, fixture.gps_running_status_armed == 0);
+}
+
 static void test_ohr_match(semu_test_context *context)
 {
     semu_layer_state state;
@@ -225,6 +279,8 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_gps_match),
         SEMU_TEST_CASE(test_gps_miss),
+        SEMU_TEST_CASE(test_gps_use_command),
+        SEMU_TEST_CASE(test_gps_use_command_mismatch),
         SEMU_TEST_CASE(test_gps_running_status),
         SEMU_TEST_CASE(test_gps_running_status_refuses_unarmed),
         SEMU_TEST_CASE(test_ohr_match),
