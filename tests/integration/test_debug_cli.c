@@ -22,7 +22,7 @@ static void test_first_frame_gate(semu_test_context *context)
     semu_frame frame = {SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
                         pixel, sizeof(pixel)};
     frame_observer observer = {0};
-    first_frame_gate gate = {observe_frame, &observer, 0};
+    first_frame_gate gate = {observe_frame, &observer, 0, 0, 0, 0};
 
     first_frame_gate_publish(&gate, &frame);
     SEMU_TEST_EQ_U64(context, 1u, observer.calls);
@@ -38,6 +38,16 @@ static void test_first_frame_gate(semu_test_context *context)
     first_frame_gate_publish(&gate, NULL);
     SEMU_TEST_EQ_U64(context, 1u, observer.calls);
     SEMU_TEST_EQ_U64(context, 0u, gate.reached);
+
+    gate.wait_for_input = 1;
+    gate.required_button = SEMU_BUTTON_MIDDLE;
+    gate.input_seen = 0;
+    pixel[0] = 0x1Fu;
+    first_frame_gate_publish(&gate, &frame);
+    SEMU_TEST_EQ_U64(context, 1u, observer.calls);
+    gate.input_seen = 1;
+    first_frame_gate_publish(&gate, &frame);
+    SEMU_TEST_EQ_U64(context, 2u, observer.calls);
 }
 
 static void test_report_option(semu_test_context *context)

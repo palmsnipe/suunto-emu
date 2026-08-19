@@ -56,7 +56,10 @@ translation path. Two fresh SDL dummy runs with middle (5.400/5.470 seconds)
 and lower (8.000/8.070 seconds) semantic button pulses were byte-identical;
 both accepted the language/setup command lists and reached the bounded budget
 without reset or display refusal. This exposes the evidenced setup UI in SDL;
-it does not claim physical-panel or pixel-golden equivalence.
+it does not claim physical-panel or pixel-golden equivalence. The
+`--until middle-language` replay checkpoint now stops at that first non-black
+setup frame, allowing SDL `--wait-for-quit` inspection without running to the
+budget.
 
 ## Next Actionable Ticket
 

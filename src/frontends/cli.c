@@ -11,6 +11,7 @@
 #include "../display/nema_backend.h"
 #include "../devices/sapporo_flash.h"
 #include "input_replay.c"
+#include "cli_checkpoint.c"
 
 #include <errno.h>
 #include <stdio.h>
@@ -35,36 +36,6 @@ typedef struct run_arguments {
     uint64_t max_time;
     semu_cli_debug_options debug;
 } run_arguments;
-
-typedef struct first_frame_gate {
-    semu_frame_callback callback;
-    void *callback_context;
-    int reached;
-} first_frame_gate;
-
-static void first_frame_gate_publish(void *context, const semu_frame *frame)
-{
-    first_frame_gate *gate = (first_frame_gate *)context;
-    size_t index;
-    if (gate == NULL || frame == NULL) {
-        return;
-    }
-    if (frame->pixels == NULL || frame->size == 0u) {
-        return;
-    }
-    for (index = 0u; index < frame->size; ++index) {
-        if (frame->pixels[index] != 0u) {
-            break;
-        }
-    }
-    if (index == frame->size) {
-        return;
-    }
-    if (gate->callback != NULL) {
-        gate->callback(gate->callback_context, frame);
-    }
-    gate->reached = 1;
-}
 
 static void usage(FILE *stream)
 {
@@ -293,17 +264,6 @@ static int is_named_checkpoint(const char *until)
            strcmp(until, "lower-transition") == 0;
 }
 
-static int replay_sink(void *context, const semu_input_event *event,
-    uint64_t time_ns, uint32_t ordinal)
-{
-    semu_machine *machine = (semu_machine *)context;
-    semu_error err;
-    (void)time_ns;
-    (void)ordinal;
-    semu_error_clear(&err);
-    return semu_machine_input(machine, event, &err) != SEMU_OK;
-}
-
 static int command_run(const run_arguments *arguments,
                        semu_frame_callback frame_callback, void *frame_context,
                        semu_machine_input_poll_fn input_poll,
@@ -321,12 +281,14 @@ static int command_run(const run_arguments *arguments,
     semu_nema_backend *backend = NULL;
     semu_input_replay *replay = NULL;
     first_frame_gate frame_gate;
+    replay_input_context replay_context;
     uint64_t instr_limit = arguments->max_instructions != 0u
                                ? arguments->max_instructions
                                : CHECKPOINT_INSTRUCTION_LIMIT;
     uint64_t time_limit = CHECKPOINT_TIME_LIMIT;
     semu_error_clear(&error);
     memset(&frame_gate, 0, sizeof(frame_gate));
+    memset(&replay_context, 0, sizeof(replay_context));
     frame_gate.callback = frame_callback;
     frame_gate.callback_context = frame_context;
     if (arguments->until != NULL && !is_named_checkpoint(arguments->until)) {
@@ -391,6 +353,22 @@ static int command_run(const run_arguments *arguments,
         strcmp(arguments->until, "normal-frame") == 0) {
         options.frame_callback = first_frame_gate_publish;
         options.frame_context = &frame_gate;
+    } else if (arguments->until != NULL &&
+               (strcmp(arguments->until, "middle-language") == 0 ||
+                strcmp(arguments->until, "lower-transition") == 0)) {
+        if (replay == NULL) {
+            fprintf(stderr, "run: --until %s requires --input-replay\n",
+                    arguments->until);
+            semu_nema_backend_destroy(backend);
+            if (trace != stderr) fclose(trace);
+            return 2;
+        }
+        frame_gate.wait_for_input = 1;
+        frame_gate.required_button =
+            strcmp(arguments->until, "middle-language") == 0
+                ? SEMU_BUTTON_MIDDLE : SEMU_BUTTON_LOWER;
+        options.frame_callback = first_frame_gate_publish;
+        options.frame_context = &frame_gate;
     }
     options.display_backend_submit = semu_nema_backend_submit;
     options.display_backend_context = backend;
@@ -407,6 +385,8 @@ static int command_run(const run_arguments *arguments,
     }
     {
         uint64_t executed;
+        replay_context.machine = machine;
+        replay_context.frame_gate = &frame_gate;
         for (;;) {
             uint64_t now = semu_machine_virtual_time(machine);
             executed = semu_machine_instructions(machine);
@@ -416,8 +396,8 @@ static int command_run(const run_arguments *arguments,
             }
             if (replay != NULL) {
                 int refused = 0;
-                semu_input_replay_pump(replay, now, replay_sink, machine,
-                                        &refused);
+                semu_input_replay_pump(replay, now, replay_sink,
+                                       &replay_context, &refused);
                 if (refused) {
                     reason = SEMU_STOP_DEVICE_REFUSED;
                     break;
