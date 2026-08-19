@@ -24,6 +24,22 @@ static int write_program(const char *path, uint8_t program[34])
     return write_bytes(path, program, 34u);
 }
 
+static unsigned count_reset_requests(FILE *stream)
+{
+    char line[512];
+    unsigned count = 0u;
+
+    if (stream == NULL || fseek(stream, 0L, SEEK_SET) != 0) {
+        return 0u;
+    }
+    while (fgets(line, sizeof(line), stream) != NULL) {
+        if (strstr(line, "event=machine-reset-request") != NULL) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 static int write_full_flash(const char *path)
 {
     FILE *stream = fopen(path, "wb");
@@ -164,6 +180,65 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
     (void)remove(flash_path);
 }
 
+static void test_requested_reset_retains_ram_explicit_clears(
+    semu_test_context *context)
+{
+    static const uint8_t program[72] = {
+        0x00u, 0x01u, 0x00u, 0x10u, /* MSP = 0x10000100 */
+        0x21u, 0x00u, 0x00u, 0x00u, /* reset = 0x00000021 */
+        [0x20] = 0x06u, 0x48u,       /* ldr r0, [pc, #24] */
+        [0x22] = 0x01u, 0x78u,       /* ldrb r1, [r0] */
+        [0x24] = 0x00u, 0x29u,       /* cmp r1, #0 */
+        [0x26] = 0x05u, 0xd1u,       /* bne retained */
+        [0x28] = 0x5au, 0x21u,       /* movs r1, #0x5a */
+        [0x2a] = 0x01u, 0x70u,       /* strb r1, [r0] */
+        [0x2c] = 0x04u, 0x48u,       /* ldr r0, [pc, #16] */
+        [0x2e] = 0x05u, 0x49u,       /* ldr r1, [pc, #20] */
+        [0x30] = 0x01u, 0x60u,       /* str r1, [r0] -> SYSRESETREQ */
+        [0x32] = 0x00u, 0xbeu,       /* unexpected fall-through */
+        [0x34] = 0x00u, 0xbeu,       /* retained: halt */
+        [0x3c] = 0x00u, 0x00u, 0x00u, 0x10u, /* SRAM marker */
+        [0x40] = 0x0cu, 0xedu, 0x00u, 0xe0u, /* SCB AIRCR */
+        [0x44] = 0x04u, 0x00u, 0xfau, 0x05u  /* VECTKEY | SYSRESETREQ */
+    };
+    semu_firmware_manifest firmware;
+    semu_machine_options options;
+    semu_profile profile;
+    semu_machine *machine;
+    semu_logger logger;
+    semu_run_limits limits = {32u, UINT64_C(1000000)};
+    semu_error error;
+    FILE *log_stream;
+    char path[128];
+
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(path, sizeof(path), "machine-reset-retention.bin"));
+    SEMU_TEST_ASSERT(context, write_bytes(path, program, sizeof(program)));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    log_stream = tmpfile();
+    SEMU_TEST_ASSERT(context, log_stream != NULL);
+    semu_log_init(&logger, log_stream, SEMU_LOG_WARNING);
+    memset(&options, 0, sizeof(options));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    options.logger = &logger;
+    machine = semu_machine_create(&options, &error);
+    SEMU_TEST_ASSERT(context, machine != NULL);
+
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        semu_machine_run(machine, &limits, &error));
+    SEMU_TEST_EQ_U64(context, 1u, count_reset_requests(log_stream));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        semu_machine_run(machine, &limits, &error));
+    SEMU_TEST_EQ_U64(context, 2u, count_reset_requests(log_stream));
+
+    semu_machine_destroy(machine);
+    (void)fclose(log_stream);
+    (void)remove(path);
+}
+
 static void test_input_poll_can_stop_and_inject(semu_test_context *context)
 {
     uint8_t program[34] = {
@@ -273,6 +348,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_repeated_reset_and_source_guard),
+        SEMU_TEST_CASE(test_requested_reset_retains_ram_explicit_clears),
         SEMU_TEST_CASE(test_input_poll_can_stop_and_inject),
         SEMU_TEST_CASE(test_button_input_polarity_and_refusal)
     };

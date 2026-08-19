@@ -367,7 +367,8 @@ static semu_status reset_after_request(semu_machine *machine,
     }
     machine->instruction_epoch += state->instructions;
     machine->virtual_time_epoch += now;
-    return reset_machine_state(machine, machine->profile.vector_table, 0, error);
+    /* Apollo4 software reset retains SRAM; explicit reset remains cold. */
+    return reset_machine_state(machine, machine->profile.vector_table, 1, error);
 }
 
 semu_stop_reason semu_machine_run(semu_machine *machine,
