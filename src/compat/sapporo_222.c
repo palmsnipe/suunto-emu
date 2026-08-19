@@ -196,20 +196,39 @@ semu_status semu_sapporo_222_apply_firmware_hook(
     if (cpu_state->r[15] == UINT32_C(0x001145be) &&
         cpu_state->r[0] == UINT32_C(0x000000cc) &&
         cpu_state->r[1] == UINT32_C(0x00000070) &&
-        cpu_state->r[2] == UINT32_C(0x00001d00)) {
+        cpu_state->r[2] == UINT32_C(0x00001d00) &&
+        cpu_state->r[5] == UINT32_C(0x10040e68)) {
+        uint32_t session_slot = 0u;
         if (state->descriptor == NULL || !state->enabled) {
             semu_error_set(error, SEMU_ERR_STATE,
                            "disabled layer was invoked");
             return SEMU_ERR_STATE;
         }
+        if (semu_bus_read(bus, cpu_state->r[5] + 0x14u, 2u,
+                          &session_slot, error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
+        if (session_slot != UINT32_C(0xffff)) {
+            semu_error_set(error, SEMU_ERR_STATE,
+                           "Sapporo resource session slot is not empty");
+            return SEMU_ERR_STATE;
+        }
+        if (semu_bus_validate_write(bus, cpu_state->r[5] + 0x14u, 2u,
+                                    error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
         if (semu_layer_intervention_hit(state, logger,
                 SEMU_SAPPORO_222_IV_RESOURCE_STATUS, error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
+        if (semu_bus_write(bus, cpu_state->r[5] + 0x14u, 2u, 0u,
+                           error) != SEMU_OK) {
+            return error != NULL ? error->code : SEMU_ERR_RANGE;
+        }
         cpu_state->r[0] = UINT32_C(0x000000c8);
         /* The recovered no-device run reaches the same successful status
-         * boundary; the post-read hook fills the empty session slot before
-         * the provider's ordinary epilogue evaluates it. */
+         * boundary; native storage exposes a zero session slot, while this
+         * OTA wrapper enters with the observed empty 0xffff slot. */
         return SEMU_OK;
     }
     if (cpu_state->r[15] == UINT32_C(0x0009aaec)) {
