@@ -22,6 +22,7 @@ typedef struct sdl_frontend {
     semu_machine *machine;
     unsigned long frame_count;
     int failed;
+    int window_closed;
 } sdl_frontend;
 
 static const char *live_checkpoint_name(int button)
@@ -184,6 +185,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
         int has_key;
         semu_error_clear(error);
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+            frontend->window_closed = 1;
             return SEMU_STOP_USER;
         }
         if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
@@ -206,6 +208,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
         has_key = semu_sdl_input_process(frontend->input_adapter, &event,
                                           &key, &quit, error);
         if (quit) {
+            frontend->window_closed = 1;
             return SEMU_STOP_USER;
         }
         if (!has_key) {
@@ -312,7 +315,7 @@ int main(int argc, char **argv)
     result = semu_cli_main(filtered_argc, filtered_argv, publish_frame,
                            &frontend, poll_input, &frontend);
     if (wait_for_quit && result == 0 && frontend.frame_count > 0u &&
-        !frontend.failed) {
+        !frontend.failed && !frontend.window_closed) {
         fputs("SDL frame ready; close the window to exit\n", stderr);
         wait_for_window_close();
     }

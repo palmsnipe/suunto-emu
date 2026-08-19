@@ -109,6 +109,19 @@ build/suunto-emu-sdl run \
 The checkpoint is external, identity-pinned state; regenerate it whenever the
 firmware manifest or compatibility layer changes.
 
+For repeated interactive setup sessions, the helper creates that checkpoint
+once and reuses it:
+
+```sh
+sh tools/run_sapporo_ui.sh /path/to/firmware.semu
+```
+
+The first Return/Enter opens the language screen; after its transition settles,
+the next Up, Down, or Return/Enter edge continues into setup. Pass a second
+argument to choose the checkpoint path. Remove that specific file when the
+emulator or compatibility implementation changes and a fresh boundary is
+needed.
+
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.

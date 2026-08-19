@@ -64,6 +64,36 @@ static void test_live_gate_rejects_black_and_changed_frames(
     SEMU_TEST_EQ_U64(context, 0u, gate.ready);
 }
 
+static void test_live_gate_consumes_next_button_edge(
+    semu_test_context *context)
+{
+    semu_live_frame_gate gate;
+    semu_input_event event = {
+        SEMU_INPUT_BUTTON, SEMU_BUTTON_MIDDLE, 0, 0, 0
+    };
+    uint8_t pixels[2] = {0x1Fu, 0u};
+    semu_frame frame = {
+        SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+        pixels, sizeof(pixels)
+    };
+
+    semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
+    semu_live_frame_gate_note_input(&gate, 1u, &event);
+    semu_live_frame_gate_observe(&gate, 2u, 100u, &frame);
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_settle(&gate, 2u,
+            100u + SEMU_LIVE_FRAME_SETTLE_NS));
+    SEMU_TEST_EQ_U64(context, 1u, gate.ready);
+
+    semu_live_frame_gate_consume(&gate);
+    SEMU_TEST_EQ_U64(context, 0u, gate.ready);
+    SEMU_TEST_EQ_U64(context, 1u, gate.consumed);
+    event.code = SEMU_BUTTON_LOWER;
+    semu_live_frame_gate_note_input(&gate, 3u, &event);
+    SEMU_TEST_EQ_U64(context, 1u, gate.consumed);
+    SEMU_TEST_EQ_U64(context, 1u, gate.input_seen);
+}
+
 static void test_sdl_button_hold_is_bounded_and_atomic(
     semu_test_context *context)
 {
@@ -102,6 +132,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_live_gate_requires_quiet_frame),
         SEMU_TEST_CASE(test_live_gate_rejects_black_and_changed_frames),
+        SEMU_TEST_CASE(test_live_gate_consumes_next_button_edge),
         SEMU_TEST_CASE(test_sdl_button_hold_is_bounded_and_atomic)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
