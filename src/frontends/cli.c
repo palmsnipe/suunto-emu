@@ -36,6 +36,24 @@ typedef struct run_arguments {
     semu_cli_debug_options debug;
 } run_arguments;
 
+typedef struct first_frame_gate {
+    semu_frame_callback callback;
+    void *callback_context;
+    int reached;
+} first_frame_gate;
+
+static void first_frame_gate_publish(void *context, const semu_frame *frame)
+{
+    first_frame_gate *gate = (first_frame_gate *)context;
+    if (gate == NULL || frame == NULL) {
+        return;
+    }
+    if (gate->callback != NULL) {
+        gate->callback(gate->callback_context, frame);
+    }
+    gate->reached = 1;
+}
+
 static void usage(FILE *stream)
 {
     fprintf(stream,
@@ -45,7 +63,7 @@ static void usage(FILE *stream)
             "  suunto-emu validate --profile PROFILE --firmware MANIFEST\n"
             "  suunto-emu list-layers --profile PROFILE\n"
             "  suunto-emu run --profile PROFILE --firmware MANIFEST "
-            "[--layer ID] [--full-flash PATH] [--until wfi] "
+            "[--layer ID] [--full-flash PATH] [--until CHECKPOINT] "
             "[--max-instructions N] [--max-time NS] "
             "[--trace PATH] [--input-replay PATH] [--headless] "
             "[--report PATH] [--snapshot-load PATH] [--snapshot-save PATH] "
@@ -290,11 +308,15 @@ static int command_run(const run_arguments *arguments,
     semu_stop_reason reason;
     semu_nema_backend *backend = NULL;
     semu_input_replay *replay = NULL;
+    first_frame_gate frame_gate;
     uint64_t instr_limit = arguments->max_instructions != 0u
                                ? arguments->max_instructions
                                : CHECKPOINT_INSTRUCTION_LIMIT;
     uint64_t time_limit = CHECKPOINT_TIME_LIMIT;
     semu_error_clear(&error);
+    memset(&frame_gate, 0, sizeof(frame_gate));
+    frame_gate.callback = frame_callback;
+    frame_gate.callback_context = frame_context;
     if (arguments->until != NULL && !is_named_checkpoint(arguments->until)) {
         fprintf(stderr, "run: --until accepts only wfi, startup-complete, "
                         "normal-frame, middle-language, lower-transition\n");
@@ -353,6 +375,11 @@ static int command_run(const run_arguments *arguments,
     options.logger = &logger;
     options.frame_callback = frame_callback;
     options.frame_context = frame_context;
+    if (arguments->until != NULL &&
+        strcmp(arguments->until, "normal-frame") == 0) {
+        options.frame_callback = first_frame_gate_publish;
+        options.frame_context = &frame_gate;
+    }
     options.display_backend_submit = semu_nema_backend_submit;
     options.display_backend_context = backend;
     options.external_flash_path = arguments->full_flash;
@@ -390,6 +417,13 @@ static int command_run(const run_arguments *arguments,
             }
             limits.max_virtual_time_ns = time_limit - now;
             reason = semu_machine_run(machine, &limits, &error);
+            if (frame_gate.reached &&
+                (reason == SEMU_STOP_BUDGET || reason == SEMU_STOP_HALT ||
+                 reason == SEMU_STOP_WFI_DEADLOCK ||
+                 reason == SEMU_STOP_USER)) {
+                reason = SEMU_STOP_USER;
+                break;
+            }
             if (reason != SEMU_STOP_BUDGET) break;
         }
     }

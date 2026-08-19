@@ -111,18 +111,50 @@ static uint32_t parse_scale(int argc, char **argv)
     return 2u;
 }
 
+static int filter_sdl_options(int argc, char **argv, char **filtered,
+                              int *wait_for_quit)
+{
+    int i;
+    int filtered_count = 0;
+    *wait_for_quit = 0;
+    for (i = 0; i < argc; ++i) {
+        if (strcmp(argv[i], "--wait-for-quit") == 0) {
+            *wait_for_quit = 1;
+            continue;
+        }
+        filtered[filtered_count++] = argv[i];
+    }
+    return filtered_count;
+}
+
+static void wait_for_window_close(void)
+{
+    SDL_Event event;
+    while (SDL_WaitEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT ||
+            event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+            break;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
+    char *filtered_argv[argc > 0 ? (size_t)argc : 1u];
     sdl_frontend frontend;
     semu_error error;
     int result;
     uint32_t scale;
+    int wait_for_quit;
+    int filtered_argc;
     memset(&frontend, 0, sizeof(frontend));
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;
     }
-    scale = parse_scale(argc, argv);
+    filtered_argc = filter_sdl_options(argc, argv, filtered_argv,
+                                       &wait_for_quit);
+    scale = parse_scale(filtered_argc, filtered_argv);
     semu_error_clear(&error);
     frontend.input_adapter = semu_sdl_input_create(&error);
     frontend.input_mapper = semu_input_mapper_create(&error);
@@ -141,8 +173,13 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 2;
     }
-    result = semu_cli_main(argc, argv, publish_frame, &frontend,
-                           poll_input, &frontend);
+    result = semu_cli_main(filtered_argc, filtered_argv, publish_frame,
+                           &frontend, poll_input, &frontend);
+    if (wait_for_quit && result == 0 && frontend.frame_count > 0u &&
+        !frontend.failed) {
+        fputs("SDL frame ready; close the window to exit\n", stderr);
+        wait_for_window_close();
+    }
     sdl_presenter_destroy(frontend.presenter);
     semu_sdl_input_destroy(frontend.input_adapter);
     semu_input_mapper_destroy(frontend.input_mapper);

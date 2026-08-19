@@ -1,9 +1,39 @@
-#include "../../src/frontends/cli_debug.h"
-#include "../../src/frontends/cli_debug.c"
+#include "../../src/frontends/cli.c"
 #include "test.h"
 
 #include <stdio.h>
 #include <string.h>
+
+typedef struct frame_observer {
+    unsigned calls;
+    const semu_frame *last;
+} frame_observer;
+
+static void observe_frame(void *context, const semu_frame *frame)
+{
+    frame_observer *observer = (frame_observer *)context;
+    ++observer->calls;
+    observer->last = frame;
+}
+
+static void test_first_frame_gate(semu_test_context *context)
+{
+    uint8_t pixel[2u] = {0u, 0u};
+    semu_frame frame = {SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+                        pixel, sizeof(pixel)};
+    frame_observer observer = {0};
+    first_frame_gate gate = {observe_frame, &observer, 0};
+
+    first_frame_gate_publish(&gate, &frame);
+    SEMU_TEST_EQ_U64(context, 1u, observer.calls);
+    SEMU_TEST_ASSERT(context, observer.last == &frame);
+    SEMU_TEST_EQ_U64(context, 1u, gate.reached);
+
+    gate.reached = 0;
+    first_frame_gate_publish(&gate, NULL);
+    SEMU_TEST_EQ_U64(context, 1u, observer.calls);
+    SEMU_TEST_EQ_U64(context, 0u, gate.reached);
+}
 
 static void test_report_option(semu_test_context *context)
 {
@@ -211,7 +241,8 @@ int main(void)
         SEMU_TEST_CASE(test_same_load_save_path),
         SEMU_TEST_CASE(test_different_load_save_path),
         SEMU_TEST_CASE(test_no_debug_options_inactive),
-        SEMU_TEST_CASE(test_null_safety)
+        SEMU_TEST_CASE(test_null_safety),
+        SEMU_TEST_CASE(test_first_frame_gate)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
