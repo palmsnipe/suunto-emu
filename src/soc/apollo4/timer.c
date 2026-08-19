@@ -1,8 +1,8 @@
-#include "timer.h"
+#include "timer_internal.h"
+#include "../../core/scheduler_internal.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#define TIMER_CHANNEL_COUNT 16u
 #define TIMER_CHANNEL_BASE 0x200u
 #define TIMER_CHANNEL_STRIDE 0x20u
 #define TIMER_GLOBAL_MASK 0x10u
@@ -27,32 +27,6 @@
 #define TIMER_CLOCK_SHIFT 8u
 #define TIMER_CLOCK_MASK 0xffu
 #define TIMER_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
-typedef struct timer_channel timer_channel;
-struct timer_channel {
-    struct semu_apollo4_timer *owner;
-    uint32_t control;
-    uint32_t base_value;
-    uint32_t compare[2];
-    uint32_t interrupt_enable;
-    uint64_t epoch;
-    semu_event_id event;
-    uint8_t event_valid;
-    uint8_t irq_level;
-};
-struct semu_apollo4_timer {
-    semu_scheduler *scheduler;
-    semu_apollo4_timer_irq_fn irq;
-    void *irq_context;
-    timer_channel channels[TIMER_CHANNEL_COUNT];
-    uint32_t interrupt_mask;
-    uint32_t pending;
-    uint32_t status_value;
-    uint8_t status_written;
-    uint32_t output_control;
-    uint32_t auxiliary;
-    uint32_t pattern;
-    uint32_t observed_d8;
-};
 static semu_status refuse(uint32_t offset, semu_error *error)
 {
     semu_error_set(error, SEMU_ERR_UNSUPPORTED, "Apollo4 CTIMER refuses offset 0x%03x", offset);
@@ -167,7 +141,7 @@ static uint64_t next_delay(const timer_channel *channel, uint64_t now)
     }
     return best;
 }
-static void timer_event(void *context, uint64_t now)
+void semu_apollo4_timer_event(void *context, uint64_t now)
 {
     timer_channel *channel = (timer_channel *)context;
     semu_apollo4_timer *timer = channel->owner;
@@ -191,8 +165,11 @@ static void timer_event(void *context, uint64_t now)
     if (next_delay(channel, now) != UINT64_MAX) {
         semu_error error; semu_error_clear(&error);
         uint64_t delay = next_delay(channel, now);
-        if (semu_scheduler_schedule(timer->scheduler, delay, timer_event,
-                                     channel, &channel->event, &error) == SEMU_OK)
+        if (semu_scheduler_schedule_tagged(timer->scheduler, delay,
+                                     SEMU_SCHED_EVENT_CTIMER,
+                                     (uint32_t)(channel - timer->channels),
+                                     semu_apollo4_timer_event, channel, &channel->event,
+                                     &error) == SEMU_OK)
             channel->event_valid = 1u;
     }
 }
@@ -210,8 +187,11 @@ static semu_status reschedule(timer_channel *channel, semu_error *error)
         return SEMU_OK;
     delay = next_delay(channel, semu_scheduler_now(timer->scheduler));
     if (delay == UINT64_MAX) return SEMU_OK;
-    if (semu_scheduler_schedule(timer->scheduler, delay, timer_event, channel,
-                                &channel->event, error) != SEMU_OK)
+    if (semu_scheduler_schedule_tagged(timer->scheduler, delay,
+                                SEMU_SCHED_EVENT_CTIMER,
+                                (uint32_t)(channel - timer->channels),
+                                semu_apollo4_timer_event, channel, &channel->event,
+                                error) != SEMU_OK)
         return error != NULL ? error->code : SEMU_ERR_STATE;
     channel->event_valid = 1u;
     return SEMU_OK;

@@ -5,6 +5,7 @@
 
 #include "semu/bus.h"
 #include "semu/scheduler.h"
+#include "../../core/snapshot_io.h"
 
 #define SEMU_APOLLO4_POWER_BASE 0x40021000u
 #define SEMU_APOLLO4_POWER_SIZE 0x400u
@@ -36,5 +37,11 @@ semu_status semu_apollo4_power_write(void *context, uint32_t offset,
                                      semu_error *error);
 const semu_bus_device_ops *semu_apollo4_power_bus_ops(void);
 const char *semu_apollo4_power_gate_name(semu_apollo4_power_gate gate);
+semu_status semu_apollo4_power_snapshot_write(
+    const semu_apollo4_power *power, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_apollo4_power_snapshot_read(
+    semu_apollo4_power *power, semu_snapshot_reader *reader,
+    semu_error *error);
 
 #endif

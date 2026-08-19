@@ -1,25 +1,11 @@
-#include "semu/storage.h"
+#include "storage_internal.h"
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define STORAGE_PAGE_SIZE 4096u
-
-typedef struct storage_page {
-    uint64_t index;
-    uint8_t bytes[STORAGE_PAGE_SIZE];
-    struct storage_page *next;
-} storage_page;
-
-struct semu_storage {
-    uint8_t *base;
-    uint64_t logical_size;
-    uint8_t erased_value;
-    storage_page *pages;
-    size_t page_count;
-};
+#define STORAGE_PAGE_SIZE SEMU_STORAGE_PAGE_SIZE
 
 static int range_valid(const semu_storage *storage, uint64_t address, size_t size)
 {

@@ -277,6 +277,7 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
     char temp_profile[SEMU_ID_MAX];
     char temp_hash[SEMU_REPLAY_HASH_HEX_LEN];
     size_t temp_count = 0u;
+    semu_status failure_status = SEMU_ERR_FORMAT;
 
     if (snap == NULL || buf == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "snapshot: null argument");
@@ -321,7 +322,7 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
     for (i = 0u; i < scount; ++i) {
         uint32_t sid;
         uint64_t slen;
-        if (offset + 4u + 8u > buf_size) {
+        if (offset > buf_size || 4u + 8u > buf_size - offset) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                 "snapshot: truncated section header");
             goto fail;
@@ -335,10 +336,18 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
                 "snapshot: section too large");
             goto fail;
         }
-        if (offset + slen > buf_size) {
+        if (slen > (uint64_t)SIZE_MAX ||
+            (size_t)slen > buf_size - offset) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                 "snapshot: truncated section data");
             goto fail;
+        }
+        for (size_t previous = 0u; previous < temp_count; ++previous) {
+            if (temp_sections[previous].id == sid) {
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "snapshot: duplicate section %u", sid);
+                goto fail;
+            }
         }
         temp_sections[temp_count].id = sid;
         temp_sections[temp_count].size = (size_t)slen;
@@ -348,6 +357,7 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
             if (temp_sections[temp_count].data == NULL) {
                 semu_error_set(error, SEMU_ERR_NOMEM,
                     "snapshot: cannot allocate section");
+                failure_status = SEMU_ERR_NOMEM;
                 goto fail;
             }
             memcpy(temp_sections[temp_count].data, buf + offset,
@@ -357,6 +367,11 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
         }
         ++temp_count;
         offset += (size_t)slen;
+    }
+    if (offset != buf_size) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "snapshot: trailing image data");
+        goto fail;
     }
 
     /* Entire image validated; now commit atomically. */
@@ -373,5 +388,5 @@ fail:
     for (i = 0u; i < temp_count; ++i) {
         free(temp_sections[i].data);
     }
-    return SEMU_ERR_FORMAT;
+    return failure_status;
 }

@@ -196,3 +196,44 @@ semu_serial_endpoint semu_sapporo_opt3007_endpoint(
     endpoint.context = sensor;
     return endpoint;
 }
+
+semu_status semu_sapporo_opt3007_snapshot_write(
+    const semu_sapporo_opt3007 *sensor, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (sensor == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "OPT3007 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u8(writer, sensor->address, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->result, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->config, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->low_limit, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->high_limit, error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_opt3007_snapshot_read(
+    semu_sapporo_opt3007 *sensor, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_opt3007 candidate;
+    if (sensor == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "OPT3007 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *sensor;
+    if (semu_snapshot_reader_u8(reader, &candidate.address, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.result, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.config, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.low_limit, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.high_limit, error) != SEMU_OK)
+        return error->code;
+    if (candidate.address != sensor->address) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "OPT3007 snapshot identity mismatch");
+        return SEMU_ERR_CONFLICT;
+    }
+    *sensor = candidate;
+    return SEMU_OK;
+}

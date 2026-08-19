@@ -44,4 +44,12 @@ struct semu_apollo4 {
     semu_apollo4_mram *mram;
 };
 
+semu_status semu_apollo4_snapshot_write(
+    const semu_apollo4 *soc, semu_snapshot_writer *writer, semu_error *error);
+semu_status semu_apollo4_snapshot_read(
+    semu_apollo4 *soc, semu_snapshot_reader *reader, semu_error *error);
+semu_status semu_apollo4_snapshot_resolve_event(
+    semu_apollo4 *soc, uint32_t kind, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error);
+
 #endif

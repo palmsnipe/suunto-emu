@@ -67,6 +67,48 @@ each button press for 70 ms of guest time and keeps the released level stable
 for another 70 ms, matching the native debounce boundary. Replay input remains
 the deterministic path for headless checkpoints.
 
+For fast iteration, save a machine checkpoint after reaching a useful stage
+and resume it without replaying startup. The checkpoint is identity-pinned to
+the profile and all three firmware component hashes; firmware and immutable
+resource files remain external:
+
+```sh
+build/suunto-emu run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --max-instructions 14000000000 \
+  --snapshot-save /tmp/sapporo-startup.sems
+
+build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --snapshot-load /tmp/sapporo-startup.sems \
+  --max-instructions 15000000000 --wait-for-quit
+```
+
+When no explicit limit is supplied on a snapshot load, the CLI grants a
+bounded continuation budget from the checkpoint's current instruction and
+virtual-time totals. Use the same profile, firmware manifest, and enabled
+compatibility layers used to create the snapshot.
+
+For the validated Sapporo OTA image, a useful UI checkpoint is just before the
+first native frame. Create it once, then start each SDL iteration at the
+frame boundary:
+
+```sh
+build/suunto-emu run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --max-instructions 450800000 \
+  --snapshot-save /tmp/sapporo-ui-preframe.sems
+
+build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --until normal-frame \
+  --snapshot-load /tmp/sapporo-ui-preframe.sems \
+  --max-instructions 450900000 --wait-for-quit
+```
+
+The checkpoint is external, identity-pinned state; regenerate it whenever the
+firmware manifest or compatibility layer changes.
+
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.

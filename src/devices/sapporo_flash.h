@@ -5,6 +5,7 @@
 #include "semu/bus.h"
 #include "semu/storage.h"
 #include "semu/types.h"
+#include "../core/snapshot_io.h"
 
 /*
  * Sapporo 2.22 external flash device (ticket 402 continuation).
@@ -33,5 +34,11 @@ void semu_sapporo_flash_bind_overlay_bus(semu_sapporo_flash *flash,
                                           semu_bus *bus);
 semu_serial_endpoint semu_sapporo_flash_endpoint(
     semu_sapporo_flash *flash);
+semu_status semu_sapporo_flash_snapshot_write(
+    const semu_sapporo_flash *flash, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_sapporo_flash_snapshot_read(
+    semu_sapporo_flash *flash, semu_snapshot_reader *reader,
+    semu_error *error);
 
 #endif

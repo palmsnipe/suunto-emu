@@ -3,6 +3,7 @@
 #include "sapporo_flash.h"
 #include "test.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -344,13 +345,121 @@ static void test_button_input_polarity_and_refusal(
     (void)remove(path);
 }
 
+static void test_machine_snapshot_resume_and_atomic_refusal(
+    semu_test_context *context)
+{
+    static const size_t buffer_size = 5u * 1024u * 1024u;
+    uint8_t program[64] = {
+        0x00u, 0x01u, 0x00u, 0x10u,
+        0x21u, 0x00u, 0x00u, 0x00u,
+        [0x20] = 0x00u, 0xbfu,
+        [0x22] = 0x00u, 0xbfu,
+        [0x24] = 0x00u, 0xbfu,
+        [0x26] = 0x00u, 0xbeu
+    };
+    char path[128];
+    semu_profile profile;
+    semu_firmware_manifest firmware;
+    semu_machine_options options;
+    semu_machine *first;
+    semu_machine *second;
+    semu_snapshot *source;
+    semu_snapshot *loaded;
+    semu_error error;
+    semu_run_limits limits = { 2u, UINT64_C(1000000) };
+    uint8_t *buffer;
+    size_t length;
+    uint64_t saved_instructions;
+    uint64_t saved_time;
+    uint32_t saved_pc;
+    uint64_t refused_instructions;
+    uint64_t refused_time;
+    uint32_t refused_pc;
+    static const uint8_t invalid_cpu[] = { 0u };
+
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(path, sizeof(path), "machine-snapshot.bin"));
+    SEMU_TEST_ASSERT(context, write_bytes(path, program, sizeof(program)));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    memset(&options, 0, sizeof(options));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    first = semu_machine_create(&options, &error);
+    second = semu_machine_create(&options, &error);
+    source = semu_snapshot_create(&error);
+    loaded = semu_snapshot_create(&error);
+    buffer = (uint8_t *)malloc(buffer_size);
+    SEMU_TEST_ASSERT(context,
+        first != NULL && second != NULL && source != NULL &&
+        loaded != NULL && buffer != NULL);
+    if (first != NULL && second != NULL && source != NULL &&
+        loaded != NULL && buffer != NULL) {
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
+                         semu_machine_run(first, &limits, &error));
+        saved_instructions = semu_machine_instructions(first);
+        saved_time = semu_machine_virtual_time(first);
+        saved_pc = semu_machine_program_counter(first);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_snapshot_save(first, source, &error));
+        length = semu_snapshot_serialize(source, buffer, buffer_size);
+        SEMU_TEST_ASSERT(context, length > 0u);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_deserialize(loaded, buffer, length,
+                                                   &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_snapshot_load(second, loaded, &error));
+        SEMU_TEST_EQ_U64(context, saved_instructions,
+                         semu_machine_instructions(second));
+        SEMU_TEST_EQ_U64(context, saved_time,
+                         semu_machine_virtual_time(second));
+        SEMU_TEST_EQ_U64(context, saved_pc,
+                         semu_machine_program_counter(second));
+
+        limits.max_instructions = 4u;
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                         semu_machine_run(first, &limits, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+                         semu_machine_run(second, &limits, &error));
+        SEMU_TEST_EQ_U64(context, semu_machine_instructions(first),
+                         semu_machine_instructions(second));
+        SEMU_TEST_EQ_U64(context, semu_machine_virtual_time(first),
+                         semu_machine_virtual_time(second));
+        SEMU_TEST_EQ_U64(context, semu_machine_program_counter(first),
+                         semu_machine_program_counter(second));
+
+        refused_instructions = semu_machine_instructions(second);
+        refused_time = semu_machine_virtual_time(second);
+        refused_pc = semu_machine_program_counter(second);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_write_section(
+                             loaded, SEMU_SNAPSHOT_SECTION_CPU_STATE,
+                             invalid_cpu, sizeof(invalid_cpu), &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_machine_snapshot_load(second, loaded, &error));
+        SEMU_TEST_EQ_U64(context, refused_instructions,
+                         semu_machine_instructions(second));
+        SEMU_TEST_EQ_U64(context, refused_time,
+                         semu_machine_virtual_time(second));
+        SEMU_TEST_EQ_U64(context, refused_pc,
+                         semu_machine_program_counter(second));
+    }
+    free(buffer);
+    semu_snapshot_destroy(source);
+    semu_snapshot_destroy(loaded);
+    semu_machine_destroy(first);
+    semu_machine_destroy(second);
+    (void)remove(path);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_repeated_reset_and_source_guard),
         SEMU_TEST_CASE(test_requested_reset_retains_ram_explicit_clears),
         SEMU_TEST_CASE(test_input_poll_can_stop_and_inject),
-        SEMU_TEST_CASE(test_button_input_polarity_and_refusal)
+        SEMU_TEST_CASE(test_button_input_polarity_and_refusal),
+        SEMU_TEST_CASE(test_machine_snapshot_resume_and_atomic_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

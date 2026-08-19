@@ -1,4 +1,4 @@
-#include "semu/machine.h"
+#include "machine_internal.h"
 
 #include "semu/apollo4.h"
 #include "semu/bus.h"
@@ -14,31 +14,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
-struct semu_machine {
-    semu_bus *bus;
-    semu_scheduler *scheduler;
-    semu_cpu *cpu;
-    semu_apollo4 *soc;
-    semu_sapporo_devices *devices;
-    semu_storage *flash_storage;
-    semu_nema_gpu *nema_gpu;
-    semu_display_backend_submit_fn display_backend_submit;
-    void *display_backend_context;
-    semu_frame_callback frame_callback;
-    void *frame_context;
-    const char *external_flash_path;
-    semu_machine_input_poll_fn input_poll;
-    void *input_poll_context;
-    uint64_t instruction_epoch;
-    uint64_t virtual_time_epoch;
-    semu_logger *logger;
-    semu_stop_reason stop_reason;
-    semu_profile profile;
-    semu_firmware_manifest firmware;
-    semu_layer_state layers[SEMU_MAX_LAYERS];
-    size_t layer_count;
-};
 
 static void irq_sink(void *context, unsigned irq, int level)
 {

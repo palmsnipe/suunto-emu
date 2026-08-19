@@ -192,3 +192,44 @@ semu_serial_endpoint semu_sapporo_max17050_endpoint(
     endpoint.context = sensor;
     return endpoint;
 }
+
+semu_status semu_sapporo_max17050_snapshot_write(
+    const semu_sapporo_max17050 *sensor, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (sensor == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "MAX17050 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u8(writer, sensor->address, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->status, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->repsoc, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->temperature, error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, sensor->vcell, error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_max17050_snapshot_read(
+    semu_sapporo_max17050 *sensor, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_max17050 candidate;
+    if (sensor == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "MAX17050 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *sensor;
+    if (semu_snapshot_reader_u8(reader, &candidate.address, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.status, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.repsoc, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.temperature, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.vcell, error) != SEMU_OK)
+        return error->code;
+    if (candidate.address != sensor->address) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "MAX17050 snapshot identity mismatch");
+        return SEMU_ERR_CONFLICT;
+    }
+    *sensor = candidate;
+    return SEMU_OK;
+}

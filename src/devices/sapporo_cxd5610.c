@@ -1,4 +1,5 @@
 #include "sapporo_cxd5610.h"
+#include "../core/scheduler_internal.h"
 #include <stdlib.h>
 #include <string.h>
 typedef struct semu_cxd_event semu_cxd_event;
@@ -83,8 +84,9 @@ static void scheduled_event(void *context, uint64_t now_ns)
         set_awake(transport, 1);
         if (transport->generation != generation) return;
         event->kind = 3u;
-        if (semu_scheduler_schedule(transport->scheduler,
+        if (semu_scheduler_schedule_tagged(transport->scheduler,
                                      SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS,
+                                     SEMU_SCHED_EVENT_CXD_AWAKE, 3u,
                                      scheduled_event, event,
                                      &transport->awake_event, NULL) != SEMU_OK) {
             transport->awake_stage = 0u;
@@ -281,7 +283,8 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
     event->generation = transport->generation;
     memcpy(transport->rx, bytes, count);
     transport->rx_count = count;
-    if (semu_scheduler_schedule(transport->scheduler, delay_ns,
+    if (semu_scheduler_schedule_tagged(transport->scheduler, delay_ns,
+                                 SEMU_SCHED_EVENT_CXD_RX, 0u,
                                  scheduled_event, event,
                                  &transport->rx_event, error) != SEMU_OK) {
         transport->rx_count = 0u;
@@ -308,7 +311,8 @@ semu_status semu_sapporo_cxd5610_pulse_awake_after(
                        "CXD5610 reset during awake scheduling");
         return SEMU_ERR_STATE;
     }
-    if (semu_scheduler_schedule(transport->scheduler, delay_ns,
+    if (semu_scheduler_schedule_tagged(transport->scheduler, delay_ns,
+                                 SEMU_SCHED_EVENT_CXD_AWAKE, 2u,
                                  scheduled_event, event,
                                  &transport->awake_event, error) != SEMU_OK) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
@@ -316,4 +320,103 @@ semu_status semu_sapporo_cxd5610_pulse_awake_after(
     transport->awake_stage = 1u;
     semu_error_clear(error);
     return SEMU_OK;
+}
+
+semu_status semu_sapporo_cxd5610_snapshot_write(
+    const semu_sapporo_cxd5610 *transport, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (transport == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "CXD5610 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (transport->pending_count > sizeof(transport->pending) ||
+        transport->rx_count > sizeof(transport->rx)) {
+        semu_error_set(error, SEMU_ERR_RANGE, "CXD5610 snapshot buffer is invalid");
+        return SEMU_ERR_RANGE;
+    }
+    if (semu_snapshot_writer_u32(writer, (uint32_t)transport->pending_count, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, transport->pending,
+                                   transport->pending_count, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, (uint32_t)transport->rx_count, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, transport->rx,
+                                   transport->rx_count, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, transport->rx_event, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, transport->rx_event_context.kind, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, transport->rx_event_context.generation, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, transport->awake_event, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, transport->awake_event_context.kind, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, transport->awake_event_context.generation, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, transport->awake_stage, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, transport->generation, error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_cxd5610_snapshot_read(
+    semu_sapporo_cxd5610 *transport, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_cxd5610 candidate;
+    uint32_t pending_count, rx_count;
+    if (transport == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "CXD5610 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *transport;
+    if (semu_snapshot_reader_u32(reader, &pending_count, error) != SEMU_OK ||
+        pending_count > sizeof(candidate.pending) ||
+        semu_snapshot_reader_bytes(reader, candidate.pending, pending_count, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &rx_count, error) != SEMU_OK ||
+        rx_count > sizeof(candidate.rx) ||
+        semu_snapshot_reader_bytes(reader, candidate.rx, rx_count, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.rx_event, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.rx_event_context.kind, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.rx_event_context.generation, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.awake_event, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.awake_event_context.kind, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.awake_event_context.generation, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.awake_stage, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.generation, error) != SEMU_OK)
+        return error->code;
+    if ((candidate.rx_event_context.kind != 0u &&
+         candidate.rx_event_context.kind != 1u) ||
+        candidate.awake_event_context.kind > 3u || candidate.awake_stage > 2u ||
+        candidate.generation == 0u ||
+        (candidate.rx_event != 0u && candidate.rx_event_context.kind != 1u) ||
+        (candidate.awake_event != 0u &&
+         (candidate.awake_event_context.kind < 2u ||
+          candidate.awake_event_context.kind > 3u))) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "invalid CXD5610 snapshot event state");
+        return SEMU_ERR_FORMAT;
+    }
+    candidate.pending_count = pending_count;
+    candidate.rx_count = rx_count;
+    candidate.rx_event_context.transport = transport;
+    candidate.awake_event_context.transport = transport;
+    *transport = candidate;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_cxd5610_snapshot_resolve_event(
+    semu_sapporo_cxd5610 *transport, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error)
+{
+    if (transport == NULL || callback == NULL || context == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "CXD5610 snapshot event arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (subject == 0u && transport->rx_event != 0u) {
+        *callback = scheduled_event;
+        *context = &transport->rx_event_context;
+        return SEMU_OK;
+    }
+    if ((subject == 2u || subject == 3u) && transport->awake_event != 0u &&
+        transport->awake_event_context.kind == subject) {
+        *callback = scheduled_event;
+        *context = &transport->awake_event_context;
+        return SEMU_OK;
+    }
+    semu_error_set(error, SEMU_ERR_CONFLICT, "CXD5610 snapshot event is not present");
+    return SEMU_ERR_CONFLICT;
 }

@@ -3,6 +3,7 @@
 
 #include "semu/scheduler.h"
 #include "semu/types.h"
+#include "../core/snapshot_io.h"
 
 /*
  * Nema completion events (ticket 506).
@@ -55,5 +56,13 @@ size_t nema_completion_count(const nema_completion *comp);
 /* Whether a completion is pending for the given list ID. */
 int nema_completion_pending(const nema_completion *comp,
                             uint32_t list_id);
+semu_status nema_completion_snapshot_write(
+    const nema_completion *comp, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status nema_completion_snapshot_read(
+    nema_completion *comp, semu_snapshot_reader *reader, semu_error *error);
+semu_status nema_completion_snapshot_resolve_event(
+    nema_completion *comp, uint32_t subject, semu_event_callback *callback,
+    void **context, semu_error *error);
 
 #endif

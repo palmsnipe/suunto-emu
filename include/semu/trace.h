@@ -186,6 +186,12 @@ uint32_t semu_replay_version(const semu_replay *replay);
 #define SEMU_SNAPSHOT_SECTION_RAM         1u
 #define SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME 2u
 #define SEMU_SNAPSHOT_SECTION_STOP_REASON  3u
+#define SEMU_SNAPSHOT_SECTION_SCHEDULER   4u
+#define SEMU_SNAPSHOT_SECTION_SOC_STATE   5u
+#define SEMU_SNAPSHOT_SECTION_DEVICES     6u
+#define SEMU_SNAPSHOT_SECTION_STORAGE     7u
+#define SEMU_SNAPSHOT_SECTION_NEMA        8u
+#define SEMU_SNAPSHOT_SECTION_MACHINE     9u
 
 typedef struct semu_snapshot semu_snapshot;
 

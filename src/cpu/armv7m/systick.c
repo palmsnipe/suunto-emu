@@ -1,4 +1,5 @@
 #include "armv7m_internal.h"
+#include "../../core/scheduler_internal.h"
 
 #define SYSTICK_CTRL 0x010u
 #define SYSTICK_RELOAD 0x014u
@@ -59,7 +60,7 @@ static void update_current(semu_cpu *cpu)
     cpu->systick_last_time = now;
 }
 
-static void systick_callback(void *context, uint64_t now_ns)
+void armv7m_systick_event(void *context, uint64_t now_ns)
 {
     semu_cpu *cpu = (semu_cpu *)context;
 
@@ -88,8 +89,10 @@ static semu_status schedule_timer(semu_cpu *cpu, semu_error *error)
     if (cpu->systick_current == 0u && cpu->systick_reload == 0u)
         return SEMU_OK;
     delay = cpu->systick_current == 0u ? 1u : cpu->systick_current;
-    return semu_scheduler_schedule(cpu->scheduler, delay, systick_callback,
-                                   cpu, &cpu->systick_event, error) == SEMU_OK
+    return semu_scheduler_schedule_tagged(cpu->scheduler, delay,
+                                   SEMU_SCHED_EVENT_SYSTICK, 0u,
+                                   armv7m_systick_event, cpu,
+                                   &cpu->systick_event, error) == SEMU_OK
                ? (cpu->systick_event_valid = 1u, SEMU_OK)
                : error != NULL ? error->code : SEMU_ERR_STATE;
 }

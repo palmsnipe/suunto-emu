@@ -5,61 +5,13 @@
  * I2C buses (IOM2, IOM4) are multiplexed by I2C address.
  */
 
-#include "sapporo_devices.h"
+#include "sapporo_devices_internal.h"
 
-#include "sapporo_cxd5610.h"
-#include "sapporo_flash.h"
-#include "sapporo_hsppad143.h"
-#include "sapporo_haptic.h"
-#include "sapporo_lsm6dsl.h"
-#include "sapporo_max17050.h"
-#include "sapporo_ohr2.h"
-#include "sapporo_opt3007.h"
-#include "sapporo_tli493d.h"
 #include "sapporo_gps_compat.h"
-#include "../compat/sapporo_222.h"
-#include "../soc/apollo4/apollo4_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-#define SEMU_SAPPORO_MAX_I2C_CHILDREN 4u
-
-typedef struct {
-    uint8_t address;
-    semu_serial_endpoint endpoint;
-} i2c_mux_entry;
-
-typedef struct {
-    i2c_mux_entry entries[SEMU_SAPPORO_MAX_I2C_CHILDREN];
-    size_t count;
-} i2c_bus;
-
-struct semu_sapporo_devices {
-    semu_scheduler *scheduler;
-    semu_apollo4 *soc;
-    semu_sapporo_hsppad143 *pressure;
-    semu_sapporo_lsm6dsl *accelerometer;
-    semu_sapporo_tli493d *magnetometer;
-    semu_sapporo_haptic *haptic;
-    semu_sapporo_opt3007 *ambient_light;
-    semu_sapporo_max17050 *battery_gauge;
-    semu_sapporo_cxd5610 *gps;
-    semu_sapporo_ohr2 *ohr2;
-    semu_sapporo_flash *flash;
-    i2c_bus iom2_bus;
-    i2c_bus iom4_bus;
-    semu_serial_endpoint iom0_ep;
-    semu_serial_endpoint iom2_ep;
-    semu_serial_endpoint iom3_ep;
-    semu_serial_endpoint iom4_ep;
-    semu_serial_endpoint iom4_observed_ep;
-    semu_serial_endpoint mspi1_ep;
-    semu_serial_endpoint mspi_ep;
-    semu_serial_endpoint refuse_ep;
-    semu_apollo4_uart_endpoint uart_ep;
-    semu_sapporo_222_fixture_context fixture_context;
-};
 static void gps_awake_signal(void *context, unsigned channel, int level)
 {
     semu_sapporo_devices *devices = (semu_sapporo_devices *)context;

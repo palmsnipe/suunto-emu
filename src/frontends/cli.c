@@ -12,6 +12,7 @@
 #include "../devices/sapporo_flash.h"
 #include "input_replay.c"
 #include "cli_checkpoint.c"
+#include "cli_snapshot.c"
 
 #include <errno.h>
 #include <stdio.h>
@@ -36,6 +37,17 @@ typedef struct run_arguments {
     uint64_t max_time;
     semu_cli_debug_options debug;
 } run_arguments;
+
+static void cleanup_run(semu_machine *machine, semu_snapshot *snapshot,
+                        semu_input_replay *replay, semu_nema_backend *backend,
+                        FILE *trace)
+{
+    semu_snapshot_destroy(snapshot);
+    semu_machine_destroy(machine);
+    semu_input_replay_destroy(replay);
+    semu_nema_backend_destroy(backend);
+    if (trace != stderr) fclose(trace);
+}
 
 static void usage(FILE *stream)
 {
@@ -280,6 +292,7 @@ static int command_run(const run_arguments *arguments,
     semu_stop_reason reason;
     semu_nema_backend *backend = NULL;
     semu_input_replay *replay = NULL;
+    semu_snapshot *snapshot = NULL;
     first_frame_gate frame_gate;
     replay_input_context replay_context;
     uint64_t instr_limit = arguments->max_instructions != 0u
@@ -314,7 +327,7 @@ static int command_run(const run_arguments *arguments,
     backend = semu_nema_backend_create(&error);
     if (backend == NULL) {
         fprintf(stderr, "run: %s\n", error.text);
-        if (trace != stderr) fclose(trace);
+        cleanup_run(NULL, NULL, NULL, NULL, trace);
         return 2;
     }
     if (arguments->input_replay != NULL) {
@@ -322,8 +335,7 @@ static int command_run(const run_arguments *arguments,
         if (rf == NULL) {
             fprintf(stderr, "run: cannot open replay %s\n",
                     arguments->input_replay);
-            semu_nema_backend_destroy(backend);
-            if (trace != stderr) fclose(trace);
+            cleanup_run(NULL, NULL, NULL, backend, trace);
             return 2;
         }
         {
@@ -334,9 +346,7 @@ static int command_run(const run_arguments *arguments,
             if (replay == NULL ||
                 semu_input_replay_parse(replay, buf, n, &error) != SEMU_OK) {
                 fprintf(stderr, "run: replay: %s\n", error.text);
-                semu_input_replay_destroy(replay);
-                semu_nema_backend_destroy(backend);
-                if (trace != stderr) fclose(trace);
+                cleanup_run(NULL, NULL, replay, backend, trace);
                 return 2;
             }
         }
@@ -364,8 +374,7 @@ static int command_run(const run_arguments *arguments,
         if (replay == NULL && input_poll == NULL) {
             fprintf(stderr, "run: --until %s requires --input-replay\n",
                     arguments->until);
-            semu_nema_backend_destroy(backend);
-            if (trace != stderr) fclose(trace);
+            cleanup_run(NULL, NULL, replay, backend, trace);
             return 2;
         }
         if (replay != NULL) {
@@ -385,10 +394,37 @@ static int command_run(const run_arguments *arguments,
     machine = semu_machine_create(&options, &error);
     if (machine == NULL) {
         fprintf(stderr, "run: %s\n", error.text);
-        semu_input_replay_destroy(replay);
-        semu_nema_backend_destroy(backend);
-        if (trace != stderr) fclose(trace);
+        cleanup_run(NULL, NULL, replay, backend, trace);
         return 2;
+    }
+    if (arguments->debug.snapshot_load_path != NULL) {
+        snapshot = semu_snapshot_create(&error);
+        if (snapshot == NULL ||
+            semu_cli_snapshot_load_file(arguments->debug.snapshot_load_path,
+                                        snapshot, &error) != SEMU_OK ||
+            semu_machine_snapshot_load(machine, snapshot, &error) != SEMU_OK) {
+            fprintf(stderr, "run: snapshot load: %s\n", error.text);
+            cleanup_run(machine, snapshot, replay, backend, trace);
+            return 2;
+        }
+        if (arguments->max_instructions == 0u) {
+            uint64_t base = semu_machine_instructions(machine);
+            if (UINT64_MAX - base < CHECKPOINT_INSTRUCTION_LIMIT) {
+                fprintf(stderr, "run: snapshot instruction budget overflows\n");
+                cleanup_run(machine, snapshot, replay, backend, trace);
+                return 2;
+            }
+            instr_limit = base + CHECKPOINT_INSTRUCTION_LIMIT;
+        }
+        if (arguments->max_time == 0u) {
+            uint64_t base = semu_machine_virtual_time(machine);
+            if (UINT64_MAX - base < CHECKPOINT_TIME_LIMIT) {
+                fprintf(stderr, "run: snapshot time budget overflows\n");
+                cleanup_run(machine, snapshot, replay, backend, trace);
+                return 2;
+            }
+            time_limit = base + CHECKPOINT_TIME_LIMIT;
+        }
     }
     {
         uint64_t executed;
@@ -426,6 +462,24 @@ static int command_run(const run_arguments *arguments,
             if (reason != SEMU_STOP_BUDGET) break;
         }
     }
+    if (arguments->debug.snapshot_save_path != NULL) {
+        semu_status snapshot_status;
+        semu_error_clear(&error);
+        if (snapshot == NULL) {
+            snapshot = semu_snapshot_create(&error);
+        }
+        snapshot_status = snapshot == NULL ? error.code :
+            semu_machine_snapshot_save(machine, snapshot, &error);
+        if (snapshot_status == SEMU_OK) {
+            snapshot_status = semu_cli_snapshot_save_file(
+                arguments->debug.snapshot_save_path, snapshot, &error);
+        }
+        if (snapshot_status != SEMU_OK) {
+            fprintf(stderr, "run: snapshot save: %s\n", error.text);
+            cleanup_run(machine, snapshot, replay, backend, trace);
+            return 2;
+        }
+    }
     printf("stop=%s pc=0x%08x instructions=%llu virtual_time_ns=%llu",
            semu_stop_reason_name(reason),
            semu_machine_program_counter(machine),
@@ -435,51 +489,9 @@ static int command_run(const run_arguments *arguments,
         printf(" detail=%s", error.text);
     }
     putchar('\n');
-    semu_machine_destroy(machine);
-    semu_input_replay_destroy(replay);
-    semu_nema_backend_destroy(backend);
-    if (trace != stderr) {
-        fclose(trace);
-    }
+    cleanup_run(machine, snapshot, replay, backend, trace);
     return reason == SEMU_STOP_WFI_DEADLOCK || reason == SEMU_STOP_HALT ||
                    reason == SEMU_STOP_USER ? 0 : 3;
 }
 
-int semu_cli_main(int argc, char **argv, semu_frame_callback frame_callback,
-                  void *frame_context, semu_machine_input_poll_fn input_poll,
-                  void *input_poll_context)
-{
-    run_arguments arguments;
-    semu_error error;
-    const char *command;
-    semu_error_clear(&error);
-    if (argc < 2) {
-        usage(stderr);
-        return 2;
-    }
-    command = argv[1];
-    if (strcmp(command, "list") == 0 && argc == 2) {
-        return command_list();
-    }
-    if (strcmp(command, "show-profile") == 0 && argc == 3) {
-        return command_show(argv[2]);
-    }
-    if (!parse_options(argc, argv, 2, &arguments, &error)) {
-        fprintf(stderr, "%s: %s\n", command, error.text);
-        usage(stderr);
-        return 2;
-    }
-    if (strcmp(command, "list-layers") == 0) {
-        return command_layers(arguments.profile);
-    }
-    if (strcmp(command, "validate") == 0) {
-        return command_validate(&arguments);
-    }
-    if (strcmp(command, "run") == 0) {
-        return command_run(&arguments, frame_callback, frame_context,
-                           input_poll, input_poll_context);
-    }
-    fprintf(stderr, "unknown command %s\n", command);
-    usage(stderr);
-    return 2;
-}
+#include "cli_main.c"

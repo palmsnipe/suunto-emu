@@ -6,6 +6,7 @@
 #include "semu/bus.h"
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
+#include "../../core/snapshot_io.h"
 
 #define SEMU_APOLLO4_IOM_SIZE 0x1000u
 
@@ -44,5 +45,11 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
                                     unsigned width, uint32_t value,
                                     semu_error *error);
 const semu_bus_device_ops *semu_apollo4_iom_bus_ops(void);
+semu_status semu_apollo4_iom_snapshot_write(
+    const semu_apollo4_iom *iom, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_apollo4_iom_snapshot_read(
+    semu_apollo4_iom *iom, semu_snapshot_reader *reader,
+    semu_error *error);
 
 #endif

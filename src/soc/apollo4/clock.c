@@ -162,3 +162,36 @@ const semu_bus_device_ops *semu_apollo4_clock_bus_ops(void)
 {
     return &clock_ops;
 }
+
+semu_status semu_apollo4_clock_snapshot_write(
+    const semu_apollo4_clock *clock, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (clock == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "clock snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u32(writer, clock->cal, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, clock->intr, error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_apollo4_clock_snapshot_read(
+    semu_apollo4_clock *clock, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_apollo4_clock candidate;
+    if (clock == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "clock snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *clock;
+    if (semu_snapshot_reader_u32(reader, &candidate.cal, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.intr, error) != SEMU_OK)
+        return error->code;
+    *clock = candidate;
+    return SEMU_OK;
+}

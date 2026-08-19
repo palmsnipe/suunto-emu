@@ -1,30 +1,7 @@
-#include "semu/bus.h"
+#include "bus_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-typedef enum region_kind {
-    REGION_RAM = 0,
-    REGION_ROM,
-    REGION_DEVICE
-} region_kind;
-
-typedef struct bus_region {
-    char name[SEMU_ID_MAX];
-    uint32_t base;
-    uint32_t size;
-    region_kind kind;
-    uint8_t *memory;
-    semu_bus_device_ops ops;
-    void *context;
-    uint8_t overlay;
-} bus_region;
-
-struct semu_bus {
-    bus_region *regions;
-    size_t count;
-    size_t capacity;
-};
 
 static uint64_t region_end(const bus_region *region)
 {
@@ -196,7 +173,7 @@ void semu_bus_reset(semu_bus *bus)
 
 static semu_status map_memory(semu_bus *bus, const char *name, uint32_t base,
                               const uint8_t *data, uint32_t size,
-                              region_kind kind, semu_error *error)
+                              bus_region_kind kind, semu_error *error)
 {
     bus_region region;
     size_t name_length;

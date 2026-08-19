@@ -180,3 +180,43 @@ const semu_bus_device_ops *semu_apollo4_mram_bus_ops(void)
 {
     return &mram_ops;
 }
+
+semu_status semu_apollo4_mram_snapshot_write(
+    const semu_apollo4_mram *mram, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    size_t index;
+    if (mram == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "MRAM snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    for (index = 0u; index < SEMU_ARRAY_LEN(mram->registers); ++index) {
+        if (semu_snapshot_writer_u32(writer, mram->registers[index].value,
+                                     error) != SEMU_OK)
+            return error->code;
+    }
+    return SEMU_OK;
+}
+
+semu_status semu_apollo4_mram_snapshot_read(
+    semu_apollo4_mram *mram, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_apollo4_mram candidate;
+    size_t index;
+    if (mram == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "MRAM snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *mram;
+    for (index = 0u; index < SEMU_ARRAY_LEN(candidate.registers); ++index) {
+        if (semu_snapshot_reader_u32(reader,
+                                     &candidate.registers[index].value,
+                                     error) != SEMU_OK)
+            return error->code;
+    }
+    *mram = candidate;
+    return SEMU_OK;
+}

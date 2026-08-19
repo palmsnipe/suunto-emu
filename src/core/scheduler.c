@@ -1,34 +1,19 @@
-#include "semu/scheduler.h"
+#include "scheduler_internal.h"
 
 #include <limits.h>
 #include <stdlib.h>
 
-typedef struct scheduled_event {
-    uint64_t due_ns;
-    uint64_t sequence;
-    semu_event_id id;
-    semu_event_callback callback;
-    void *context;
-} scheduled_event;
-
-struct semu_scheduler {
-    scheduled_event *events;
-    size_t count;
-    size_t capacity;
-    uint64_t now_ns;
-    uint64_t next_sequence;
-    semu_event_id next_id;
-};
-
-static int event_before(const scheduled_event *left, const scheduled_event *right)
+static int event_before(const semu_scheduled_event *left,
+                        const semu_scheduled_event *right)
 {
-    return left->due_ns < right->due_ns ||
-           (left->due_ns == right->due_ns && left->sequence < right->sequence);
+    return left->state.due_ns < right->state.due_ns ||
+           (left->state.due_ns == right->state.due_ns &&
+            left->state.sequence < right->state.sequence);
 }
 
 static semu_status reserve_event(semu_scheduler *scheduler, semu_error *error)
 {
-    scheduled_event *replacement;
+    semu_scheduled_event *replacement;
     size_t capacity;
 
     if (scheduler->count < scheduler->capacity) {
@@ -40,7 +25,7 @@ static semu_status reserve_event(semu_scheduler *scheduler, semu_error *error)
         semu_error_set(error, SEMU_ERR_NOMEM, "scheduler capacity overflow");
         return SEMU_ERR_NOMEM;
     }
-    replacement = (scheduled_event *)realloc(
+    replacement = (semu_scheduled_event *)realloc(
         scheduler->events, capacity * sizeof(*scheduler->events));
     if (replacement == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot grow scheduler");
@@ -90,7 +75,20 @@ semu_status semu_scheduler_schedule(semu_scheduler *scheduler, uint64_t delay_ns
                                     semu_event_callback callback, void *context,
                                     semu_event_id *event_id, semu_error *error)
 {
-    scheduled_event event;
+    return semu_scheduler_schedule_tagged(scheduler, delay_ns,
+                                           SEMU_SCHED_EVENT_NONE, 0u,
+                                           callback, context, event_id, error);
+}
+
+semu_status semu_scheduler_schedule_tagged(semu_scheduler *scheduler,
+                                           uint64_t delay_ns, uint32_t kind,
+                                           uint32_t subject,
+                                           semu_event_callback callback,
+                                           void *context,
+                                           semu_event_id *event_id,
+                                           semu_error *error)
+{
+    semu_scheduled_event event;
     size_t position;
     semu_status status;
 
@@ -107,9 +105,11 @@ semu_status semu_scheduler_schedule(semu_scheduler *scheduler, uint64_t delay_ns
     if (status != SEMU_OK) {
         return status;
     }
-    event.due_ns = scheduler->now_ns + delay_ns;
-    event.sequence = scheduler->next_sequence++;
-    event.id = scheduler->next_id++;
+    event.state.due_ns = scheduler->now_ns + delay_ns;
+    event.state.sequence = scheduler->next_sequence++;
+    event.state.id = scheduler->next_id++;
+    event.state.kind = kind;
+    event.state.subject = subject;
     event.callback = callback;
     event.context = context;
     position = scheduler->count;
@@ -120,7 +120,7 @@ semu_status semu_scheduler_schedule(semu_scheduler *scheduler, uint64_t delay_ns
     scheduler->events[position] = event;
     ++scheduler->count;
     if (event_id != NULL) {
-        *event_id = event.id;
+        *event_id = event.state.id;
     }
     semu_error_clear(error);
     return SEMU_OK;
@@ -134,7 +134,7 @@ int semu_scheduler_cancel(semu_scheduler *scheduler, semu_event_id event_id)
         return 0;
     }
     for (index = 0u; index < scheduler->count; ++index) {
-        if (scheduler->events[index].id == event_id) {
+        if (scheduler->events[index].state.id == event_id) {
             size_t tail = scheduler->count - index - 1u;
             if (tail != 0u) {
                 size_t item;
@@ -157,7 +157,7 @@ int semu_scheduler_has_events(const semu_scheduler *scheduler)
 
 semu_status semu_scheduler_run_next(semu_scheduler *scheduler, semu_error *error)
 {
-    scheduled_event event;
+    semu_scheduled_event event;
     size_t index;
 
     if (scheduler == NULL) {
@@ -173,7 +173,7 @@ semu_status semu_scheduler_run_next(semu_scheduler *scheduler, semu_error *error
         scheduler->events[index - 1u] = scheduler->events[index];
     }
     --scheduler->count;
-    scheduler->now_ns = event.due_ns;
+    scheduler->now_ns = event.state.due_ns;
     event.callback(event.context, scheduler->now_ns);
     semu_error_clear(error);
     return SEMU_OK;
@@ -193,13 +193,90 @@ semu_status semu_scheduler_advance(semu_scheduler *scheduler, uint64_t delta_ns,
         return SEMU_ERR_RANGE;
     }
     target = scheduler->now_ns + delta_ns;
-    while (scheduler->count != 0u && scheduler->events[0].due_ns <= target) {
+    while (scheduler->count != 0u &&
+           scheduler->events[0].state.due_ns <= target) {
         semu_status status = semu_scheduler_run_next(scheduler, error);
         if (status != SEMU_OK) {
             return status;
         }
     }
     scheduler->now_ns = target;
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
+size_t semu_scheduler_event_count(const semu_scheduler *scheduler)
+{
+    return scheduler != NULL ? scheduler->count : 0u;
+}
+
+const semu_scheduled_event_state *semu_scheduler_event_get(
+    const semu_scheduler *scheduler, size_t index)
+{
+    if (scheduler == NULL || index >= scheduler->count) return NULL;
+    return &scheduler->events[index].state;
+}
+
+semu_status semu_scheduler_restore_begin(semu_scheduler *scheduler,
+                                         uint64_t now_ns,
+                                         uint64_t next_sequence,
+                                         semu_event_id next_id,
+                                         semu_error *error)
+{
+    if (scheduler == NULL || next_id == 0u) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "invalid scheduler snapshot state");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (next_sequence == UINT64_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "scheduler snapshot sequence overflow");
+        return SEMU_ERR_RANGE;
+    }
+    scheduler->count = 0u;
+    scheduler->now_ns = now_ns;
+    scheduler->next_sequence = next_sequence;
+    scheduler->next_id = next_id;
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
+semu_status semu_scheduler_restore_event(semu_scheduler *scheduler,
+    const semu_scheduled_event_state *state, semu_event_callback callback,
+    void *context, semu_error *error)
+{
+    semu_scheduled_event event;
+    size_t index;
+    semu_status status;
+
+    if (scheduler == NULL || state == NULL || callback == NULL ||
+        state->id == 0u || state->sequence >= scheduler->next_sequence ||
+        state->id >= scheduler->next_id || state->due_ns < scheduler->now_ns) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid scheduler snapshot event");
+        return SEMU_ERR_FORMAT;
+    }
+    for (index = 0u; index < scheduler->count; ++index) {
+        if (scheduler->events[index].state.id == state->id ||
+            scheduler->events[index].state.sequence == state->sequence) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "duplicate scheduler snapshot event");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    status = reserve_event(scheduler, error);
+    if (status != SEMU_OK) return status;
+    event.state = *state;
+    event.callback = callback;
+    event.context = context;
+    index = scheduler->count;
+    while (index > 0u &&
+           event_before(&event, &scheduler->events[index - 1u])) {
+        scheduler->events[index] = scheduler->events[index - 1u];
+        --index;
+    }
+    scheduler->events[index] = event;
+    ++scheduler->count;
     semu_error_clear(error);
     return SEMU_OK;
 }

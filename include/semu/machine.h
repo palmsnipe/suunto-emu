@@ -6,6 +6,7 @@
 #include "semu/input.h"
 #include "semu/log.h"
 #include "semu/manifest.h"
+#include "semu/trace.h"
 
 typedef struct semu_machine semu_machine;
 
@@ -43,6 +44,14 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
 semu_status semu_machine_input(semu_machine *machine,
                                const semu_input_event *event,
                                semu_error *error);
+/* Serialize or restore all mutable machine-owned state.  Firmware and other
+ * immutable source images remain external and are identity-pinned. */
+semu_status semu_machine_snapshot_save(const semu_machine *machine,
+                                       semu_snapshot *snapshot,
+                                       semu_error *error);
+semu_status semu_machine_snapshot_load(semu_machine *machine,
+                                       const semu_snapshot *snapshot,
+                                       semu_error *error);
 semu_stop_reason semu_machine_stop_reason(const semu_machine *machine);
 uint64_t semu_machine_instructions(const semu_machine *machine);
 uint64_t semu_machine_virtual_time(const semu_machine *machine);

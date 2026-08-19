@@ -7,6 +7,7 @@
 #include "semu/frame.h"
 #include "semu/scheduler.h"
 #include "semu/types.h"
+#include "../core/snapshot_io.h"
 
 /*
  * NEMA GPU bus device (E-NEMA-RING-001: SapporoNemaP.cs).
@@ -35,5 +36,12 @@ void semu_nema_gpu_destroy(semu_nema_gpu *gpu);
 void semu_nema_gpu_reset(semu_nema_gpu *gpu);
 
 semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error);
+semu_status semu_nema_gpu_snapshot_write(
+    const semu_nema_gpu *gpu, semu_snapshot_writer *writer, semu_error *error);
+semu_status semu_nema_gpu_snapshot_read(
+    semu_nema_gpu *gpu, semu_snapshot_reader *reader, semu_error *error);
+semu_status semu_nema_gpu_snapshot_resolve_event(
+    semu_nema_gpu *gpu, uint32_t subject, semu_event_callback *callback,
+    void **context, semu_error *error);
 
 #endif

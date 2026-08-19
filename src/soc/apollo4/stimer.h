@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "semu/bus.h"
 #include "semu/scheduler.h"
+#include "../../core/snapshot_io.h"
 #define SEMU_APOLLO4_STIMER_BASE 0x40008800u
 #define SEMU_APOLLO4_STIMER_SIZE 0x200u
 typedef struct semu_apollo4_stimer semu_apollo4_stimer;
@@ -31,4 +32,14 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
                                       unsigned width, uint32_t value,
                                       semu_error *error);
 const semu_bus_device_ops *semu_apollo4_stimer_bus_ops(void);
+semu_status semu_apollo4_stimer_snapshot_write(
+    const semu_apollo4_stimer *stimer, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_apollo4_stimer_snapshot_read(
+    semu_apollo4_stimer *stimer, semu_snapshot_reader *reader,
+    semu_error *error);
+semu_status semu_apollo4_stimer_snapshot_resolve_event(
+    semu_apollo4_stimer *stimer, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error);
+void semu_apollo4_stimer_event(void *context, uint64_t now);
 #endif

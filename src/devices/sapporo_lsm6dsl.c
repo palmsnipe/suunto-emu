@@ -264,3 +264,53 @@ semu_serial_endpoint semu_sapporo_lsm6dsl_endpoint(
     endpoint.context = sensor;
     return endpoint;
 }
+
+semu_status semu_sapporo_lsm6dsl_snapshot_write(
+    const semu_sapporo_lsm6dsl *sensor, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (sensor == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "LSM6 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u8(writer, sensor->chip_select, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, sensor->config,
+                                   sizeof(sensor->config), error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->reg, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(sensor->have_command != 0), error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(sensor->read != 0), error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(sensor->increment != 0), error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_lsm6dsl_snapshot_read(
+    semu_sapporo_lsm6dsl *sensor, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_lsm6dsl candidate;
+    uint8_t have_command, read, increment;
+    if (sensor == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "LSM6 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *sensor;
+    if (semu_snapshot_reader_u8(reader, &candidate.chip_select, error) != SEMU_OK ||
+        semu_snapshot_reader_bytes(reader, candidate.config,
+                                   sizeof(candidate.config), error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.reg, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &have_command, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &read, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &increment, error) != SEMU_OK)
+        return error->code;
+    if (candidate.chip_select != sensor->chip_select || have_command > 1u ||
+        read > 1u || increment > 1u) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "LSM6 snapshot identity/state mismatch");
+        return SEMU_ERR_CONFLICT;
+    }
+    candidate.have_command = have_command;
+    candidate.read = read;
+    candidate.increment = increment;
+    *sensor = candidate;
+    return SEMU_OK;
+}

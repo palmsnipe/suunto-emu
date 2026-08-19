@@ -280,3 +280,61 @@ semu_serial_endpoint semu_sapporo_haptic_endpoint(
     endpoint.context = sensor;
     return endpoint;
 }
+
+semu_status semu_sapporo_haptic_snapshot_write(
+    const semu_sapporo_haptic *sensor, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (sensor == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "haptic snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u8(writer, sensor->address, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->selected, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->waveform_select, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config0, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config1, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config2, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config3, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config4, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->config5, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, sensor->autotune, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, sensor->waveform,
+                                   sizeof(sensor->waveform), error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_haptic_snapshot_read(
+    semu_sapporo_haptic *sensor, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_haptic candidate;
+    uint8_t selected;
+    if (sensor == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "haptic snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *sensor;
+    if (semu_snapshot_reader_u8(reader, &candidate.address, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &selected, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.waveform_select, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config0, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config1, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config2, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config3, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config4, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.config5, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.autotune, error) != SEMU_OK ||
+        semu_snapshot_reader_bytes(reader, candidate.waveform,
+                                   sizeof(candidate.waveform), error) != SEMU_OK)
+        return error->code;
+    if (candidate.address != sensor->address) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "haptic snapshot identity mismatch");
+        return SEMU_ERR_CONFLICT;
+    }
+    candidate.selected = selected;
+    *sensor = candidate;
+    return SEMU_OK;
+}

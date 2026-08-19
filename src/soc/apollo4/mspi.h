@@ -5,6 +5,7 @@
 
 #include "semu/bus.h"
 #include "semu/peripheral.h"
+#include "../../core/snapshot_io.h"
 
 #define SEMU_APOLLO4_MSPI1_BASE 0x40061000u
 #define SEMU_APOLLO4_MSPI2_BASE 0x40062000u
@@ -57,6 +58,12 @@ const semu_bus_device_ops *semu_apollo4_mspi_bus_ops(void);
 
 semu_status semu_apollo4_mspi_attach_endpoint(
     semu_apollo4_mspi *mspi, const semu_serial_endpoint *endpoint,
+    semu_error *error);
+semu_status semu_apollo4_mspi_snapshot_write(
+    const semu_apollo4_mspi *mspi, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_apollo4_mspi_snapshot_read(
+    semu_apollo4_mspi *mspi, semu_snapshot_reader *reader,
     semu_error *error);
 
 #endif

@@ -6,6 +6,7 @@
 
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
+#include "../core/snapshot_io.h"
 
 #define SEMU_SAPPORO_CXD5610_MAX_REQUEST 9u
 #define SEMU_SAPPORO_CXD5610_MAX_RX 64u
@@ -54,5 +55,14 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
     uint64_t delay_ns, semu_error *error);
 semu_status semu_sapporo_cxd5610_pulse_awake_after(
     semu_sapporo_cxd5610 *transport, uint64_t delay_ns, semu_error *error);
+semu_status semu_sapporo_cxd5610_snapshot_write(
+    const semu_sapporo_cxd5610 *transport, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_sapporo_cxd5610_snapshot_read(
+    semu_sapporo_cxd5610 *transport, semu_snapshot_reader *reader,
+    semu_error *error);
+semu_status semu_sapporo_cxd5610_snapshot_resolve_event(
+    semu_sapporo_cxd5610 *transport, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error);
 
 #endif

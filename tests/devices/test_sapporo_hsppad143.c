@@ -298,6 +298,60 @@ static void test_repeated_transcript(semu_test_context *context)
     semu_sapporo_hsppad143_destroy(sensor);
 }
 
+static void test_snapshot_cursor_and_atomic_refusal(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_sapporo_hsppad143 *source;
+    semu_sapporo_hsppad143 *target;
+    semu_serial_endpoint source_ep;
+    semu_serial_endpoint target_ep;
+    semu_serial_transaction no_selector;
+    uint8_t rx[1];
+    uint8_t selector = 0x0eu;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    source = semu_sapporo_hsppad143_create(0x48u, &error);
+    target = semu_sapporo_hsppad143_create(0x48u, &error);
+    source_ep = semu_sapporo_hsppad143_endpoint(source);
+    target_ep = semu_sapporo_hsppad143_endpoint(target);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&source_ep, 0x48u, 0x0eu, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x13u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_hsppad143_snapshot_write(
+                         source, &writer, &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_hsppad143_snapshot_read(
+                         target, &reader, &error));
+    no_selector = (semu_serial_transaction){
+        0x48u, 0u, NULL, 0u, rx, sizeof(rx)
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     target_ep.transfer(target_ep.context, &no_selector,
+                                        &error));
+    SEMU_TEST_EQ_U64(context, 0xa0u, rx[0u]);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&target_ep, 0x48u, &selector, 1u, &error));
+    writer.data[0u] = 0x49u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_CONFLICT,
+                     semu_sapporo_hsppad143_snapshot_read(
+                         target, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     target_ep.transfer(target_ep.context, &no_selector,
+                                        &error));
+    SEMU_TEST_EQ_U64(context, 0x13u, rx[0u]);
+    semu_snapshot_writer_destroy(&writer);
+    semu_sapporo_hsppad143_destroy(source);
+    semu_sapporo_hsppad143_destroy(target);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -311,7 +365,8 @@ int main(void)
         SEMU_TEST_CASE(test_configuration_masks),
         SEMU_TEST_CASE(test_unknown_and_atomic_frames),
         SEMU_TEST_CASE(test_repeated_start_retains_selector),
-        SEMU_TEST_CASE(test_repeated_transcript)
+        SEMU_TEST_CASE(test_repeated_transcript),
+        SEMU_TEST_CASE(test_snapshot_cursor_and_atomic_refusal)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

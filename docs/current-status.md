@@ -19,6 +19,10 @@ exist.
 - Exact Sapporo 2.22.60 component metadata and an opt-in, hit-bounded synthetic
   manufacturing-state compatibility layer.
 - RGB565 surface and SDL3 presentation primitives.
+- Identity-pinned machine snapshots covering CPU, guest RAM, scheduler events,
+  Apollo4 controller state, Sapporo device state, flash overlays, NEMA state,
+  virtual time, and compatibility counters. Snapshot load is atomic on a
+  malformed or incompatible image and keeps firmware/resource files external.
 
 All normal tests use synthetic inputs. The checked-in repository contains no
 firmware bytes or frame pixels.

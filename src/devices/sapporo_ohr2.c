@@ -292,3 +292,59 @@ semu_serial_endpoint semu_sapporo_ohr2_endpoint(
     endpoint.context = device;
     return endpoint;
 }
+
+semu_status semu_sapporo_ohr2_snapshot_write(
+    const semu_sapporo_ohr2 *device, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (device == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "OHR2 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u8(writer, (uint8_t)device->state, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, device->queued_response,
+                                   sizeof(device->queued_response), error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, device->queued_sequence, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(device->response_queued != 0), error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(device->selector_armed != 0), error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(device->ready != 0), error) != SEMU_OK ||
+        semu_snapshot_writer_u16(writer, device->expected_sequence, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)(device->sequence_initialized != 0), error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_ohr2_snapshot_read(
+    semu_sapporo_ohr2 *device, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_ohr2 candidate;
+    uint8_t state, response_queued, selector_armed, ready, initialized;
+    if (device == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "OHR2 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *device;
+    if (semu_snapshot_reader_u8(reader, &state, error) != SEMU_OK ||
+        semu_snapshot_reader_bytes(reader, candidate.queued_response,
+                                   sizeof(candidate.queued_response), error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.queued_sequence, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &response_queued, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &selector_armed, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &ready, error) != SEMU_OK ||
+        semu_snapshot_reader_u16(reader, &candidate.expected_sequence, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &initialized, error) != SEMU_OK)
+        return error->code;
+    if (state > (uint8_t)SEMU_SAPPORO_OHR2_MAIN || response_queued > 1u ||
+        selector_armed > 1u || ready > 1u || initialized > 1u) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "invalid OHR2 snapshot state");
+        return SEMU_ERR_FORMAT;
+    }
+    candidate.state = (semu_sapporo_ohr2_state)state;
+    candidate.response_queued = response_queued;
+    candidate.selector_armed = selector_armed;
+    candidate.ready = ready;
+    candidate.sequence_initialized = initialized;
+    *device = candidate;
+    return SEMU_OK;
+}

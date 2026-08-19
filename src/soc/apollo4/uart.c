@@ -1,40 +1,7 @@
-#include "uart.h"
-#include <stddef.h>
+#include "uart_internal.h"
+#include "../../core/scheduler_internal.h"
 #include <stdlib.h>
 #include <string.h>
-typedef struct rx_event rx_event;
-struct rx_event {
-    semu_apollo4_uart *uart;
-    semu_event_id id;
-    rx_event *next;
-    size_t count;
-    uint8_t bytes[1];
-};
-struct semu_apollo4_uart {
-    semu_scheduler *scheduler;
-    semu_apollo4_uart_endpoint endpoint;
-    int endpoint_attached;
-    semu_apollo4_uart_irq_fn irq_sink;
-    void *irq_context;
-    int irq_level;
-    uint8_t rx_fifo[SEMU_APOLLO4_UART_FIFO_CAPACITY];
-    size_t rx_head;
-    size_t rx_count;
-    size_t rx_reserved;
-    rx_event *rx_events;
-    uint8_t tx_fifo[SEMU_APOLLO4_UART_FIFO_CAPACITY];
-    size_t tx_head;
-    size_t tx_count;
-    semu_event_id tx_event;
-    semu_apollo4_uart_tx_completion_fn tx_completion;
-    void *tx_completion_context;
-    uint32_t control;
-    uint32_t integer_baud;
-    uint32_t fractional_baud;
-    uint32_t line_control;
-    uint32_t fifo_level;
-    uint32_t interrupt_mask;
-};
 static int allowed_value(uint32_t value, const uint32_t *values, size_t count)
 {
     size_t index;
@@ -99,7 +66,7 @@ static void remove_rx_event(semu_apollo4_uart *uart, rx_event *event)
     while (*link != NULL && *link != event) link = &(*link)->next;
     if (*link == event) *link = event->next;
 }
-static void rx_callback(void *context, uint64_t now_ns)
+void semu_apollo4_uart_rx_event(void *context, uint64_t now_ns)
 {
     rx_event *event = (rx_event *)context;
     semu_apollo4_uart *uart = event->uart;
@@ -116,7 +83,7 @@ static void rx_callback(void *context, uint64_t now_ns)
     update_irq(uart);
     free(event);
 }
-static void tx_callback(void *context, uint64_t now_ns)
+void semu_apollo4_uart_tx_event(void *context, uint64_t now_ns)
 {
     semu_apollo4_uart *uart = (semu_apollo4_uart *)context;
     semu_transaction_result result = SEMU_TRANSACTION_REFUSE;
@@ -242,6 +209,7 @@ void semu_apollo4_uart_reset(semu_apollo4_uart *uart)
     uart->rx_head = 0u;
     uart->rx_count = 0u;
     uart->rx_reserved = 0u;
+    uart->next_rx_slot = 1u;
     uart->tx_head = 0u;
     uart->tx_count = 0u;
     uart->control = 0u;
@@ -426,10 +394,17 @@ semu_status semu_apollo4_uart_schedule_rx(semu_apollo4_uart *uart,
                                       "cannot allocate Apollo4 UART RX event");
     event->uart = uart;
     event->next = NULL;
+    if (uart->next_rx_slot == UINT32_MAX) {
+        free(event);
+        return invalid(error, SEMU_ERR_RANGE,
+                       "Apollo4 UART RX event slot overflow");
+    }
+    event->slot = uart->next_rx_slot++;
     event->count = count;
     memcpy(event->bytes, bytes, count);
-    status = semu_scheduler_schedule(uart->scheduler, delay_ns, rx_callback,
-                                     event, &event->id, error);
+    status = semu_scheduler_schedule_tagged(uart->scheduler, delay_ns,
+                                     SEMU_SCHED_EVENT_UART_RX, event->slot,
+                                     semu_apollo4_uart_rx_event, event, &event->id, error);
     if (status != SEMU_OK) {
         free(event);
         return status;
@@ -455,8 +430,9 @@ semu_status semu_apollo4_uart_schedule_tx_completion(
         return invalid(error, SEMU_ERR_CONFLICT,
                        "Apollo4 UART TX completion is already scheduled");
     }
-    status = semu_scheduler_schedule(uart->scheduler, delay_ns, tx_callback, uart,
-                                     &event, error);
+    status = semu_scheduler_schedule_tagged(uart->scheduler, delay_ns,
+                                     SEMU_SCHED_EVENT_UART_TX, 0u,
+                                     semu_apollo4_uart_tx_event, uart, &event, error);
     if (status != SEMU_OK) return status;
     uart->tx_event = event;
     uart->tx_completion = completion;

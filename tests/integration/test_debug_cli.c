@@ -241,6 +241,57 @@ static void test_different_load_save_path(semu_test_context *context)
         (uint64_t)semu_cli_debug_validate(&opts, &err));
 }
 
+static void test_snapshot_file_round_trip_and_refusal(
+    semu_test_context *context)
+{
+    const char *path = "/tmp/suunto-emu-cli-snapshot-test.bin";
+    static const uint8_t payload[] = { 0x11u, 0x22u, 0x33u };
+    semu_error err;
+    semu_snapshot *source;
+    semu_snapshot *loaded;
+    const uint8_t *data;
+    size_t size;
+    FILE *stream;
+
+    semu_error_clear(&err);
+    source = semu_snapshot_create(&err);
+    loaded = semu_snapshot_create(&err);
+    SEMU_TEST_ASSERT(context, source != NULL && loaded != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_set_identity(source, "test-profile",
+            "c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc",
+            &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_write_section(source, SEMU_SNAPSHOT_SECTION_CPU_STATE,
+                                    payload, sizeof(payload), &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cli_snapshot_save_file(path, source, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cli_snapshot_load_file(path, loaded, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_read_section(loaded, SEMU_SNAPSHOT_SECTION_CPU_STATE,
+                                   &data, &size));
+    SEMU_TEST_EQ_U64(context, sizeof(payload), size);
+    SEMU_TEST_ASSERT(context, memcmp(data, payload, sizeof(payload)) == 0);
+
+    stream = fopen(path, "r+b");
+    SEMU_TEST_ASSERT(context, stream != NULL);
+    if (stream != NULL) {
+        (void)fputc(0u, stream);
+        (void)fclose(stream);
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_cli_snapshot_load_file(path, loaded, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_read_section(loaded, SEMU_SNAPSHOT_SECTION_CPU_STATE,
+                                   &data, &size));
+    SEMU_TEST_EQ_U64(context, sizeof(payload), size);
+    SEMU_TEST_ASSERT(context, memcmp(data, payload, sizeof(payload)) == 0);
+    (void)remove(path);
+    semu_snapshot_destroy(source);
+    semu_snapshot_destroy(loaded);
+}
+
 static void test_no_debug_options_inactive(semu_test_context *context)
 {
     semu_cli_debug_options opts;
@@ -275,6 +326,7 @@ int main(void)
         SEMU_TEST_CASE(test_missing_value),
         SEMU_TEST_CASE(test_same_load_save_path),
         SEMU_TEST_CASE(test_different_load_save_path),
+        SEMU_TEST_CASE(test_snapshot_file_round_trip_and_refusal),
         SEMU_TEST_CASE(test_no_debug_options_inactive),
         SEMU_TEST_CASE(test_null_safety),
         SEMU_TEST_CASE(test_first_frame_gate),

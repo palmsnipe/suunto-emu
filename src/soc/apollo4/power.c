@@ -351,3 +351,59 @@ const char *semu_apollo4_power_gate_name(semu_apollo4_power_gate gate)
         return NULL;
     }
 }
+
+semu_status semu_apollo4_power_snapshot_write(
+    const semu_apollo4_power *power, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    const uint32_t values[] = {
+        power != NULL ? power->performance_control : 0u,
+        power != NULL ? power->device_power_enable : 0u,
+        power != NULL ? power->device_power_status : 0u,
+        power != NULL ? power->legacy_status_14 : 0u,
+        power != NULL ? power->legacy_control_1c : 0u,
+        power != NULL ? power->shared_sram_enable : 0u,
+        power != NULL ? power->shared_sram_retention : 0u,
+        power != NULL ? power->simo_buck_enable : 0u
+    };
+    size_t index;
+    if (power == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "power snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    for (index = 0u; index < SEMU_ARRAY_LEN(values); ++index) {
+        if (semu_snapshot_writer_u32(writer, values[index], error) != SEMU_OK)
+            return error->code;
+    }
+    return SEMU_OK;
+}
+
+semu_status semu_apollo4_power_snapshot_read(
+    semu_apollo4_power *power, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_apollo4_power candidate;
+    uint32_t *values[8];
+    size_t index;
+    if (power == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "power snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *power;
+    values[0] = &candidate.performance_control;
+    values[1] = &candidate.device_power_enable;
+    values[2] = &candidate.device_power_status;
+    values[3] = &candidate.legacy_status_14;
+    values[4] = &candidate.legacy_control_1c;
+    values[5] = &candidate.shared_sram_enable;
+    values[6] = &candidate.shared_sram_retention;
+    values[7] = &candidate.simo_buck_enable;
+    for (index = 0u; index < SEMU_ARRAY_LEN(values); ++index) {
+        if (semu_snapshot_reader_u32(reader, values[index], error) != SEMU_OK)
+            return error->code;
+    }
+    *power = candidate;
+    return SEMU_OK;
+}

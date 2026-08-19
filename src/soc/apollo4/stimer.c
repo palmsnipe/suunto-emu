@@ -1,4 +1,5 @@
-#include "stimer.h"
+#include "stimer_internal.h"
+#include "../../core/scheduler_internal.h"
 #include <stdlib.h>
 enum {
     STIMER_CONFIGURATION = 0x00u,
@@ -20,27 +21,6 @@ enum {
 #define STIMER_FREQUENCY_HZ UINT64_C(32768)
 #define STIMER_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
 #define STIMER_COMPARE_WRITE_LATENCY UINT32_C(3)
-typedef struct stimer_compare {
-    semu_apollo4_stimer *owner;
-    unsigned number;
-    uint32_t deadline;
-    semu_event_id event;
-    uint8_t enabled;
-    uint8_t event_valid;
-} stimer_compare;
-struct semu_apollo4_stimer {
-    semu_bus *bus;
-    semu_scheduler *scheduler;
-    semu_apollo4_stimer_irq_fn irq;
-    void *irq_context;
-    uint64_t counter_epoch;
-    uint32_t counter_base;
-    uint32_t configuration;
-    uint32_t interrupt_enable;
-    uint32_t pending;
-    uint32_t nvram[4];
-    stimer_compare compare[2];
-};
 static const semu_bus_device_ops stimer_ops = {
     semu_apollo4_stimer_read,
     semu_apollo4_stimer_write,
@@ -126,7 +106,7 @@ static void cancel_compare(semu_apollo4_stimer *stimer, unsigned number)
 }
 static semu_status schedule_compare(semu_apollo4_stimer *stimer,
                                     unsigned number, semu_error *error);
-static void compare_event(void *context, uint64_t now)
+void semu_apollo4_stimer_event(void *context, uint64_t now)
 {
     stimer_compare *compare = (stimer_compare *)context;
     semu_apollo4_stimer *stimer = compare->owner;
@@ -163,8 +143,10 @@ static semu_status schedule_compare(semu_apollo4_stimer *stimer,
         stimer->interrupt_enable == 0u) {
         return SEMU_OK;
     }
-    status = semu_scheduler_schedule(stimer->scheduler, delay_ns, compare_event,
-                                      compare, &compare->event, error);
+    status = semu_scheduler_schedule_tagged(stimer->scheduler, delay_ns,
+                                      SEMU_SCHED_EVENT_STIMER,
+                                      number, semu_apollo4_stimer_event, compare,
+                                      &compare->event, error);
     if (status == SEMU_OK) {
         compare->event_valid = 1u;
     }
@@ -315,4 +297,89 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
 const semu_bus_device_ops *semu_apollo4_stimer_bus_ops(void)
 {
     return &stimer_ops;
+}
+
+semu_status semu_apollo4_stimer_snapshot_write(
+    const semu_apollo4_stimer *stimer, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    size_t index;
+    if (stimer == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "STIMER snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_snapshot_writer_u64(writer, stimer->counter_epoch, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, stimer->counter_base, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, stimer->configuration, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, stimer->interrupt_enable, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, stimer->pending, error) != SEMU_OK)
+        return error->code;
+    for (index = 0u; index < SEMU_ARRAY_LEN(stimer->nvram); ++index) {
+        if (semu_snapshot_writer_u32(writer, stimer->nvram[index], error) != SEMU_OK)
+            return error->code;
+    }
+    for (index = 0u; index < SEMU_ARRAY_LEN(stimer->compare); ++index) {
+        const stimer_compare *compare = &stimer->compare[index];
+        if (semu_snapshot_writer_u32(writer, compare->deadline, error) != SEMU_OK ||
+            semu_snapshot_writer_u64(writer, compare->event, error) != SEMU_OK ||
+            semu_snapshot_writer_u8(writer, compare->enabled, error) != SEMU_OK ||
+            semu_snapshot_writer_u8(writer, compare->event_valid, error) != SEMU_OK)
+            return error->code;
+    }
+    return SEMU_OK;
+}
+
+semu_status semu_apollo4_stimer_snapshot_read(
+    semu_apollo4_stimer *stimer, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_apollo4_stimer candidate;
+    size_t index;
+    if (stimer == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "STIMER snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *stimer;
+    if (semu_snapshot_reader_u64(reader, &candidate.counter_epoch, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.counter_base, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.configuration, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.interrupt_enable, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.pending, error) != SEMU_OK)
+        return error->code;
+    for (index = 0u; index < SEMU_ARRAY_LEN(candidate.nvram); ++index) {
+        if (semu_snapshot_reader_u32(reader, &candidate.nvram[index], error) != SEMU_OK)
+            return error->code;
+    }
+    for (index = 0u; index < SEMU_ARRAY_LEN(candidate.compare); ++index) {
+        stimer_compare *compare = &candidate.compare[index];
+        if (semu_snapshot_reader_u32(reader, &compare->deadline, error) != SEMU_OK ||
+            semu_snapshot_reader_u64(reader, &compare->event, error) != SEMU_OK ||
+            semu_snapshot_reader_u8(reader, &compare->enabled, error) != SEMU_OK ||
+            semu_snapshot_reader_u8(reader, &compare->event_valid, error) != SEMU_OK)
+            return error->code;
+        if (compare->enabled > 1u || compare->event_valid > 1u) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "invalid STIMER snapshot flag");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    *stimer = candidate;
+    return SEMU_OK;
+}
+
+semu_status semu_apollo4_stimer_snapshot_resolve_event(
+    semu_apollo4_stimer *stimer, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error)
+{
+    if (stimer == NULL || callback == NULL || context == NULL || subject >= 2u ||
+        stimer->compare[subject].event_valid == 0u) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "STIMER snapshot event is not present");
+        return SEMU_ERR_CONFLICT;
+    }
+    *callback = semu_apollo4_stimer_event;
+    *context = &stimer->compare[subject];
+    return SEMU_OK;
 }

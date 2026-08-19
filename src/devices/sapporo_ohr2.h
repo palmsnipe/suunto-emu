@@ -2,6 +2,7 @@
 #define SEMU_SAPPORO_OHR2_H
 
 #include "semu/peripheral.h"
+#include "../core/snapshot_io.h"
 
 #define SEMU_SAPPORO_OHR2_ADDRESS 0x10u
 #define SEMU_SAPPORO_OHR2_REQUEST_SIZE 59u
@@ -45,5 +46,11 @@ void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device);
 semu_serial_endpoint semu_sapporo_ohr2_endpoint(
     semu_sapporo_ohr2 *device);
 uint32_t semu_sapporo_ohr2_crc32(const uint8_t *payload, size_t size);
+semu_status semu_sapporo_ohr2_snapshot_write(
+    const semu_sapporo_ohr2 *device, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_sapporo_ohr2_snapshot_read(
+    semu_sapporo_ohr2 *device, semu_snapshot_reader *reader,
+    semu_error *error);
 
 #endif

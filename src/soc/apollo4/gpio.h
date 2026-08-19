@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "semu/bus.h"
+#include "../../core/snapshot_io.h"
 
 #define SEMU_APOLLO4_GPIO_BASE 0x40010000u
 #define SEMU_APOLLO4_GPIO_SIZE 0x400u
@@ -58,5 +59,11 @@ semu_status semu_apollo4_gpio_set_irq_sink(semu_apollo4_gpio *gpio,
 semu_status semu_apollo4_gpio_set_output_observer(
     semu_apollo4_gpio *gpio, semu_apollo4_gpio_output_fn observer,
     void *context, semu_error *error);
+semu_status semu_apollo4_gpio_snapshot_write(
+    const semu_apollo4_gpio *gpio, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_apollo4_gpio_snapshot_read(
+    semu_apollo4_gpio *gpio, semu_snapshot_reader *reader,
+    semu_error *error);
 
 #endif

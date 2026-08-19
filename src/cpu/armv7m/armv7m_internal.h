@@ -2,6 +2,7 @@
 #define SEMU_ARMV7M_INTERNAL_H
 
 #include "semu/cpu.h"
+#include "../../core/snapshot_io.h"
 
 #define ARMV7M_IRQ_COUNT 256u
 #define ARMV7M_IMPLEMENTED_IRQ_COUNT 240u
@@ -116,6 +117,16 @@ struct semu_cpu {
     unsigned exclusive_width;
 };
 
+semu_status semu_cpu_snapshot_write(const semu_cpu *cpu,
+                                    semu_snapshot_writer *writer,
+                                    semu_error *error);
+semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
+                                   semu_snapshot_reader *reader,
+                                   semu_error *error);
+semu_status semu_cpu_snapshot_resolve_event(
+    semu_cpu *cpu, uint32_t kind, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error);
+
 semu_status semu_bus_map_overlay(semu_bus *bus, const char *name,
                                  uint32_t base, uint32_t size,
                                  const semu_bus_device_ops *ops,
@@ -227,6 +238,7 @@ semu_status armv7m_systick_write(semu_cpu *cpu, uint32_t offset,
                                  semu_error *error);
 void armv7m_systick_reset(semu_cpu *cpu);
 void armv7m_systick_reschedule(semu_cpu *cpu);
+void armv7m_systick_event(void *context, uint64_t now_ns);
 semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
                              uint32_t *value, semu_error *error);
 semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,

@@ -1,4 +1,4 @@
-#include "iom.h"
+#include "iom_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -84,29 +84,6 @@ enum {
 #define IOM_TIMING_STATUS_RESET UINT32_C(0x0000f270)
 
 static void update_irq(semu_apollo4_iom *iom);
-
-struct semu_apollo4_iom {
-    semu_bus *bus;
-    unsigned irq;
-    semu_apollo4_iom_irq_fn irq_sink;
-    void *irq_context;
-    semu_dma_request_sink_fn dma_sink;
-    void *dma_context;
-    semu_scheduler *scheduler;
-    const semu_serial_endpoint *endpoint;
-    int endpoint_attached;
-    uint32_t inten;
-    uint32_t intstat;
-    uint32_t dma_trig_en;
-    uint32_t dma_trig_stat;
-    uint32_t dma_config;
-    uint32_t dma_count;
-    uint32_t dma_target;
-    uint32_t dma_status;
-    uint32_t device_config;
-    int irq_level;
-    uint32_t observed_registers[OBSERVED_REGISTER_COUNT];
-};
 
 static const semu_bus_device_ops iom_ops = {
     semu_apollo4_iom_read,

@@ -257,6 +257,62 @@ static void test_repeated_transcript(semu_test_context *context)
     semu_sapporo_haptic_destroy(sensor);
 }
 
+static void test_snapshot_cursor_and_atomic_refusal(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_sapporo_haptic *source;
+    semu_sapporo_haptic *target;
+    semu_serial_endpoint source_ep;
+    semu_serial_endpoint target_ep;
+    semu_serial_transaction no_selector;
+    uint8_t rx[1];
+    uint8_t source_selector = 0x22u;
+    uint8_t target_selector = 0x09u;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    source = semu_sapporo_haptic_create(0x50u, &error);
+    target = semu_sapporo_haptic_create(0x50u, &error);
+    source_ep = semu_sapporo_haptic_endpoint(source);
+    target_ep = semu_sapporo_haptic_endpoint(target);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&source_ep, 0x50u, &source_selector, 1u,
+                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_haptic_snapshot_write(
+                         source, &writer, &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_haptic_snapshot_read(
+                         target, &reader, &error));
+    no_selector = (semu_serial_transaction){
+        0x50u, 0u, NULL, 0u, rx, sizeof(rx)
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     target_ep.transfer(target_ep.context, &no_selector,
+                                        &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&target_ep, 0x50u, &target_selector, 1u,
+                              &error));
+    writer.data[0u] = 0x51u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_CONFLICT,
+                     semu_sapporo_haptic_snapshot_read(
+                         target, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     target_ep.transfer(target_ep.context, &no_selector,
+                                        &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    semu_snapshot_writer_destroy(&writer);
+    semu_sapporo_haptic_destroy(source);
+    semu_sapporo_haptic_destroy(target);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -269,7 +325,8 @@ int main(void)
         SEMU_TEST_CASE(test_observed_waveform_selector),
         SEMU_TEST_CASE(test_write_without_trigger),
         SEMU_TEST_CASE(test_waveform_and_refusal_boundary),
-        SEMU_TEST_CASE(test_repeated_transcript)
+        SEMU_TEST_CASE(test_repeated_transcript),
+        SEMU_TEST_CASE(test_snapshot_cursor_and_atomic_refusal)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

@@ -350,3 +350,36 @@ semu_serial_endpoint semu_sapporo_flash_endpoint(
         "sapporo.flash", flash_transfer, flash
     };
 }
+
+semu_status semu_sapporo_flash_snapshot_write(
+    const semu_sapporo_flash *flash, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    if (flash == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "flash snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return semu_snapshot_writer_u8(writer, flash->write_enabled, error);
+}
+
+semu_status semu_sapporo_flash_snapshot_read(
+    semu_sapporo_flash *flash, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_sapporo_flash candidate;
+    uint8_t enabled;
+    if (flash == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "flash snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *flash;
+    if (semu_snapshot_reader_u8(reader, &enabled, error) != SEMU_OK)
+        return error->code;
+    if (enabled > 1u) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "invalid flash snapshot flag");
+        return SEMU_ERR_FORMAT;
+    }
+    candidate.write_enabled = enabled;
+    *flash = candidate;
+    return SEMU_OK;
+}
