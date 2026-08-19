@@ -346,18 +346,31 @@ static void test_pending_source_count_tracks_edges(semu_test_context *context)
 
     SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->irq_source_bits[0]);
     SEMU_TEST_EQ_U64(context, (uint64_t)-1,
                      (uint64_t)armv7m_pending_exception(fixture.cpu));
 
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x100u, 1u));
     semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->irq_source_bits[0]);
     SEMU_TEST_EQ_U64(context, 16u,
                      (uint64_t)armv7m_pending_exception(fixture.cpu));
     semu_cpu_set_irq(fixture.cpu, 0u, 0);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->irq_source_bits[0]);
     SEMU_TEST_EQ_U64(context, (uint64_t)-1,
                      (uint64_t)armv7m_pending_exception(fixture.cpu));
+
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x200u, 1u));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->irq_source_bits[0]);
+    SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x280u, 1u));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->irq_source_bits[0]);
+
+    semu_cpu_set_irq(fixture.cpu, 65u, 1);
+    SEMU_TEST_EQ_U64(context, 2u, fixture.cpu->irq_source_bits[1]);
+    semu_cpu_set_irq(fixture.cpu, 65u, 0);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->irq_source_bits[1]);
 
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0xd04u,
                                          1u << 28));

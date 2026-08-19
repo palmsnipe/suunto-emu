@@ -5,6 +5,7 @@
 
 #define ARMV7M_IRQ_COUNT 256u
 #define ARMV7M_IMPLEMENTED_IRQ_COUNT 240u
+#define ARMV7M_IRQ_SOURCE_WORDS 4u
 #define ARMV7M_SCS_BASE 0xe000e000u
 #define ARMV7M_SCS_SIZE 0x1000u
 #define ARMV7M_XPSR_N (1u << 31)
@@ -73,6 +74,8 @@ struct semu_cpu {
     uint8_t irq_pending[ARMV7M_IRQ_COUNT];
     uint8_t irq_active[ARMV7M_IRQ_COUNT];
     uint8_t irq_priority[ARMV7M_IRQ_COUNT];
+    /* One bit per IRQ that has an asserted line or pending latch. */
+    uint64_t irq_source_bits[ARMV7M_IRQ_SOURCE_WORDS];
     uint8_t system_priority[16];
     uint8_t system_pending[16];
     uint8_t system_active[16];

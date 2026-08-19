@@ -255,6 +255,13 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
         int was_pending = cpu->irq_level[irq] != 0u ||
                           cpu->irq_pending[irq] != 0u;
         cpu->irq_level[irq] = level != 0 ? 1u : 0u;
+        if (cpu->irq_level[irq] != 0u) {
+            cpu->irq_source_bits[irq / 64u] |=
+                UINT64_C(1) << (irq % 64u);
+        } else if (cpu->irq_pending[irq] == 0u) {
+            cpu->irq_source_bits[irq / 64u] &=
+                ~(UINT64_C(1) << (irq % 64u));
+        }
         if (!was_pending && cpu->irq_level[irq] != 0u) {
             if (cpu->pending_source_count != UINT16_MAX) {
                 ++cpu->pending_source_count;

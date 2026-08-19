@@ -104,24 +104,34 @@ static int pending_exception(const semu_cpu *cpu, int ignore_primask,
             selected_source = exception;
         }
     }
-    for (exception = 16u;
-         exception < 16u + ARMV7M_IMPLEMENTED_IRQ_COUNT; ++exception) {
-        unsigned irq = exception - 16u;
-        unsigned candidate;
-        int priority;
-        if (cpu->irq_enabled[irq] == 0u ||
-            (cpu->irq_level[irq] == 0u && cpu->irq_pending[irq] == 0u) ||
-            (candidate = exception,
-             exception_masked(cpu, candidate, ignore_primask)) ||
-            (require_preemption && !can_preempt(cpu, candidate))) {
-            continue;
-        }
-        priority = armv7m_exception_priority(cpu, candidate);
-        if (selected < 0 || priority < selected_priority ||
-            (priority == selected_priority && exception < selected_source)) {
-            selected = (int)candidate;
-            selected_priority = priority;
-            selected_source = exception;
+    for (unsigned source_word = 0u;
+         source_word < ARMV7M_IRQ_SOURCE_WORDS; ++source_word) {
+        uint64_t sources = cpu->irq_source_bits[source_word];
+        while (sources != 0u) {
+            unsigned bit = 0u;
+            unsigned irq;
+            unsigned candidate;
+            int priority;
+            while ((sources & (UINT64_C(1) << bit)) == 0u) ++bit;
+            sources &= sources - 1u;
+            irq = source_word * 64u + bit;
+            if (irq >= ARMV7M_IMPLEMENTED_IRQ_COUNT) continue;
+            candidate = 16u + irq;
+            if (cpu->irq_enabled[irq] == 0u ||
+                (cpu->irq_level[irq] == 0u &&
+                 cpu->irq_pending[irq] == 0u) ||
+                exception_masked(cpu, candidate, ignore_primask) ||
+                (require_preemption && !can_preempt(cpu, candidate))) {
+                continue;
+            }
+            priority = armv7m_exception_priority(cpu, candidate);
+            if (selected < 0 || priority < selected_priority ||
+                (priority == selected_priority &&
+                 candidate < selected_source)) {
+                selected = (int)candidate;
+                selected_priority = priority;
+                selected_source = candidate;
+            }
         }
     }
     return selected;
@@ -173,6 +183,8 @@ void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq)
         cpu->irq_pending[irq] != 0u)
         return;
     cpu->irq_pending[irq] = 1u;
+    cpu->irq_source_bits[irq / 64u] |=
+        UINT64_C(1) << (irq % 64u);
     if (cpu->pending_source_count != UINT16_MAX) {
         ++cpu->pending_source_count;
     }
@@ -185,6 +197,10 @@ void armv7m_clear_irq_pending(semu_cpu *cpu, unsigned irq)
         cpu->irq_pending[irq] == 0u)
         return;
     cpu->irq_pending[irq] = 0u;
+    if (cpu->irq_level[irq] == 0u) {
+        cpu->irq_source_bits[irq / 64u] &=
+            ~(UINT64_C(1) << (irq % 64u));
+    }
     if (cpu->irq_level[irq] == 0u && cpu->pending_source_count != 0u) {
         --cpu->pending_source_count;
     }

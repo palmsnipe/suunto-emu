@@ -415,6 +415,7 @@ void armv7m_scs_reset(void *context)
     memset(cpu->irq_pending, 0, sizeof(cpu->irq_pending));
     memset(cpu->irq_active, 0, sizeof(cpu->irq_active));
     memset(cpu->irq_priority, 0, sizeof(cpu->irq_priority));
+    memset(cpu->irq_source_bits, 0, sizeof(cpu->irq_source_bits));
     memset(cpu->system_priority, 0, sizeof(cpu->system_priority));
     memset(cpu->system_pending, 0, sizeof(cpu->system_pending));
     cpu->pending_source_count = 0u;
