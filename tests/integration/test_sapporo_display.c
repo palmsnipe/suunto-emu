@@ -10,8 +10,10 @@
 #include <string.h>
 
 #define SRAM_BASE 0x10000000u
-#define SRAM_SIZE 0x00100000u
+#define SRAM_SIZE 0x00180000u
 #define CMD_BASE  (SRAM_BASE + 0x10000u)
+#define OBSERVED_TARGET_BASE 0x1011CF40u
+#define INVALID_SOURCE_BASE 0x1017FF00u
 
 #define FSTRIDE_RGB565_240  0x040001E0u
 #define RESXY_240x240       0x00F000F0u
@@ -31,6 +33,54 @@ static void put_u32(uint8_t *buf, uint32_t off, uint32_t val)
     buf[off + 1u] = (uint8_t)(val >> 8u);
     buf[off + 2u] = (uint8_t)(val >> 16u);
     buf[off + 3u] = (uint8_t)(val >> 24u);
+}
+
+static void append_pair(uint8_t *cmd, uint32_t *word_count,
+                        uint32_t reg, uint32_t value)
+{
+    put_u32(cmd, *word_count * 4u, reg);
+    put_u32(cmd, (*word_count + 1u) * 4u, value);
+    *word_count += 2u;
+}
+
+static uint32_t build_observed_clear(uint8_t *cmd, uint32_t draw_color,
+                                     uint32_t codeptr, int with_source)
+{
+    uint32_t words = 0u;
+
+    memset(cmd, 0, 256u);
+    if (with_source) {
+        append_pair(cmd, &words, NEMA_REG_TEX1_BASE,
+                    INVALID_SOURCE_BASE);
+        append_pair(cmd, &words, NEMA_REG_TEX1_FSTRIDE,
+                    0x28010010u);
+        append_pair(cmd, &words, NEMA_REG_TEX1_RESXY, 0x00400040u);
+        append_pair(cmd, &words, NEMA_REG_TEX_COLOR, 0xFF000000u);
+    }
+    append_pair(cmd, &words, NEMA_REG_TEX0_BASE, OBSERVED_TARGET_BASE);
+    append_pair(cmd, &words, NEMA_REG_TEX0_FSTRIDE,
+                FSTRIDE_RGB565_240);
+    append_pair(cmd, &words, NEMA_REG_TEX0_RESXY, RESXY_240x240);
+    append_pair(cmd, &words, NEMA_REG_CLIPMIN, 0u);
+    append_pair(cmd, &words, NEMA_REG_CLIPMAX, RESXY_240x240);
+    append_pair(cmd, &words, NEMA_REG_POINT0_X, 0u);
+    append_pair(cmd, &words, NEMA_REG_POINT0_Y, 0u);
+    append_pair(cmd, &words, NEMA_REG_POINT1_X, 0x00F00000u);
+    append_pair(cmd, &words, NEMA_REG_POINT1_Y, 0u);
+    append_pair(cmd, &words, NEMA_REG_POINT2_X, 0x00F00000u);
+    append_pair(cmd, &words, NEMA_REG_POINT2_Y, 0x00F00000u);
+    append_pair(cmd, &words, NEMA_REG_POINT3_X, 0u);
+    append_pair(cmd, &words, NEMA_REG_POINT3_Y, 0x00F00000u);
+    append_pair(cmd, &words, NEMA_REG_MATMULT, 0x90000000u);
+    append_pair(cmd, &words, NEMA_REG_CODEPTR, codeptr);
+    append_pair(cmd, &words, NEMA_REG_DRAW_COLOR, draw_color);
+    append_pair(cmd, &words, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+    return words;
+}
+
+static uint16_t first_pixel(const semu_frame *frame)
+{
+    return (uint16_t)(frame->pixels[0] | (frame->pixels[1] << 8));
 }
 
 typedef struct {
@@ -111,6 +161,59 @@ static void test_backend_wired(semu_test_context *context)
                                    (frame->pixels[1] << 8));
         SEMU_TEST_EQ_U64(context, 0x001Fu, px);
     }
+    semu_nema_backend_destroy(backend);
+    semu_bus_destroy(bus);
+}
+
+static void test_inherited_source_clear_and_refusal(
+    semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_nema_backend *backend;
+    const semu_frame *frame;
+    uint8_t cmd[256u];
+    uint32_t words;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL && backend != NULL);
+
+    words = build_observed_clear(cmd, 0x001Fu, 0x941EB400u, 0);
+    semu_bus_load(bus, CMD_BASE, cmd, words * 4u, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, words, 0u,
+                                   NULL, NULL, &err));
+    frame = semu_nema_backend_frame(backend);
+    SEMU_TEST_EQ_U64(context, 0x001Fu, first_pixel(frame));
+
+    /* The native clear must win even when TEX1 was inherited. */
+    words = build_observed_clear(cmd, 0xFF000000u, 0x941EB400u, 1);
+    semu_bus_load(bus, CMD_BASE, cmd, words * 4u, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, words, 0u,
+                                   NULL, NULL, &err));
+    SEMU_TEST_EQ_U64(context, 0u, first_pixel(frame));
+    semu_nema_backend_destroy(backend);
+    semu_bus_destroy(bus);
+
+    /* A near miss remains a refused, pixel-atomic transaction. */
+    bus = make_bus(&err);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL && backend != NULL);
+    words = build_observed_clear(cmd, 0x001Fu, 0x941EB400u, 0);
+    semu_bus_load(bus, CMD_BASE, cmd, words * 4u, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, words, 0u,
+                                   NULL, NULL, &err));
+    words = build_observed_clear(cmd, 0xFF000000u, 0x941EB401u, 1);
+    semu_bus_load(bus, CMD_BASE, cmd, words * 4u, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_nema_backend_submit(backend, bus, CMD_BASE, words, 0u,
+                                   NULL, NULL, &err));
+    frame = semu_nema_backend_frame(backend);
+    SEMU_TEST_EQ_U64(context, 0x001Fu, first_pixel(frame));
     semu_nema_backend_destroy(backend);
     semu_bus_destroy(bus);
 }
@@ -228,6 +331,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_backend_wired),
+        SEMU_TEST_CASE(test_inherited_source_clear_and_refusal),
         SEMU_TEST_CASE(test_replay_pump),
         SEMU_TEST_CASE(test_panel_refused),
         SEMU_TEST_CASE(test_two_run_hash)

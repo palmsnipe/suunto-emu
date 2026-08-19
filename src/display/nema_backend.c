@@ -29,6 +29,31 @@ typedef struct {
     semu_bus *bus;
 } nema_draw_context;
 
+static int is_observed_display_target(uint32_t base)
+{
+    return base == UINT32_C(0x1011cf40) ||
+           base == UINT32_C(0x1011f4c0) ||
+           base == UINT32_C(0x1012b040) ||
+           base == UINT32_C(0x10139140);
+}
+
+static int is_observed_black_clear(const nema_draw_snapshot *snap)
+{
+    /*
+     * E-NEMA-LISTS-001: the native first-frame clear uses this exact
+     * RGB565/240x240 target and NEMA program state.  TEX1 is inherited
+     * across lists, so its presence cannot take precedence over this clear.
+     */
+    return snap != NULL && snap->draw_cmd == NEMA_DRAW_QUAD &&
+           is_observed_display_target(snap->target_base) &&
+           snap->target_format == NEMA_FMT_RGB565 &&
+           snap->target_stride == 480u &&
+           snap->target_width == 240u && snap->target_height == 240u &&
+           snap->matmult == UINT32_C(0x90000000) &&
+           snap->codeptr == UINT32_C(0x941eb400) &&
+           snap->draw_color == UINT32_C(0xff000000);
+}
+
 static void on_draw(void *context, const nema_draw_snapshot *snap)
 {
     nema_draw_context *draw_context = (nema_draw_context *)context;
@@ -76,7 +101,13 @@ static void on_draw(void *context, const nema_draw_snapshot *snap)
         h = 0u;
     }
 
-    if (snap->src_present) {
+    if (is_observed_black_clear(snap)) {
+        semu_error err;
+        if (raster_rect(&target, &clip, dst_x, dst_y, w, h, 0u, NULL,
+                        &err) != SEMU_OK) {
+            backend->draw_failed = 1;
+        }
+    } else if (snap->src_present) {
         nema_texture_desc src;
         semu_error err;
         semu_status st;

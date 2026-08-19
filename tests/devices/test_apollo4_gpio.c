@@ -135,10 +135,11 @@ static void test_edges_status_and_irq(semu_test_context *context)
     const uint32_t bit = UINT32_C(1) << 25;
 
     SEMU_TEST_ASSERT(context, fixture_init(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_gpio_configure_pin(
-                         fixture.gpio, 57u, SEMU_APOLLO4_GPIO_INPUT,
-                         SEMU_APOLLO4_GPIO_EDGE_FALLING, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x200u,
+                                                      0x73u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x0e4u,
+                                                      0xE053u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x200u, 0u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_gpio_set_input(fixture.gpio, 57u, 0,
                                                  &fixture.error));

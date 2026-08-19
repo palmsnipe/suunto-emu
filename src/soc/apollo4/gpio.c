@@ -18,6 +18,16 @@ enum {
 
 static const uint32_t GPIO_PAD_KEY = UINT32_C(0x73);
 
+static semu_apollo4_gpio_edge decode_pin_edge(uint32_t value)
+{
+    /* E-A4-GPIO-001: Apollo4 IRPTEN 01 is high-to-low; 10 is low-to-high. */
+    switch ((value >> 6) & 3u) {
+    case 1u: return SEMU_APOLLO4_GPIO_EDGE_FALLING;
+    case 2u: return SEMU_APOLLO4_GPIO_EDGE_RISING;
+    default: return (semu_apollo4_gpio_edge)((value >> 6) & 3u);
+    }
+}
+
 struct semu_apollo4_gpio {
     semu_bus *bus;
     uint32_t pin_configuration[SEMU_APOLLO4_GPIO_COUNT];
@@ -244,7 +254,7 @@ semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
             return SEMU_ERR_STATE;
         }
         gpio->pin_configuration[pin] = value;
-        gpio->edge[pin] = (uint8_t)((value >> 6) & 3u);
+        gpio->edge[pin] = (uint8_t)decode_pin_edge(value);
         return SEMU_OK;
     }
     if (offset == PAD_KEY) {
