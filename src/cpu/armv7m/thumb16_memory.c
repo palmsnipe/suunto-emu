@@ -26,6 +26,24 @@ static int access_address(uint32_t base, uint32_t offset, unsigned width,
     return 1;
 }
 
+static int register_transfer_address(uint32_t base, uint32_t offset,
+                                     unsigned width, uint16_t instruction,
+                                     semu_cpu *cpu, uint32_t *address,
+                                     semu_error *error)
+{
+    uint32_t wrapped = base + offset;
+
+    /* Arm register-offset addressing is a 32-bit calculation.  The final
+       access span still has to fit the address space before it reaches the
+       bus. */
+    if ((uint64_t)wrapped + width > UINT64_C(0x100000000)) {
+        (void)refuse(cpu, instruction, error);
+        return 0;
+    }
+    *address = wrapped;
+    return 1;
+}
+
 static int access_address_aligned(uint32_t base, uint32_t offset,
                                    unsigned width, uint32_t *address)
 {
@@ -61,10 +79,11 @@ static semu_status transfer(semu_cpu *cpu, uint16_t instruction,
     uint32_t value;
     semu_status status;
 
-    if (!transfer_address(cpu->state.r[rn], cpu->state.r[rm],
-                          op == 0u || op == 4u ? 4u :
-                          op == 1u || op == 5u || op == 7u ? 2u : 1u,
-                          instruction, cpu, &address, error)) {
+    if (!register_transfer_address(
+            cpu->state.r[rn], cpu->state.r[rm],
+            op == 0u || op == 4u ? 4u :
+            op == 1u || op == 5u || op == 7u ? 2u : 1u,
+            instruction, cpu, &address, error)) {
         return SEMU_ERR_UNSUPPORTED;
     }
     switch (op) {

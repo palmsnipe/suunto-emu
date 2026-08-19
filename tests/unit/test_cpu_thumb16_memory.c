@@ -222,6 +222,34 @@ static void test_multiple_transfers(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_register_offset_address_wrap(semu_test_context *context)
+{
+    static const uint8_t program[] = { 0x88u, 0x5cu, 0x00u, 0xbeu };
+    semu_cpu_fixture fixture = {0};
+    semu_cpu_state *state;
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, semu_cpu_fixture_init(&fixture, program,
+                                                    sizeof(program)));
+    state = semu_cpu_get_state_mutable(fixture.cpu);
+    state->r[0] = 0x13579bdfu;
+    state->r[1] = UINT32_MAX;
+    state->r[2] = 1u;
+    SEMU_TEST_ASSERT(context, semu_bus_load(fixture.bus, 0u,
+                                            (const uint8_t[]){0x7bu}, 1u,
+                                            &fixture.error) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
+    SEMU_TEST_EQ_U64(context, 0x7bu, state->r[0]);
+    SEMU_TEST_EQ_U64(context, 0x102u, state->r[15]);
+    SEMU_TEST_EQ_U64(context, 1u, state->instructions);
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
+                     semu_cpu_stop_reason(fixture.cpu));
+    SEMU_TEST_ASSERT(context, semu_bus_read(fixture.bus, 0u, 1u, &value,
+                                            &fixture.error) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0x7bu, value);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static int refusal(uint16_t instruction, uint32_t base, uint32_t offset,
                    int fault)
 {
@@ -255,8 +283,8 @@ static void test_refusals_and_partial_fault(semu_test_context *context)
 {
     semu_cpu_fixture fixture = {0}; semu_cpu_state *state; uint32_t value;
 
-    SEMU_TEST_ASSERT(context, refusal(reg_transfer(6u, 2u, 1u, 0u),
-                                      0xffffffffu, 1u, 0));
+    SEMU_TEST_ASSERT(context, refusal(reg_transfer(5u, 2u, 1u, 0u),
+                                      UINT32_MAX, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xb400u, 0u, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xbc00u, 0u, 0u, 0));
     SEMU_TEST_ASSERT(context, refusal(0xc800u, 0u, 0u, 0));
@@ -325,6 +353,7 @@ int main(void)
         SEMU_TEST_CASE(test_immediate_literal_sp),
         SEMU_TEST_CASE(test_adr_sp_and_stack),
         SEMU_TEST_CASE(test_multiple_transfers),
+        SEMU_TEST_CASE(test_register_offset_address_wrap),
         SEMU_TEST_CASE(test_refusals_and_partial_fault)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

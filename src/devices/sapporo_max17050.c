@@ -23,7 +23,8 @@
  * Register values are deterministic host-side battery fixtures, not physical
  * gauge evidence. The public datasheet has a 256-word map, but this endpoint
  * promotes only the selectors observed in the authentic Sapporo startup
- * command trace: 0x00, 0x06, 0x08, 0x09, 0x0b, 0x19, and 0x21.
+ * command trace: 0x00, 0x05, 0x06, 0x09, 0x0b, 0x10, 0x19, 0x1a, 0x21,
+ * 0x28, 0x54, and 0xec.
  * Unobserved writes, reserved registers, and partial words refuse.
  */
 
@@ -36,10 +37,16 @@ enum {
     MAX_TEMP_VAL = 0x1900u,
     MAX_VCELL_REG = 0x09u,
     MAX_VCELL_VAL = 0xC000u,
+    MAX_OBSERVED_ZERO_05_REG = 0x05u,
+    MAX_OBSERVED_ZERO_10_REG = 0x10u,
     MAX_AVERAGE_VCELL_REG = 0x19u,
-    MAX_AVERAGE_VCELL_VAL = 0xC000u,
+    MAX_AVERAGE_VCELL_VAL = 0x0000u,
+    MAX_OBSERVED_ZERO_1A_REG = 0x1au,
     MAX_OBSERVED_ZERO_REG = 0x0bu,
-    MAX_OBSERVED_LATER_REG = 0x21u
+    MAX_OBSERVED_LATER_REG = 0x21u,
+    MAX_OBSERVED_ZERO_28_REG = 0x28u,
+    MAX_OBSERVED_ZERO_54_REG = 0x54u,
+    MAX_OBSERVED_ZERO_EC_REG = 0xecu
 };
 
 struct semu_sapporo_max17050 {
@@ -68,8 +75,15 @@ static int is_observed_register(uint8_t reg)
 {
     return reg == MAX_STATUS_REG || reg == MAX_REPSOC_REG ||
            reg == MAX_TEMP_REG || reg == MAX_VCELL_REG ||
-           reg == MAX_AVERAGE_VCELL_REG || reg == MAX_OBSERVED_ZERO_REG ||
-           reg == MAX_OBSERVED_LATER_REG;
+           reg == MAX_OBSERVED_ZERO_05_REG ||
+           reg == MAX_OBSERVED_ZERO_10_REG ||
+           reg == MAX_AVERAGE_VCELL_REG ||
+           reg == MAX_OBSERVED_ZERO_1A_REG ||
+           reg == MAX_OBSERVED_ZERO_REG ||
+           reg == MAX_OBSERVED_LATER_REG ||
+           reg == MAX_OBSERVED_ZERO_28_REG ||
+           reg == MAX_OBSERVED_ZERO_54_REG ||
+           reg == MAX_OBSERVED_ZERO_EC_REG;
 }
 
 static uint16_t register_value(const semu_sapporo_max17050 *sensor,
@@ -86,8 +100,14 @@ static uint16_t register_value(const semu_sapporo_max17050 *sensor,
         return sensor->vcell;
     case MAX_AVERAGE_VCELL_REG:
         return MAX_AVERAGE_VCELL_VAL;
+    case MAX_OBSERVED_ZERO_05_REG:
+    case MAX_OBSERVED_ZERO_10_REG:
+    case MAX_OBSERVED_ZERO_1A_REG:
     case MAX_OBSERVED_ZERO_REG:
     case MAX_OBSERVED_LATER_REG:
+    case MAX_OBSERVED_ZERO_28_REG:
+    case MAX_OBSERVED_ZERO_54_REG:
+    case MAX_OBSERVED_ZERO_EC_REG:
         return 0u;
     default:
         return 0u;

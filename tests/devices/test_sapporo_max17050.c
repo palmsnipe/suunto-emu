@@ -148,7 +148,7 @@ static void test_unknown_register_refusal(semu_test_context *context)
     semu_error error;
     semu_sapporo_max17050 *sensor;
     semu_serial_endpoint ep;
-    uint8_t rx[2];
+    uint8_t rx[2] = { 0xaau, 0xbbu };
 
     semu_error_clear(&error);
     sensor = semu_sapporo_max17050_create(0x36u, &error);
@@ -156,6 +156,13 @@ static void test_unknown_register_refusal(semu_test_context *context)
 
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      do_read(&ep, 0x36u, 0x22u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0xaau, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0xbbu, rx[1u]);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x36u, 0x06u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0x32u, rx[1u]);
 
     semu_sapporo_max17050_destroy(sensor);
 }
@@ -165,8 +172,13 @@ static void test_observed_later_registers(semu_test_context *context)
     semu_error error;
     semu_sapporo_max17050 *sensor;
     semu_serial_endpoint ep;
-    const uint8_t registers[] = { 0x0bu, 0x19u, 0x21u };
-    const uint16_t values[] = { 0x0000u, 0xC000u, 0x0000u };
+    const uint8_t registers[] = {
+        0x05u, 0x0bu, 0x10u, 0x19u, 0x1au, 0x21u, 0x28u, 0x54u, 0xecu
+    };
+    const uint16_t values[] = {
+        0x0000u, 0x0000u, 0x0000u, 0x0000u, 0x0000u,
+        0x0000u, 0x0000u, 0x0000u, 0x0000u
+    };
     uint8_t rx[2];
     size_t i;
 
