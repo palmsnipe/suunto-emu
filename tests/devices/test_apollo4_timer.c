@@ -39,6 +39,24 @@ static void reset_and_refuse(semu_test_context *context)
     SEMU_TEST_ASSERT(context, timer != NULL);
     semu_apollo4_timer_reset(timer);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x10u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x7ffu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x10u, 4u, 0x27ffu,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x10u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x27ffu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_apollo4_timer_write(timer, 0x10u, 4u, 0x2800u,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x10u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x27ffu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_read(timer, 0x200u, 4u, &value,
                                              &error));
     SEMU_TEST_EQ_U64(context, 0u, value);

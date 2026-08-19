@@ -269,7 +269,9 @@ void semu_apollo4_timer_reset(semu_apollo4_timer *timer)
         memset(&timer->channels[index], 0, sizeof(timer->channels[index]));
         timer->channels[index].owner = timer;
     }
-    timer->interrupt_mask = 0u;
+    /* E-A4-TIMER-001: native reset reads 0x7ff before startup enables the
+     * observed channel-13 interrupt bit. */
+    timer->interrupt_mask = UINT32_C(0x7ff);
     timer->pending = 0u;
     timer->status_value = 0u;
     timer->status_written = 0u;
