@@ -87,15 +87,15 @@ static uint16_t phase_dsp_first(unsigned op, unsigned rn)
     return (uint16_t)(UINT16_C(0xfb00) | (op << 4u) | rn);
 }
 
-static uint16_t phase_dsp_second(unsigned hi, unsigned lo, unsigned rm)
+static uint16_t phase_dsp_second(unsigned rdlo, unsigned rdhi, unsigned rm)
 {
-    return (uint16_t)((hi << 12u) | (lo << 8u) | rm);
+    return (uint16_t)((rdlo << 12u) | (rdhi << 8u) | rm);
 }
 
 static int phase_run_dsp(void)
 {
     uint16_t first = phase_dsp_first(10u, 2u);
-    uint16_t second = phase_dsp_second(1u, 0u, 3u);
+    uint16_t second = phase_dsp_second(0u, 1u, 3u);
     uint8_t program[] = {(uint8_t)first, (uint8_t)(first >> 8u),
                          (uint8_t)second, (uint8_t)(second >> 8u),
                          0x00u, 0xbeu};

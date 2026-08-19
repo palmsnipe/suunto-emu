@@ -165,8 +165,7 @@ static semu_status multiply_long(semu_cpu *cpu, uint16_t first,
         cpu->state.r[rdhi] = signed_bits(quotient);
         return SEMU_OK;
     }
-    if (!data_register(rdlo) || !data_register(rdhi) || rdlo == rdhi ||
-        (second & 0x00f0u) != 0u)
+    if (!data_register(rdlo) || !data_register(rdhi) || rdlo == rdhi || (second & 0x00f0u) != 0u)
         return refuse(cpu, first, second, pc, error);
     if (op == 8u || op == 12u) {
         product = (uint64_t)(signed32(cpu->state.r[rn]) *
