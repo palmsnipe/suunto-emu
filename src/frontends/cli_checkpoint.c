@@ -17,6 +17,17 @@ typedef struct replay_input_context {
     first_frame_gate *frame_gate;
 } replay_input_context;
 
+static void first_frame_gate_note_input(first_frame_gate *gate,
+    const semu_input_event *event)
+{
+    if (gate == NULL || event == NULL || !gate->wait_for_input ||
+        event->kind != SEMU_INPUT_BUTTON ||
+        event->code != gate->required_button || event->value != 0) {
+        return;
+    }
+    gate->input_seen = 1;
+}
+
 static void first_frame_gate_publish(void *context, const semu_frame *frame)
 {
     first_frame_gate *gate = (first_frame_gate *)context;
@@ -56,12 +67,6 @@ static int replay_sink(void *context, const semu_input_event *event,
     if (semu_machine_input(replay_context->machine, event, &err) != SEMU_OK) {
         return 1;
     }
-    if (replay_context->frame_gate != NULL &&
-        replay_context->frame_gate->wait_for_input &&
-        event->kind == SEMU_INPUT_BUTTON &&
-        event->code == replay_context->frame_gate->required_button &&
-        event->value != 0) {
-        replay_context->frame_gate->input_seen = 1;
-    }
+    first_frame_gate_note_input(replay_context->frame_gate, event);
     return 0;
 }

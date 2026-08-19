@@ -50,6 +50,26 @@ static void test_first_frame_gate(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 2u, observer.calls);
 }
 
+static void test_first_frame_gate_requires_press(semu_test_context *context)
+{
+    first_frame_gate gate = {0};
+    semu_input_event event = {SEMU_INPUT_BUTTON, SEMU_BUTTON_MIDDLE, 1, 0, 0};
+
+    gate.wait_for_input = 1;
+    gate.required_button = SEMU_BUTTON_MIDDLE;
+    first_frame_gate_note_input(&gate, &event);
+    SEMU_TEST_EQ_U64(context, 0u, gate.input_seen);
+
+    event.code = SEMU_BUTTON_UPPER;
+    event.value = 0;
+    first_frame_gate_note_input(&gate, &event);
+    SEMU_TEST_EQ_U64(context, 0u, gate.input_seen);
+
+    event.code = SEMU_BUTTON_MIDDLE;
+    first_frame_gate_note_input(&gate, &event);
+    SEMU_TEST_EQ_U64(context, 1u, gate.input_seen);
+}
+
 static void test_report_option(semu_test_context *context)
 {
     semu_cli_debug_options opts;
@@ -257,7 +277,8 @@ int main(void)
         SEMU_TEST_CASE(test_different_load_save_path),
         SEMU_TEST_CASE(test_no_debug_options_inactive),
         SEMU_TEST_CASE(test_null_safety),
-        SEMU_TEST_CASE(test_first_frame_gate)
+        SEMU_TEST_CASE(test_first_frame_gate),
+        SEMU_TEST_CASE(test_first_frame_gate_requires_press)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

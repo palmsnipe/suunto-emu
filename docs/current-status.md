@@ -61,6 +61,13 @@ it does not claim physical-panel or pixel-golden equivalence. The
 setup frame, allowing SDL `--wait-for-quit` inspection without running to the
 budget.
 
+SDL also accepts the same `middle-language` and `lower-transition` checkpoints
+without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
+Down are delivered through the semantic input mapper; the first non-black
+post-button frame pauses for another live button edge so the setup UI can be
+navigated manually. Replay checkpoints retain their deterministic stop
+behavior.
+
 ## Next Actionable Ticket
 
 Phase 1 is complete. Three independent tickets are ready:

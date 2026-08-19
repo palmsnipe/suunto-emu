@@ -356,19 +356,26 @@ static int command_run(const run_arguments *arguments,
     } else if (arguments->until != NULL &&
                (strcmp(arguments->until, "middle-language") == 0 ||
                 strcmp(arguments->until, "lower-transition") == 0)) {
-        if (replay == NULL) {
+        /*
+         * A live frontend supplies input_poll and can keep the guest alive
+         * while it presents the requested UI. Headless runs still require
+         * replay so this checkpoint remains deterministic there.
+         */
+        if (replay == NULL && input_poll == NULL) {
             fprintf(stderr, "run: --until %s requires --input-replay\n",
                     arguments->until);
             semu_nema_backend_destroy(backend);
             if (trace != stderr) fclose(trace);
             return 2;
         }
-        frame_gate.wait_for_input = 1;
-        frame_gate.required_button =
-            strcmp(arguments->until, "middle-language") == 0
-                ? SEMU_BUTTON_MIDDLE : SEMU_BUTTON_LOWER;
-        options.frame_callback = first_frame_gate_publish;
-        options.frame_context = &frame_gate;
+        if (replay != NULL) {
+            frame_gate.wait_for_input = 1;
+            frame_gate.required_button =
+                strcmp(arguments->until, "middle-language") == 0
+                    ? SEMU_BUTTON_MIDDLE : SEMU_BUTTON_LOWER;
+            options.frame_callback = first_frame_gate_publish;
+            options.frame_context = &frame_gate;
+        }
     }
     options.display_backend_submit = semu_nema_backend_submit;
     options.display_backend_context = backend;

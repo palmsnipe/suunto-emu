@@ -51,6 +51,20 @@ panel completion or generic factory-runtime behavior. A full-flash image is
 still optional for persistence/erase coverage and is rejected if it has the
 wrong size or missing footer.
 
+For live setup navigation, omit `--input-replay` and use the SDL checkpoint
+with `--wait-for-quit`:
+
+```sh
+build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --until middle-language \
+  --wait-for-quit --max-instructions 14000000000 --max-time 22000000000
+```
+
+After the middle-button setup frame appears, the window waits for a live
+button edge; use Up, Down, or Return/Enter to continue navigating. Replay
+input remains the deterministic path for headless checkpoints.
+
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.
