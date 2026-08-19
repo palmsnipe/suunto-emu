@@ -45,7 +45,19 @@ typedef struct first_frame_gate {
 static void first_frame_gate_publish(void *context, const semu_frame *frame)
 {
     first_frame_gate *gate = (first_frame_gate *)context;
+    size_t index;
     if (gate == NULL || frame == NULL) {
+        return;
+    }
+    if (frame->pixels == NULL || frame->size == 0u) {
+        return;
+    }
+    for (index = 0u; index < frame->size; ++index) {
+        if (frame->pixels[index] != 0u) {
+            break;
+        }
+    }
+    if (index == frame->size) {
         return;
     }
     if (gate->callback != NULL) {

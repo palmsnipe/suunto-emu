@@ -9,9 +9,9 @@
  * tint-over-RGB565 blend.  No raster loop, texture decoder, or
  * global state.
  *
- * Evidence: E-NEMA-A2LE-001 (missing — endpoint coverage only).
- * Intermediate-coverage rounding is unverified; only alpha 0/255
- * is accepted for golden comparison.
+ * Native mode/coverage is evidenced by E-NEMA-LISTS-001.  The
+ * sub-LSB channel rounding below is an explicit software-renderer
+ * convention; it is not claimed as hardware-equivalent.
  */
 
 /* Evidenced blend mode IDs. */
@@ -33,12 +33,11 @@ rgb8 blend_tint_from_tex_color(uint32_t tex_color);
 /*
  * Straight-alpha blend: Cout = Csrc * alpha + Cdst * (255 - alpha).
  *
- * Accepted alpha values: 0 (result = dst) and 255 (result = src).
- * Intermediate alpha (85, 170) is refused because rounding is
- * unverified (E-NEMA-A2LE-001 missing).
+ * All 8-bit coverage values are accepted.  The result truncates each
+ * channel after the integer 255-denominator blend.
  *
  * Returns SEMU_OK with packed RGB565LE in *out, or
- * SEMU_ERR_UNSUPPORTED for unverified alpha or unsupported mode.
+ * SEMU_ERR_UNSUPPORTED for unsupported mode.
  */
 semu_status blend_simple(uint32_t mode, rgb8 src, rgb8 dst,
                           uint8_t alpha, uint16_t *out,

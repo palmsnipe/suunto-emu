@@ -320,11 +320,12 @@ static void test_ring_completion_marker(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1, cb_invoked);
     SEMU_TEST_EQ_U64(context, -1, irq_level);
 
-    put_framed_child(ring, 16u, 4u);
-    put_completion_marker(ring, 32u, 1u);
-    semu_bus_load(bus, CMD_BASE + 16u, ring + 16u, 32u, &err);
+    put_completion_marker(ring, 16u, 1u);
+    semu_bus_load(bus, CMD_BASE + 16u, ring + 16u, 16u, &err);
+    cb_invoked = 0;
     semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
-                   4u, CMD_BASE + 48u, &err);
+                   4u, CMD_BASE + 32u, &err);
+    SEMU_TEST_EQ_U64(context, 0, cb_invoked);
     SEMU_TEST_EQ_U64(context, -1, irq_level);
     semu_scheduler_advance(scheduler, NEMA_COMPLETION_DELAY_NS, &err);
     SEMU_TEST_EQ_U64(context, 28u, irq_number);
@@ -335,6 +336,52 @@ static void test_ring_completion_marker(semu_test_context *context)
     semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_INTERRUPT,
                   4u, &val, &err);
     SEMU_TEST_EQ_U64(context, 1u, val);
+
+    semu_nema_gpu_destroy(gpu);
+    semu_nema_backend_destroy(backend);
+    semu_scheduler_destroy(scheduler);
+    semu_bus_destroy(bus);
+}
+
+static void test_ring_completion_refuses_marker_mismatch(
+    semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    semu_scheduler *scheduler;
+    semu_nema_backend *backend;
+    semu_nema_gpu *gpu;
+    uint8_t marker[16u] = {0};
+    uint32_t val = 0u;
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    scheduler = semu_scheduler_create(&err);
+    backend = semu_nema_backend_create(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
+                     backend != NULL);
+    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+                                test_frame_cb, NULL, test_irq_sink, NULL,
+                                scheduler, &err);
+    SEMU_TEST_ASSERT(context, gpu != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_attach(gpu, &err));
+    configure_ring(bus, &err);
+    put_completion_marker(marker, 0u, 7u);
+    put_u32(marker, 12u, 2u);
+    semu_bus_load(bus, CMD_BASE, marker, sizeof(marker), &err);
+    cb_invoked = 0;
+    irq_level = -1;
+    semu_bus_write(bus, NEMA_GPU_BASE + NEMA_REG_CMDRINGSTOP,
+                   4u, CMD_BASE + sizeof(marker), &err);
+    SEMU_TEST_EQ_U64(context, 0, cb_invoked);
+    SEMU_TEST_EQ_U64(context, -1, irq_level);
+    semu_scheduler_advance(scheduler, NEMA_COMPLETION_DELAY_NS, &err);
+    semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_CLID,
+                  4u, &val, &err);
+    SEMU_TEST_EQ_U64(context, 0u, val);
+    semu_bus_read(bus, NEMA_GPU_BASE + NEMA_REG_INTERRUPT,
+                  4u, &val, &err);
+    SEMU_TEST_EQ_U64(context, 0u, val);
 
     semu_nema_gpu_destroy(gpu);
     semu_nema_backend_destroy(backend);
@@ -393,6 +440,7 @@ int main(void)
         SEMU_TEST_CASE(test_bootstrap_skipped),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_ring_completion_marker),
+        SEMU_TEST_CASE(test_ring_completion_refuses_marker_mismatch),
         SEMU_TEST_CASE(test_ring_completion_refuses_bad_size)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

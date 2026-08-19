@@ -70,3 +70,49 @@ semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
     *alpha = A2LE_LUT[(byte_val >> (sample_idx * 2u)) & 0x03u];
     return SEMU_OK;
 }
+
+static uint8_t lerp_alpha(uint8_t a, uint8_t b, uint32_t fraction)
+{
+    uint32_t inverse = 256u - fraction;
+    return (uint8_t)(((uint32_t)a * inverse +
+                      (uint32_t)b * fraction + 128u) >> 8u);
+}
+
+semu_status nema_a2le_sample_bilinear(semu_bus *bus, uint32_t base,
+                                      uint32_t stride, uint32_t width,
+                                      uint32_t height, uint32_t x_fp8,
+                                      uint32_t y_fp8, uint8_t *alpha,
+                                      semu_error *error)
+{
+    uint32_t x0 = x_fp8 >> 8u;
+    uint32_t y0 = y_fp8 >> 8u;
+    uint32_t x1, y1;
+    uint8_t a00, a10, a01, a11;
+    uint8_t top, bottom;
+    semu_status st;
+
+    if (alpha == NULL || width == 0u || height == 0u ||
+        x0 >= width || y0 >= height) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "a2le: bilinear coordinate out of range");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    x1 = x0 + (x0 + 1u < width ? 1u : 0u);
+    y1 = y0 + (y0 + 1u < height ? 1u : 0u);
+    st = nema_a2le_sample(bus, base, stride, width, height,
+                          x0, y0, &a00, error);
+    if (st != SEMU_OK) return st;
+    st = nema_a2le_sample(bus, base, stride, width, height,
+                          x1, y0, &a10, error);
+    if (st != SEMU_OK) return st;
+    st = nema_a2le_sample(bus, base, stride, width, height,
+                          x0, y1, &a01, error);
+    if (st != SEMU_OK) return st;
+    st = nema_a2le_sample(bus, base, stride, width, height,
+                          x1, y1, &a11, error);
+    if (st != SEMU_OK) return st;
+    top = lerp_alpha(a00, a10, x_fp8 & 0xFFu);
+    bottom = lerp_alpha(a01, a11, x_fp8 & 0xFFu);
+    *alpha = lerp_alpha(top, bottom, y_fp8 & 0xFFu);
+    return SEMU_OK;
+}

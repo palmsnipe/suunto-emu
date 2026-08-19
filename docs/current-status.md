@@ -25,20 +25,30 @@ firmware bytes or frame pixels.
 
 ## Authentic-Firmware Boundary
 
-On 2026-08-17, user-supplied OTA components matching all three profile hashes
-were validated with the named compatibility layer. A long bounded OTA-only
-run produced:
+On 2026-08-19, user-supplied OTA components matching all three profile hashes
+were validated with the named compatibility layer. Two fresh bounded OTA-only
+runs produced byte-identical stage logs and reached:
 
 ```text
-stop=budget pc=0x000b063e instructions=15000000000 virtual_time_ns=19882362078
+time_ns=0 production-data
+378713110 ohr-startup
+1011008641 gps-state-startup
+1209669280 gps-startup
+4806834547 resource-status
+5192876953 diap-worker-wake
+5192877054 diap-worker-irq
+SDL first-frame width=240 height=240 generation=3
+stop=user pc=0x0009a3fc instructions=450900000 virtual_time_ns=5333307331
 ```
 
-The run reached production startup, the OTA resource-list boundary, the later
-version-pinned GPS running-status exchange, and continued through the native
-NEMA command interval without a reset, assertion, or device refusal. The SDL3
-frontend is wired to the renderer callback, so the three OTA components are
-sufficient for an OTA-only renderer/UI session. Physical-panel completion,
-panel wire bytes, and generic factory-runtime behavior remain unsupported.
+The run reached production startup, OHR/GPS startup, the OTA resource-status
+boundary, NEMA initialization, and the first native command submission without
+a reset, assertion, or device refusal. The NEMA model now consumes the observed
+marker-only completion transaction and raises the evidenced CLID/INTERRUPT
+completion. The SDL3 frontend receives a non-black 240x240 renderer frame from
+the authentic firmware command stream. A2LE sub-LSB rounding remains an
+explicit software-renderer approximation; physical-panel completion, panel
+wire bytes, and generic factory-runtime behavior remain unsupported.
 
 ## Next Actionable Ticket
 

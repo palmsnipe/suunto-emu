@@ -18,8 +18,9 @@
 #define NEMA_TEX_FMT_A2LE     0x28u
 #define NEMA_TEX_FMT_TSC6A    0x17u
 
-/* Only the observed point/nearest sampling mode is implemented. */
+/* Observed NEMA filter modes used by the first Sapporo UI update. */
 #define NEMA_TEX_SAMPLING_NEAREST 0x00u
+#define NEMA_TEX_SAMPLING_BILINEAR 0x01u
 
 #define NEMA_TEX_MAX_DIM 512u
 
@@ -64,5 +65,12 @@ semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
                               uint32_t width, uint32_t height,
                               uint32_t x, uint32_t y,
                               uint8_t *alpha, semu_error *error);
+
+/* Bilinear A2LE sample at 8-bit fractional coordinates. */
+semu_status nema_a2le_sample_bilinear(semu_bus *bus, uint32_t base,
+                                      uint32_t stride, uint32_t width,
+                                      uint32_t height, uint32_t x_fp8,
+                                      uint32_t y_fp8, uint8_t *alpha,
+                                      semu_error *error);
 
 #endif

@@ -185,7 +185,7 @@ static void test_mask_zero_coverage(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
-static void test_mask_intermediate_refused(semu_test_context *context)
+static void test_mask_intermediate_coverage(semu_test_context *context)
 {
     semu_error err;
     semu_bus *bus;
@@ -213,10 +213,40 @@ static void test_mask_intermediate_refused(semu_test_context *context)
     mask.base = MASK_BASE; mask.format = NEMA_TEX_FMT_A2LE;
     mask.stride = 2u; mask.width = TW; mask.height = TH;
 
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
         draw_mask(&t, NULL, bus, &mask, 0, 0, 0, 0, TW, TH,
                   NEMA_BL_SIMPLE, tex_color, NULL, &err));
-    /* Target should be unchanged (atomic refusal) */
+    SEMU_TEST_EQ_U64(context, raster_rgb565(170u, 170u, 170u),
+                     pixel_at(0, 0));
+    semu_bus_destroy(bus);
+}
+
+static void test_mask_unsupported_sampling_refuses(
+    semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    raster_target t = make_target();
+    nema_texture_desc mask = {0};
+    uint8_t mask_data[TH * 2u];
+    uint16_t initial = raster_rgb565(128, 128, 128);
+    uint32_t i;
+
+    for (i = 0u; i < TW * TH * 2u; i += 2u) {
+        target_buf[i] = (uint8_t)initial;
+        target_buf[i + 1u] = (uint8_t)(initial >> 8);
+    }
+    memset(mask_data, 0xFF, sizeof(mask_data));
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_bus_load(bus, MASK_BASE, mask_data, sizeof(mask_data), &err);
+    mask.base = MASK_BASE; mask.format = NEMA_TEX_FMT_A2LE;
+    mask.sampling = 0xFFu;
+    mask.stride = 2u; mask.width = TW; mask.height = TH;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        draw_mask(&t, NULL, bus, &mask, 0, 0, 0, 0, TW, TH,
+                  NEMA_BL_SIMPLE, 0x00FFFFFFu, NULL, &err));
     SEMU_TEST_EQ_U64(context, initial, pixel_at(0, 0));
     semu_bus_destroy(bus);
 }
@@ -346,7 +376,8 @@ int main(void)
         SEMU_TEST_CASE(test_texture_clipped),
         SEMU_TEST_CASE(test_mask_full_coverage),
         SEMU_TEST_CASE(test_mask_zero_coverage),
-        SEMU_TEST_CASE(test_mask_intermediate_refused),
+        SEMU_TEST_CASE(test_mask_intermediate_coverage),
+        SEMU_TEST_CASE(test_mask_unsupported_sampling_refuses),
         SEMU_TEST_CASE(test_unsupported_blend_mode),
         SEMU_TEST_CASE(test_source_boundary),
         SEMU_TEST_CASE(test_source_coordinate_overflow),

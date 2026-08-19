@@ -50,17 +50,12 @@ semu_status blend_simple(uint32_t mode, rgb8 src, rgb8 dst,
         return SEMU_ERR_UNSUPPORTED;
     }
 
-    /* Only endpoint coverage is verified (E-NEMA-A2LE-001 missing). */
-    if (alpha == 0u) {
-        result = dst;
-    } else if (alpha == 255u) {
-        result = src;
-    } else {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "blend: intermediate alpha %u unverified",
-                       alpha);
-        return SEMU_ERR_UNSUPPORTED;
-    }
+    result.r = (uint8_t)(((uint32_t)src.r * alpha +
+                          (uint32_t)dst.r * (255u - alpha)) / 255u);
+    result.g = (uint8_t)(((uint32_t)src.g * alpha +
+                          (uint32_t)dst.g * (255u - alpha)) / 255u);
+    result.b = (uint8_t)(((uint32_t)src.b * alpha +
+                          (uint32_t)dst.b * (255u - alpha)) / 255u);
 
     *out = blend_pack_rgb565(result.r, result.g, result.b);
     return SEMU_OK;

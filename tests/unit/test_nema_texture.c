@@ -194,7 +194,7 @@ static void test_unsupported_format(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
-static void test_unsupported_sampling(semu_test_context *context)
+static void test_sampling_modes(semu_test_context *context)
 {
     semu_error err;
     semu_bus *bus;
@@ -207,7 +207,7 @@ static void test_unsupported_sampling(semu_test_context *context)
     d.base = TEX_BASE; d.format = NEMA_TEX_FMT_RGB565;
     d.sampling = 1u;
     d.stride = 2u; d.width = 1u; d.height = 1u;
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
         nema_texture_validate(bus, &d, &err));
 
     d.sampling = 0xFFu;
@@ -292,7 +292,7 @@ int main(void)
         SEMU_TEST_CASE(test_stride_too_small),
         SEMU_TEST_CASE(test_out_of_range),
         SEMU_TEST_CASE(test_unsupported_format),
-        SEMU_TEST_CASE(test_unsupported_sampling),
+        SEMU_TEST_CASE(test_sampling_modes),
         SEMU_TEST_CASE(test_a2le_address_overflow),
         SEMU_TEST_CASE(test_bus_range_overflow),
         SEMU_TEST_CASE(test_repeat_sample)

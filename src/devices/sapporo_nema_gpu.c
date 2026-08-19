@@ -227,7 +227,7 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
                 &error);
             if (status != SEMU_OK) {
                 result = SEMU_TRANSACTION_REFUSE;
-            } else if (submission.child_count != 0u) {
+            } else {
                 result = submission.result;
                 if (result == SEMU_TRANSACTION_OK) {
                     status = find_completion_marker(gpu, address, word_count,
@@ -244,16 +244,21 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
                         result = SEMU_TRANSACTION_REFUSE;
                     }
                 }
-            } else if (new_word >= old_word) {
-                result = gpu->backend_submit(gpu->backend_context,
-                    gpu->bus, gpu->previous_ring_stop, submitted, 0u,
-                    gpu->frame_callback, gpu->frame_context, &error);
-                immediate_completion = 1;
-            } else {
-                result = gpu->backend_submit(gpu->backend_context,
-                    gpu->bus, address, word_count, 0u,
-                    gpu->frame_callback, gpu->frame_context, &error);
-                immediate_completion = 1;
+                /* The native completion marker is a marker-only ring
+                 * transaction after the rendered child list.  It is
+                 * consumed by the completion path, not by the raster
+                 * backend. */
+                if (result == SEMU_TRANSACTION_OK && !marker_found &&
+                    submission.child_count == 0u) {
+                    result = new_word >= old_word
+                        ? gpu->backend_submit(gpu->backend_context, gpu->bus,
+                            gpu->previous_ring_stop, submitted, 0u,
+                            gpu->frame_callback, gpu->frame_context, &error)
+                        : gpu->backend_submit(gpu->backend_context, gpu->bus,
+                            address, word_count, 0u, gpu->frame_callback,
+                            gpu->frame_context, &error);
+                    immediate_completion = 1;
+                }
             }
         }
 

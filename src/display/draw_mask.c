@@ -93,9 +93,16 @@ semu_status draw_mask(raster_target *target,
                                     (target->pixels[dst_off + 1u] << 8));
             blend_unpack_rgb565(dst_pixel, &dst_px);
 
-            st = nema_a2le_sample(bus, mask->base, mask->stride,
-                                   mask->width, mask->height,
-                                   mx, my, &alpha, error);
+            if (mask->sampling == NEMA_TEX_SAMPLING_BILINEAR) {
+                st = nema_a2le_sample_bilinear(
+                    bus, mask->base, mask->stride, mask->width,
+                    mask->height, mx * 256u + 128u,
+                    my * 256u + 128u, &alpha, error);
+            } else {
+                st = nema_a2le_sample(bus, mask->base, mask->stride,
+                                      mask->width, mask->height,
+                                      mx, my, &alpha, error);
+            }
             if (st != SEMU_OK) {
                 free(stage);
                 return st;

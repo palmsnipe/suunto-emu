@@ -45,18 +45,20 @@ static void test_coverage_full(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, blend_pack_rgb565(src.r, src.g, src.b), out);
 }
 
-static void test_intermediate_refused(semu_test_context *context)
+static void test_intermediate_coverage(semu_test_context *context)
 {
     semu_error err;
-    rgb8 src = {255, 0, 0};
+    rgb8 src = {255, 255, 255};
     rgb8 dst = {0, 0, 0};
     uint16_t out = 0;
 
     semu_error_clear(&err);
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
         blend_simple(NEMA_BL_SIMPLE, src, dst, 85u, &out, &err));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, blend_pack_rgb565(85u, 85u, 85u), out);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
         blend_simple(NEMA_BL_SIMPLE, src, dst, 170u, &out, &err));
+    SEMU_TEST_EQ_U64(context, blend_pack_rgb565(170u, 170u, 170u), out);
 }
 
 static void test_channel_extrema(semu_test_context *context)
@@ -142,7 +144,7 @@ int main(void)
         SEMU_TEST_CASE(test_unpack_pack_roundtrip),
         SEMU_TEST_CASE(test_coverage_zero),
         SEMU_TEST_CASE(test_coverage_full),
-        SEMU_TEST_CASE(test_intermediate_refused),
+        SEMU_TEST_CASE(test_intermediate_coverage),
         SEMU_TEST_CASE(test_channel_extrema),
         SEMU_TEST_CASE(test_tint_from_tex_color),
         SEMU_TEST_CASE(test_unsupported_mode),

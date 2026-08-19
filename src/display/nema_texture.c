@@ -40,7 +40,8 @@ static semu_status validate_format_dims(const nema_texture_desc *d,
 static semu_status validate_sampling(const nema_texture_desc *d,
                                      semu_error *error)
 {
-    if (d->sampling != NEMA_TEX_SAMPLING_NEAREST) {
+    if (d->sampling != NEMA_TEX_SAMPLING_NEAREST &&
+        d->sampling != NEMA_TEX_SAMPLING_BILINEAR) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "texture: sampling mode 0x%02x unsupported",
                        d->sampling);
