@@ -57,16 +57,20 @@ and lower (8.000/8.070 seconds) semantic button pulses were byte-identical;
 both accepted the language/setup command lists and reached the bounded budget
 without reset or display refusal. This exposes the evidenced setup UI in SDL;
 it does not claim physical-panel or pixel-golden equivalence. The
-`--until middle-language` replay checkpoint now stops at that first non-black
-setup frame, allowing SDL `--wait-for-quit` inspection without running to the
-budget.
+`--until middle-language` replay checkpoint still stops at the first
+post-input non-black setup frame. Live SDL checkpoints wait for a bounded
+350-ms virtual-time quiet window after the last post-input renderer submission,
+so an intermediate logo/text transition is not frozen as the interactive frame.
+SDL button edges hold active-low for 70 ms of guest time and keep the released
+level stable for 70 ms before another press, matching the native debounce
+boundary.
 
 SDL also accepts the same `middle-language` and `lower-transition` checkpoints
 without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
-Down are delivered through the semantic input mapper; the first non-black
-post-button frame pauses for another live button edge so the setup UI can be
-navigated manually. Replay checkpoints retain their deterministic stop
-behavior.
+Down are delivered through the semantic input mapper; after a quiet settled
+post-button frame the window pauses for another live button edge so the setup
+UI can be navigated manually. Pressing that edge returns control to the guest
+immediately; replay checkpoints retain their deterministic stop behavior.
 
 ## Next Actionable Ticket
 

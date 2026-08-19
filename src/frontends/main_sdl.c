@@ -6,6 +6,8 @@
 #include "sdl_present.c"
 #include "sdl_input.c"
 #include "semantic_input.c"
+#include "live_frame_gate.c"
+#include "sdl_button_hold.c"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,28 +17,12 @@ typedef struct sdl_frontend {
     sdl_presenter *presenter;
     semu_sdl_input_adapter *input_adapter;
     semu_input_mapper *input_mapper;
+    semu_live_frame_gate live_checkpoint;
+    semu_sdl_button_hold button_hold;
+    semu_machine *machine;
     unsigned long frame_count;
-    int live_checkpoint_button;
-    uint64_t live_frame_baseline;
-    int live_input_seen;
-    int live_checkpoint_ready;
-    int live_checkpoint_consumed;
     int failed;
 } sdl_frontend;
-
-static int frame_has_pixels(const semu_frame *frame)
-{
-    size_t index;
-    if (frame == NULL || frame->pixels == NULL || frame->size == 0u) {
-        return 0;
-    }
-    for (index = 0u; index < frame->size; ++index) {
-        if (frame->pixels[index] != 0u) {
-            return 1;
-        }
-    }
-    return 0;
-}
 
 static const char *live_checkpoint_name(int button)
 {
@@ -73,20 +59,18 @@ static int parse_live_checkpoint(int argc, char **argv)
 static void observe_live_input(sdl_frontend *frontend,
     const semu_input_event *input)
 {
-    if (frontend == NULL || input == NULL || frontend->live_checkpoint_button < 0 ||
-        frontend->live_checkpoint_consumed || frontend->live_checkpoint_ready ||
-        frontend->live_checkpoint_button != (int)input->code ||
-        input->kind != SEMU_INPUT_BUTTON || input->value != 0) {
+    if (frontend == NULL || input == NULL) {
         return;
     }
-    frontend->live_input_seen = 1;
-    frontend->live_frame_baseline = frontend->frame_count;
+    semu_live_frame_gate_note_input(&frontend->live_checkpoint,
+                                    frontend->frame_count, input);
 }
 
 static void publish_frame(void *context, const semu_frame *frame)
 {
     sdl_frontend *frontend = (sdl_frontend *)context;
     semu_error error;
+    uint64_t now_ns = 0u;
     if (frontend->failed) {
         return;
     }
@@ -103,15 +87,54 @@ static void publish_frame(void *context, const semu_frame *frame)
                 (unsigned long long)frame->generation);
     }
     ++frontend->frame_count;
-    if (frontend->live_checkpoint_button >= 0 &&
-        frontend->live_input_seen && !frontend->live_checkpoint_ready &&
-        !frontend->live_checkpoint_consumed &&
-        (uint64_t)frontend->frame_count > frontend->live_frame_baseline &&
-        frame_has_pixels(frame)) {
-        frontend->live_checkpoint_ready = 1;
-        fprintf(stderr, "SDL live checkpoint %s ready; press a button to continue\n",
-                live_checkpoint_name(frontend->live_checkpoint_button));
+    if (frontend->machine != NULL) {
+        now_ns = semu_machine_virtual_time(frontend->machine);
     }
+    semu_live_frame_gate_observe(&frontend->live_checkpoint,
+                                 frontend->frame_count, now_ns, frame);
+}
+
+static semu_stop_reason process_normalized_key(sdl_frontend *frontend,
+    semu_machine *machine, const semu_normalized_key *key,
+    int wait_for_button, semu_error *error)
+{
+    semu_input_event input;
+    int has_input = 0;
+    if (semu_input_mapper_process(frontend->input_mapper, key, &input,
+                                  &has_input, error) != SEMU_OK) {
+        return SEMU_STOP_DEVICE_REFUSED;
+    }
+    if (!has_input) {
+        return SEMU_STOP_NONE;
+    }
+    if (semu_machine_input(machine, &input, error) != SEMU_OK) {
+        return SEMU_STOP_DEVICE_REFUSED;
+    }
+    if (input.value == 0) {
+        semu_sdl_button_hold_note_press(&frontend->button_hold, &input, key);
+        observe_live_input(frontend, &input);
+        if (wait_for_button) {
+            semu_live_frame_gate_consume(&frontend->live_checkpoint);
+        }
+    }
+    return SEMU_STOP_NONE;
+}
+
+static semu_stop_reason flush_button_releases(sdl_frontend *frontend,
+    semu_machine *machine, uint64_t now_ns, semu_error *error)
+{
+    semu_normalized_key keys[SEMU_SDL_BUTTON_COUNT];
+    uint32_t count;
+    uint32_t index;
+    count = semu_sdl_button_hold_flush(&frontend->button_hold, now_ns,
+                                       keys, SEMU_SDL_BUTTON_COUNT);
+    for (index = 0u; index < count; ++index) {
+        if (process_normalized_key(frontend, machine, &keys[index], 0,
+                                   error) != SEMU_STOP_NONE) {
+            return SEMU_STOP_DEVICE_REFUSED;
+        }
+    }
+    return SEMU_STOP_NONE;
 }
 
 static semu_stop_reason poll_input(void *context, semu_machine *machine,
@@ -120,14 +143,29 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
     sdl_frontend *frontend = (sdl_frontend *)context;
     SDL_Event event;
     int wait_for_button;
+    uint64_t now_ns;
 
     if (frontend == NULL || machine == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "SDL input poll has no runtime context");
         return SEMU_STOP_DEVICE_REFUSED;
     }
-    wait_for_button = frontend->live_checkpoint_ready &&
-                      !frontend->live_checkpoint_consumed;
+    frontend->machine = machine;
+    now_ns = semu_machine_virtual_time(machine);
+    if (semu_live_frame_gate_settle(&frontend->live_checkpoint,
+                                    frontend->frame_count, now_ns)) {
+        fprintf(stderr, "SDL live checkpoint %s ready; press a button to continue\n",
+                live_checkpoint_name(
+                    frontend->live_checkpoint.required_button));
+    }
+    if (flush_button_releases(frontend, machine, now_ns, error) !=
+        SEMU_STOP_NONE) {
+        return SEMU_STOP_DEVICE_REFUSED;
+    }
+    wait_for_button = frontend->live_checkpoint.ready &&
+                      !frontend->live_checkpoint.consumed &&
+                      !semu_sdl_button_hold_waiting(&frontend->button_hold,
+                                                    now_ns);
     for (;;) {
         if (wait_for_button) {
             if (!SDL_WaitEvent(&event)) {
@@ -139,7 +177,6 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
             break;
         }
         semu_normalized_key key;
-        semu_input_event input;
         semu_input_event releases[3];
         uint32_t release_count;
         uint32_t release_index;
@@ -163,6 +200,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                     return SEMU_STOP_DEVICE_REFUSED;
                 }
             }
+            semu_sdl_button_hold_reset(&frontend->button_hold);
             continue;
         }
         has_key = semu_sdl_input_process(frontend->input_adapter, &event,
@@ -173,20 +211,17 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
         if (!has_key) {
             continue;
         }
-        if (semu_input_mapper_process(frontend->input_mapper, &key, &input,
-                                      &has_key, error) != SEMU_OK) {
+        now_ns = semu_machine_virtual_time(machine);
+        if (!key.down && semu_sdl_button_hold_note_release(
+                &frontend->button_hold, &key, now_ns)) {
+            continue;
+        }
+        if (process_normalized_key(frontend, machine, &key,
+                                   wait_for_button, error) != SEMU_STOP_NONE) {
             return SEMU_STOP_DEVICE_REFUSED;
         }
-        if (has_key && semu_machine_input(machine, &input, error) != SEMU_OK) {
-            return SEMU_STOP_DEVICE_REFUSED;
-        }
-        if (has_key) {
-            observe_live_input(frontend, &input);
-            if (wait_for_button && input.value == 0) {
-                frontend->live_checkpoint_ready = 0;
-                frontend->live_checkpoint_consumed = 1;
-                return SEMU_STOP_NONE;
-            }
+        if (wait_for_button && frontend->live_checkpoint.consumed) {
+            return SEMU_STOP_NONE;
         }
     }
     return SEMU_STOP_NONE;
@@ -244,15 +279,17 @@ int main(int argc, char **argv)
     int wait_for_quit;
     int filtered_argc;
     memset(&frontend, 0, sizeof(frontend));
-    frontend.live_checkpoint_button = -1;
+    semu_live_frame_gate_init(&frontend.live_checkpoint, -1);
+    semu_sdl_button_hold_init(&frontend.button_hold);
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;
     }
     filtered_argc = filter_sdl_options(argc, argv, filtered_argv,
                                        &wait_for_quit);
-    frontend.live_checkpoint_button = parse_live_checkpoint(filtered_argc,
-                                                            filtered_argv);
+    semu_live_frame_gate_init(&frontend.live_checkpoint,
+                              parse_live_checkpoint(filtered_argc,
+                                                   filtered_argv));
     scale = parse_scale(filtered_argc, filtered_argv);
     semu_error_clear(&error);
     frontend.input_adapter = semu_sdl_input_create(&error);

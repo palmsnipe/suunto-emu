@@ -61,9 +61,11 @@ build/suunto-emu-sdl run \
   --wait-for-quit --max-instructions 14000000000 --max-time 22000000000
 ```
 
-After the middle-button setup frame appears, the window waits for a live
-button edge; use Up, Down, or Return/Enter to continue navigating. Replay
-input remains the deterministic path for headless checkpoints.
+After the middle-button setup frame settles, the window waits for a live
+button edge; use Up, Down, or Return/Enter to continue navigating. SDL holds
+each button press for 70 ms of guest time and keeps the released level stable
+for another 70 ms, matching the native debounce boundary. Replay input remains
+the deterministic path for headless checkpoints.
 
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
