@@ -38,10 +38,14 @@ static uint16_t long_first(unsigned op, unsigned rn)
     return (uint16_t)(0xfb00u | (op << 4u) | rn);
 }
 
-static uint16_t long_second(unsigned hi, unsigned lo, unsigned rm, int divide)
+static uint16_t long_second(unsigned rdlo, unsigned rdhi, unsigned rm)
 {
-    return (uint16_t)((hi << 12u) | (lo << 8u) |
-                      (divide ? 0xf0u : 0u) | rm);
+    return (uint16_t)((rdlo << 12u) | (rdhi << 8u) | rm);
+}
+
+static uint16_t divide_second(unsigned rd, unsigned rm)
+{
+    return (uint16_t)(0xf000u | (rd << 8u) | 0x00f0u | rm);
 }
 
 static uint16_t parallel_first(unsigned op, unsigned rn)
@@ -168,23 +172,25 @@ static void test_multiply_long_and_divide(semu_test_context *context)
     state.r[2] = 0xffffffffu;
     state.r[3] = 2u;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(10u, 2u),
-                                      long_second(1u, 0u, 3u, 0), state,
+                                      long_second(0u, 1u, 3u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0xfffffffeu, final.r[0]);
     SEMU_TEST_EQ_U64(context, 1u, final.r[1]);
     state = initial_state();
-    state.r[2] = 0xffffffffu;
-    state.r[3] = 2u;
-    SEMU_TEST_ASSERT(context, run_dsp(long_first(14u, 2u),
-                                      long_second(1u, 0u, 3u, 0), state,
+    /* Authentic Sapporo vector instruction at 0x00068504: fbea 0109
+       (UMLAL r0, r1, r10, r9). */
+    state.r[10] = 10u;
+    state.r[9] = 1u;
+    SEMU_TEST_ASSERT(context, run_dsp(long_first(14u, 10u),
+                                      long_second(0u, 1u, 9u), state,
                                       &status, &final));
-    SEMU_TEST_EQ_U64(context, 0xfffffffeu, final.r[0]);
-    SEMU_TEST_EQ_U64(context, 1u, final.r[1]);
+    SEMU_TEST_EQ_U64(context, 10u, final.r[0]);
+    SEMU_TEST_EQ_U64(context, 0u, final.r[1]);
     state = initial_state();
     state.r[2] = 0xffffffffu;
     state.r[3] = 2u;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(8u, 2u),
-                                      long_second(1u, 0u, 3u, 0), state,
+                                      long_second(0u, 1u, 3u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0xfffffffeu, final.r[0]);
     SEMU_TEST_EQ_U64(context, 0xffffffffu, final.r[1]);
@@ -194,7 +200,7 @@ static void test_multiply_long_and_divide(semu_test_context *context)
     state.r[2] = 1u;
     state.r[3] = 1u;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(12u, 2u),
-                                      long_second(1u, 0u, 3u, 0), state,
+                                      long_second(0u, 1u, 3u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0u, final.r[0]);
     SEMU_TEST_EQ_U64(context, 0u, final.r[1]);
@@ -202,14 +208,14 @@ static void test_multiply_long_and_divide(semu_test_context *context)
     state.r[5] = 0xfffffff4u;
     state.r[6] = 3u;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(9u, 5u),
-                                      long_second(15u, 4u, 6u, 1), state,
+                                      divide_second(4u, 6u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0xfffffffcu, final.r[4]);
     state.r[5] = 10u;
     state.r[6] = 0u;
     state.xpsr |= XPSR_N | XPSR_C | XPSR_V;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(11u, 5u),
-                                      long_second(15u, 4u, 6u, 1), state,
+                                      divide_second(4u, 6u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0u, final.r[4]);
     SEMU_TEST_EQ_U64(context, XPSR_T | XPSR_N | XPSR_C | XPSR_V, final.xpsr);
@@ -218,7 +224,7 @@ static void test_multiply_long_and_divide(semu_test_context *context)
     state.r[6] = 0u;
     state.xpsr |= XPSR_N | XPSR_C | XPSR_V;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(9u, 5u),
-                                      long_second(15u, 4u, 6u, 1), state,
+                                      divide_second(4u, 6u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0u, final.r[4]);
     SEMU_TEST_EQ_U64(context, XPSR_T | XPSR_N | XPSR_C | XPSR_V, final.xpsr);
@@ -226,13 +232,13 @@ static void test_multiply_long_and_divide(semu_test_context *context)
     state.r[5] = 0x80000000u;
     state.r[6] = 0xffffffffu;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(9u, 5u),
-                                      long_second(15u, 4u, 6u, 1), state,
+                                      divide_second(4u, 6u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0x80000000u, final.r[4]);
     state.r[5] = 0xffffffffu;
     state.r[6] = 1u;
     SEMU_TEST_ASSERT(context, run_dsp(long_first(11u, 5u),
-                                      long_second(15u, 4u, 6u, 1), state,
+                                      divide_second(4u, 6u), state,
                                       &status, &final));
     SEMU_TEST_EQ_U64(context, 0xffffffffu, final.r[4]);
 }

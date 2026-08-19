@@ -136,37 +136,38 @@ static semu_status multiply_long(semu_cpu *cpu, uint16_t first,
                                  semu_error *error)
 {
     unsigned op = (first >> 4u) & 15u, rn = first & 15u;
-    unsigned rdlo = (second >> 8u) & 15u, rdhi = second >> 12u;
+    unsigned rdlo = (second >> 12u) & 15u, rdhi = (second >> 8u) & 15u;
     unsigned rm = second & 15u;
     uint64_t result, product, old;
     int64_t numerator, denominator, quotient;
 
-    if (!data_register(rn) || !data_register(rm) || !data_register(rdlo) ||
-        (op != 9u && op != 11u && !data_register(rdhi)) ||
-        (op != 9u && op != 11u && rdlo == rdhi))
+    if (!data_register(rn) || !data_register(rm))
         return refuse(cpu, first, second, pc, error);
     if (op == 9u || op == 11u) {
-        if ((second & 0x00f0u) != 0x00f0u || rdhi != 15u)
+        if ((second & 0x00f0u) != 0x00f0u || rdlo != 15u ||
+            !data_register(rdhi))
             return refuse(cpu, first, second, pc, error);
         if (cpu->state.r[rm] == 0u) {
-            cpu->state.r[rdlo] = 0u;
+            cpu->state.r[rdhi] = 0u;
             return SEMU_OK;
         }
         if (op == 11u) {
-            cpu->state.r[rdlo] = cpu->state.r[rn] / cpu->state.r[rm];
+            cpu->state.r[rdhi] = cpu->state.r[rn] / cpu->state.r[rm];
             return SEMU_OK;
         }
         numerator = signed32(cpu->state.r[rn]);
         denominator = signed32(cpu->state.r[rm]);
         if (numerator == -2147483648LL && denominator == -1LL) {
-            cpu->state.r[rdlo] = 0x80000000u;
+            cpu->state.r[rdhi] = 0x80000000u;
             return SEMU_OK;
         }
         quotient = numerator / denominator;
-        cpu->state.r[rdlo] = signed_bits(quotient);
+        cpu->state.r[rdhi] = signed_bits(quotient);
         return SEMU_OK;
     }
-    if ((second & 0x00f0u) != 0u) return refuse(cpu, first, second, pc, error);
+    if (!data_register(rdlo) || !data_register(rdhi) || rdlo == rdhi ||
+        (second & 0x00f0u) != 0u)
+        return refuse(cpu, first, second, pc, error);
     if (op == 8u || op == 12u) {
         product = (uint64_t)(signed32(cpu->state.r[rn]) *
                              signed32(cpu->state.r[rm]));

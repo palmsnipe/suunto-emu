@@ -134,6 +134,13 @@ static void test_mcu_write_accept_and_unknown_refuse(semu_test_context *context)
                      mcu_write(&fixture, 0x60u, UINT32_C(0x1)));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      mcu_write(&fixture, 0x80u, UINT32_C(0x2)));
+    /* E-A4-RST-001 / core-mmio: the PWM path writes MCUCTRL+0x88=0x3;
+       native reads at this offset remain zero. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_write(&fixture, 0x88u, UINT32_C(0x3)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_read(&fixture, 0x88u, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      mcu_write(&fixture, 0x418u, UINT32_C(0x3)));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
