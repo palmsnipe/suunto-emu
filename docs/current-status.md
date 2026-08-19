@@ -50,6 +50,14 @@ the authentic firmware command stream. A2LE sub-LSB rounding remains an
 explicit software-renderer approximation; physical-panel completion, panel
 wire bytes, and generic factory-runtime behavior remain unsupported.
 
+The renderer also now carries the observed binary32 affine matrix registers
+through NEMA snapshots and applies the native A2LE destination-to-source
+translation path. Two fresh SDL dummy runs with middle (5.400/5.470 seconds)
+and lower (8.000/8.070 seconds) semantic button pulses were byte-identical;
+both accepted the language/setup command lists and reached the bounded budget
+without reset or display refusal. This exposes the evidenced setup UI in SDL;
+it does not claim physical-panel or pixel-golden equivalence.
+
 ## Next Actionable Ticket
 
 Phase 1 is complete. Three independent tickets are ready:

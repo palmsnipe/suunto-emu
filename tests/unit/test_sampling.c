@@ -221,6 +221,83 @@ static void test_mask_intermediate_coverage(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_mask_affine_translation(semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    raster_target t = make_target();
+    nema_texture_desc mask = {0};
+    nema_affine_matrix matrix = {
+        0x3F800000u, 0u, 0xC0000000u,
+        0u, 0x3F800000u, 0xC0400000u
+    };
+    raster_bounds dirty = {0};
+    uint8_t mask_data[4u] = {0x03u, 0u, 0u, 0u};
+    uint16_t expected = raster_rgb565(255u, 0u, 0u);
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_bus_load(bus, MASK_BASE, mask_data, sizeof(mask_data), &err);
+
+    mask.base = MASK_BASE;
+    mask.format = NEMA_TEX_FMT_A2LE;
+    mask.sampling = NEMA_TEX_SAMPLING_BILINEAR;
+    mask.stride = 1u;
+    mask.width = 4u;
+    mask.height = 4u;
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        draw_mask_affine(&t, NULL, bus, &mask, 0u, 0u, TW, TH, &matrix,
+                         NEMA_BL_SIMPLE, 0xFF0000FFu, &dirty, &err));
+    SEMU_TEST_EQ_U64(context, TW, dirty.max_x);
+    SEMU_TEST_EQ_U64(context, expected, pixel_at(2u, 3u));
+    SEMU_TEST_EQ_U64(context, 0u, pixel_at(1u, 3u));
+    SEMU_TEST_EQ_U64(context, 0u, pixel_at(2u, 2u));
+    SEMU_TEST_EQ_U64(context, 0u, pixel_at(2u, 4u));
+    semu_bus_destroy(bus);
+}
+
+static void test_mask_affine_invalid_matrix_atomic(
+    semu_test_context *context)
+{
+    semu_error err;
+    semu_bus *bus;
+    raster_target t = make_target();
+    nema_texture_desc mask = {0};
+    nema_affine_matrix matrix = {
+        0x7FC00000u, 0u, 0u,
+        0u, 0x3F800000u, 0u
+    };
+    uint8_t mask_data[4u] = {0xFFu, 0xFFu, 0xFFu, 0xFFu};
+    uint8_t before[sizeof(target_buf)];
+    uint32_t i;
+    uint16_t initial = raster_rgb565(64u, 32u, 16u);
+
+    for (i = 0u; i < TW * TH * 2u; i += 2u) {
+        target_buf[i] = (uint8_t)initial;
+        target_buf[i + 1u] = (uint8_t)(initial >> 8u);
+    }
+    memcpy(before, target_buf, sizeof(before));
+
+    semu_error_clear(&err);
+    bus = make_bus(&err);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_bus_load(bus, MASK_BASE, mask_data, sizeof(mask_data), &err);
+    mask.base = MASK_BASE;
+    mask.format = NEMA_TEX_FMT_A2LE;
+    mask.sampling = NEMA_TEX_SAMPLING_BILINEAR;
+    mask.stride = 1u;
+    mask.width = 4u;
+    mask.height = 4u;
+
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        draw_mask_affine(&t, NULL, bus, &mask, 0u, 0u, TW, TH, &matrix,
+                         NEMA_BL_SIMPLE, 0xFFFFFFFFu, NULL, &err));
+    SEMU_TEST_ASSERT(context, memcmp(before, target_buf, sizeof(before)) == 0);
+    semu_bus_destroy(bus);
+}
+
 static void test_mask_unsupported_sampling_refuses(
     semu_test_context *context)
 {
@@ -377,6 +454,8 @@ int main(void)
         SEMU_TEST_CASE(test_mask_full_coverage),
         SEMU_TEST_CASE(test_mask_zero_coverage),
         SEMU_TEST_CASE(test_mask_intermediate_coverage),
+        SEMU_TEST_CASE(test_mask_affine_translation),
+        SEMU_TEST_CASE(test_mask_affine_invalid_matrix_atomic),
         SEMU_TEST_CASE(test_mask_unsupported_sampling_refuses),
         SEMU_TEST_CASE(test_unsupported_blend_mode),
         SEMU_TEST_CASE(test_source_boundary),

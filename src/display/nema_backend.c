@@ -92,9 +92,23 @@ static void on_draw(void *context, const nema_draw_snapshot *snap)
             st = draw_texture(&target, &clip, draw_context->bus, &src, 0u, 0u,
                                dst_x, dst_y, w, h, NULL, &err);
         } else if (snap->src_format == NEMA_FMT_A2LE) {
-            st = draw_mask(&target, &clip, draw_context->bus, &src, 0u, 0u,
-                            dst_x, dst_y, w, h,
-                            NEMA_BL_SIMPLE, snap->tex_color, NULL, &err);
+            if (snap->matrix_present) {
+                nema_affine_matrix matrix;
+                matrix.mm00 = snap->mm00;
+                matrix.mm01 = snap->mm01;
+                matrix.mm02 = snap->mm02;
+                matrix.mm10 = snap->mm10;
+                matrix.mm11 = snap->mm11;
+                matrix.mm12 = snap->mm12;
+                st = draw_mask_affine(&target, &clip, draw_context->bus,
+                                      &src, dst_x, dst_y, w, h, &matrix,
+                                      NEMA_BL_SIMPLE, snap->tex_color, NULL,
+                                      &err);
+            } else {
+                st = draw_mask(&target, &clip, draw_context->bus, &src, 0u,
+                               0u, dst_x, dst_y, w, h, NEMA_BL_SIMPLE,
+                               snap->tex_color, NULL, &err);
+            }
         } else {
             backend->draw_failed = 1;
             return;
@@ -196,6 +210,7 @@ semu_transaction_result semu_nema_backend_submit(
         semu_error_set(error, SEMU_ERR_ARGUMENT, "backend submit: null");
         return SEMU_TRANSACTION_REFUSE;
     }
+
     if (command_word_count == 0u) {
         return SEMU_TRANSACTION_OK;
     }

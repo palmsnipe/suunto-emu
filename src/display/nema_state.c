@@ -149,6 +149,17 @@ static void build_snapshot(const nema_state *st, nema_draw_snapshot *s)
     s->tex_color = st->values[P_TEX_COLOR];
     s->matmult = st->values[P_MATMULT];
     s->codeptr = st->values[P_CODEPTR];
+    s->matrix_present = ((st->presence &
+                          (BIT(P_MM00) | BIT(P_MM01) | BIT(P_MM02) |
+                           BIT(P_MM10) | BIT(P_MM11) | BIT(P_MM12))) ==
+                         (BIT(P_MM00) | BIT(P_MM01) | BIT(P_MM02) |
+                          BIT(P_MM10) | BIT(P_MM11) | BIT(P_MM12))) ? 1u : 0u;
+    s->mm00 = st->values[P_MM00];
+    s->mm01 = st->values[P_MM01];
+    s->mm02 = st->values[P_MM02];
+    s->mm10 = st->values[P_MM10];
+    s->mm11 = st->values[P_MM11];
+    s->mm12 = st->values[P_MM12];
 }
 
 static int validate_draw(const nema_state *st, semu_error *error)

@@ -95,6 +95,9 @@ typedef struct {
     uint32_t tex_color;
     uint32_t matmult;
     uint32_t codeptr;
+    uint32_t matrix_present;
+    uint32_t mm00, mm01, mm02;
+    uint32_t mm10, mm11, mm12;
 
     /* Source list identity */
     uint32_t list_id;

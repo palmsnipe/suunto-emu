@@ -116,6 +116,12 @@ static void test_inherited_a2le(semu_test_context *context)
     emit(st, NEMA_REG_TEX1_FSTRIDE, FSTRIDE_A2LE_88, &err);
     emit(st, NEMA_REG_TEX1_RESXY, RESXY_88x88, &err);
     emit(st, NEMA_REG_TEX_COLOR, 0xFFFFFFFFu, &err);
+    emit(st, NEMA_REG_MM00, 0x3F800000u, &err);
+    emit(st, NEMA_REG_MM01, 0u, &err);
+    emit(st, NEMA_REG_MM02, 0xC2680000u, &err);
+    emit(st, NEMA_REG_MM10, 0u, &err);
+    emit(st, NEMA_REG_MM11, 0x3F800000u, &err);
+    emit(st, NEMA_REG_MM12, 0xC2C80000u, &err);
     nema_state_begin_list(st, 2u);
     s = emit_draw(st, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD, on_draw, &cap, &err);
     SEMU_TEST_EQ_U64(context, SEMU_OK, s);
@@ -123,6 +129,8 @@ static void test_inherited_a2le(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, cap.snapshots[0u].src_present);
     SEMU_TEST_EQ_U64(context, 0x28u, cap.snapshots[0u].src_format);
     SEMU_TEST_EQ_U64(context, 88u, cap.snapshots[0u].src_width);
+    SEMU_TEST_EQ_U64(context, 1u, cap.snapshots[0u].matrix_present);
+    SEMU_TEST_EQ_U64(context, 0xC2680000u, cap.snapshots[0u].mm02);
     SEMU_TEST_EQ_U64(context, 2u, cap.snapshots[0u].list_id);
     nema_state_destroy(st);
 }

@@ -1,12 +1,13 @@
 /*
  * A2LE masked draw (ticket 512).
  * Samples A2LE coverage, blends tint over destination, and stages
- * all pixels before any target write.  Intermediate coverage (85,
- * 170) causes atomic refusal — no target mutation.
+ * all pixels before any target write.  Both endpoint and intermediate
+ * coverage are handled with the evidenced integer blend path.
  */
 
 #include "sampling.h"
 
+#include <limits.h>
 #include <stdlib.h>
 
 semu_status draw_mask(raster_target *target,
