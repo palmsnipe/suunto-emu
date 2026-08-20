@@ -45,6 +45,12 @@ static int valid_core_mask_state(const semu_cpu_state *state)
            (state->control & ~UINT32_C(0x3)) == 0u;
 }
 
+static int valid_xpsr_state(uint32_t xpsr)
+{
+    return (xpsr & ~ARMV7M_XPSR_LIVE_MASK) == 0u &&
+           (xpsr & ARMV7M_XPSR_T) != 0u;
+}
+
 static int valid_exclusive_width(unsigned width)
 {
     return width == 0u || width == 1u || width == 2u || width == 4u;
@@ -364,6 +370,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     if (!valid_core_mask_state(&candidate.state)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU core register mask state");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!valid_xpsr_state(candidate.state.xpsr)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU xPSR state");
         return SEMU_ERR_FORMAT;
     }
     if (!valid_interrupt_state(&candidate)) {
