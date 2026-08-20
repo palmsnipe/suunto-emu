@@ -2,7 +2,9 @@
 #include "test.h"
 
 #include "semu/hash.h"
+#include "semu/log.h"
 
+#include <stdio.h>
 #include <string.h>
 
 typedef struct ohr_fixture {
@@ -121,6 +123,88 @@ static void test_packet_crc_and_ready(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 2u, fixture.ready_count);
     SEMU_TEST_EQ_U64(context, 0u, fixture.ready_level[1]);
     semu_sapporo_ohr2_destroy(device);
+}
+
+static int log_contains(FILE *stream, const char *text)
+{
+    char line[512];
+
+    if (stream == NULL || text == NULL || fseek(stream, 0L, SEEK_SET) != 0) {
+        return 0;
+    }
+    while (fgets(line, sizeof(line), stream) != NULL) {
+        if (strstr(line, text) != NULL) return 1;
+    }
+    return 0;
+}
+
+static unsigned log_line_count(FILE *stream)
+{
+    char line[512];
+    unsigned count = 0u;
+
+    if (stream == NULL || fseek(stream, 0L, SEEK_SET) != 0) return 0u;
+    while (fgets(line, sizeof(line), stream) != NULL) ++count;
+    return count;
+}
+
+static void test_bounded_transaction_diagnostics(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_logger logger;
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    FILE *stream;
+    uint8_t request[59];
+    uint8_t response[58];
+    unsigned i;
+
+    stream = tmpfile();
+    SEMU_TEST_ASSERT(context, stream != NULL);
+    semu_log_init(&logger, stream, SEMU_LOG_INFO);
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    semu_sapporo_ohr2_set_logger(device, &logger);
+    endpoint = semu_sapporo_ohr2_endpoint(device);
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_IDENTITY, 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    request[0u] = 1u;
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 2u, fixture.ready_count);
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-transaction kind=request command=0x0000 sequence=1 "
+        "state=BSL status=ok ready=1"));
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-ready state=BSL level=1"));
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-transaction kind=selector command=0x0000 sequence=1 "
+        "state=BSL status=ok ready=1"));
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-transaction kind=response command=0x0000 sequence=1 "
+        "state=BSL status=ok ready=0"));
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-ready state=BSL level=0"));
+    SEMU_TEST_ASSERT(context, log_contains(stream,
+        "event=ohr-transaction kind=request command=0x0000 sequence=1 "
+        "state=BSL status=refuse ready=0"));
+    for (i = 0u; i < 100u; ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                         endpoint.transfer(endpoint.context, &transaction,
+                                           &error));
+    }
+    SEMU_TEST_EQ_U64(context, 64u, log_line_count(stream));
+    SEMU_TEST_EQ_U64(context, 2u, fixture.ready_count);
+    semu_sapporo_ohr2_destroy(device);
+    (void)fclose(stream);
 }
 
 static void test_state_sequence_and_fire_forget(semu_test_context *context)
@@ -278,6 +362,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_packet_crc_and_ready),
+        SEMU_TEST_CASE(test_bounded_transaction_diagnostics),
         SEMU_TEST_CASE(test_state_sequence_and_fire_forget),
         SEMU_TEST_CASE(test_refusals_reset_and_missing_body),
         SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset),

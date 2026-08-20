@@ -297,6 +297,14 @@ void semu_sapporo_devices_reset(semu_sapporo_devices *devices)
     semu_sapporo_flash_reset(devices->flash);
 }
 
+void semu_sapporo_devices_set_logger(semu_sapporo_devices *devices,
+                                     semu_logger *logger)
+{
+    if (devices != NULL) {
+        semu_sapporo_ohr2_set_logger(devices->ohr2, logger);
+    }
+}
+
 semu_status semu_sapporo_devices_bind_bus(semu_sapporo_devices *devices,
                                            semu_bus *bus, semu_error *error)
 {

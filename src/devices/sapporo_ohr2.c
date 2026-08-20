@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OHR2_DIAGNOSTIC_LIMIT 64u
+
 struct semu_sapporo_ohr2 {
     semu_peripheral_signal_fn ready_callback;
     void *ready_context;
@@ -18,6 +20,8 @@ struct semu_sapporo_ohr2 {
     int ready;
     uint16_t expected_sequence;
     int sequence_initialized;
+    semu_logger *logger;
+    unsigned diagnostic_count;
 };
 
 static uint16_t read_u16(const uint8_t *data)
@@ -56,12 +60,58 @@ static semu_transaction_result refuse(semu_error *error, const char *reason)
     return SEMU_TRANSACTION_REFUSE;
 }
 
+static const char *state_name(semu_sapporo_ohr2_state state)
+{
+    return state == SEMU_SAPPORO_OHR2_MAIN ? "MAIN" : "BSL";
+}
+
+static const char *result_name(semu_transaction_result result)
+{
+    switch (result) {
+    case SEMU_TRANSACTION_OK: return "ok";
+    case SEMU_TRANSACTION_WAIT: return "wait";
+    case SEMU_TRANSACTION_REFUSE: return "refuse";
+    default: return "unknown";
+    }
+}
+
+static void log_transaction(semu_sapporo_ohr2 *device, const char *kind,
+                             uint16_t command, uint16_t sequence,
+                             semu_sapporo_ohr2_state state,
+                             semu_transaction_result result)
+{
+    if (device == NULL || device->logger == NULL ||
+        device->diagnostic_count >= OHR2_DIAGNOSTIC_LIMIT) {
+        return;
+    }
+    ++device->diagnostic_count;
+    semu_log_write(device->logger, SEMU_LOG_INFO, "ohr2", "ohr-transaction",
+                   "kind=%s command=0x%04x sequence=%u state=%s status=%s "
+                   "ready=%u",
+                   kind != NULL ? kind : "unknown", (unsigned)command,
+                   (unsigned)sequence, state_name(state),
+                   result_name(result), (unsigned)(device->ready != 0));
+}
+
+static void log_ready(semu_sapporo_ohr2 *device, int level)
+{
+    if (device == NULL || device->logger == NULL ||
+        device->diagnostic_count >= OHR2_DIAGNOSTIC_LIMIT) {
+        return;
+    }
+    ++device->diagnostic_count;
+    semu_log_write(device->logger, SEMU_LOG_INFO, "ohr2", "ohr-ready",
+                   "state=%s level=%u", state_name(device->state),
+                   (unsigned)(level != 0));
+}
+
 static void set_ready(semu_sapporo_ohr2 *device, int level)
 {
     if (device->ready == level) {
         return;
     }
     device->ready = level;
+    log_ready(device, level);
     if (device->ready_callback != NULL) {
         device->ready_callback(device->ready_context,
                                SEMU_SAPPORO_OHR2_READY_SIGNAL, level);
@@ -213,34 +263,70 @@ static semu_transaction_result transfer(void *context,
                                         semu_error *error)
 {
     semu_sapporo_ohr2 *device = (semu_sapporo_ohr2 *)context;
+    uint16_t command = UINT16_MAX;
+    uint16_t sequence = UINT16_MAX;
+    semu_transaction_result result;
     if (device == NULL || transaction == NULL ||
         transaction->address != SEMU_SAPPORO_OHR2_ADDRESS ||
         (transaction->tx == NULL && transaction->tx_size != 0u) ||
         (transaction->rx == NULL && transaction->rx_size != 0u)) {
+        log_transaction(device, "unknown", command, sequence,
+                        device != NULL ? device->state : SEMU_SAPPORO_OHR2_BSL,
+                        SEMU_TRANSACTION_REFUSE);
         return refuse(error, "address or null buffer");
     }
     if (transaction->tx_size == SEMU_SAPPORO_OHR2_REQUEST_SIZE) {
-        return accept_request(device, transaction, error);
+        command = read_u16(transaction->tx + 1u);
+        sequence = read_u16(transaction->tx + 3u);
+        result = accept_request(device, transaction, error);
+        log_transaction(device, "request", command, sequence, device->state,
+                        result);
+        return result;
     }
     if (transaction->tx_size == 1u &&
         transaction->tx[0] == SEMU_SAPPORO_OHR2_RESPONSE_SELECTOR) {
+        if (device->response_queued) {
+            command = read_u16(device->queued_response);
+            sequence = read_u16(device->queued_response + 2u);
+        }
         if (!device->response_queued) {
-            return refuse(error, "response selector without queued response");
+            result = refuse(error, "response selector without queued response");
+            log_transaction(device, "selector", command, sequence,
+                            device->state, result);
+            return result;
         }
         if (transaction->rx_size == 0u) {
             device->selector_armed = 1;
-            return SEMU_TRANSACTION_OK;
+            result = SEMU_TRANSACTION_OK;
+            log_transaction(device, "selector", command, sequence,
+                            device->state, result);
+            return result;
         }
         if (transaction->rx_size != SEMU_SAPPORO_OHR2_RESPONSE_SIZE) {
-            return refuse(error, "response selector length");
+            result = refuse(error, "response selector length");
+            log_transaction(device, "selector", command, sequence,
+                            device->state, result);
+            return result;
         }
         device->selector_armed = 1;
-        return consume_response(device, transaction->rx, error);
+        result = consume_response(device, transaction->rx, error);
+        log_transaction(device, "response", command, sequence, device->state,
+                        result);
+        return result;
     }
     if (transaction->tx_size == 0u &&
         transaction->rx_size == SEMU_SAPPORO_OHR2_RESPONSE_SIZE) {
-        return consume_response(device, transaction->rx, error);
+        if (device->response_queued) {
+            command = read_u16(device->queued_response);
+            sequence = read_u16(device->queued_response + 2u);
+        }
+        result = consume_response(device, transaction->rx, error);
+        log_transaction(device, "response", command, sequence, device->state,
+                        result);
+        return result;
     }
+    log_transaction(device, "unknown", command, sequence, device->state,
+                    SEMU_TRANSACTION_REFUSE);
     return refuse(error, "unknown transaction state");
 }
 
@@ -281,6 +367,14 @@ void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device)
     device->expected_sequence = 0u;
     device->sequence_initialized = 0;
     set_ready(device, 0);
+}
+
+void semu_sapporo_ohr2_set_logger(semu_sapporo_ohr2 *device,
+                                  semu_logger *logger)
+{
+    if (device != NULL) {
+        device->logger = logger;
+    }
 }
 
 semu_serial_endpoint semu_sapporo_ohr2_endpoint(

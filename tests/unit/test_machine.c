@@ -251,7 +251,7 @@ static void test_requested_reset_retains_ram_explicit_clears(
             "pc=0x00000032 lr=0x00000000 sp=0x10000100 "
             "r0=0xe000ed0c r1=0x05fa0004 r2=0x00000000 "
             "r3=0x00000000 xpsr=0x21000000 reset_count=1 "
-            "instructions=9 virtual_time_ns=9"));
+            "compat_hits=0 instructions=9 virtual_time_ns=9"));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
     SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
         semu_machine_run(machine, &limits, &error));

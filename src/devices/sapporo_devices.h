@@ -4,6 +4,7 @@
 #include "semu/apollo4.h"
 #include "semu/compat.h"
 #include "semu/cpu.h"
+#include "semu/log.h"
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
 #include "semu/storage.h"
@@ -24,6 +25,8 @@ semu_sapporo_devices *semu_sapporo_devices_create(
     semu_error *error);
 void semu_sapporo_devices_destroy(semu_sapporo_devices *devices);
 void semu_sapporo_devices_reset(semu_sapporo_devices *devices);
+void semu_sapporo_devices_set_logger(semu_sapporo_devices *devices,
+                                     semu_logger *logger);
 semu_status semu_sapporo_devices_bind_bus(semu_sapporo_devices *devices,
                                            semu_bus *bus, semu_error *error);
 

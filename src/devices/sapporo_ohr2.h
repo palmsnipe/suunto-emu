@@ -2,6 +2,7 @@
 #define SEMU_SAPPORO_OHR2_H
 
 #include "semu/peripheral.h"
+#include "semu/log.h"
 #include "../core/snapshot_io.h"
 
 #define SEMU_SAPPORO_OHR2_ADDRESS 0x10u
@@ -43,6 +44,8 @@ semu_sapporo_ohr2 *semu_sapporo_ohr2_create(
     semu_error *error);
 void semu_sapporo_ohr2_destroy(semu_sapporo_ohr2 *device);
 void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device);
+void semu_sapporo_ohr2_set_logger(semu_sapporo_ohr2 *device,
+                                  semu_logger *logger);
 semu_serial_endpoint semu_sapporo_ohr2_endpoint(
     semu_sapporo_ohr2 *device);
 uint32_t semu_sapporo_ohr2_crc32(const uint8_t *payload, size_t size);

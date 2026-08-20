@@ -77,6 +77,7 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     if (machine->devices == NULL) {
         return error->code;
     }
+    semu_sapporo_devices_set_logger(machine->devices, machine->logger);
     if (semu_sapporo_devices_bind_bus(machine->devices, machine->bus,
                                       error) != SEMU_OK) {
         return error->code;
@@ -97,7 +98,6 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     }
     return SEMU_OK;
 }
-
 static semu_status load_file(semu_bus *bus, const semu_component *component,
                              semu_error *error)
 {
@@ -435,12 +435,15 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                     "machine-reset-request",
                     "pc=0x%08x lr=0x%08x sp=0x%08x r0=0x%08x "
                     "r1=0x%08x r2=0x%08x r3=0x%08x xpsr=0x%08x "
-                    "reset_count=%llu instructions=%llu virtual_time_ns=%llu",
+                    "reset_count=%llu compat_hits=%llu instructions=%llu "
+                    "virtual_time_ns=%llu",
                     (unsigned)state->r[15], (unsigned)state->r[14],
                     (unsigned)state->r[13], (unsigned)state->r[0],
                     (unsigned)state->r[1], (unsigned)state->r[2],
                     (unsigned)state->r[3], (unsigned)state->xpsr,
                     (unsigned long long)machine->reset_request_count,
+                    (unsigned long long)(machine->layer_count != 0u
+                        ? machine->layers[0].hits : 0u),
                     (unsigned long long)state->instructions,
                     (unsigned long long)virtual_time);
                 if (reset_after_request(machine, error) != SEMU_OK) {
