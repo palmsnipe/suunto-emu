@@ -115,8 +115,8 @@ static semu_status read_scheduler(semu_snapshot_reader *reader,
         semu_snapshot_reader_u64(reader, &image->next_id, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK)
         return error->code;
-    if (image->next_id == 0u || image->next_sequence == UINT64_MAX ||
-        count > SEMU_SNAPSHOT_MAX_SECTION_SIZE / 32u) {
+    if (image->next_id == 0u || image->next_id == UINT64_MAX ||
+        image->next_sequence == UINT64_MAX || count > SEMU_SNAPSHOT_MAX_SECTION_SIZE / 32u) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid scheduler snapshot header");
         return SEMU_ERR_FORMAT;
     }

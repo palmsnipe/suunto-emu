@@ -97,7 +97,8 @@ semu_status semu_scheduler_schedule_tagged(semu_scheduler *scheduler,
         return SEMU_ERR_ARGUMENT;
     }
     if (UINT64_MAX - scheduler->now_ns < delay_ns ||
-        scheduler->next_id == 0u || scheduler->next_sequence == UINT64_MAX) {
+        scheduler->next_id == 0u || scheduler->next_id == UINT64_MAX ||
+        scheduler->next_sequence == UINT64_MAX) {
         semu_error_set(error, SEMU_ERR_RANGE, "scheduler time or id overflow");
         return SEMU_ERR_RANGE;
     }
@@ -227,6 +228,11 @@ semu_status semu_scheduler_restore_begin(semu_scheduler *scheduler,
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "invalid scheduler snapshot state");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (next_id == UINT64_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "scheduler snapshot id overflow");
+        return SEMU_ERR_RANGE;
     }
     if (next_sequence == UINT64_MAX) {
         semu_error_set(error, SEMU_ERR_RANGE,
