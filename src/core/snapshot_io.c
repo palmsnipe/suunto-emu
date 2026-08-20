@@ -109,6 +109,17 @@ void semu_snapshot_reader_init(semu_snapshot_reader *reader,
     }
 }
 
+static semu_status reader_value_required(const void *value,
+                                         semu_error *error)
+{
+    if (value == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "snapshot reader destination is required");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return SEMU_OK;
+}
+
 semu_status semu_snapshot_reader_bytes(semu_snapshot_reader *reader,
                                        uint8_t *data, size_t size,
                                        semu_error *error)
@@ -128,6 +139,7 @@ semu_status semu_snapshot_reader_bytes(semu_snapshot_reader *reader,
 semu_status semu_snapshot_reader_u8(semu_snapshot_reader *reader,
                                     uint8_t *value, semu_error *error)
 {
+    if (reader_value_required(value, error) != SEMU_OK) return SEMU_ERR_ARGUMENT;
     return semu_snapshot_reader_bytes(reader, value, 1u, error);
 }
 
@@ -135,8 +147,9 @@ semu_status semu_snapshot_reader_u16(semu_snapshot_reader *reader,
                                      uint16_t *value, semu_error *error)
 {
     uint8_t data[2];
-    semu_status status = semu_snapshot_reader_bytes(reader, data, sizeof(data),
-                                                    error);
+    semu_status status;
+    if (reader_value_required(value, error) != SEMU_OK) return SEMU_ERR_ARGUMENT;
+    status = semu_snapshot_reader_bytes(reader, data, sizeof(data), error);
     if (status != SEMU_OK) return status;
     *value = (uint16_t)data[0] | ((uint16_t)data[1] << 8u);
     return SEMU_OK;
@@ -146,8 +159,9 @@ semu_status semu_snapshot_reader_u32(semu_snapshot_reader *reader,
                                      uint32_t *value, semu_error *error)
 {
     uint8_t data[4];
-    semu_status status = semu_snapshot_reader_bytes(reader, data, sizeof(data),
-                                                    error);
+    semu_status status;
+    if (reader_value_required(value, error) != SEMU_OK) return SEMU_ERR_ARGUMENT;
+    status = semu_snapshot_reader_bytes(reader, data, sizeof(data), error);
     if (status != SEMU_OK) return status;
     *value = (uint32_t)data[0] | ((uint32_t)data[1] << 8u) |
              ((uint32_t)data[2] << 16u) | ((uint32_t)data[3] << 24u);
@@ -158,8 +172,9 @@ semu_status semu_snapshot_reader_u64(semu_snapshot_reader *reader,
                                      uint64_t *value, semu_error *error)
 {
     uint8_t data[8];
-    semu_status status = semu_snapshot_reader_bytes(reader, data,
-                                                    sizeof(data), error);
+    semu_status status;
+    if (reader_value_required(value, error) != SEMU_OK) return SEMU_ERR_ARGUMENT;
+    status = semu_snapshot_reader_bytes(reader, data, sizeof(data), error);
     if (status != SEMU_OK) return status;
     *value = (uint64_t)data[0] | ((uint64_t)data[1] << 8u) |
              ((uint64_t)data[2] << 16u) | ((uint64_t)data[3] << 24u) |

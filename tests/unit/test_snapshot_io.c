@@ -81,13 +81,39 @@ static void test_reader_u64_refusal_is_atomic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, UINT64_C(0xaabbccddeeff0011), value);
 }
 
+static void test_reader_null_destination_refusal(semu_test_context *context)
+{
+    semu_snapshot_reader reader;
+    semu_error error;
+    static const uint8_t data[8u] = { 0u };
+
+    semu_error_clear(&error);
+    semu_snapshot_reader_init(&reader, data, sizeof(data));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_reader_u8(&reader, NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+    semu_snapshot_reader_init(&reader, data, sizeof(data));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_reader_u16(&reader, NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+    semu_snapshot_reader_init(&reader, data, sizeof(data));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_reader_u32(&reader, NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+    semu_snapshot_reader_init(&reader, data, sizeof(data));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_reader_u64(&reader, NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_writer_rejects_corrupt_size),
         SEMU_TEST_CASE(test_writer_round_trip),
         SEMU_TEST_CASE(test_u64_refusal_is_atomic),
-        SEMU_TEST_CASE(test_reader_u64_refusal_is_atomic)
+        SEMU_TEST_CASE(test_reader_u64_refusal_is_atomic),
+        SEMU_TEST_CASE(test_reader_null_destination_refusal)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
