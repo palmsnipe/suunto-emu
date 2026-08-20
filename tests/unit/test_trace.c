@@ -297,6 +297,9 @@ static void test_null_safety(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
         semu_trace_create(SEMU_TRACE_MAX_RECORDS + 1u,
             SEMU_TRACE_OVERFLOW_STOP, &err) == NULL);
+    semu_error_clear(&err);
+    SEMU_TEST_ASSERT(context,
+        semu_trace_create(1u, (semu_trace_overflow_policy)99, &err) == NULL);
 
     /* Append to NULL is rejected. */
     r = make_record(SEMU_TRACE_KIND_INSTRUCTION, 0u, 0u, 0u, 0u, 0u, 0u);

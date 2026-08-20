@@ -28,6 +28,12 @@ semu_trace *semu_trace_create(uint32_t capacity,
                        capacity, SEMU_TRACE_MAX_RECORDS);
         return NULL;
     }
+    if (policy != SEMU_TRACE_OVERFLOW_STOP &&
+        policy != SEMU_TRACE_OVERFLOW_TRUNCATE) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "trace: invalid overflow policy");
+        return NULL;
+    }
     trace = (semu_trace *)calloc(1u, sizeof(*trace));
     if (trace == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "trace: cannot allocate");
