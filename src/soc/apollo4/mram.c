@@ -216,6 +216,12 @@ semu_status semu_apollo4_mram_snapshot_read(
                                      &candidate.registers[index].value,
                                      error) != SEMU_OK)
             return error->code;
+        if ((candidate.registers[index].value &
+             ~candidate.registers[index].write_mask) != 0u) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "MRAM snapshot register mask mismatch");
+            return SEMU_ERR_FORMAT;
+        }
     }
     *mram = candidate;
     return SEMU_OK;

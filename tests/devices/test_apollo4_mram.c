@@ -145,13 +145,44 @@ static void test_reset_and_repeatability(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_snapshot_masks_refuse(semu_test_context *context)
+{
+    mram_fixture source;
+    mram_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_mram_snapshot_write(source.mram, &writer,
+                                                      &source.error));
+    /* Nine little-endian words follow the register order in mram.c. */
+    writer.data[0u] = 0x80u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_mram_snapshot_read(target.mram, &reader,
+                                                      &target.error));
+    writer.data[0u] = 0u;
+    writer.data[6u * 4u] = 0x01u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_mram_snapshot_read(target.mram, &reader,
+                                                      &target.error));
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_reset_values),
         SEMU_TEST_CASE(test_trace_backed_writes_and_masks),
         SEMU_TEST_CASE(test_refusal_is_atomic),
-        SEMU_TEST_CASE(test_reset_and_repeatability)
+        SEMU_TEST_CASE(test_reset_and_repeatability),
+        SEMU_TEST_CASE(test_snapshot_masks_refuse)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
