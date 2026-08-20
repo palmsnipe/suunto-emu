@@ -2,6 +2,11 @@
 
 #include "../../core/scheduler_internal.h"
 
+#define TIMER_INTERRUPT_MASK_ALLOWED UINT32_C(0x27ff)
+#define TIMER_PENDING_MASK UINT32_C(0xffff)
+#define TIMER_CHANNEL_INTERRUPT_ENABLE UINT32_C(0x100)
+#define TIMER_OBSERVED_D8_VALUE UINT32_C(0x1f000000)
+
 semu_status semu_apollo4_timer_snapshot_write(
     const semu_apollo4_timer *timer, semu_snapshot_writer *writer,
     semu_error *error)
@@ -71,15 +76,38 @@ semu_status semu_apollo4_timer_snapshot_read(
             semu_snapshot_reader_u8(reader, &channel->irq_level, error) != SEMU_OK)
             return error->code;
         if (channel->event_valid > 1u || channel->irq_level > 1u ||
-            (channel->event_valid != 0u) != (channel->event != 0u)) {
+            (channel->event_valid != 0u) != (channel->event != 0u) ||
+            (channel->interrupt_enable & ~TIMER_CHANNEL_INTERRUPT_ENABLE) != 0u ||
+            (channel->irq_level != 0u) !=
+                ((candidate.pending & (UINT32_C(1) << index)) != 0u)) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "invalid CTIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
     }
-    if (candidate.status_written > 1u) {
+    if ((candidate.interrupt_mask & ~TIMER_INTERRUPT_MASK_ALLOWED) != 0u ||
+        (candidate.pending & ~TIMER_PENDING_MASK) != 0u ||
+        (candidate.status_value != 0u && candidate.status_value != 1u &&
+         candidate.status_value != 2u &&
+         candidate.status_value != UINT32_C(0x8000000) &&
+         candidate.status_value != UINT32_C(0x8000001)) ||
+        candidate.status_written > 1u ||
+        (candidate.output_control != 0u && candidate.output_control != 1u &&
+         candidate.output_control != UINT32_C(0x30000) &&
+         candidate.output_control != UINT32_C(0x8000000) &&
+         candidate.output_control != UINT32_C(0xc000000)) ||
+        (candidate.auxiliary != 0u && candidate.auxiliary != UINT32_C(0x12)) ||
+        (candidate.pattern != 0u && candidate.pattern != UINT32_C(0x100) &&
+         candidate.pattern != UINT32_C(0x2000) &&
+         candidate.pattern != UINT32_C(0x2100) &&
+         candidate.pattern != UINT32_C(0x10100) &&
+         candidate.pattern != UINT32_C(0x10101) &&
+         candidate.pattern != UINT32_C(0x12100) &&
+         candidate.pattern != UINT32_C(0x12101)) ||
+        (candidate.observed_d8 != 0u &&
+         candidate.observed_d8 != TIMER_OBSERVED_D8_VALUE)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
-                       "invalid CTIMER status flag");
+                       "invalid CTIMER snapshot control state");
         return SEMU_ERR_FORMAT;
     }
     *timer = candidate;
