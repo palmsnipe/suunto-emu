@@ -167,6 +167,34 @@ static void test_bad_version(semu_test_context *context)
     semu_replay_destroy(r);
 }
 
+static void test_uint64_overflow(semu_test_context *context)
+{
+    static const char *header_overflow =
+        "version=1\n"
+        "profile=test\n"
+        "firmware=0000000000000000000000000000000000000000000000000000000000000000\n"
+        "events=18446744073709551616\n";
+    static const char *time_overflow =
+        "version=1\n"
+        "profile=test\n"
+        "firmware=0000000000000000000000000000000000000000000000000000000000000000\n"
+        "events=1\n"
+        "18446744073709551616 button upper press\n";
+    semu_error err;
+    semu_replay *r;
+
+    semu_error_clear(&err);
+    r = semu_replay_create(&err);
+    SEMU_TEST_ASSERT(context, r != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_replay_parse(r, header_overflow, strlen(header_overflow), &err));
+    SEMU_TEST_EQ_U64(context, 0u, semu_replay_event_count(r));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_replay_parse(r, time_overflow, strlen(time_overflow), &err));
+    SEMU_TEST_EQ_U64(context, 0u, semu_replay_event_count(r));
+    semu_replay_destroy(r);
+}
+
 static void test_bad_hash(semu_test_context *context)
 {
     static const char *text =
@@ -389,6 +417,7 @@ int main(void)
         SEMU_TEST_CASE(test_duplicate_times),
         SEMU_TEST_CASE(test_time_reversal),
         SEMU_TEST_CASE(test_bad_version),
+        SEMU_TEST_CASE(test_uint64_overflow),
         SEMU_TEST_CASE(test_bad_hash),
         SEMU_TEST_CASE(test_bad_hash_length),
         SEMU_TEST_CASE(test_unknown_kind),

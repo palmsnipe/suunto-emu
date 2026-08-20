@@ -75,10 +75,15 @@ static int parse_uint64(const char *s, size_t len, uint64_t *out)
         return 0;
     }
     for (i = 0u; i < len; ++i) {
+        uint64_t digit;
         if (s[i] < '0' || s[i] > '9') {
             return 0;
         }
-        val = val * 10u + (uint64_t)(s[i] - '0');
+        digit = (uint64_t)(s[i] - '0');
+        if (val > (UINT64_MAX - digit) / 10u) {
+            return 0;
+        }
+        val = val * 10u + digit;
     }
     *out = val;
     return 1;
