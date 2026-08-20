@@ -334,6 +334,12 @@ semu_status semu_sapporo_haptic_snapshot_read(
                        "haptic snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if ((candidate.autotune & HAPTIC_AUTOTUNE_TRIGGER) != 0u &&
+        (candidate.autotune & HAPTIC_AUTOTUNE_COMPLETE) == 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid haptic autotune state");
+        return SEMU_ERR_FORMAT;
+    }
     candidate.selected = selected;
     *sensor = candidate;
     return SEMU_OK;
