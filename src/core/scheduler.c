@@ -264,7 +264,9 @@ semu_status semu_scheduler_restore_event(semu_scheduler *scheduler,
     }
     for (index = 0u; index < scheduler->count; ++index) {
         if (scheduler->events[index].state.id == state->id ||
-            scheduler->events[index].state.sequence == state->sequence) {
+            scheduler->events[index].state.sequence == state->sequence ||
+            (scheduler->events[index].state.kind == state->kind &&
+             scheduler->events[index].state.subject == state->subject)) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "duplicate scheduler snapshot event");
             return SEMU_ERR_FORMAT;

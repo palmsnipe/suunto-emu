@@ -143,6 +143,36 @@ static void test_scheduler_id_overflow_refusal(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_scheduler_restore_slot_identity_refusal(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler = semu_scheduler_create(&error);
+    event_log log = {{0u}, 0u};
+    event_item item = {&log, 1u};
+    semu_scheduled_event_state first = {
+        0u, 0u, 1u, SEMU_SCHED_EVENT_SYSTICK, 0u
+    };
+    semu_scheduled_event_state duplicate = {
+        0u, 1u, 2u, SEMU_SCHED_EVENT_SYSTICK, 0u
+    };
+
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_restore_begin(scheduler, 0u, 2u, 3u,
+                                                   &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_restore_event(scheduler, &first,
+                                                   record_event, &item,
+                                                   &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_scheduler_restore_event(scheduler, &duplicate,
+                                                   record_event, &item,
+                                                   &error));
+    SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_event_count(scheduler));
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_bus_memory_and_device(semu_test_context *context)
 {
     static const uint8_t rom[] = {1u, 2u, 3u, 4u};
@@ -319,6 +349,7 @@ int main(void)
         SEMU_TEST_CASE(test_scheduler_order_and_cancel),
         SEMU_TEST_CASE(test_scheduler_one_tick_fast_and_refusal),
         SEMU_TEST_CASE(test_scheduler_id_overflow_refusal),
+        SEMU_TEST_CASE(test_scheduler_restore_slot_identity_refusal),
         SEMU_TEST_CASE(test_bus_memory_and_device),
         SEMU_TEST_CASE(test_bus_snapshot_region_set_is_exact),
         SEMU_TEST_CASE(test_log_filter)
