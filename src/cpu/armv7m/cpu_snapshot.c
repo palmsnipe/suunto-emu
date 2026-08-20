@@ -26,6 +26,23 @@ static int valid_exclusive_width(unsigned width)
     return width == 0u || width == 1u || width == 2u || width == 4u;
 }
 
+static int valid_systick_state(const semu_cpu *cpu)
+{
+    if ((cpu->systick_control & ~UINT32_C(0x7)) != 0u ||
+        cpu->systick_reload > UINT32_C(0x00ffffff) ||
+        cpu->systick_current > UINT32_C(0x00ffffff) ||
+        cpu->systick_calibration != 0u) {
+        return 0;
+    }
+    if (cpu->systick_event_valid != 0u &&
+        (cpu->systick_event == 0u ||
+         (cpu->systick_control & UINT32_C(0x5)) != UINT32_C(0x5) ||
+         (cpu->systick_current == 0u && cpu->systick_reload == 0u))) {
+        return 0;
+    }
+    return 1;
+}
+
 static int valid_interrupt_state(const semu_cpu *cpu)
 {
     unsigned index;
@@ -338,6 +355,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
         !valid_binary(candidate.exclusive_valid)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU snapshot state flag");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!valid_systick_state(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU SysTick state");
         return SEMU_ERR_FORMAT;
     }
     if (!valid_exclusive_width(value) ||
