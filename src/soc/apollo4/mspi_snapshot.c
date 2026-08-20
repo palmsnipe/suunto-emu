@@ -5,6 +5,13 @@
 #define MSPI_DMA_STATUS_COMPLETE UINT32_C(0x02)
 #define MSPI_DMA_STATUS_ERROR UINT32_C(0x04)
 
+static int valid_mspi1_registers(const semu_apollo4_mspi *mspi)
+{
+    uint32_t queue_count =
+        mspi->registers[SEMU_APOLLO4_MSPI1_QUEUE_COUNT / 4u];
+    return queue_count == 0u || queue_count == 3u;
+}
+
 static int valid_mspi2_registers(const semu_apollo4_mspi *mspi)
 {
     uint32_t command = mspi->registers[SEMU_APOLLO4_MSPI2_COMMAND / 4u];
@@ -88,6 +95,8 @@ semu_status semu_apollo4_mspi_snapshot_read(
         (irq_level != 0u) !=
             ((candidate.status &
               candidate.registers[SEMU_APOLLO4_MSPI_INTEN / 4u]) != 0u) ||
+        (candidate.base == SEMU_APOLLO4_MSPI1_BASE &&
+         !valid_mspi1_registers(&candidate)) ||
         (candidate.base == SEMU_APOLLO4_MSPI2_BASE &&
          !valid_mspi2_registers(&candidate)) ||
         candidate.dma_transaction.chip_select != 0u ||

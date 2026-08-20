@@ -11,15 +11,21 @@ typedef struct mspi_fixture {
     semu_apollo4_mspi *mspi;
 } mspi_fixture;
 
-static int fixture_init(mspi_fixture *fixture)
+static int fixture_init_base(mspi_fixture *fixture, uint32_t base,
+                             unsigned irq)
 {
     semu_error_clear(&fixture->error);
     fixture->bus = semu_bus_create(&fixture->error);
     if (fixture->bus == NULL) return 0;
     fixture->mspi = semu_apollo4_mspi_create(
-        fixture->bus, SEMU_APOLLO4_MSPI2_BASE, SEMU_APOLLO4_MSPI2_IRQ,
-        NULL, NULL, NULL, NULL, &fixture->error);
+        fixture->bus, base, irq, NULL, NULL, NULL, NULL, &fixture->error);
     return fixture->mspi != NULL;
+}
+
+static int fixture_init(mspi_fixture *fixture)
+{
+    return fixture_init_base(fixture, SEMU_APOLLO4_MSPI2_BASE,
+                             SEMU_APOLLO4_MSPI2_IRQ);
 }
 
 static void fixture_destroy(mspi_fixture *fixture)
@@ -99,11 +105,43 @@ static void test_round_trip(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+static void test_mspi1_queue_count_refuses(semu_test_context *context)
+{
+    mspi_fixture source;
+    mspi_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    size_t offset = 10u + SEMU_APOLLO4_MSPI1_QUEUE_COUNT;
+    uint8_t original;
+
+    SEMU_TEST_ASSERT(context,
+                     fixture_init_base(&source, SEMU_APOLLO4_MSPI1_BASE,
+                                       SEMU_APOLLO4_MSPI1_IRQ));
+    SEMU_TEST_ASSERT(context,
+                     fixture_init_base(&target, SEMU_APOLLO4_MSPI1_BASE,
+                                       SEMU_APOLLO4_MSPI1_IRQ));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_mspi_snapshot_write(source.mspi, &writer,
+                                                      &source.error));
+    original = writer.data[offset];
+    writer.data[offset] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_mspi_snapshot_read(target.mspi, &reader,
+                                                     &target.error));
+    writer.data[offset] = original;
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_unreachable_state_refuses),
-        SEMU_TEST_CASE(test_round_trip)
+        SEMU_TEST_CASE(test_round_trip),
+        SEMU_TEST_CASE(test_mspi1_queue_count_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
