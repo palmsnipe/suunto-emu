@@ -274,6 +274,40 @@ static void test_repeated_transcript(semu_test_context *context)
     semu_sapporo_opt3007_destroy(sensor);
 }
 
+static void test_snapshot_deterministic_state_refuses(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_sapporo_opt3007 *source;
+    semu_sapporo_opt3007 *target;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    source = semu_sapporo_opt3007_create(0x45u, &error);
+    target = semu_sapporo_opt3007_create(0x45u, &error);
+    SEMU_TEST_ASSERT(context, source != NULL && target != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_opt3007_snapshot_write(source, &writer,
+                                                         &error));
+    /* Snapshot layout is address, result, config, low limit, high limit. */
+    writer.data[3u] ^= 0x10u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_opt3007_snapshot_read(target, &reader,
+                                                        &error));
+    writer.data[3u] ^= 0x10u;
+    writer.data[1u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_opt3007_snapshot_read(target, &reader,
+                                                        &error));
+    semu_snapshot_writer_destroy(&writer);
+    semu_sapporo_opt3007_destroy(target);
+    semu_sapporo_opt3007_destroy(source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -287,7 +321,8 @@ int main(void)
         SEMU_TEST_CASE(test_standard_register_defaults),
         SEMU_TEST_CASE(test_limit_register_write_and_config_mask),
         SEMU_TEST_CASE(test_invalid_lengths_preserve_state),
-        SEMU_TEST_CASE(test_repeated_transcript)
+        SEMU_TEST_CASE(test_repeated_transcript),
+        SEMU_TEST_CASE(test_snapshot_deterministic_state_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

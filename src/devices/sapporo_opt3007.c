@@ -234,6 +234,13 @@ semu_status semu_sapporo_opt3007_snapshot_read(
         semu_error_set(error, SEMU_ERR_CONFLICT, "OPT3007 snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if (candidate.result != 0u ||
+        (candidate.config & (uint16_t)~OPT_CONFIG_WRITE_MASK) !=
+            (OPT_CONFIG_RESET & (uint16_t)~OPT_CONFIG_WRITE_MASK)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid OPT3007 deterministic state");
+        return SEMU_ERR_FORMAT;
+    }
     *sensor = candidate;
     return SEMU_OK;
 }
