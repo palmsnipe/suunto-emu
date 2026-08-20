@@ -359,9 +359,10 @@ semu_status semu_apollo4_stimer_snapshot_read(
             semu_snapshot_reader_u8(reader, &compare->enabled, error) != SEMU_OK ||
             semu_snapshot_reader_u8(reader, &compare->event_valid, error) != SEMU_OK)
             return error->code;
-        if (compare->enabled > 1u || compare->event_valid > 1u) {
+        if (compare->enabled > 1u || compare->event_valid > 1u ||
+            (compare->event_valid != 0u) != (compare->event != 0u)) {
             semu_error_set(error, SEMU_ERR_FORMAT,
-                           "invalid STIMER snapshot flag");
+                           "invalid STIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
     }
