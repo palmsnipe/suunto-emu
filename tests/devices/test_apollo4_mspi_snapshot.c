@@ -30,8 +30,8 @@ static void fixture_destroy(mspi_fixture *fixture)
 
 static void test_unreachable_state_refuses(semu_test_context *context)
 {
-    static const size_t offsets[] = { 5u, 9u, 8207u };
-    static const uint8_t values[] = { 1u, 1u, 1u };
+    static const size_t offsets[] = { 5u, 9u, 10u, 266u, 270u, 8207u };
+    static const uint8_t values[] = { 1u, 1u, 1u, 1u, 1u, 1u };
     mspi_fixture source;
     mspi_fixture target;
     semu_snapshot_writer writer;

@@ -5,6 +5,19 @@
 #define MSPI_DMA_STATUS_COMPLETE UINT32_C(0x02)
 #define MSPI_DMA_STATUS_ERROR UINT32_C(0x04)
 
+static int valid_mspi2_registers(const semu_apollo4_mspi *mspi)
+{
+    uint32_t command = mspi->registers[SEMU_APOLLO4_MSPI2_COMMAND / 4u];
+    uint32_t dma_config =
+        mspi->registers[SEMU_APOLLO4_MSPI2_DMA_CONFIG / 4u];
+    uint32_t dma_status =
+        mspi->registers[SEMU_APOLLO4_MSPI2_DMA_STATUS / 4u];
+    return (command == 0u || command == UINT32_C(0xc1) ||
+            command == UINT32_C(0xe1)) &&
+           (dma_config == 0u || dma_config == UINT32_C(0x10) ||
+            dma_config == UINT32_C(0x14)) && dma_status == 0u;
+}
+
 semu_status semu_apollo4_mspi_snapshot_write(
     const semu_apollo4_mspi *mspi, semu_snapshot_writer *writer,
     semu_error *error)
@@ -75,6 +88,8 @@ semu_status semu_apollo4_mspi_snapshot_read(
         (irq_level != 0u) !=
             ((candidate.status &
               candidate.registers[SEMU_APOLLO4_MSPI_INTEN / 4u]) != 0u) ||
+        (candidate.base == SEMU_APOLLO4_MSPI2_BASE &&
+         !valid_mspi2_registers(&candidate)) ||
         candidate.dma_transaction.chip_select != 0u ||
         tx_size > sizeof(candidate.dma_buffer) || rx_size != 0u) {
         semu_error_set(error, SEMU_ERR_FORMAT,
