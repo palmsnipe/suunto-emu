@@ -2,6 +2,7 @@
 #include "semu/machine.h"
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
+#include "../../src/core/scheduler_internal.h"
 #include "../../src/soc/apollo4/apollo4_internal.h"
 
 #include <stdlib.h>
@@ -117,6 +118,7 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
     uint64_t refused_instructions, refused_time;
     uint32_t refused_pc;
     semu_event_id unsupported_event;
+    semu_event_id invalid_link_event;
     size_t index, section_size;
     size_t layer_id_length, malformed_size;
     const uint8_t *section_data;
@@ -154,6 +156,16 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         SEMU_TEST_EQ_U64(context, 1u,
                          semu_scheduler_cancel(first->scheduler,
                                                 unsupported_event));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_scheduler_schedule_tagged(
+                             first->scheduler, 0u, SEMU_SCHED_EVENT_UART_RX,
+                             UINT32_C(99), no_op_event, NULL,
+                             &invalid_link_event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_machine_snapshot_save(first, source, &error));
+        SEMU_TEST_EQ_U64(context, 1u,
+                         semu_scheduler_cancel(first->scheduler,
+                                                invalid_link_event));
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_apollo4_uart_schedule_rx(
                              first->soc->uart, 100u, rx_bytes,

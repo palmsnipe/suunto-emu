@@ -225,6 +225,25 @@ static semu_status validate_event_id(const semu_machine *machine,
     return SEMU_ERR_FORMAT;
 }
 
+static semu_status validate_scheduler_events(const semu_machine *machine,
+                                             semu_error *error)
+{
+    size_t index;
+    size_t count = semu_scheduler_event_count(machine->scheduler);
+    for (index = 0u; index < count; ++index) {
+        const semu_scheduled_event_state *event =
+            semu_scheduler_event_get(machine->scheduler, index);
+        if (event == NULL) {
+            semu_error_set(error, SEMU_ERR_STATE,
+                           "scheduler snapshot event is missing");
+            return SEMU_ERR_STATE;
+        }
+        if (validate_event_id(machine, event, error) != SEMU_OK)
+            return error->code;
+    }
+    return SEMU_OK;
+}
+
 static semu_status apply_sections(semu_machine *machine,
                                   const semu_snapshot *snapshot,
                                   semu_error *error)
@@ -359,6 +378,8 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
     if (built == NULL) return error->code;
     status = semu_snapshot_set_identity(built, machine->profile.id,
                                         firmware_hash, error);
+    if (status != SEMU_OK) goto fail;
+    status = validate_scheduler_events(machine, error);
     if (status != SEMU_OK) goto fail;
     BEGIN(); status = semu_cpu_snapshot_write(machine->cpu, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_CPU_STATE);
     BEGIN(); status = semu_bus_snapshot_write(machine->bus, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_RAM);
