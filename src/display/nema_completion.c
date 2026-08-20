@@ -109,10 +109,14 @@ semu_status nema_completion_schedule(nema_completion *comp,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "completion: null");
         return SEMU_ERR_ARGUMENT;
     }
-
     /* No-op if already pending for this list ID */
     if (nema_completion_pending(comp, list_id)) {
         return SEMU_OK;
+    }
+    if (comp->count >= NEMA_COMPLETION_MAX_EVENTS) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "completion: event budget exhausted");
+        return SEMU_ERR_UNSUPPORTED;
     }
 
     free_slot = NEMA_COMPLETION_MAX_EVENTS;

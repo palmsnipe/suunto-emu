@@ -268,6 +268,37 @@ static void test_irq_order(semu_test_context *context)
     nema_completion_destroy(comp);
 }
 
+static void test_completion_budget_refusal(semu_test_context *context)
+{
+    semu_error err;
+    nema_completion *comp = NULL;
+    semu_scheduler *sched = NULL;
+    reg_capture cap = {0};
+    unsigned index;
+
+    semu_error_clear(&err);
+    SEMU_TEST_ASSERT(context, nema_completion_create(&comp, &err) == SEMU_OK);
+    sched = semu_scheduler_create(&err);
+    SEMU_TEST_ASSERT(context, sched != NULL);
+    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            nema_completion_schedule(comp, sched, index,
+                                     on_reg_write, &cap, on_irq, &cap, &err));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_scheduler_advance(sched,
+                             NEMA_COMPLETION_DELAY_NS, &err));
+    }
+    SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS,
+                     nema_completion_count(comp));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_completion_schedule(comp, sched, NEMA_COMPLETION_MAX_EVENTS,
+                                 on_reg_write, &cap, on_irq, &cap, &err));
+    SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS,
+                     nema_completion_count(comp));
+    semu_scheduler_destroy(sched);
+    nema_completion_destroy(comp);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -279,7 +310,8 @@ int main(void)
         SEMU_TEST_CASE(test_completion_once),
         SEMU_TEST_CASE(test_no_completion_on_refusal),
         SEMU_TEST_CASE(test_reset_cancellation),
-        SEMU_TEST_CASE(test_irq_order)
+        SEMU_TEST_CASE(test_irq_order),
+        SEMU_TEST_CASE(test_completion_budget_refusal)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
