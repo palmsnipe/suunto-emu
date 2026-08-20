@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define SEMU_CLI_SNAPSHOT_HEADER_SIZE \
     (4u + 4u + SEMU_ID_MAX + SEMU_REPLAY_HASH_HEX_LEN + 4u)
@@ -94,6 +95,8 @@ semu_status semu_cli_snapshot_save_file(const char *path,
 {
     FILE *stream;
     uint8_t *data;
+    char *temporary_path;
+    size_t path_length;
     size_t size;
     semu_status status;
 
@@ -102,8 +105,23 @@ semu_status semu_cli_snapshot_save_file(const char *path,
                        "snapshot save arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
+    path_length = strlen(path);
+    if (path_length > SIZE_MAX - 5u) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "snapshot path is too long");
+        return SEMU_ERR_RANGE;
+    }
+    temporary_path = (char *)malloc(path_length + 5u);
+    if (temporary_path == NULL) {
+        semu_error_set(error, SEMU_ERR_NOMEM,
+                       "cannot allocate snapshot temporary path");
+        return SEMU_ERR_NOMEM;
+    }
+    memcpy(temporary_path, path, path_length);
+    memcpy(temporary_path + path_length, ".tmp", 5u);
     data = (uint8_t *)malloc(SEMU_CLI_SNAPSHOT_MAX_IMAGE_SIZE);
     if (data == NULL) {
+        free(temporary_path);
         semu_error_set(error, SEMU_ERR_NOMEM,
                        "cannot allocate snapshot image");
         return SEMU_ERR_NOMEM;
@@ -112,13 +130,15 @@ semu_status semu_cli_snapshot_save_file(const char *path,
                                    SEMU_CLI_SNAPSHOT_MAX_IMAGE_SIZE);
     if (size == 0u) {
         free(data);
+        free(temporary_path);
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "snapshot cannot be serialized");
         return SEMU_ERR_FORMAT;
     }
-    stream = fopen(path, "wb");
+    stream = fopen(temporary_path, "wb");
     if (stream == NULL) {
         free(data);
+        free(temporary_path);
         semu_error_set(error, SEMU_ERR_IO, "cannot open snapshot %s", path);
         return SEMU_ERR_IO;
     }
@@ -127,12 +147,21 @@ semu_status semu_cli_snapshot_save_file(const char *path,
         semu_error_set(error, SEMU_ERR_IO,
                        "cannot write snapshot %s", path);
         status = SEMU_ERR_IO;
-        (void)fclose(stream);
-    } else if (fclose(stream) != 0) {
+    }
+    if (fclose(stream) != 0 && status == SEMU_OK) {
         semu_error_set(error, SEMU_ERR_IO,
                        "cannot close snapshot %s", path);
         status = SEMU_ERR_IO;
     }
+    if (status == SEMU_OK && rename(temporary_path, path) != 0) {
+        semu_error_set(error, SEMU_ERR_IO,
+                       "cannot replace snapshot %s", path);
+        status = SEMU_ERR_IO;
+    }
+    if (status != SEMU_OK) {
+        (void)remove(temporary_path);
+    }
     free(data);
+    free(temporary_path);
     return status;
 }

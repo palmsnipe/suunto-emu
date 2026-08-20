@@ -89,7 +89,14 @@ static int ensure_resources(sdl_presenter *p, uint32_t w, uint32_t h,
         p->failed = 1;
         return 0;
     }
-    SDL_SetTextureScaleMode(p->texture, SDL_SCALEMODE_NEAREST);
+    if (!SDL_SetTextureScaleMode(p->texture, SDL_SCALEMODE_NEAREST)) {
+        semu_error_set(error, SEMU_ERR_IO,
+                       "sdl_presenter: texture scale: %s", SDL_GetError());
+        SDL_DestroyTexture(p->texture);
+        p->texture = NULL;
+        p->failed = 1;
+        return 0;
+    }
     p->width = w;
     p->height = h;
     return 1;

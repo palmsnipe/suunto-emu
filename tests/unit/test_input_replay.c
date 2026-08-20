@@ -6,6 +6,7 @@
  */
 #include "../../src/frontends/input_replay.c"
 
+#include <stdio.h>
 #include <string.h>
 
 typedef struct {
@@ -224,6 +225,54 @@ static void test_partial_pump(semu_test_context *context)
     semu_input_replay_destroy(r);
 }
 
+static void test_file_parse_does_not_truncate(semu_test_context *context)
+{
+    const char *path = "/tmp/suunto-emu-input-replay-test.txt";
+    semu_error err;
+    semu_input_replay *r;
+    FILE *stream;
+    size_t i;
+    static const char suffix[] =
+        "1000 button upper press\n"
+        "2000 button upper release\n";
+
+    semu_error_clear(&err);
+    stream = fopen(path, "wb");
+    SEMU_TEST_ASSERT(context, stream != NULL);
+    if (stream == NULL) {
+        return;
+    }
+    for (i = 0u; i < 9000u; ++i) {
+        (void)fputc('#', stream);
+    }
+    (void)fputc('\n', stream);
+    (void)fwrite(suffix, 1u, sizeof(suffix) - 1u, stream);
+    SEMU_TEST_EQ_U64(context, 0u, (uint64_t)fclose(stream));
+
+    r = semu_input_replay_create(&err);
+    SEMU_TEST_ASSERT(context, r != NULL);
+    if (r != NULL) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_input_replay_parse_file(r, path, &err));
+        SEMU_TEST_EQ_U64(context, 2u, semu_input_replay_count(r));
+
+        stream = fopen(path, "wb");
+        SEMU_TEST_ASSERT(context, stream != NULL);
+        if (stream != NULL) {
+            SEMU_TEST_EQ_U64(context, 0u,
+                (uint64_t)fseek(stream,
+                    (long)INPUT_REPLAY_MAX_FILE_SIZE + 1L, SEEK_SET));
+            (void)fputc('x', stream);
+            SEMU_TEST_EQ_U64(context, 0u, (uint64_t)fclose(stream));
+            SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                semu_input_replay_parse_file(r, path, &err));
+            SEMU_TEST_EQ_U64(context, 2u, semu_input_replay_count(r));
+        }
+        semu_input_replay_destroy(r);
+    }
+    (void)remove(path);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -236,7 +285,8 @@ int main(void)
         SEMU_TEST_CASE(test_duplicate_press),
         SEMU_TEST_CASE(test_sink_refusal),
         SEMU_TEST_CASE(test_reset),
-        SEMU_TEST_CASE(test_partial_pump)
+        SEMU_TEST_CASE(test_partial_pump),
+        SEMU_TEST_CASE(test_file_parse_does_not_truncate)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

@@ -5,6 +5,8 @@
 
 #include "sdl_present_core.h"
 
+#include <limits.h>
+
 semu_status sdl_present_core_validate(semu_pixel_format format,
     uint32_t width, uint32_t height,
     uint32_t stride, size_t size,
@@ -47,6 +49,17 @@ semu_status sdl_present_core_validate(semu_pixel_format format,
                        "sdl_present_core: scale %u out of range [1,8]",
                        scale);
         return SEMU_ERR_ARGUMENT;
+    }
+    if ((uint64_t)width * (uint64_t)scale > (uint64_t)INT_MAX ||
+        (uint64_t)height * (uint64_t)scale > (uint64_t)INT_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "sdl_present_core: scaled dimensions exceed int");
+        return SEMU_ERR_RANGE;
+    }
+    if ((uint64_t)stride > (uint64_t)INT_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "sdl_present_core: stride exceeds int");
+        return SEMU_ERR_RANGE;
     }
     min_size = (uint64_t)stride * (uint64_t)height;
     if (min_size > SIZE_MAX) {

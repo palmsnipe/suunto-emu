@@ -108,6 +108,12 @@ evidence is instantiated. The practical work queue is:
 - Measure snapshot-resume and frame-loop cost before making any performance
   change; retain deterministic virtual time and guest behavior.
 
+The Sapporo UI helper invalidates its cached checkpoint when the selected
+headless or SDL executable is newer than the snapshot and verifies a sidecar
+containing the manifest, selected binary, library, helper, profile, layer, and
+capture-boundary hashes. It retains the explicit refresh switch for copied or
+otherwise ambiguous artifacts.
+
 The blocked Phase 7 templates must not be treated as permission to infer later
 product wiring, storage, display, or input behavior. Missing evidence remains a
 refusal until a read-only native package or trace supplies the exact contract.

@@ -28,7 +28,7 @@ typedef struct {
 /*
  * Validate frame parameters for presentation.
  * Checks: RGB565LE format, nonzero dimensions, stride >= width*2,
- * size >= stride*height (overflow-safe), scale 1-8.
+ * size >= stride*height (overflow-safe), scale 1-8, and SDL int bounds.
  * On success, fills *out with normalized descriptor.
  */
 semu_status sdl_present_core_validate(semu_pixel_format format,

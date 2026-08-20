@@ -41,6 +41,10 @@ void semu_input_replay_reset(semu_input_replay *replay);
 semu_status semu_input_replay_parse(semu_input_replay *replay,
     const char *text, size_t text_size, semu_error *error);
 
+/* Read and parse a bounded replay file without truncating its contents. */
+semu_status semu_input_replay_parse_file(semu_input_replay *replay,
+    const char *path, semu_error *error);
+
 /* Number of events parsed. */
 size_t semu_input_replay_count(const semu_input_replay *replay);
 

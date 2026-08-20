@@ -7,6 +7,7 @@
 
 #include "input_replay.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -103,6 +104,7 @@ static int parse_uint64(const char *s, size_t len, uint64_t *out)
 
 #define MAX_WORDS 4u
 #define MAX_WORD_LEN 32u
+#define INPUT_REPLAY_MAX_FILE_SIZE (1024u * 1024u)
 
 static int split_line(const char *line, size_t line_len,
                        char words[MAX_WORDS][MAX_WORD_LEN],
@@ -267,6 +269,72 @@ semu_status semu_input_replay_parse(semu_input_replay *replay,
     }
     *replay = candidate;
     return SEMU_OK;
+}
+
+semu_status semu_input_replay_parse_file(semu_input_replay *replay,
+    const char *path, semu_error *error)
+{
+    FILE *stream;
+    long length;
+    char *text;
+    size_t size;
+    semu_status status;
+
+    if (replay == NULL || path == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "input_replay: file arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    stream = fopen(path, "rb");
+    if (stream == NULL) {
+        semu_error_set(error, SEMU_ERR_IO,
+                       "input_replay: cannot open %s", path);
+        return SEMU_ERR_IO;
+    }
+    if (fseek(stream, 0L, SEEK_END) != 0) {
+        (void)fclose(stream);
+        semu_error_set(error, SEMU_ERR_IO,
+                       "input_replay: cannot seek %s", path);
+        return SEMU_ERR_IO;
+    }
+    length = ftell(stream);
+    if (length < 0L || (uint64_t)length > INPUT_REPLAY_MAX_FILE_SIZE) {
+        (void)fclose(stream);
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "input_replay: %s exceeds %u bytes", path,
+                       INPUT_REPLAY_MAX_FILE_SIZE);
+        return SEMU_ERR_RANGE;
+    }
+    if (fseek(stream, 0L, SEEK_SET) != 0) {
+        (void)fclose(stream);
+        semu_error_set(error, SEMU_ERR_IO,
+                       "input_replay: cannot rewind %s", path);
+        return SEMU_ERR_IO;
+    }
+    size = (size_t)length;
+    text = (char *)malloc(size != 0u ? size : 1u);
+    if (text == NULL) {
+        (void)fclose(stream);
+        semu_error_set(error, SEMU_ERR_NOMEM,
+                       "input_replay: cannot allocate file buffer");
+        return SEMU_ERR_NOMEM;
+    }
+    if (size != 0u && fread(text, 1u, size, stream) != size) {
+        free(text);
+        (void)fclose(stream);
+        semu_error_set(error, SEMU_ERR_IO,
+                       "input_replay: cannot read %s", path);
+        return SEMU_ERR_IO;
+    }
+    if (fclose(stream) != 0) {
+        free(text);
+        semu_error_set(error, SEMU_ERR_IO,
+                       "input_replay: cannot close %s", path);
+        return SEMU_ERR_IO;
+    }
+    status = semu_input_replay_parse(replay, text, size, error);
+    free(text);
+    return status;
 }
 
 size_t semu_input_replay_count(const semu_input_replay *replay)

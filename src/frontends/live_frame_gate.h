@@ -33,7 +33,8 @@ void semu_live_frame_gate_init(semu_live_frame_gate *gate,
 void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     uint64_t frame_count, const semu_input_event *input);
 int semu_live_frame_gate_accepts_button(
-    const semu_live_frame_gate *gate, uint32_t button);
+    const semu_live_frame_gate *gate, uint64_t frame_count,
+    uint32_t button);
 int semu_live_frame_gate_waiting(const semu_live_frame_gate *gate,
     uint64_t frame_count);
 int semu_live_frame_gate_observe(semu_live_frame_gate *gate,

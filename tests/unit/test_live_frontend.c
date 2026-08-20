@@ -154,15 +154,37 @@ static void test_live_gate_refuses_wrong_initial_button(
     semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
     semu_live_frame_gate_note_input(&gate, 7u, &event);
     SEMU_TEST_EQ_U64(context, 0u,
-        semu_live_frame_gate_accepts_button(&gate, SEMU_BUTTON_UPPER));
+        semu_live_frame_gate_accepts_button(&gate, 7u,
+                                            SEMU_BUTTON_UPPER));
     SEMU_TEST_EQ_U64(context, 1u,
-        semu_live_frame_gate_accepts_button(&gate, SEMU_BUTTON_MIDDLE));
+        semu_live_frame_gate_accepts_button(&gate, 7u,
+                                            SEMU_BUTTON_MIDDLE));
     SEMU_TEST_EQ_U64(context, 0u, gate.input_seen);
     SEMU_TEST_EQ_U64(context, 0u, gate.frame_baseline);
     SEMU_TEST_EQ_U64(context, 0u, gate.candidate_valid);
     SEMU_TEST_EQ_U64(context, 0u, gate.ready);
     SEMU_TEST_EQ_U64(context, 1u,
         semu_live_frame_gate_waiting(&gate, 7u));
+}
+
+static void test_live_gate_refuses_input_before_first_frame(
+    semu_test_context *context)
+{
+    semu_live_frame_gate gate;
+
+    semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_accepts_button(&gate, 0u,
+                                            SEMU_BUTTON_MIDDLE));
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_accepts_button(&gate, 0u,
+                                            SEMU_BUTTON_UPPER));
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_accepts_button(&gate, 1u,
+                                            SEMU_BUTTON_UPPER));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_accepts_button(&gate, 1u,
+                                            SEMU_BUTTON_MIDDLE));
 }
 
 static void test_sdl_button_hold_is_bounded_and_atomic(
@@ -220,6 +242,7 @@ int main(void)
         SEMU_TEST_CASE(test_live_gate_ignores_stride_padding),
         SEMU_TEST_CASE(test_live_gate_consumes_next_button_edge),
         SEMU_TEST_CASE(test_live_gate_refuses_wrong_initial_button),
+        SEMU_TEST_CASE(test_live_gate_refuses_input_before_first_frame),
         SEMU_TEST_CASE(test_sdl_button_hold_is_bounded_and_atomic)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

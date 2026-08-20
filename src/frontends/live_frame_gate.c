@@ -89,10 +89,16 @@ void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
 }
 
 int semu_live_frame_gate_accepts_button(
-    const semu_live_frame_gate *gate, uint32_t button)
+    const semu_live_frame_gate *gate, uint64_t frame_count,
+    uint32_t button)
 {
-    if (gate == NULL || gate->required_button < 0 ||
-        gate->input_seen || gate->ready || gate->accept_any_button) {
+    if (gate == NULL || gate->required_button < 0) {
+        return 1;
+    }
+    if (frame_count == 0u) {
+        return 0;
+    }
+    if (gate->input_seen || gate->ready || gate->accept_any_button) {
         return 1;
     }
     return button == (uint32_t)gate->required_button;

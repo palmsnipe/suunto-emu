@@ -272,6 +272,17 @@ static void test_snapshot_file_round_trip_and_refusal(
                                     payload, sizeof(payload), &err));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_cli_snapshot_save_file(path, source, &err));
+    {
+        char temporary_path[sizeof("/tmp/suunto-emu-cli-snapshot-test.bin.tmp")];
+        FILE *temporary_stream;
+        strcpy(temporary_path, path);
+        strcat(temporary_path, ".tmp");
+        temporary_stream = fopen(temporary_path, "rb");
+        SEMU_TEST_ASSERT(context, temporary_stream == NULL);
+        if (temporary_stream != NULL) {
+            (void)fclose(temporary_stream);
+        }
+    }
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_cli_snapshot_load_file(path, loaded, &err));
     SEMU_TEST_EQ_U64(context, SEMU_OK,

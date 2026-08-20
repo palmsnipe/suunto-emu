@@ -95,7 +95,7 @@ For cold-start iteration, an opt-in LTO build is available without changing the
 normal `make` profile:
 
 ```sh
-sh tools/build_fast.sh sdl
+sh tools/build_fast.sh all sdl
 build-fast/suunto-emu-sdl run ...
 ```
 
@@ -121,7 +121,11 @@ build/suunto-emu-sdl run \
 ```
 
 The checkpoint is external, identity-pinned state; regenerate it whenever the
-firmware manifest or compatibility layer changes.
+firmware manifest or compatibility layer changes. The interactive helper also
+keeps a `${SNAPSHOT}.provenance` sidecar containing the manifest, selected
+binary, library, helper, profile, layer, and capture-boundary identities. A
+missing or mismatched sidecar causes a bounded refresh instead of silently
+reusing stale state.
 Machine snapshots preserve guest and NEMA state, not the SDL surface that was
 already presented; use a pre-frame boundary when the resumed session must
 immediately show the saved UI.
@@ -140,11 +144,12 @@ the next Up, Down, or Return/Enter edge continues into setup. Pass a second
 argument to choose the checkpoint path, or pass `lower-transition` as a third
 argument (or set `SEMU_SAPPORO_UI_CHECKPOINT`) to use the other observed setup
 boundary. Set `SEMU_SAPPORO_UI_BUILD_DIR=build-fast` to run the helper with the
-isolated fast build. A cached snapshot only needs the SDL binary; the headless
-binary is needed only when the helper must create the snapshot. Remove that
-specific file when the emulator or compatibility implementation changes and a
-fresh boundary is needed, or set `SEMU_SAPPORO_UI_REFRESH=1` to rebuild it
-automatically.
+isolated fast build. The helper re-creates the snapshot when it is missing,
+older than either selected emulator binary, or fails the provenance check; the
+headless binary is needed for that refresh. Remove the snapshot and its
+`.provenance` sidecar when the emulator or compatibility implementation
+changes and a fresh boundary is needed, or set `SEMU_SAPPORO_UI_REFRESH=1` to
+force a refresh.
 
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,

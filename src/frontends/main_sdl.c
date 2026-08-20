@@ -111,7 +111,7 @@ static semu_stop_reason process_normalized_key(sdl_frontend *frontend,
         semu_input_mapper_button_for_key(frontend->input_mapper,
                                          key->key, &button) &&
         !semu_live_frame_gate_accepts_button(
-            &frontend->live_checkpoint, button)) {
+            &frontend->live_checkpoint, frontend->frame_count, button)) {
         return SEMU_STOP_NONE;
     }
     if (semu_input_mapper_process(frontend->input_mapper, key, &input,

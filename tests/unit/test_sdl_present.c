@@ -2,6 +2,8 @@
 
 #include "../../src/frontends/sdl_present_core.c"
 
+#include <limits.h>
+#include <stdint.h>
 #include <string.h>
 
 static void test_valid_240x240(semu_test_context *context)
@@ -97,6 +99,21 @@ static void test_width_overflow(semu_test_context *context)
             0x80000001u, 1u, 2u, 2u, 1u, &desc, &err));
 }
 
+static void test_host_integer_bounds(semu_test_context *context)
+{
+    semu_error err;
+    sdl_present_descriptor desc;
+    uint32_t wide = (uint32_t)((uint64_t)INT_MAX / 2u) + 1u;
+    uint32_t huge_stride = (uint32_t)INT_MAX + UINT32_C(1);
+    semu_error_clear(&err);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        sdl_present_core_validate(SEMU_PIXEL_RGB565_LE,
+            wide, 1u, wide * 2u, SIZE_MAX, 2u, &desc, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        sdl_present_core_validate(SEMU_PIXEL_RGB565_LE,
+            1u, 1u, huge_stride, SIZE_MAX, 1u, &desc, &err));
+}
+
 static void test_repeat_hash(semu_test_context *context)
 {
     semu_error err;
@@ -125,6 +142,7 @@ int main(void)
         SEMU_TEST_CASE(test_size_too_small),
         SEMU_TEST_CASE(test_scale_out_of_range),
         SEMU_TEST_CASE(test_width_overflow),
+        SEMU_TEST_CASE(test_host_integer_bounds),
         SEMU_TEST_CASE(test_repeat_hash)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

@@ -331,24 +331,13 @@ static int command_run(const run_arguments *arguments,
         return 2;
     }
     if (arguments->input_replay != NULL) {
-        FILE *rf = fopen(arguments->input_replay, "r");
-        if (rf == NULL) {
-            fprintf(stderr, "run: cannot open replay %s\n",
-                    arguments->input_replay);
-            cleanup_run(NULL, NULL, NULL, backend, trace);
+        replay = semu_input_replay_create(&error);
+        if (replay == NULL ||
+            semu_input_replay_parse_file(replay, arguments->input_replay,
+                                         &error) != SEMU_OK) {
+            fprintf(stderr, "run: replay: %s\n", error.text);
+            cleanup_run(NULL, NULL, replay, backend, trace);
             return 2;
-        }
-        {
-            char buf[8192];
-            size_t n = fread(buf, 1u, sizeof(buf), rf);
-            fclose(rf);
-            replay = semu_input_replay_create(&error);
-            if (replay == NULL ||
-                semu_input_replay_parse(replay, buf, n, &error) != SEMU_OK) {
-                fprintf(stderr, "run: replay: %s\n", error.text);
-                cleanup_run(NULL, NULL, replay, backend, trace);
-                return 2;
-            }
         }
     }
     memset(&options, 0, sizeof(options));
