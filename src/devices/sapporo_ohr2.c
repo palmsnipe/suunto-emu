@@ -429,12 +429,37 @@ semu_status semu_sapporo_ohr2_snapshot_read(
         semu_snapshot_reader_u16(reader, &candidate.expected_sequence, error) != SEMU_OK ||
         semu_snapshot_reader_u8(reader, &initialized, error) != SEMU_OK)
         return error->code;
+    candidate.state = (semu_sapporo_ohr2_state)state;
     if (state > (uint8_t)SEMU_SAPPORO_OHR2_MAIN || response_queued > 1u ||
         selector_armed > 1u || ready > 1u || initialized > 1u) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid OHR2 snapshot state");
         return SEMU_ERR_FORMAT;
     }
-    candidate.state = (semu_sapporo_ohr2_state)state;
+    if ((selector_armed != 0u && response_queued == 0u) ||
+        (ready != 0u) != (response_queued != 0u) ||
+        (initialized == 0u && candidate.expected_sequence != 0u) ||
+        (response_queued != 0u && initialized == 0u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid OHR2 snapshot state linkage");
+        return SEMU_ERR_FORMAT;
+    }
+    if (response_queued != 0u &&
+        (candidate.queued_sequence != candidate.expected_sequence ||
+         !known_command(read_u16(candidate.queued_response)) ||
+         !valid_command_state(&candidate,
+                               (semu_sapporo_ohr2_command)
+                                   read_u16(candidate.queued_response)) ||
+         read_u16(candidate.queued_response + 2u) !=
+             candidate.expected_sequence ||
+         read_u32(candidate.queued_response +
+                  SEMU_SAPPORO_OHR2_PAYLOAD_SIZE) !=
+             semu_sapporo_ohr2_crc32(
+                 candidate.queued_response,
+                 SEMU_SAPPORO_OHR2_PAYLOAD_SIZE))) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid OHR2 queued response");
+        return SEMU_ERR_FORMAT;
+    }
     candidate.response_queued = response_queued;
     candidate.selector_armed = selector_armed;
     candidate.ready = ready;
