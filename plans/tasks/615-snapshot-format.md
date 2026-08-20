@@ -31,8 +31,9 @@ and serializer callbacks explicitly reserved by prior integration handoffs.
 ## Frozen Interfaces
 
 Snapshot includes magic/version/profile+component hashes and lengths. Restore
-validates the entire image before mutating a temporary machine, then swaps on
-success. Callbacks, streams, paths, and host pointers are excluded.
+validates the complete image and applies component-local candidates behind a
+machine-level rollback boundary before committing scheduler and metadata state.
+Callbacks, streams, paths, and host pointers are excluded.
 
 ## Evidence Inputs
 
