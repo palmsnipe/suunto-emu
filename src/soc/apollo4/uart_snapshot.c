@@ -87,6 +87,7 @@ semu_status semu_apollo4_uart_snapshot_read(
     uint8_t attached;
     uint8_t irq_level;
     uint32_t rx_head, rx_count, rx_reserved, tx_head, tx_count, count;
+    size_t reserved = 0u;
     size_t index;
     if (uart == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -113,12 +114,16 @@ semu_status semu_apollo4_uart_snapshot_read(
         semu_snapshot_reader_u32(reader, &candidate.next_rx_slot, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK)
         return error->code;
-    if (attached > 1u || irq_level > 1u || rx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+    if (attached > 1u || irq_level > 1u || candidate.next_rx_slot == 0u ||
+        rx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         tx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         rx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         tx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        count > SEMU_APOLLO4_UART_FIFO_CAPACITY) {
+        rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY - rx_count ||
+        count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+        (candidate.tx_event != 0u &&
+         (attached == 0u || tx_count == 0u))) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid UART snapshot FIFO state");
         return SEMU_ERR_FORMAT;
     }
@@ -135,14 +140,25 @@ semu_status semu_apollo4_uart_snapshot_read(
         uint64_t id;
         uint32_t slot, size;
         rx_event *event;
+        rx_event *existing;
         if (semu_snapshot_reader_u64(reader, &id, error) != SEMU_OK ||
             semu_snapshot_reader_u32(reader, &slot, error) != SEMU_OK ||
             semu_snapshot_reader_u32(reader, &size, error) != SEMU_OK ||
-            size == 0u || size > SEMU_APOLLO4_UART_FIFO_CAPACITY) {
+            id == 0u || slot == 0u || slot >= candidate.next_rx_slot ||
+            size == 0u || size > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+            reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY - size) {
             free_events(head);
             if (error->code == SEMU_OK)
                 semu_error_set(error, SEMU_ERR_FORMAT, "invalid UART RX event");
             return error->code;
+        }
+        for (existing = head; existing != NULL; existing = existing->next) {
+            if (existing->slot == slot) {
+                free_events(head);
+                semu_error_set(error, SEMU_ERR_FORMAT,
+                               "duplicate UART RX event slot");
+                return SEMU_ERR_FORMAT;
+            }
         }
         event = (rx_event *)calloc(1u, offsetof(rx_event, bytes) + size);
         if (event == NULL) {
@@ -161,6 +177,13 @@ semu_status semu_apollo4_uart_snapshot_read(
         }
         *tail = event;
         tail = &event->next;
+        reserved += size;
+    }
+    if (reserved != rx_reserved) {
+        free_events(head);
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "UART RX reservation does not match events");
+        return SEMU_ERR_FORMAT;
     }
     free_events(uart->rx_events);
     candidate.rx_events = head;
