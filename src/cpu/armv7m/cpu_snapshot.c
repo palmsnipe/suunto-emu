@@ -207,6 +207,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u16(reader, &candidate.pending_source_count, error));
     R(semu_snapshot_reader_u8(reader, &candidate.exception_depth, error));
     R(semu_snapshot_reader_u8(reader, &candidate.prigroup, error));
+    if (candidate.prigroup > 7u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU priority grouping");
+        return SEMU_ERR_FORMAT;
+    }
     R(semu_snapshot_reader_u32(reader, &candidate.scr, error));
     R(semu_snapshot_reader_u32(reader, &candidate.ccr, error));
     R(semu_snapshot_reader_u32(reader, &candidate.shcsr, error));
