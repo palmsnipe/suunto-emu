@@ -337,6 +337,11 @@ semu_status semu_sapporo_hsppad143_snapshot_read(
                        "HSPPAD snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if (candidate.status != HSPPAD_READY_VAL) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "HSPPAD snapshot status mismatch");
+        return SEMU_ERR_FORMAT;
+    }
     for (index = 0u; index < HSPPAD_WRITABLE_COUNT; ++index) {
         if ((candidate.writable[index] &
              (uint8_t)~HSPPAD_REGISTER_MASK[index]) !=

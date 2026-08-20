@@ -353,6 +353,12 @@ static void test_snapshot_cursor_and_atomic_refusal(
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      semu_sapporo_hsppad143_snapshot_read(
                          target, &reader, &error));
+    writer.data[3u] = 0x13u;
+    writer.data[2u] = 0x00u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_hsppad143_snapshot_read(
+                         target, &reader, &error));
     semu_snapshot_writer_destroy(&writer);
     semu_sapporo_hsppad143_destroy(source);
     semu_sapporo_hsppad143_destroy(target);
