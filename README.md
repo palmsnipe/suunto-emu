@@ -99,6 +99,10 @@ build/suunto-emu run \
 The snapshot and replay are external, identity-pinned inputs; do not commit
 firmware, frame pixels, or private snapshots.
 
+`setup-next` is intentionally a neutral first-visible continuation. The native
+`Define your profile` capture is comparison evidence only, and its provenance
+does not authorize a screen-specific emulator checkpoint or pixel golden.
+
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to
 the profile and all three firmware component hashes; firmware and immutable
