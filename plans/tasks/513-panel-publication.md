@@ -51,3 +51,11 @@ No SDL, button input, golden tolerance, staging-as-frame label, private pixels, 
 ## Handoff
 
 Report backend lifecycle, publication condition, diagnostic versus physical outputs, synthetic hashes, evidence IDs, and 515/520 setup calls.
+
+## Post-completion scope clarification
+
+The completed frame callback publishes canonical software-renderer output.
+`E-NEMA-PANEL-001` is still missing, so “panel frame” and “physical
+completion” in the historical contract refer to the internal publication
+boundary, not a proven panel wire transaction. The functional milestone is
+renderer/SDL behavior; physical-panel behavior remains fail-closed.

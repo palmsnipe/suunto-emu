@@ -8,6 +8,13 @@
 
 Replace legacy aggregate wiring and reach the exact `sapporo-startup-complete` headless checkpoint twice. This unlocks Nema trace/replay work 490; frame rendering and SDL remain deferred.
 
+## Historical baseline note
+
+The deferred-rendering wording describes the ticket-420 baseline. Tickets
+513–520 subsequently delivered the software renderer, SDL presentation, and
+semantic replay path; physical-panel transport and completion remain a
+separate unresolved boundary.
+
 ## Execution Budget
 
 Two to three agent-days. Replace legacy aggregate wiring and reach the exact bounded startup/WFI checkpoint with optional explicit compatibility.

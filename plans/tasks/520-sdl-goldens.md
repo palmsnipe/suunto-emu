@@ -51,3 +51,11 @@ No golden/tolerance update, committed pixels/firmware, hidden layer, unbounded r
 ## Handoff
 
 Report exact two-run summaries/hashes, commands, SDL/headless results, skips, source before/after hashes, and first-release gate status.
+
+## Post-completion scope clarification
+
+The three exact hashes verify their named software-renderer command-stream
+checkpoints. They do not prove physical-panel completion, universal pixel
+equivalence, or a complete watch UI. Later setup transitions therefore remain
+neutral unless their guest contract and provenance are independently
+reproduced.
