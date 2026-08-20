@@ -196,6 +196,69 @@ static void test_bus_memory_and_device(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_bus_snapshot_region_set_is_exact(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    uint8_t *image;
+    size_t image_size;
+    uint32_t value;
+
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_map_ram(bus, "first", 0x1000u, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_map_ram(bus, "second", 0x2000u, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, 0x1000u, 4u, 0x11111111u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, 0x2000u, 4u, 0x22222222u, &error));
+
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_snapshot_write(bus, &writer, &error));
+    image = writer.data;
+    image_size = writer.size;
+    SEMU_TEST_EQ_U64(context, 28u, image_size);
+
+    /* An image with a missing region is not a complete bus snapshot. */
+    image[0] = 1u;
+    image[1] = image[2] = image[3] = 0u;
+    semu_snapshot_reader_init(&reader, image, image_size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_CONFLICT,
+        semu_bus_snapshot_read(bus, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x1000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x11111111u, value);
+
+    /* Restore the count and duplicate the first region's base in record 2. */
+    image[0] = 2u;
+    image[16u] = image[4u];
+    image[17u] = image[5u];
+    image[18u] = image[6u];
+    image[19u] = image[7u];
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, 0x1000u, 4u, 0xaaaaaaaaU, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, 0x2000u, 4u, 0xbbbbbbbbU, &error));
+    semu_snapshot_reader_init(&reader, image, image_size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_bus_snapshot_read(bus, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x1000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xaaaaaaaau, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x2000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xbbbbbbbbu, value);
+
+    semu_snapshot_writer_destroy(&writer);
+    semu_bus_destroy(bus);
+}
+
 static void test_log_filter(semu_test_context *context)
 {
     FILE *stream = tmpfile();
@@ -222,6 +285,7 @@ int main(void)
         SEMU_TEST_CASE(test_scheduler_order_and_cancel),
         SEMU_TEST_CASE(test_scheduler_one_tick_fast_and_refusal),
         SEMU_TEST_CASE(test_bus_memory_and_device),
+        SEMU_TEST_CASE(test_bus_snapshot_region_set_is_exact),
         SEMU_TEST_CASE(test_log_filter)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
