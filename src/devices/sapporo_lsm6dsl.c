@@ -290,6 +290,7 @@ semu_status semu_sapporo_lsm6dsl_snapshot_read(
 {
     semu_sapporo_lsm6dsl candidate;
     uint8_t have_command, read, increment;
+    size_t index;
     if (sensor == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "LSM6 snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
@@ -317,6 +318,19 @@ semu_status semu_sapporo_lsm6dsl_snapshot_read(
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "LSM6 snapshot has command flags without command");
         return SEMU_ERR_FORMAT;
+    }
+    if (have_command == 0u && candidate.reg != 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "LSM6 snapshot has register without command");
+        return SEMU_ERR_FORMAT;
+    }
+    for (index = 0u; index < sizeof(candidate.config); ++index) {
+        if (!is_writable_register((uint8_t)index) &&
+            candidate.config[index] != 0u) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "LSM6 snapshot has reserved configuration state");
+            return SEMU_ERR_FORMAT;
+        }
     }
     candidate.have_command = have_command;
     candidate.read = read;
