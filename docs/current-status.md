@@ -103,6 +103,14 @@ first-frame CRC32 `4979f432` and stopped at `pc=0x0009a7e4`, 650,800,000
 instructions, and 15,707,372,848 ns of virtual time. This is a host performance
 measurement; guest execution and virtual time are unchanged.
 
+Fixed-width bus access now uses explicit little-endian 1-, 2-, and 4-byte
+operations and bypasses the general region search only when the regular-region
+cache proves that no overlay can apply. A five-run paired continuation against
+commit `07ad14c` averaged 4.658 seconds before these bus changes and 4.180
+seconds after them, a further 10.3% wall-time reduction. All ten runs produced
+the same output SHA-1 `c0db13d31ba201deeee2453d328aa4027c990b59` and the same
+stop checkpoint above.
+
 The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
 runtime reset count, compatibility hit total, and virtual time without changing
 guest execution. OHR2 also emits a bounded 64-event-per-device-lifetime

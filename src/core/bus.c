@@ -1,4 +1,5 @@
 #include "bus_internal.h"
+#include "bus_access.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +91,6 @@ static bus_region *find_region_kind(semu_bus *bus, uint32_t address,
                                     size_t size, int include_overlays)
 {
     size_t index;
-    size_t slot;
     uint64_t end = (uint64_t)address + size;
     bus_region *overlay = NULL;
 
@@ -106,12 +106,9 @@ static bus_region *find_region_kind(semu_bus *bus, uint32_t address,
         }
     }
     if (overlay != NULL) return overlay;
-    for (slot = 0u; slot < 2u; ++slot) {
-        if ((bus->regular_cache_valid & (1u << slot)) != 0u) {
-            bus_region *region = &bus->regions[bus->regular_cache_index[slot]];
-            if (address >= region->base && end <= region_end(region))
-                return region;
-        }
+    {
+        bus_region *cached = semu_bus_cached_regular(bus, address, end);
+        if (cached != NULL) return cached;
     }
     for (index = 0u; index < bus->count; ++index) {
         bus_region *region = &bus->regions[index];
@@ -133,27 +130,6 @@ static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size) {
 static bus_region *find_region_below(semu_bus *bus, uint32_t address,
                                      size_t size) {
     return find_region_kind(bus, address, size, 0); }
-
-static int valid_width(unsigned width) { return width == 1u || width == 2u ||
-                                               width == 4u; }
-
-static uint32_t read_little_endian(const uint8_t *data, unsigned width)
-{
-    uint32_t value = 0u;
-    unsigned index;
-    for (index = 0u; index < width; ++index) {
-        value |= (uint32_t)data[index] << (index * 8u);
-    }
-    return value;
-}
-
-static void write_little_endian(uint8_t *data, unsigned width, uint32_t value)
-{
-    unsigned index;
-    for (index = 0u; index < width; ++index) {
-        data[index] = (uint8_t)(value >> (index * 8u));
-    }
-}
 
 semu_bus *semu_bus_create(semu_error *error)
 {
@@ -327,9 +303,9 @@ static semu_status read_region(bus_region *region, uint32_t address,
         return region->ops.read(region->context, address - region->base,
                                 width, value, error);
     }
-    *value = read_little_endian(region->memory + (address - region->base),
-                                width);
-    semu_error_clear(error);
+    *value = semu_bus_read_little_endian(
+        region->memory + (address - region->base), width);
+    semu_bus_clear_success(error);
     return SEMU_OK;
 }
 
@@ -350,9 +326,9 @@ static semu_status write_region(bus_region *region, uint32_t address,
         return region->ops.write(region->context, address - region->base,
                                  width, value, error);
     }
-    write_little_endian(region->memory + (address - region->base), width,
-                        value);
-    semu_error_clear(error);
+    semu_bus_write_little_endian(
+        region->memory + (address - region->base), width, value);
+    semu_bus_clear_success(error);
     return SEMU_OK;
 }
 
@@ -361,9 +337,19 @@ semu_status semu_bus_read(semu_bus *bus, uint32_t address, unsigned width,
 {
     bus_region *region;
 
-    if (bus == NULL || value == NULL || !valid_width(width)) {
+    if (bus == NULL || value == NULL || !semu_bus_valid_width(width)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus read");
         return SEMU_ERR_ARGUMENT;
+    }
+    {
+        uint64_t end = (uint64_t)address + width;
+        if (end <= UINT64_C(0x100000000) &&
+            !semu_bus_overlay_may_cover(bus, address, end)) {
+            region = semu_bus_cached_regular(bus, address, end);
+            if (region != NULL && region->kind != REGION_DEVICE) {
+                return read_region(region, address, width, value, error);
+            }
+        }
     }
     region = find_region(bus, address, width);
     if (region == NULL) {
@@ -379,7 +365,7 @@ semu_status semu_bus_read_below(semu_bus *bus, uint32_t address,
 {
     bus_region *region;
 
-    if (bus == NULL || value == NULL || !valid_width(width)) {
+    if (bus == NULL || value == NULL || !semu_bus_valid_width(width)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus read");
         return SEMU_ERR_ARGUMENT;
     }
@@ -396,9 +382,19 @@ semu_status semu_bus_write(semu_bus *bus, uint32_t address, unsigned width,
 {
     bus_region *region;
 
-    if (bus == NULL || !valid_width(width)) {
+    if (bus == NULL || !semu_bus_valid_width(width)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus write");
         return SEMU_ERR_ARGUMENT;
+    }
+    {
+        uint64_t end = (uint64_t)address + width;
+        if (end <= UINT64_C(0x100000000) &&
+            !semu_bus_overlay_may_cover(bus, address, end)) {
+            region = semu_bus_cached_regular(bus, address, end);
+            if (region != NULL) {
+                return write_region(region, address, width, value, error);
+            }
+        }
     }
     region = find_region(bus, address, width);
     if (region == NULL) {
@@ -414,7 +410,7 @@ semu_status semu_bus_write_below(semu_bus *bus, uint32_t address,
 {
     bus_region *region;
 
-    if (bus == NULL || !valid_width(width)) {
+    if (bus == NULL || !semu_bus_valid_width(width)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid bus write");
         return SEMU_ERR_ARGUMENT;
     }
@@ -431,7 +427,7 @@ semu_status semu_bus_validate_write(semu_bus *bus, uint32_t address,
 {
     bus_region *region;
 
-    if (bus == NULL || !valid_width(width)) {
+    if (bus == NULL || !semu_bus_valid_width(width)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid write validation");
         return SEMU_ERR_ARGUMENT;
     }

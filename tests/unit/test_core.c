@@ -149,8 +149,10 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_copy_out(bus, 0x1000u, output, 4u, &error));
     SEMU_TEST_ASSERT(context, memcmp(output, "\x11\x22\x33\x44", 4u) == 0);
+    semu_error_set(&error, SEMU_ERR_STATE, "stale bus error");
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x1001u, 2u, &value, &error));
+    SEMU_TEST_ASSERT(context, error.code == SEMU_OK && error.text[0] == '\0');
     SEMU_TEST_EQ_U64(context, 0x3322u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_map_overlay(bus, "overlay", 0x1004u, 4u, &ops, &overlay,
