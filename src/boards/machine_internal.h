@@ -30,6 +30,8 @@ struct semu_machine {
     void *input_poll_context;
     uint64_t instruction_epoch;
     uint64_t virtual_time_epoch;
+    /* Diagnostic-only count of guest SYSRESETREQ requests in this runtime. */
+    uint64_t reset_request_count;
     semu_logger *logger;
     semu_stop_reason stop_reason;
     semu_profile profile;

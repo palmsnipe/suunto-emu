@@ -423,9 +423,29 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
             }
         } else if (semu_cpu_reset_requested(machine->cpu)) {
-            semu_log_write(machine->logger, SEMU_LOG_WARNING, "cpu", "machine-reset-request", "pc=0x%08x instructions=%llu", semu_machine_program_counter(machine), (unsigned long long)state->instructions);
-            if (reset_after_request(machine, error) != SEMU_OK) {
+            uint64_t virtual_time = semu_machine_virtual_time(machine);
+            if (machine->reset_request_count == UINT64_MAX) {
+                semu_error_set(error, SEMU_ERR_RANGE,
+                               "machine reset request count overflow");
                 machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+            } else {
+                ++machine->reset_request_count;
+                semu_log_set_time(machine->logger, virtual_time);
+                semu_log_write(machine->logger, SEMU_LOG_WARNING, "cpu",
+                    "machine-reset-request",
+                    "pc=0x%08x lr=0x%08x sp=0x%08x r0=0x%08x "
+                    "r1=0x%08x r2=0x%08x r3=0x%08x xpsr=0x%08x "
+                    "reset_count=%llu instructions=%llu virtual_time_ns=%llu",
+                    (unsigned)state->r[15], (unsigned)state->r[14],
+                    (unsigned)state->r[13], (unsigned)state->r[0],
+                    (unsigned)state->r[1], (unsigned)state->r[2],
+                    (unsigned)state->r[3], (unsigned)state->xpsr,
+                    (unsigned long long)machine->reset_request_count,
+                    (unsigned long long)state->instructions,
+                    (unsigned long long)virtual_time);
+                if (reset_after_request(machine, error) != SEMU_OK) {
+                    machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+                }
             }
         } else {
             machine->stop_reason = semu_cpu_stop_reason(machine->cpu);

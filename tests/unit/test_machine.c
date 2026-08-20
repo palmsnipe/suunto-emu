@@ -41,6 +41,22 @@ static unsigned count_reset_requests(FILE *stream)
     return count;
 }
 
+static int reset_log_contains(FILE *stream, const char *text)
+{
+    char line[1024];
+
+    if (stream == NULL || text == NULL || fseek(stream, 0L, SEEK_SET) != 0) {
+        return 0;
+    }
+    while (fgets(line, sizeof(line), stream) != NULL) {
+        if (strstr(line, "event=machine-reset-request") != NULL &&
+            strstr(line, text) != NULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int write_full_flash(const char *path)
 {
     FILE *stream = fopen(path, "wb");
@@ -230,10 +246,18 @@ static void test_requested_reset_retains_ram_explicit_clears(
     SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
         semu_machine_run(machine, &limits, &error));
     SEMU_TEST_EQ_U64(context, 1u, count_reset_requests(log_stream));
+    SEMU_TEST_ASSERT(context,
+        reset_log_contains(log_stream,
+            "pc=0x00000032 lr=0x00000000 sp=0x10000100 "
+            "r0=0xe000ed0c r1=0x05fa0004 r2=0x00000000 "
+            "r3=0x00000000 xpsr=0x21000000 reset_count=1 "
+            "instructions=9 virtual_time_ns=9"));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
     SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
         semu_machine_run(machine, &limits, &error));
     SEMU_TEST_EQ_U64(context, 2u, count_reset_requests(log_stream));
+    SEMU_TEST_ASSERT(context,
+        reset_log_contains(log_stream, "reset_count=2"));
 
     semu_machine_destroy(machine);
     (void)fclose(log_stream);

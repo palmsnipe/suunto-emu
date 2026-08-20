@@ -77,6 +77,14 @@ UI can be navigated manually. Pressing that edge returns control to the guest
 immediately and rearms the next settled frame; replay checkpoints retain their
 deterministic stop behavior.
 
+The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
+runtime reset count, and virtual time without changing guest execution. With
+the exact private Sapporo 2.33.16 package, two fresh bounded runs are identical
+(E-SAP-0015): the guest requests `SYSRESETREQ` at `0x000c97f2` and then
+continues to the bounded budget. This is a reproducible emulator observation,
+not a later-version behavior fix; a native reset-register or post-reset
+transaction trace is still required before changing Apollo4 reset semantics.
+
 ## Next Actionable Work
 
 The ticket index currently has no `ready` tickets: Phases 0–6 are complete, and
