@@ -119,6 +119,12 @@ continuation against commit `44e545b` averaged 4.132 seconds before and 3.880
 seconds after these changes, a further 6.1% wall-time reduction, with the same
 output SHA-1 and stop checkpoint.
 
+The machine run loop now updates the public logger timestamp field directly
+after its existing null check instead of making an out-of-line call after every
+instruction. Five paired runs against commit `f17e638` averaged 3.874 seconds
+before and 3.786 seconds after this change, a further 2.3% reduction, with the
+same output SHA-1 and stop checkpoint.
+
 The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
 runtime reset count, compatibility hit total, and virtual time without changing
 guest execution. OHR2 also emits a bounded 64-event-per-device-lifetime

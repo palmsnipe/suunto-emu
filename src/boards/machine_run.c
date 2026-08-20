@@ -167,7 +167,9 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
         } else {
             machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
         }
-        semu_log_set_time(machine->logger, current_time);
+        if (machine->logger != NULL) {
+            machine->logger->virtual_time_ns = current_time;
+        }
     }
     return machine->stop_reason;
 }
