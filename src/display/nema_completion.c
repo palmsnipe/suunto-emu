@@ -190,6 +190,7 @@ semu_status nema_completion_snapshot_read(
 {
     nema_completion candidate;
     uint32_t count;
+    size_t active_count = 0u;
     size_t index;
     if (comp == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -216,6 +217,33 @@ semu_status nema_completion_snapshot_read(
             return SEMU_ERR_FORMAT;
         }
         entry->active = active;
+        if (active == 0u) {
+            continue;
+        }
+        if (entry->event_id == 0u) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "active completion has no event id");
+            return SEMU_ERR_FORMAT;
+        }
+        ++active_count;
+        if (active_count > count) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "active completions exceed count");
+            return SEMU_ERR_FORMAT;
+        }
+        {
+            size_t prior;
+            for (prior = 0u; prior < index; ++prior) {
+                const completion_entry *previous = &candidate.entries[prior];
+                if (previous->active != 0 &&
+                    (previous->list_id == entry->list_id ||
+                     previous->event_id == entry->event_id)) {
+                    semu_error_set(error, SEMU_ERR_FORMAT,
+                                   "duplicate active completion identity");
+                    return SEMU_ERR_FORMAT;
+                }
+            }
+        }
     }
     *comp = candidate;
     return SEMU_OK;
