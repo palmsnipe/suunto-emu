@@ -6,3 +6,7 @@ compile_commands.json
 .DS_Store
 tests/private/
 firmware.local.semu
+
+# Machine checkpoints and their generated identity sidecars stay external.
+*.sems
+*.sems.provenance
