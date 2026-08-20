@@ -12,7 +12,10 @@
  * never changes guest execution or renderer state.
  */
 typedef struct semu_live_frame_gate {
+    /* The named checkpoint button is required only for the first edge. */
     int required_button;
+    /* After a settled frame, setup navigation accepts any mapped button. */
+    int accept_any_button;
     uint64_t frame_baseline;
     uint64_t last_frame_time;
     uint64_t candidate_frame_count;

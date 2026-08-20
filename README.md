@@ -62,7 +62,9 @@ build/suunto-emu-sdl run \
 ```
 
 After the middle-button setup frame settles, the window waits for a live
-button edge; use Up, Down, or Return/Enter to continue navigating. SDL holds
+button edge; use Up, Down, or Return/Enter to continue navigating. The named
+checkpoint button is required only for the first edge; subsequent setup edges
+accept any of the three mapped buttons. SDL holds
 each button press for 70 ms of guest time and keeps the released level stable
 for another 70 ms, matching the native debounce boundary. Replay input remains
 the deterministic path for headless checkpoints.

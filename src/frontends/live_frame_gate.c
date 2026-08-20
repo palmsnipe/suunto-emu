@@ -39,7 +39,8 @@ void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     if (gate == NULL || input == NULL || gate->required_button < 0 ||
         gate->input_seen || gate->ready ||
         input->kind != SEMU_INPUT_BUTTON || input->value != 0 ||
-        input->code != (uint32_t)gate->required_button) {
+        (!gate->accept_any_button &&
+         input->code != (uint32_t)gate->required_button)) {
         return;
     }
     gate->input_seen = 1;
@@ -101,6 +102,8 @@ void semu_live_frame_gate_consume(semu_live_frame_gate *gate,
         return;
     }
     gate->ready = 0;
+    gate->input_seen = 0;
+    gate->accept_any_button = 1;
     gate->frame_baseline = frame_count;
     reset_stability(gate);
 }

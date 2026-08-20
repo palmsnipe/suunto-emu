@@ -73,9 +73,10 @@ SDL also accepts the same `middle-language` and `lower-transition` checkpoints
 without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
 Down are delivered through the semantic input mapper; after a quiet settled
 post-button frame the window pauses for the next live button edge so the setup
-UI can be navigated manually. Pressing that edge returns control to the guest
-immediately and rearms the next settled frame; replay checkpoints retain their
-deterministic stop behavior.
+UI can be navigated manually. The named checkpoint button is required only for
+the first edge; subsequent setup edges accept any of the three mapped buttons.
+Pressing that edge returns control to the guest immediately and rearms the next
+settled frame; replay checkpoints retain their deterministic stop behavior.
 
 The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
 runtime reset count, compatibility hit total, and virtual time without changing
