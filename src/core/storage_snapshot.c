@@ -57,8 +57,10 @@ semu_status semu_storage_snapshot_read(semu_storage *storage,
                            "storage snapshot arguments are invalid");
         return error != NULL ? error->code : SEMU_ERR_ARGUMENT;
     }
-    page_limit = (storage->logical_size + SEMU_STORAGE_PAGE_SIZE - 1u) /
-                 SEMU_STORAGE_PAGE_SIZE;
+    page_limit = storage->logical_size / SEMU_STORAGE_PAGE_SIZE;
+    if (storage->logical_size % SEMU_STORAGE_PAGE_SIZE != 0u) {
+        ++page_limit;
+    }
     if (logical_size != storage->logical_size ||
         erased_value != storage->erased_value ||
         page_count > SIZE_MAX / sizeof(storage_page) ||

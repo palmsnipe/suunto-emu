@@ -1,6 +1,10 @@
 #include "semu/storage.h"
 #include "test.h"
 
+#include "../../src/core/storage_internal.h"
+
+#include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -147,6 +151,39 @@ static void test_read_spans_overlay_pages(semu_test_context *context)
     (void)remove(path);
 }
 
+static void test_snapshot_page_limit_boundary(semu_test_context *context)
+{
+    semu_storage storage;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_error error;
+    uint8_t page[SEMU_STORAGE_PAGE_SIZE] = { 0u };
+
+    semu_error_clear(&error);
+    (void)memset(&storage, 0, sizeof(storage));
+    storage.logical_size = UINT64_MAX;
+    storage.erased_value = 0xffu;
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, UINT64_MAX, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u8(&writer, storage.erased_value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_bytes(&writer, page, sizeof(page), &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_storage_snapshot_read(&storage, &reader, &error));
+    SEMU_TEST_EQ_U64(context, 1u, storage.page_count);
+    SEMU_TEST_ASSERT(context, storage.pages != NULL &&
+                    storage.pages->index == 0u);
+    free(storage.pages);
+    semu_snapshot_writer_destroy(&writer);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -154,7 +191,8 @@ int main(void)
         SEMU_TEST_CASE(test_source_is_immutable),
         SEMU_TEST_CASE(test_bounds_and_oversized_image),
         SEMU_TEST_CASE(test_aligned_erase_preserves_neighbors),
-        SEMU_TEST_CASE(test_read_spans_overlay_pages)
+        SEMU_TEST_CASE(test_read_spans_overlay_pages),
+        SEMU_TEST_CASE(test_snapshot_page_limit_boundary)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
