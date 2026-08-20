@@ -360,11 +360,22 @@ semu_status semu_apollo4_stimer_snapshot_read(
             semu_snapshot_reader_u8(reader, &compare->event_valid, error) != SEMU_OK)
             return error->code;
         if (compare->enabled > 1u || compare->event_valid > 1u ||
-            (compare->event_valid != 0u) != (compare->event != 0u)) {
+            (compare->event_valid != 0u) != (compare->event != 0u) ||
+            (compare->event_valid != 0u &&
+             (compare->enabled == 0u ||
+              (candidate.configuration & compare_enable_bit((unsigned)index)) == 0u ||
+              candidate.interrupt_enable == 0u))) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "invalid STIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
+    }
+    if ((candidate.configuration & ~STIMER_CONFIGURATION_MASK) != 0u ||
+        (candidate.interrupt_enable & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u ||
+        (candidate.pending & ~UINT32_C(0x5)) != 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid STIMER snapshot control state");
+        return SEMU_ERR_FORMAT;
     }
     *stimer = candidate;
     return SEMU_OK;
