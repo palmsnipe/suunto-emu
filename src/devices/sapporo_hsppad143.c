@@ -320,6 +320,7 @@ semu_status semu_sapporo_hsppad143_snapshot_read(
     semu_error *error)
 {
     semu_sapporo_hsppad143 candidate;
+    size_t index;
     if (sensor == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "HSPPAD snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
@@ -335,6 +336,16 @@ semu_status semu_sapporo_hsppad143_snapshot_read(
         semu_error_set(error, SEMU_ERR_CONFLICT,
                        "HSPPAD snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
+    }
+    for (index = 0u; index < HSPPAD_WRITABLE_COUNT; ++index) {
+        if ((candidate.writable[index] &
+             (uint8_t)~HSPPAD_REGISTER_MASK[index]) !=
+            (HSPPAD_REGISTER_RESET[index] &
+             (uint8_t)~HSPPAD_REGISTER_MASK[index])) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "HSPPAD snapshot register mask mismatch");
+            return SEMU_ERR_FORMAT;
+        }
     }
     *sensor = candidate;
     return SEMU_OK;
