@@ -1,6 +1,7 @@
 #include "semu/hash.h"
 #include "semu/machine.h"
 #include "test.h"
+#include "../../src/boards/machine_internal.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -19,6 +20,20 @@ static int write_bytes(const char *path, const uint8_t *program, size_t size)
 static void copy_text(char *destination, size_t capacity, const char *source)
 {
     (void)snprintf(destination, capacity, "%s", source);
+}
+
+static uint32_t get_u32le(const uint8_t *data)
+{
+    return (uint32_t)data[0] | ((uint32_t)data[1] << 8u) |
+           ((uint32_t)data[2] << 16u) | ((uint32_t)data[3] << 24u);
+}
+
+static void put_u32le(uint8_t *data, uint32_t value)
+{
+    data[0] = (uint8_t)value;
+    data[1] = (uint8_t)(value >> 8u);
+    data[2] = (uint8_t)(value >> 16u);
+    data[3] = (uint8_t)(value >> 24u);
 }
 
 static int make_contract(const char *path, semu_profile *profile,
@@ -82,7 +97,9 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
     uint64_t refused_instructions, refused_time;
     uint32_t refused_pc;
     size_t index, section_size;
+    size_t layer_id_length, malformed_size;
     const uint8_t *section_data;
+    uint8_t *malformed;
     static const uint8_t invalid_cpu[] = { 0u };
 
     SEMU_TEST_ASSERT(context,
@@ -102,6 +119,11 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
                      loaded != NULL && buffer != NULL);
     if (first != NULL && second != NULL && source != NULL &&
         loaded != NULL && buffer != NULL) {
+        first->layer_count = second->layer_count = 1u;
+        first->layers[0] = (semu_layer_state){
+            &semu_sapporo_222_no_device_layer, 0u, 0
+        };
+        second->layers[0] = first->layers[0];
         SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
                          semu_machine_run(first, &limits, &error));
         saved_instructions = semu_machine_instructions(first);
@@ -118,6 +140,36 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         SEMU_TEST_EQ_U64(context, saved_instructions, semu_machine_instructions(second));
         SEMU_TEST_EQ_U64(context, saved_time, semu_machine_virtual_time(second));
         SEMU_TEST_EQ_U64(context, saved_pc, semu_machine_program_counter(second));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_read_section(loaded,
+                             SEMU_SNAPSHOT_SECTION_MACHINE,
+                             &section_data, &section_size));
+        layer_id_length = strlen(semu_sapporo_222_no_device_layer.id);
+        SEMU_TEST_ASSERT(context, section_size >= 28u + layer_id_length &&
+                         get_u32le(section_data + 24u) == layer_id_length);
+        malformed_size = section_size + 4u;
+        malformed = (uint8_t *)malloc(malformed_size);
+        SEMU_TEST_ASSERT(context, malformed != NULL);
+        memcpy(malformed, section_data, 24u);
+        put_u32le(malformed + 24u, (uint32_t)layer_id_length + 4u);
+        memcpy(malformed + 28u, section_data + 28u, layer_id_length);
+        memset(malformed + 28u + layer_id_length, 0, 4u);
+        malformed[29u + layer_id_length] = 'x';
+        memcpy(malformed + 28u + layer_id_length + 4u,
+               section_data + 28u + layer_id_length,
+               section_size - 28u - layer_id_length);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_write_section(loaded,
+                             SEMU_SNAPSHOT_SECTION_MACHINE, malformed,
+                             malformed_size, &error));
+        free(malformed);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_machine_snapshot_load(second, loaded, &error));
+        SEMU_TEST_EQ_U64(context, saved_instructions, semu_machine_instructions(second));
+        SEMU_TEST_EQ_U64(context, saved_time, semu_machine_virtual_time(second));
+        SEMU_TEST_EQ_U64(context, saved_pc, semu_machine_program_counter(second));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_deserialize(loaded, buffer, length, &error));
         limits.max_instructions = 4u;
         SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
                          semu_machine_run(first, &limits, &error));

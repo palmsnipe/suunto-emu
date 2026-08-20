@@ -226,7 +226,7 @@ static semu_status read_machine(semu_snapshot_reader *reader,
             semu_snapshot_reader_u32(reader, &intervention_count, error) != SEMU_OK)
             return error->code;
         layer->id[length] = '\0';
-        if (enabled > 1u || intervention_count > SEMU_SAPPORO_222_IV_COUNT) {
+        if (memchr(layer->id, '\0', length) != NULL || enabled > 1u || intervention_count > SEMU_SAPPORO_222_IV_COUNT) {
             semu_error_set(error, SEMU_ERR_FORMAT, "invalid machine layer state");
             return SEMU_ERR_FORMAT;
         }
