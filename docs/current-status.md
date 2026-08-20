@@ -174,6 +174,19 @@ require a native `storage/` open and watch-face notification before any binding;
 fabricating those events would bypass the observed owner. No implementation-
 eligible later-Sapporo device/storage gap is currently available.
 
+A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
+with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
+450,800,000-instruction checkpoint (snapshot SHA-256
+`8767a3f9990f1272c55e55566c7479037e0a2fbe3d5a711efb686feff7026e70`). Three
+cold starts to the 450,900,000-instruction `normal-frame` boundary averaged
+8.253 seconds of host wall time. Five resumes from that snapshot averaged
+0.142 seconds headless and 0.174 seconds through SDL3; every run stopped at
+`pc=0x0009a3fc`, virtual time `5333307331`, and every SDL run published
+`240x240 generation=1 crc32=4979f432`. The current binary hashes were
+headless `c80b8191...`, SDL `1d26a03f...`, and `libsemu.a` `9feafe6d...`.
+This is a host-only guardrail; it authorizes no performance or guest-behavior
+change by itself.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -189,8 +202,9 @@ without manufacturing a roadmap row. The practical work queue is:
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
   renderer milestone, not a physical-panel claim.
-- Measure snapshot-resume and frame-loop cost before making any performance
-  change; retain deterministic virtual time and guest behavior.
+- Preserve the pinned snapshot/frame-loop baseline before any performance
+  change: rerun the cold and resumed probes, requiring the exact stop, virtual
+  time, and SDL CRC32 while retaining deterministic guest behavior.
 
 The Sapporo UI helper invalidates its cached checkpoint when the selected
 headless or SDL executable is newer than the snapshot and verifies a sidecar
