@@ -28,25 +28,43 @@ static void first_frame_gate_note_input(first_frame_gate *gate,
     gate->input_seen = 1;
 }
 
+static int first_frame_has_visible_pixels(const semu_frame *frame)
+{
+    uint32_t y;
+    uint64_t row_bytes;
+    uint64_t total_bytes;
+    if (frame == NULL || frame->pixels == NULL ||
+        frame->format != SEMU_PIXEL_RGB565_LE || frame->width == 0u ||
+        frame->height == 0u) {
+        return 0;
+    }
+    row_bytes = (uint64_t)frame->width * UINT64_C(2);
+    total_bytes = (uint64_t)frame->stride * (uint64_t)frame->height;
+    if (frame->stride < row_bytes || total_bytes > (uint64_t)frame->size) {
+        return 0;
+    }
+    for (y = 0u; y < frame->height; ++y) {
+        uint64_t offset = (uint64_t)y * (uint64_t)frame->stride;
+        uint64_t x;
+        for (x = 0u; x < row_bytes; ++x) {
+            if (frame->pixels[(size_t)(offset + x)] != 0u) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 static void first_frame_gate_publish(void *context, const semu_frame *frame)
 {
     first_frame_gate *gate = (first_frame_gate *)context;
-    size_t index;
     if (gate == NULL || frame == NULL) {
-        return;
-    }
-    if (frame->pixels == NULL || frame->size == 0u) {
         return;
     }
     if (gate->wait_for_input && !gate->input_seen) {
         return;
     }
-    for (index = 0u; index < frame->size; ++index) {
-        if (frame->pixels[index] != 0u) {
-            break;
-        }
-    }
-    if (index == frame->size) {
+    if (!first_frame_has_visible_pixels(frame)) {
         return;
     }
     if (gate->callback != NULL) {

@@ -2,6 +2,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "semu/hash.h"
+
 #include "sdl_present_core.c"
 #include "sdl_present.c"
 #include "sdl_input.c"
@@ -83,9 +85,12 @@ static void publish_frame(void *context, const semu_frame *frame)
         return;
     }
     if (frontend->frame_count == 0u) {
-        fprintf(stderr, "SDL first-frame width=%u height=%u generation=%llu\n",
+        fprintf(stderr,
+                "SDL first-frame width=%u height=%u generation=%llu "
+                "crc32=%08x\n",
                 frame->width, frame->height,
-                (unsigned long long)frame->generation);
+                (unsigned long long)frame->generation,
+                semu_crc32(0u, frame->pixels, frame->size));
     }
     ++frontend->frame_count;
     if (frontend->machine != NULL) {
@@ -100,7 +105,15 @@ static semu_stop_reason process_normalized_key(sdl_frontend *frontend,
     int wait_for_button, semu_error *error)
 {
     semu_input_event input;
+    semu_button_id button;
     int has_input = 0;
+    if (key->down && !key->repeat &&
+        semu_input_mapper_button_for_key(frontend->input_mapper,
+                                         key->key, &button) &&
+        !semu_live_frame_gate_accepts_button(
+            &frontend->live_checkpoint, button)) {
+        return SEMU_STOP_NONE;
+    }
     if (semu_input_mapper_process(frontend->input_mapper, key, &input,
                                   &has_input, error) != SEMU_OK) {
         return SEMU_STOP_DEVICE_REFUSED;
@@ -150,6 +163,11 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
     if (frontend == NULL || machine == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "SDL input poll has no runtime context");
+        return SEMU_STOP_DEVICE_REFUSED;
+    }
+    if (frontend->failed) {
+        semu_error_set(error, SEMU_ERR_IO,
+                       "SDL presenter failed while publishing a frame");
         return SEMU_STOP_DEVICE_REFUSED;
     }
     frontend->machine = machine;

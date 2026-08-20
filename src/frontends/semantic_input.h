@@ -40,9 +40,14 @@ semu_input_mapper *semu_input_mapper_create(semu_error *error);
 void semu_input_mapper_destroy(semu_input_mapper *mapper);
 void semu_input_mapper_reset(semu_input_mapper *mapper);
 
+/* Resolve a host key without changing pressed state. */
+int semu_input_mapper_button_for_key(const semu_input_mapper *mapper,
+    uint32_t key_code, semu_button_id *out_button);
+
 /*
- * Set a custom key map.  Rejects duplicate key codes and out-of-range
- * button IDs.  Resets pressed state on success.
+ * Set a custom key map.  Rejects duplicate key codes, duplicate buttons, and
+ * out-of-range button IDs.  Unspecified buttons are unmapped.  Resets pressed
+ * state on success.
  */
 semu_status semu_input_mapper_set_map(semu_input_mapper *mapper,
     const semu_input_key_map_entry *entries, uint32_t count,

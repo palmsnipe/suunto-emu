@@ -18,8 +18,8 @@ static void observe_frame(void *context, const semu_frame *frame)
 
 static void test_first_frame_gate(semu_test_context *context)
 {
-    uint8_t pixel[2u] = {0x1Fu, 0u};
-    semu_frame frame = {SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+    uint8_t pixel[4u] = {0x1Fu, 0u, 0u, 0u};
+    semu_frame frame = {SEMU_PIXEL_RGB565_LE, 1u, 1u, 4u, 1u,
                         pixel, sizeof(pixel)};
     frame_observer observer = {0};
     first_frame_gate gate = {observe_frame, &observer, 0, 0, 0, 0};
@@ -35,6 +35,12 @@ static void test_first_frame_gate(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, observer.calls);
     SEMU_TEST_EQ_U64(context, 0u, gate.reached);
 
+    pixel[2] = 0x1Fu;
+    first_frame_gate_publish(&gate, &frame);
+    SEMU_TEST_EQ_U64(context, 1u, observer.calls);
+    SEMU_TEST_EQ_U64(context, 0u, gate.reached);
+
+    pixel[2] = 0u;
     first_frame_gate_publish(&gate, NULL);
     SEMU_TEST_EQ_U64(context, 1u, observer.calls);
     SEMU_TEST_EQ_U64(context, 0u, gate.reached);

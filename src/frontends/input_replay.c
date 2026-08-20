@@ -87,10 +87,15 @@ static int parse_uint64(const char *s, size_t len, uint64_t *out)
         return 0;
     }
     for (i = 0u; i < len; ++i) {
+        uint64_t digit;
         if (s[i] < '0' || s[i] > '9') {
             return 0;
         }
-        val = val * 10u + (uint64_t)(s[i] - '0');
+        digit = (uint64_t)(s[i] - '0');
+        if (val > (UINT64_MAX - digit) / 10u) {
+            return 0;
+        }
+        val = val * 10u + digit;
     }
     *out = val;
     return 1;
@@ -139,6 +144,7 @@ static int split_line(const char *line, size_t line_len,
 semu_status semu_input_replay_parse(semu_input_replay *replay,
     const char *text, size_t text_size, semu_error *error)
 {
+    semu_input_replay candidate;
     size_t i = 0u;
     uint32_t line_no = 0u;
     uint64_t last_time = 0u;
@@ -150,8 +156,7 @@ semu_status semu_input_replay_parse(semu_input_replay *replay,
                        "input_replay: null argument");
         return SEMU_ERR_ARGUMENT;
     }
-    replay->count = 0u;
-    replay->cursor = 0u;
+    memset(&candidate, 0, sizeof(candidate));
 
     while (i < text_size) {
         size_t start = i;
@@ -242,24 +247,25 @@ semu_status semu_input_replay_parse(semu_input_replay *replay,
                                line_no);
                 return SEMU_ERR_FORMAT;
             }
-            if (replay->count >= INPUT_REPLAY_MAX_EVENTS) {
+            if (candidate.count >= INPUT_REPLAY_MAX_EVENTS) {
                 semu_error_set(error, SEMU_ERR_RANGE,
                                "input_replay: event overflow at line %u",
                                line_no);
                 return SEMU_ERR_RANGE;
             }
             pressed[button] = down;
-            replay->entries[replay->count].time_ns = time_ns;
-            replay->entries[replay->count].event.kind = SEMU_INPUT_BUTTON;
-            replay->entries[replay->count].event.code = (uint32_t)button;
-            replay->entries[replay->count].event.value = down ? 0 : 1;
-            replay->entries[replay->count].event.x = 0;
-            replay->entries[replay->count].event.y = 0;
-            ++replay->count;
+            candidate.entries[candidate.count].time_ns = time_ns;
+            candidate.entries[candidate.count].event.kind = SEMU_INPUT_BUTTON;
+            candidate.entries[candidate.count].event.code = (uint32_t)button;
+            candidate.entries[candidate.count].event.value = down ? 0 : 1;
+            candidate.entries[candidate.count].event.x = 0;
+            candidate.entries[candidate.count].event.y = 0;
+            ++candidate.count;
             last_time = time_ns;
             have_last = 1;
         }
     }
+    *replay = candidate;
     return SEMU_OK;
 }
 

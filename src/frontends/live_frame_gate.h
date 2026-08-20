@@ -17,8 +17,12 @@ typedef struct semu_live_frame_gate {
     /* After a settled frame, setup navigation accepts any mapped button. */
     int accept_any_button;
     uint64_t frame_baseline;
+    uint64_t generation_baseline;
+    uint64_t last_generation;
     uint64_t last_frame_time;
     uint64_t candidate_frame_count;
+    int generation_baseline_valid;
+    int last_generation_valid;
     int input_seen;
     int ready;
     int candidate_valid;
@@ -28,6 +32,8 @@ void semu_live_frame_gate_init(semu_live_frame_gate *gate,
     int required_button);
 void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     uint64_t frame_count, const semu_input_event *input);
+int semu_live_frame_gate_accepts_button(
+    const semu_live_frame_gate *gate, uint32_t button);
 int semu_live_frame_gate_waiting(const semu_live_frame_gate *gate,
     uint64_t frame_count);
 int semu_live_frame_gate_observe(semu_live_frame_gate *gate,

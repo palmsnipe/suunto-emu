@@ -125,6 +125,8 @@ firmware manifest or compatibility layer changes.
 Machine snapshots preserve guest and NEMA state, not the SDL surface that was
 already presented; use a pre-frame boundary when the resumed session must
 immediately show the saved UI.
+The SDL frontend reports a bounded CRC32 alongside the first-frame dimensions
+and generation, so repeated runs can be compared without storing frame pixels.
 
 For repeated interactive setup sessions, the helper creates that checkpoint
 once and reuses it:
@@ -141,7 +143,8 @@ boundary. Set `SEMU_SAPPORO_UI_BUILD_DIR=build-fast` to run the helper with the
 isolated fast build. A cached snapshot only needs the SDL binary; the headless
 binary is needed only when the helper must create the snapshot. Remove that
 specific file when the emulator or compatibility implementation changes and a
-fresh boundary is needed.
+fresh boundary is needed, or set `SEMU_SAPPORO_UI_REFRESH=1` to rebuild it
+automatically.
 
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,

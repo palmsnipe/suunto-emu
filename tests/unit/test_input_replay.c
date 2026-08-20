@@ -87,12 +87,21 @@ static void test_malformed(semu_test_context *context)
 {
     semu_error err;
     semu_input_replay *r;
-    static const char text[] = "1000 button upper press\nbad\n";
+    static const char valid[] = "1000 button upper press\n";
+    static const char malformed[] = "2000 button upper release\nbad\n";
+    static const char overflow[] =
+        "18446744073709551616 button upper press\n";
     semu_error_clear(&err);
     r = semu_input_replay_create(&err);
     SEMU_TEST_ASSERT(context, r != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_input_replay_parse(r, valid, sizeof(valid) - 1u, &err));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
-        semu_input_replay_parse(r, text, sizeof(text) - 1u, &err));
+        semu_input_replay_parse(r, malformed, sizeof(malformed) - 1u, &err));
+    SEMU_TEST_EQ_U64(context, 1u, semu_input_replay_count(r));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_input_replay_parse(r, overflow, sizeof(overflow) - 1u, &err));
+    SEMU_TEST_EQ_U64(context, 1u, semu_input_replay_count(r));
     semu_input_replay_destroy(r);
 }
 

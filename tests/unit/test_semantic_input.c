@@ -177,6 +177,34 @@ static void test_focus_loss_order(semu_test_context *context)
     semu_input_mapper_destroy(m);
 }
 
+static void test_focus_loss_refusal_is_atomic(semu_test_context *context)
+{
+    semu_error err;
+    semu_input_mapper *m;
+    semu_normalized_key nk;
+    semu_input_event event;
+    semu_input_event releases[2];
+    uint32_t count = 99u;
+    int32_t has;
+    semu_error_clear(&err);
+    m = semu_input_mapper_create(&err);
+    SEMU_TEST_ASSERT(context, m != NULL);
+
+    semu_input_mapper_process(m,
+        make_key(&nk, SEMU_INPUT_KEY_UPPER, 1, 0), &event, &has, &err);
+    semu_input_mapper_process(m,
+        make_key(&nk, SEMU_INPUT_KEY_MIDDLE, 1, 0), &event, &has, &err);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        semu_input_mapper_focus_loss(m, releases, 1u, &count, &err));
+    SEMU_TEST_EQ_U64(context, 0u, count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_input_mapper_process(m,
+            make_key(&nk, SEMU_INPUT_KEY_UPPER, 0, 0), &event, &has, &err));
+    SEMU_TEST_EQ_U64(context, 1u, has);
+    SEMU_TEST_EQ_U64(context, SEMU_BUTTON_UPPER, event.code);
+    semu_input_mapper_destroy(m);
+}
+
 static void test_unmapped_key(semu_test_context *context)
 {
     semu_error err;
@@ -196,6 +224,31 @@ static void test_unmapped_key(semu_test_context *context)
     semu_input_mapper_destroy(m);
 }
 
+static void test_button_lookup_is_read_only(semu_test_context *context)
+{
+    semu_error err;
+    semu_input_mapper *m;
+    semu_button_id button = SEMU_BUTTON_LOWER;
+    semu_normalized_key key;
+    semu_input_event event;
+    int32_t has = 0;
+
+    semu_error_clear(&err);
+    m = semu_input_mapper_create(&err);
+    SEMU_TEST_ASSERT(context, m != NULL);
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_input_mapper_button_for_key(m, SEMU_INPUT_KEY_MIDDLE,
+                                         &button));
+    SEMU_TEST_EQ_U64(context, SEMU_BUTTON_MIDDLE, button);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_input_mapper_button_for_key(m, 999u, &button));
+    make_key(&key, SEMU_INPUT_KEY_MIDDLE, 0, 0);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_input_mapper_process(m, &key, &event, &has, &err));
+    SEMU_TEST_EQ_U64(context, 0u, has);
+    semu_input_mapper_destroy(m);
+}
+
 static void test_invalid_map_duplicate(semu_test_context *context)
 {
     semu_error err;
@@ -209,6 +262,43 @@ static void test_invalid_map_duplicate(semu_test_context *context)
     SEMU_TEST_ASSERT(context, m != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
         semu_input_mapper_set_map(m, entries, 2u, &err));
+    semu_input_mapper_destroy(m);
+}
+
+static void test_invalid_map_duplicate_button(semu_test_context *context)
+{
+    semu_error err;
+    semu_input_mapper *m;
+    semu_input_key_map_entry entries[] = {
+        { 10u, SEMU_BUTTON_UPPER },
+        { 11u, SEMU_BUTTON_UPPER },
+    };
+    semu_error_clear(&err);
+    m = semu_input_mapper_create(&err);
+    SEMU_TEST_ASSERT(context, m != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_input_mapper_set_map(m, entries, 2u, &err));
+    semu_input_mapper_destroy(m);
+}
+
+static void test_partial_map_does_not_alias(semu_test_context *context)
+{
+    semu_error err;
+    semu_input_mapper *m;
+    semu_input_key_map_entry entry = { 10u, SEMU_BUTTON_MIDDLE };
+    semu_normalized_key nk;
+    semu_input_event event;
+    int32_t has = 1;
+    semu_error_clear(&err);
+    m = semu_input_mapper_create(&err);
+    SEMU_TEST_ASSERT(context, m != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_input_mapper_set_map(m, &entry, 1u, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_input_mapper_process(m,
+            make_key(&nk, SEMU_INPUT_KEY_UPPER, 1, 0),
+            &event, &has, &err));
+    SEMU_TEST_EQ_U64(context, 0u, has);
     semu_input_mapper_destroy(m);
 }
 
@@ -312,9 +402,13 @@ int main(void)
         SEMU_TEST_CASE(test_duplicate_press_suppressed),
         SEMU_TEST_CASE(test_duplicate_release_suppressed),
         SEMU_TEST_CASE(test_focus_loss_order),
+        SEMU_TEST_CASE(test_focus_loss_refusal_is_atomic),
         SEMU_TEST_CASE(test_unmapped_key),
+        SEMU_TEST_CASE(test_button_lookup_is_read_only),
         SEMU_TEST_CASE(test_invalid_map_duplicate),
+        SEMU_TEST_CASE(test_invalid_map_duplicate_button),
         SEMU_TEST_CASE(test_invalid_map_button_range),
+        SEMU_TEST_CASE(test_partial_map_does_not_alias),
         SEMU_TEST_CASE(test_reset_clears_state),
         SEMU_TEST_CASE(test_repeat_hash)
     };

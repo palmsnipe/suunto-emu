@@ -13,7 +13,7 @@ static void test_live_gate_requires_quiet_frame(semu_test_context *context)
     };
     uint8_t pixels[2] = {0x1Fu, 0u};
     semu_frame frame = {
-        SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+        SEMU_PIXEL_RGB565_LE, 1u, 1u, 2u, 1u,
         pixels, sizeof(pixels)
     };
 
@@ -50,11 +50,12 @@ static void test_live_gate_rejects_black_and_changed_frames(
     };
     uint8_t pixels[2] = {0u, 0u};
     semu_frame frame = {
-        SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+        SEMU_PIXEL_RGB565_LE, 1u, 1u, 2u, 1u,
         pixels, sizeof(pixels)
     };
 
     semu_live_frame_gate_init(&gate, SEMU_BUTTON_LOWER);
+    semu_live_frame_gate_observe(&gate, 9u, 50u, &frame);
     semu_live_frame_gate_note_input(&gate, 10u, &event);
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_observe(&gate, 11u, 100u, &frame));
@@ -62,12 +63,38 @@ static void test_live_gate_rejects_black_and_changed_frames(
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_observe(&gate, 12u, 200u, &frame));
     pixels[0] = 0xE0u;
+    frame.generation = 2u;
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_observe(&gate, 13u, 300u, &frame));
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_settle(&gate, 13u, 300u +
             SEMU_LIVE_FRAME_SETTLE_NS - 1u));
     SEMU_TEST_EQ_U64(context, 0u, gate.ready);
+}
+
+static void test_live_gate_ignores_stride_padding(
+    semu_test_context *context)
+{
+    semu_live_frame_gate gate;
+    semu_input_event event = {
+        SEMU_INPUT_BUTTON, SEMU_BUTTON_LOWER, 0, 0, 0
+    };
+    uint8_t pixels[4] = {0u, 0u, 0x1Fu, 0u};
+    semu_frame frame = {
+        SEMU_PIXEL_RGB565_LE, 1u, 1u, 4u, 1u,
+        pixels, sizeof(pixels)
+    };
+
+    semu_live_frame_gate_init(&gate, SEMU_BUTTON_LOWER);
+    semu_live_frame_gate_note_input(&gate, 1u, &event);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_observe(&gate, 2u, 100u, &frame));
+    pixels[0] = 0x1Fu;
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_observe(&gate, 3u, 200u, &frame));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_settle(&gate, 3u,
+            200u + SEMU_LIVE_FRAME_SETTLE_NS));
 }
 
 static void test_live_gate_consumes_next_button_edge(
@@ -79,7 +106,7 @@ static void test_live_gate_consumes_next_button_edge(
     };
     uint8_t pixels[2] = {0x1Fu, 0u};
     semu_frame frame = {
-        SEMU_PIXEL_RGB565_LE, 240u, 240u, 480u, 1u,
+        SEMU_PIXEL_RGB565_LE, 1u, 1u, 2u, 1u,
         pixels, sizeof(pixels)
     };
 
@@ -101,6 +128,7 @@ static void test_live_gate_consumes_next_button_edge(
     SEMU_TEST_EQ_U64(context, 1u, gate.input_seen);
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_waiting(&gate, 3u));
+    frame.generation = 2u;
     semu_live_frame_gate_observe(&gate, 4u, 200u, &frame);
     SEMU_TEST_EQ_U64(context, 1u,
         semu_live_frame_gate_settle(&gate, 4u,
@@ -125,6 +153,10 @@ static void test_live_gate_refuses_wrong_initial_button(
 
     semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
     semu_live_frame_gate_note_input(&gate, 7u, &event);
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_accepts_button(&gate, SEMU_BUTTON_UPPER));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_accepts_button(&gate, SEMU_BUTTON_MIDDLE));
     SEMU_TEST_EQ_U64(context, 0u, gate.input_seen);
     SEMU_TEST_EQ_U64(context, 0u, gate.frame_baseline);
     SEMU_TEST_EQ_U64(context, 0u, gate.candidate_valid);
@@ -185,6 +217,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_live_gate_requires_quiet_frame),
         SEMU_TEST_CASE(test_live_gate_rejects_black_and_changed_frames),
+        SEMU_TEST_CASE(test_live_gate_ignores_stride_padding),
         SEMU_TEST_CASE(test_live_gate_consumes_next_button_edge),
         SEMU_TEST_CASE(test_live_gate_refuses_wrong_initial_button),
         SEMU_TEST_CASE(test_sdl_button_hold_is_bounded_and_atomic)

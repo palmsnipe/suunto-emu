@@ -67,7 +67,9 @@ post-input non-black setup frame. Live SDL checkpoints wait for a bounded
 so an intermediate logo/text transition is not frozen as the interactive frame.
 SDL button edges hold active-low for 70 ms of guest time and keep the released
 level stable for 70 ms before another press, matching the native debounce
-boundary.
+boundary. The SDL first-frame diagnostic also includes a bounded CRC32 of the
+presented RGB565 bytes; the live checkpoint accepts only visible pixels from a
+new renderer generation, excluding stride padding and stale submissions.
 
 SDL also accepts the same `middle-language` and `lower-transition` checkpoints
 without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow

@@ -13,6 +13,7 @@ fi
 manifest=$1
 snapshot=${2:-${SEMU_SAPPORO_UI_SNAPSHOT:-/tmp/suunto-ui-preframe.sems}}
 checkpoint=${3:-${SEMU_SAPPORO_UI_CHECKPOINT:-middle-language}}
+refresh=${SEMU_SAPPORO_UI_REFRESH:-0}
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 build_dir=${SEMU_SAPPORO_UI_BUILD_DIR:-build}
 case "$build_dir" in
@@ -30,6 +31,14 @@ case "$checkpoint" in
         ;;
 esac
 
+case "$refresh" in
+    0|1) ;;
+    *)
+        echo "SEMU_SAPPORO_UI_REFRESH must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
 if [ ! -r "$manifest" ]; then
     echo "manifest is not readable: $manifest" >&2
     exit 2
@@ -39,25 +48,35 @@ if [ ! -x "$sdl" ]; then
     exit 2
 fi
 
-if [ ! -s "$snapshot" ]; then
+if [ "$refresh" -eq 1 ] || [ ! -s "$snapshot" ]; then
     if [ ! -x "$headless" ]; then
         echo "headless binary is required to create: $snapshot" >&2
         echo "build both binaries first with: make" >&2
         exit 2
     fi
+    snapshot_tmp=$(mktemp "${snapshot}.tmp.XXXXXX")
+    log_tmp=$(mktemp "${snapshot}.log.XXXXXX")
+    cleanup_snapshot_files()
+    {
+        rm -f "$snapshot_tmp" "$log_tmp"
+    }
+    trap cleanup_snapshot_files EXIT HUP INT TERM
     echo "creating Sapporo UI checkpoint: $snapshot" >&2
     set +e
     SEMU_FIRMWARE_MANIFEST="$manifest" "$headless" run \
         --profile sapporo-2.22.60 --firmware "$manifest" \
         --layer sapporo-2.22-no-device \
-        --max-instructions 450800000 \
-        --snapshot-save "$snapshot"
+        --max-instructions 450800000 --max-time 22000000000 \
+        --snapshot-save "$snapshot_tmp" >"$log_tmp" 2>&1
     status=$?
     set -e
-    if [ "$status" -ne 3 ] || [ ! -s "$snapshot" ]; then
+    cat "$log_tmp" >&2
+    if [ "$status" -ne 3 ] || [ ! -s "$snapshot_tmp" ] ||
+       ! grep -q '^stop=budget ' "$log_tmp"; then
         echo "failed to create Sapporo UI checkpoint" >&2
-        exit "$status"
+        exit 2
     fi
+    mv -f "$snapshot_tmp" "$snapshot"
 fi
 
 exec env SEMU_FIRMWARE_MANIFEST="$manifest" "$sdl" run \

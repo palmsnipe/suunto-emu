@@ -7,12 +7,14 @@
 
 struct semu_input_mapper {
     uint32_t key_map[MAPPER_BUTTON_COUNT]; /* key_code per button slot */
+    int valid[MAPPER_BUTTON_COUNT];        /* configured map slots */
     int pressed[MAPPER_BUTTON_COUNT];       /* pressed state per button */
 };
 
 semu_input_mapper *semu_input_mapper_create(semu_error *error)
 {
     semu_input_mapper *m;
+    uint32_t i;
     m = (semu_input_mapper *)calloc(1u, sizeof(*m));
     if (m == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate input mapper");
@@ -21,6 +23,9 @@ semu_input_mapper *semu_input_mapper_create(semu_error *error)
     m->key_map[SEMU_BUTTON_UPPER] = SEMU_INPUT_KEY_UPPER;
     m->key_map[SEMU_BUTTON_MIDDLE] = SEMU_INPUT_KEY_MIDDLE;
     m->key_map[SEMU_BUTTON_LOWER] = SEMU_INPUT_KEY_LOWER;
+    for (i = 0u; i < MAPPER_BUTTON_COUNT; ++i) {
+        m->valid[i] = 1;
+    }
     return m;
 }
 
@@ -67,12 +72,20 @@ semu_status semu_input_mapper_set_map(semu_input_mapper *mapper,
                                entries[i].key_code);
                 return SEMU_ERR_ARGUMENT;
             }
+            if (entries[i].button == entries[j].button) {
+                semu_error_set(error, SEMU_ERR_ARGUMENT,
+                               "duplicate button %u in map",
+                               entries[i].button);
+                return SEMU_ERR_ARGUMENT;
+            }
         }
     }
     memset(mapper->key_map, 0, sizeof(mapper->key_map));
+    memset(mapper->valid, 0, sizeof(mapper->valid));
     memset(mapper->pressed, 0, sizeof(mapper->pressed));
     for (i = 0u; i < count; ++i) {
         mapper->key_map[entries[i].button] = entries[i].key_code;
+        mapper->valid[entries[i].button] = 1;
     }
     return SEMU_OK;
 }
@@ -82,12 +95,24 @@ static int find_button(const semu_input_mapper *mapper, uint32_t key_code,
 {
     uint32_t i;
     for (i = 0u; i < MAPPER_BUTTON_COUNT; ++i) {
-        if (mapper->key_map[i] == key_code) {
+        if (mapper->valid[i] && mapper->key_map[i] == key_code) {
             *out_button = i;
             return 1;
         }
     }
     return 0;
+}
+
+int semu_input_mapper_button_for_key(const semu_input_mapper *mapper,
+    uint32_t key_code, semu_button_id *out_button)
+{
+    uint32_t button;
+    if (mapper == NULL || out_button == NULL ||
+        !find_button(mapper, key_code, &button)) {
+        return 0;
+    }
+    *out_button = (semu_button_id)button;
+    return 1;
 }
 
 semu_status semu_input_mapper_process(semu_input_mapper *mapper,
@@ -146,12 +171,18 @@ semu_status semu_input_mapper_focus_loss(semu_input_mapper *mapper,
                                "focus_loss event overflow at button %u", i);
                 return SEMU_ERR_RANGE;
             }
-            mapper->pressed[i] = 0;
+            ++count;
+        }
+    }
+    count = 0u;
+    for (i = 0u; i < MAPPER_BUTTON_COUNT; ++i) {
+        if (mapper->pressed[i]) {
             out_events[count].kind = SEMU_INPUT_BUTTON;
             out_events[count].code = i;
             out_events[count].value = 1;
             out_events[count].x = 0;
             out_events[count].y = 0;
+            mapper->pressed[i] = 0;
             ++count;
         }
     }
