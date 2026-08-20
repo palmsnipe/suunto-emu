@@ -140,7 +140,8 @@ static int parse_header_line(const char *key, size_t key_len,
         return 1;
     }
     if (key_len == 7u && memcmp(key, "profile", 7u) == 0) {
-        if (val_len == 0u || val_len >= SEMU_ID_MAX) {
+        if (val_len == 0u || val_len >= SEMU_ID_MAX ||
+            memchr(val, '\0', val_len) != NULL) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                 "replay: line %u: bad profile id", line_no);
             return 0;
