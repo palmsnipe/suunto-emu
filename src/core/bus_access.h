@@ -53,9 +53,8 @@ static inline bus_region *semu_bus_cached_regular(semu_bus *bus,
 {
     size_t slot;
     for (slot = 0u; slot < 2u; ++slot) {
-        if ((bus->regular_cache_valid & (1u << slot)) != 0u) {
-            bus_region *region =
-                &bus->regions[bus->regular_cache_index[slot]];
+        bus_region *region = bus->regular_cache[slot];
+        if (region != NULL) {
             if (address >= region->base &&
                 end <= (uint64_t)region->base + region->size) {
                 return region;

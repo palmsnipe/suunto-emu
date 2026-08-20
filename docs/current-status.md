@@ -111,6 +111,14 @@ seconds after them, a further 10.3% wall-time reduction. All ten runs produced
 the same output SHA-1 `c0db13d31ba201deeee2453d328aa4027c990b59` and the same
 stop checkpoint above.
 
+The CPU instruction path now uses an internal, exact 16-bit bus fetch that
+keeps overlay and fault handling unchanged while avoiding generic-width work
+on cached ROM/RAM hits. The regular-region cache stores invalidation-safe
+pointers instead of reconstructing them from indexes. A second five-run paired
+continuation against commit `44e545b` averaged 4.132 seconds before and 3.880
+seconds after these changes, a further 6.1% wall-time reduction, with the same
+output SHA-1 and stop checkpoint.
+
 The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
 runtime reset count, compatibility hit total, and virtual time without changing
 guest execution. OHR2 also emits a bounded 64-event-per-device-lifetime

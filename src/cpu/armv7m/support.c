@@ -1,5 +1,7 @@
 #include "armv7m_internal.h"
 
+#include "../../core/bus_internal.h"
+
 static int scs_address(uint32_t address)
 {
     return address >= ARMV7M_SCS_BASE &&
@@ -49,6 +51,16 @@ semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error)
 {
     semu_status status = semu_bus_read(cpu->bus, address, width, value, error);
+    if (status != SEMU_OK) {
+        request_bus_fault(cpu, address, status);
+    }
+    return status;
+}
+
+semu_status armv7m_fetch16(semu_cpu *cpu, uint32_t address,
+                           uint32_t *value, semu_error *error)
+{
+    semu_status status = semu_bus_read_u16(cpu->bus, address, value, error);
     if (status != SEMU_OK) {
         request_bus_fault(cpu, address, status);
     }

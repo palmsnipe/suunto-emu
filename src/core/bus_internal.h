@@ -26,11 +26,10 @@ struct semu_bus {
     bus_region *regions;
     size_t count;
     size_t capacity;
-    size_t regular_cache_index[2];
+    bus_region *regular_cache[2];
     uint64_t overlay_max_end;
     uint32_t overlay_min_base;
     size_t overlay_count;
-    uint8_t regular_cache_valid;
 };
 
 semu_status semu_bus_map_overlay(semu_bus *bus, const char *name,
@@ -41,6 +40,8 @@ void semu_bus_unmap_overlay(semu_bus *bus, void *context);
 semu_status semu_bus_read_below(semu_bus *bus, uint32_t address,
                                 unsigned width, uint32_t *value,
                                 semu_error *error);
+semu_status semu_bus_read_u16(semu_bus *bus, uint32_t address,
+                              uint32_t *value, semu_error *error);
 semu_status semu_bus_write_below(semu_bus *bus, uint32_t address,
                                  unsigned width, uint32_t value,
                                  semu_error *error);

@@ -151,7 +151,7 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_ASSERT(context, memcmp(output, "\x11\x22\x33\x44", 4u) == 0);
     semu_error_set(&error, SEMU_ERR_STATE, "stale bus error");
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x1001u, 2u, &value, &error));
+                     semu_bus_read_u16(bus, 0x1001u, &value, &error));
     SEMU_TEST_ASSERT(context, error.code == SEMU_OK && error.text[0] == '\0');
     SEMU_TEST_EQ_U64(context, 0x3322u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -160,6 +160,10 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x1004u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0xdeadbeefu, value);
+    value = 0x12345678u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read_u16(bus, 0x1004u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x12345678u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read_below(bus, 0x1004u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0u, value);
@@ -187,6 +191,8 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
                      semu_bus_read(bus, 0x4000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                     semu_bus_read_u16(bus, 0x4000u, &value, &error));
     semu_bus_destroy(bus);
 }
 

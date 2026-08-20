@@ -189,7 +189,7 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     if ((pc & 1u) != 0u) {
         return armv7m_unsupported(cpu, pc, error);
     }
-    if (armv7m_read(cpu, pc, 2u, &first_value, error) != SEMU_OK) {
+    if (armv7m_fetch16(cpu, pc, &first_value, error) != SEMU_OK) {
         if (cpu->state.halted)
             return error != NULL ? error->code : SEMU_ERR_RANGE;
         return finish_instruction(cpu, error);
@@ -197,7 +197,7 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     first = (uint16_t)first_value;
     is_wide = instruction_is_32bit(first);
     if (is_wide) {
-        if (armv7m_read(cpu, pc + 2u, 2u, &second_value, error) != SEMU_OK) {
+        if (armv7m_fetch16(cpu, pc + 2u, &second_value, error) != SEMU_OK) {
             if (cpu->state.halted)
                 return error != NULL ? error->code : SEMU_ERR_RANGE;
             return finish_instruction(cpu, error);

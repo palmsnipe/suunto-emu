@@ -11,7 +11,8 @@ static int valid_interval(uint32_t base, uint32_t size) {
 static void refresh_lookup(semu_bus *bus)
 {
     size_t index;
-    bus->regular_cache_valid = 0u;
+    bus->regular_cache[0] = NULL;
+    bus->regular_cache[1] = NULL;
     bus->overlay_count = 0u;
     bus->overlay_min_base = UINT32_MAX;
     bus->overlay_max_end = 0u;
@@ -114,10 +115,8 @@ static bus_region *find_region_kind(semu_bus *bus, uint32_t address,
         bus_region *region = &bus->regions[index];
         if (region->overlay == 0u && address >= region->base &&
             end <= region_end(region)) {
-            bus->regular_cache_index[1] = bus->regular_cache_index[0];
-            bus->regular_cache_index[0] = index;
-            bus->regular_cache_valid = (uint8_t)
-                (((bus->regular_cache_valid & 1u) << 1u) | 1u);
+            bus->regular_cache[1] = bus->regular_cache[0];
+            bus->regular_cache[0] = region;
             return region;
         }
     }

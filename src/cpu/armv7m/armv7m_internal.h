@@ -170,6 +170,8 @@ semu_status armv7m_fpu_context_unstack(semu_cpu *cpu, uint32_t frame_sp,
 
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error);
+semu_status armv7m_fetch16(semu_cpu *cpu, uint32_t address,
+                           uint32_t *value, semu_error *error);
 semu_status armv7m_write(semu_cpu *cpu, uint32_t address, unsigned width,
                          uint32_t value, semu_error *error);
 semu_status armv7m_validate_write(semu_cpu *cpu, uint32_t address,
