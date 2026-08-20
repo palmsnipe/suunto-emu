@@ -26,6 +26,35 @@ static int valid_exclusive_width(unsigned width)
     return width == 0u || width == 1u || width == 2u || width == 4u;
 }
 
+static int valid_interrupt_state(const semu_cpu *cpu)
+{
+    unsigned index;
+
+    for (index = 0u; index < ARMV7M_IRQ_COUNT; ++index) {
+        unsigned source = (unsigned)((cpu->irq_source_bits[index / 64u] >>
+                                      (index % 64u)) & 1u);
+        unsigned expected = (cpu->irq_level[index] != 0u ||
+                             cpu->irq_pending[index] != 0u) ? 1u : 0u;
+        if (!valid_binary(cpu->irq_level[index]) ||
+            !valid_binary(cpu->irq_enabled[index]) ||
+            !valid_binary(cpu->irq_pending[index]) ||
+            !valid_binary(cpu->irq_active[index]) ||
+            (cpu->irq_priority[index] & ~ARMV7M_NVIC_PRIORITY_MASK) != 0u ||
+            source != expected) {
+            return 0;
+        }
+    }
+    for (index = 0u; index < SEMU_ARRAY_LEN(cpu->system_pending); ++index) {
+        if (!valid_binary(cpu->system_pending[index]) ||
+            !valid_binary(cpu->system_active[index]) ||
+            (cpu->system_priority[index] &
+             (uint8_t)~ARMV7M_NVIC_PRIORITY_MASK) != 0u) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static semu_status write_state(const semu_cpu_state *state,
                                semu_snapshot_writer *writer,
                                semu_error *error)
@@ -254,6 +283,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u8(reader, &candidate.exclusive_valid, error));
     R(semu_snapshot_reader_u32(reader, &candidate.exclusive_address, error));
     R(semu_snapshot_reader_u32(reader, &value, error));
+    if (!valid_interrupt_state(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU interrupt state");
+        return SEMU_ERR_FORMAT;
+    }
     if (!valid_binary(candidate.fpca) ||
         !valid_binary(candidate.fp_context_fault) ||
         !valid_binary(candidate.stack_fault_active) ||
