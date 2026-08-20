@@ -202,6 +202,7 @@ semu_status semu_sapporo_tli493d_snapshot_read(
     semu_error *error)
 {
     semu_sapporo_tli493d candidate;
+    size_t i;
     if (sensor == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "TLI493D snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
@@ -214,6 +215,18 @@ semu_status semu_sapporo_tli493d_snapshot_read(
     if (candidate.address != sensor->address) {
         semu_error_set(error, SEMU_ERR_CONFLICT, "TLI493D snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
+    }
+    for (i = 0u; i < TLI_REG_COUNT; ++i) {
+        uint8_t expected;
+        if (i >= TLI_CONFIG_FIRST && i <= TLI_CONFIG_LAST) {
+            continue;
+        }
+        expected = i == TLI_DIAG_REG ? TLI_DIAG_VAL : 0u;
+        if (candidate.registers[i] != expected) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "TLI493D snapshot fixed register mismatch");
+            return SEMU_ERR_FORMAT;
+        }
     }
     *sensor = candidate;
     return SEMU_OK;

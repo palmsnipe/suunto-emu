@@ -250,6 +250,39 @@ static void test_repeated_transcript(semu_test_context *context)
     semu_sapporo_tli493d_destroy(sensor);
 }
 
+static void test_snapshot_fixed_registers_refuse(semu_test_context *context)
+{
+    semu_error error;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_sapporo_tli493d *source;
+    semu_sapporo_tli493d *target;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    source = semu_sapporo_tli493d_create(0x35u, &error);
+    target = semu_sapporo_tli493d_create(0x35u, &error);
+    SEMU_TEST_ASSERT(context, source != NULL && target != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_tli493d_snapshot_write(source, &writer,
+                                                         &error));
+    /* Snapshot layout is address followed by 32 register bytes. */
+    writer.data[1u + 0x06u] = 0u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_tli493d_snapshot_read(target, &reader,
+                                                        &error));
+    writer.data[1u + 0x06u] = 0x44u;
+    writer.data[1u + 0x00u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_tli493d_snapshot_read(target, &reader,
+                                                        &error));
+    semu_snapshot_writer_destroy(&writer);
+    semu_sapporo_tli493d_destroy(target);
+    semu_sapporo_tli493d_destroy(source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -262,7 +295,8 @@ int main(void)
         SEMU_TEST_CASE(test_unknown_write_register),
         SEMU_TEST_CASE(test_invalid_frames_are_atomic),
         SEMU_TEST_CASE(test_unsupported_read_lengths_refuse),
-        SEMU_TEST_CASE(test_repeated_transcript)
+        SEMU_TEST_CASE(test_repeated_transcript),
+        SEMU_TEST_CASE(test_snapshot_fixed_registers_refuse)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
