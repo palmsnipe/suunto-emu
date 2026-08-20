@@ -248,6 +248,44 @@ static void test_unchanged_after_refusal(semu_test_context *context)
     semu_snapshot_destroy(s);
 }
 
+static void test_identity_hash_validation(semu_test_context *context)
+{
+    semu_error err;
+    semu_snapshot *snap;
+    uint8_t buf[4096];
+    size_t len;
+    char invalid_hash[SEMU_REPLAY_HASH_HEX_LEN];
+    static const uint8_t payload[] = { 0x5Au };
+
+    semu_error_clear(&err);
+    snap = semu_snapshot_create(&err);
+    SEMU_TEST_ASSERT(context, snap != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_set_identity(snap, PROFILE, FWHASH, &err));
+    memcpy(invalid_hash, FWHASH, sizeof(invalid_hash));
+    invalid_hash[0] = 'A';
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_set_identity(snap, PROFILE, invalid_hash, &err));
+    SEMU_TEST_ASSERT(context,
+        strcmp(semu_snapshot_firmware_hash(snap), FWHASH) == 0);
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_write_section(snap, SEMU_SNAPSHOT_SECTION_CPU_STATE,
+            payload, sizeof(payload), &err));
+    len = semu_snapshot_serialize(snap, buf, sizeof(buf));
+    SEMU_TEST_ASSERT(context, len > 0u);
+
+    /* The serialized hash starts after magic, version, and profile. */
+    buf[4u + 4u + SEMU_ID_MAX] = 'A';
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_deserialize(snap, buf, len, &err));
+    SEMU_TEST_ASSERT(context,
+        strcmp(semu_snapshot_firmware_hash(snap), FWHASH) == 0);
+    SEMU_TEST_EQ_U64(context, 1u, semu_snapshot_section_count(snap));
+
+    semu_snapshot_destroy(snap);
+}
+
 static void test_continued_run_matches(semu_test_context *context)
 {
     /* Run a synthetic program, snapshot state, continue both ways,
@@ -399,6 +437,7 @@ int main(void)
         SEMU_TEST_CASE(test_truncated_section_data),
         SEMU_TEST_CASE(test_too_many_sections),
         SEMU_TEST_CASE(test_unchanged_after_refusal),
+        SEMU_TEST_CASE(test_identity_hash_validation),
         SEMU_TEST_CASE(test_continued_run_matches),
         SEMU_TEST_CASE(test_null_safety)
     };

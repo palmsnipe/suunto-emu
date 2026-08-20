@@ -82,6 +82,23 @@ uint32_t semu_snapshot_version(const semu_snapshot *snap)
     return SEMU_SNAPSHOT_VERSION;
 }
 
+static int is_lower_hex_hash(const char *value, size_t length)
+{
+    size_t index;
+
+    if (value == NULL || length != SEMU_SHA256_SIZE * 2u) {
+        return 0;
+    }
+    for (index = 0u; index < length; ++index) {
+        char digit = value[index];
+        if (!((digit >= '0' && digit <= '9') ||
+              (digit >= 'a' && digit <= 'f'))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 semu_status semu_snapshot_set_identity(semu_snapshot *snap,
     const char *profile_id, const char *firmware_hash,
     semu_error *error)
@@ -100,6 +117,11 @@ semu_status semu_snapshot_set_identity(semu_snapshot *snap,
     if (flen != SEMU_SHA256_SIZE * 2u) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
             "snapshot: bad firmware hash length");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (!is_lower_hex_hash(firmware_hash, flen)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+            "snapshot: firmware hash not lowercase hex");
         return SEMU_ERR_ARGUMENT;
     }
     memcpy(snap->profile_id, profile_id, plen);
@@ -311,6 +333,11 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
     memcpy(temp_hash, buf + offset, SEMU_REPLAY_HASH_HEX_LEN);
     temp_hash[SEMU_REPLAY_HASH_HEX_LEN - 1u] = '\0';
     offset += SEMU_REPLAY_HASH_HEX_LEN;
+    if (!is_lower_hex_hash(temp_hash, SEMU_SHA256_SIZE * 2u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+            "snapshot: firmware hash not lowercase hex");
+        return SEMU_ERR_FORMAT;
+    }
     scount = get_u32le(buf + offset);
     offset += 4u;
     if (scount > SEMU_SNAPSHOT_MAX_SECTIONS) {
