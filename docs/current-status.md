@@ -101,6 +101,13 @@ replay continuation; it reports the first visible post-input frame without
 naming an unverified screen. Invalid automation configuration is always
 checked and fails closed; absent private firmware skips only the authentic run.
 
+The next native transition is now provenance-pinned as E-SAP-ONBOARD-001: an
+English-row selection reaches a native software-rendered `Define your profile`
+frame (raw SHA-256 `0930d2cc...`). The capture is comparison evidence only;
+its source marks physical NEMAP output and complete watch UI as unavailable, so
+the emulator keeps `setup-next` neutral until an equivalent guest contract is
+reproduced.
+
 The normal `-O2` runtime now dispatches successful SCS accesses directly to
 SysTick, NVIC, or SCB instead of constructing speculative refusal diagnostics,
 and it calls the 2.22 compatibility dispatcher only at its exact, hash-pinned
@@ -160,8 +167,9 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Audit the available later-Sapporo packages and traces, then instantiate one
   observed-gap task only if an exact failing transaction and provenance exist.
-- Continue the Sapporo setup flow from the cached UI checkpoint, adding only
-  the next reproducible transition and its input/refusal regression. This is
+- Compare the neutral `setup-next` continuation with E-SAP-ONBOARD-001's
+  native command/text contract, then add a screen-specific emulator checkpoint
+  only if the guest transition and refusal boundary are reproduced. This is
   still an SDL renderer milestone, not a physical-panel claim.
 - Measure snapshot-resume and frame-loop cost before making any performance
   change; retain deterministic virtual time and guest behavior.
