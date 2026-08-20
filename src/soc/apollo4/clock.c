@@ -16,10 +16,18 @@ enum {
     CLOCK_INTR = 0x0cu
 };
 
-static int is_observed_value(uint32_t offset, uint32_t value)
+static int is_observed_write_value(uint32_t offset, uint32_t value)
 {
     return (offset == CLOCK_CAL &&
             (value == UINT32_C(0xf80000) ||
+             value == UINT32_C(0xf80040))) ||
+           (offset == CLOCK_INTR && value == 0u);
+}
+
+static int is_valid_state_value(uint32_t offset, uint32_t value)
+{
+    return (offset == CLOCK_CAL &&
+            (value == 0u || value == UINT32_C(0xf80000) ||
              value == UINT32_C(0xf80040))) ||
            (offset == CLOCK_INTR && value == 0u);
 }
@@ -152,7 +160,7 @@ semu_status semu_apollo4_clock_write(void *context, uint32_t offset,
     if (status != SEMU_OK) {
         return status;
     }
-    if (!is_observed_value(offset, value)) {
+    if (!is_observed_write_value(offset, value)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 clock value 0x%08x is unsupported at 0x%08x",
                        value, offset);
@@ -206,6 +214,12 @@ semu_status semu_apollo4_clock_snapshot_read(
     if (semu_snapshot_reader_u32(reader, &candidate.cal, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &candidate.intr, error) != SEMU_OK)
         return error->code;
+    if (!is_valid_state_value(CLOCK_CAL, candidate.cal) ||
+        !is_valid_state_value(CLOCK_INTR, candidate.intr)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "clock snapshot state is unreachable");
+        return SEMU_ERR_FORMAT;
+    }
     *clock = candidate;
     return SEMU_OK;
 }

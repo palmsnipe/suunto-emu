@@ -166,6 +166,48 @@ static void test_unobserved_values_refuse(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_snapshot_values_refuse_atomically(semu_test_context *context)
+{
+    clock_fixture source;
+    clock_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&source, 0x44u,
+                                                      UINT32_C(0xF80040)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&target, 0x44u,
+                                                      UINT32_C(0xF80000)));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_clock_snapshot_write(source.clock, &writer,
+                                                       &source.error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_clock_snapshot_read(target.clock, &reader,
+                                                      &target.error));
+    writer.data[0u] = 0x01u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_clock_snapshot_read(target.clock, &reader,
+                                                      &target.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&target, 0x44u, &value));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80040), value);
+    writer.data[0u] = 0u;
+    writer.data[4u] = 0x01u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_clock_snapshot_read(target.clock, &reader,
+                                                      &target.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&target, 0x0cu, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 static void test_two_run_equality(semu_test_context *context)
 {
     clock_fixture a, b;
@@ -201,6 +243,7 @@ int main(void)
         SEMU_TEST_CASE(test_adjacent_and_unknown_offsets_refuse),
         SEMU_TEST_CASE(test_reset_clears_state),
         SEMU_TEST_CASE(test_unobserved_values_refuse),
+        SEMU_TEST_CASE(test_snapshot_values_refuse_atomically),
         SEMU_TEST_CASE(test_two_run_equality)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
