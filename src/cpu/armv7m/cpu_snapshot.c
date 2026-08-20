@@ -16,6 +16,16 @@ static uint16_t count_pending_sources(const semu_cpu *cpu)
     return count;
 }
 
+static int valid_binary(uint8_t value)
+{
+    return value <= 1u;
+}
+
+static int valid_exclusive_width(unsigned width)
+{
+    return width == 0u || width == 1u || width == 2u || width == 4u;
+}
+
 static semu_status write_state(const semu_cpu_state *state,
                                semu_snapshot_writer *writer,
                                semu_error *error)
@@ -244,7 +254,25 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u8(reader, &candidate.exclusive_valid, error));
     R(semu_snapshot_reader_u32(reader, &candidate.exclusive_address, error));
     R(semu_snapshot_reader_u32(reader, &value, error));
-    if (value > 4u) {
+    if (!valid_binary(candidate.fpca) ||
+        !valid_binary(candidate.fp_context_fault) ||
+        !valid_binary(candidate.stack_fault_active) ||
+        !valid_binary(candidate.bus_fault_active) ||
+        !valid_binary(candidate.event_register) ||
+        candidate.sleep_mode > ARMV7M_SLEEP_WFE ||
+        candidate.sleep_wake_source > 3u ||
+        !valid_binary(candidate.reset_requested) ||
+        !valid_binary(candidate.systick_countflag) ||
+        !valid_binary(candidate.systick_event_valid) ||
+        !valid_binary(candidate.stack_align) ||
+        !valid_binary(candidate.exclusive_valid)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU snapshot state flag");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!valid_exclusive_width(value) ||
+        (candidate.exclusive_valid == 0u && value != 0u) ||
+        (candidate.exclusive_valid != 0u && value == 0u)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU exclusive width");
         return SEMU_ERR_FORMAT;
