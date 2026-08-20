@@ -80,3 +80,15 @@ semu_status sdl_present_core_validate(semu_pixel_format format,
     out->expected_size = (size_t)min_size;
     return SEMU_OK;
 }
+
+semu_status sdl_present_core_validate_frame(const semu_frame *frame,
+    uint32_t scale, sdl_present_descriptor *out, semu_error *error)
+{
+    if (frame == NULL || frame->pixels == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "sdl_present_core: frame pixels are required");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return sdl_present_core_validate(frame->format, frame->width,
+        frame->height, frame->stride, frame->size, scale, out, error);
+}

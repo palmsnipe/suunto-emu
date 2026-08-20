@@ -21,6 +21,27 @@ static void test_valid_240x240(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 115200u, desc.expected_size);
 }
 
+static void test_frame_pixels_required(semu_test_context *context)
+{
+    semu_error err;
+    sdl_present_descriptor desc;
+    semu_frame frame;
+    uint8_t pixels[2u] = { 0u, 0u };
+
+    semu_error_clear(&err);
+    (void)memset(&frame, 0, sizeof(frame));
+    frame.format = SEMU_PIXEL_RGB565_LE;
+    frame.width = 1u;
+    frame.height = 1u;
+    frame.stride = 2u;
+    frame.size = sizeof(pixels);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        sdl_present_core_validate_frame(&frame, 1u, &desc, &err));
+    frame.pixels = pixels;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        sdl_present_core_validate_frame(&frame, 1u, &desc, &err));
+}
+
 static void test_padded_stride(semu_test_context *context)
 {
     semu_error err;
@@ -135,6 +156,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_valid_240x240),
+        SEMU_TEST_CASE(test_frame_pixels_required),
         SEMU_TEST_CASE(test_padded_stride),
         SEMU_TEST_CASE(test_bad_format),
         SEMU_TEST_CASE(test_zero_dimensions),

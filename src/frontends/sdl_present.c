@@ -119,10 +119,7 @@ semu_status sdl_presenter_present(sdl_presenter *p,
                        "sdl_presenter: presenter in failed state");
         return SEMU_ERR_STATE;
     }
-    st = sdl_present_core_validate(frame->format,
-        frame->width, frame->height,
-        frame->stride, frame->size,
-        p->scale, &desc, error);
+    st = sdl_present_core_validate_frame(frame, p->scale, &desc, error);
     if (st != SEMU_OK) {
         return st;
     }

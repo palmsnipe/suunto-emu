@@ -38,4 +38,8 @@ semu_status sdl_present_core_validate(semu_pixel_format format,
     sdl_present_descriptor *out,
     semu_error *error);
 
+/* Validate a complete frame before handing its pixels to SDL. */
+semu_status sdl_present_core_validate_frame(const semu_frame *frame,
+    uint32_t scale, sdl_present_descriptor *out, semu_error *error);
+
 #endif
