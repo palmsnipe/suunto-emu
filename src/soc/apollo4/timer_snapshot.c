@@ -70,9 +70,10 @@ semu_status semu_apollo4_timer_snapshot_read(
             semu_snapshot_reader_u8(reader, &channel->event_valid, error) != SEMU_OK ||
             semu_snapshot_reader_u8(reader, &channel->irq_level, error) != SEMU_OK)
             return error->code;
-        if (channel->event_valid > 1u || channel->irq_level > 1u) {
+        if (channel->event_valid > 1u || channel->irq_level > 1u ||
+            (channel->event_valid != 0u) != (channel->event != 0u)) {
             semu_error_set(error, SEMU_ERR_FORMAT,
-                           "invalid CTIMER snapshot flag");
+                           "invalid CTIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
     }

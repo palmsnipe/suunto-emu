@@ -1,4 +1,5 @@
 #include "../../src/soc/apollo4/timer.h"
+#include "../../src/core/scheduler_internal.h"
 
 #include "semu/scheduler.h"
 #include "test.h"
