@@ -457,6 +457,11 @@ semu_status semu_nema_gpu_snapshot_read(
                        "invalid NEMA initialization flag");
         return SEMU_ERR_FORMAT;
     }
+    if (initialized != 0u && !ring_is_configured(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "initialized NEMA snapshot has no command ring");
+        return SEMU_ERR_FORMAT;
+    }
     if (nema_completion_snapshot_read(candidate.completion, reader, error) != SEMU_OK)
         return error->code;
     nema_completion_rebind_active(candidate.completion, completion_reg_write,

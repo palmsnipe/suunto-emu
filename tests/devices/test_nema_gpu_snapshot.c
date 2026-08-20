@@ -167,10 +167,41 @@ static void test_pending_completion_rebinds_callbacks(
     fixture_destroy(&source);
 }
 
+static void test_initialized_snapshot_requires_command_ring(
+    semu_test_context *context)
+{
+    snapshot_fixture source = {0};
+    snapshot_fixture target = {0};
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    size_t index;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    configure_ring(&source);
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_nema_gpu_snapshot_write(source.gpu, &writer,
+                                                  &source.error));
+    for (index = 0u; index < sizeof(uint32_t); ++index) {
+        writer.data[NEMA_REG_CMDADDR + index] = 0u;
+        writer.data[NEMA_REG_CMDSIZE + index] = 0u;
+    }
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_nema_gpu_snapshot_read(target.gpu, &reader,
+                                                 &target.error));
+
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
-        SEMU_TEST_CASE(test_pending_completion_rebinds_callbacks)
+        SEMU_TEST_CASE(test_pending_completion_rebinds_callbacks),
+        SEMU_TEST_CASE(test_initialized_snapshot_requires_command_ring)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
