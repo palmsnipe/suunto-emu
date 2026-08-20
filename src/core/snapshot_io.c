@@ -15,6 +15,12 @@ static semu_status writer_reserve(semu_snapshot_writer *writer, size_t extra,
         semu_error_set(error, SEMU_ERR_RANGE, "snapshot section is too large");
         return SEMU_ERR_RANGE;
     }
+    if (writer->size > writer->capacity ||
+        (writer->data == NULL && writer->capacity != 0u)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "snapshot writer state is invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
     required = writer->size + extra;
     if (required <= writer->capacity) return SEMU_OK;
     capacity = writer->capacity == 0u ? 256u : writer->capacity;
@@ -124,7 +130,8 @@ semu_status semu_snapshot_reader_bytes(semu_snapshot_reader *reader,
                                        uint8_t *data, size_t size,
                                        semu_error *error)
 {
-    if (reader == NULL || (data == NULL && size != 0u) ||
+    if (reader == NULL || (reader->data == NULL && reader->size != 0u) ||
+        (data == NULL && size != 0u) ||
         reader->offset > reader->size ||
         size > reader->size - reader->offset) {
         semu_error_set(error, SEMU_ERR_FORMAT,

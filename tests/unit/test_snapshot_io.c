@@ -21,6 +21,21 @@ static void test_writer_rejects_corrupt_size(semu_test_context *context)
     semu_snapshot_writer_destroy(&writer);
 }
 
+static void test_writer_rejects_missing_storage(semu_test_context *context)
+{
+    semu_snapshot_writer writer;
+    semu_error error;
+    uint8_t value = 0x5au;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    writer.capacity = 4u;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+        semu_snapshot_writer_bytes(&writer, &value, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, writer.size);
+    semu_snapshot_writer_destroy(&writer);
+}
+
 static void test_writer_round_trip(semu_test_context *context)
 {
     semu_snapshot_writer writer;
@@ -106,14 +121,29 @@ static void test_reader_null_destination_refusal(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, reader.offset);
 }
 
+static void test_reader_rejects_missing_storage(semu_test_context *context)
+{
+    semu_snapshot_reader reader;
+    semu_error error;
+    uint8_t value;
+
+    semu_error_clear(&error);
+    semu_snapshot_reader_init(&reader, NULL, 4u);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_reader_bytes(&reader, &value, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_writer_rejects_corrupt_size),
+        SEMU_TEST_CASE(test_writer_rejects_missing_storage),
         SEMU_TEST_CASE(test_writer_round_trip),
         SEMU_TEST_CASE(test_u64_refusal_is_atomic),
         SEMU_TEST_CASE(test_reader_u64_refusal_is_atomic),
-        SEMU_TEST_CASE(test_reader_null_destination_refusal)
+        SEMU_TEST_CASE(test_reader_null_destination_refusal),
+        SEMU_TEST_CASE(test_reader_rejects_missing_storage)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
