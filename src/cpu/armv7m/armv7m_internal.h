@@ -126,6 +126,9 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
 semu_status semu_cpu_snapshot_resolve_event(
     semu_cpu *cpu, uint32_t kind, uint32_t subject,
     semu_event_callback *callback, void **context, semu_error *error);
+semu_status semu_cpu_snapshot_event_id_matches(
+    const semu_cpu *cpu, uint32_t kind, uint32_t subject,
+    semu_event_id event_id, semu_error *error);
 
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);

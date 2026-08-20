@@ -43,5 +43,8 @@ semu_status semu_nema_gpu_snapshot_read(
 semu_status semu_nema_gpu_snapshot_resolve_event(
     semu_nema_gpu *gpu, uint32_t subject, semu_event_callback *callback,
     void **context, semu_error *error);
+semu_status semu_nema_gpu_snapshot_event_id_matches(
+    const semu_nema_gpu *gpu, uint32_t subject, semu_event_id event_id,
+    semu_error *error);
 
 #endif

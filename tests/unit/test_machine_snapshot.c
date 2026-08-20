@@ -2,6 +2,7 @@
 #include "semu/machine.h"
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
+#include "../../src/soc/apollo4/apollo4_internal.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,12 +29,24 @@ static uint32_t get_u32le(const uint8_t *data)
            ((uint32_t)data[2] << 16u) | ((uint32_t)data[3] << 24u);
 }
 
+static uint64_t get_u64le(const uint8_t *data)
+{
+    return (uint64_t)get_u32le(data) |
+           ((uint64_t)get_u32le(data + 4u) << 32u);
+}
+
 static void put_u32le(uint8_t *data, uint32_t value)
 {
     data[0] = (uint8_t)value;
     data[1] = (uint8_t)(value >> 8u);
     data[2] = (uint8_t)(value >> 16u);
     data[3] = (uint8_t)(value >> 24u);
+}
+
+static void put_u64le(uint8_t *data, uint64_t value)
+{
+    put_u32le(data, (uint32_t)value);
+    put_u32le(data + 4u, (uint32_t)(value >> 32u));
 }
 
 static void no_op_event(void *context, uint64_t now_ns)
@@ -85,6 +98,7 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         [0x20] = 0x00u, 0xbfu, [0x22] = 0x00u, 0xbfu,
         [0x24] = 0x00u, 0xbfu, [0x26] = 0x00u, 0xbeu
     };
+    static const uint8_t rx_bytes[] = { 0x5au };
     char path[128];
     semu_profile profile;
     semu_firmware_manifest firmware;
@@ -140,6 +154,10 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         SEMU_TEST_EQ_U64(context, 1u,
                          semu_scheduler_cancel(first->scheduler,
                                                 unsupported_event));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_apollo4_uart_schedule_rx(
+                             first->soc->uart, 100u, rx_bytes,
+                             sizeof(rx_bytes), &error));
         SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
                          semu_machine_run(first, &limits, &error));
         saved_instructions = semu_machine_instructions(first);
@@ -156,6 +174,40 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         SEMU_TEST_EQ_U64(context, saved_instructions, semu_machine_instructions(second));
         SEMU_TEST_EQ_U64(context, saved_time, semu_machine_virtual_time(second));
         SEMU_TEST_EQ_U64(context, saved_pc, semu_machine_program_counter(second));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_read_section(loaded,
+                             SEMU_SNAPSHOT_SECTION_SCHEDULER,
+                             &section_data, &section_size));
+        SEMU_TEST_ASSERT(context, section_size >= 60u &&
+                         get_u32le(section_data + 24u) == 1u);
+        if (section_size >= 60u && get_u32le(section_data + 24u) == 1u) {
+            uint8_t *mismatched_scheduler = (uint8_t *)malloc(section_size);
+            uint64_t next_id = get_u64le(section_data + 16u);
+            uint64_t event_id = get_u64le(section_data + 44u);
+            SEMU_TEST_ASSERT(context, mismatched_scheduler != NULL &&
+                             next_id < UINT64_MAX && event_id < UINT64_MAX);
+            if (mismatched_scheduler != NULL && next_id < UINT64_MAX &&
+                event_id < UINT64_MAX) {
+                memcpy(mismatched_scheduler, section_data, section_size);
+                put_u64le(mismatched_scheduler + 16u, next_id + 1u);
+                put_u64le(mismatched_scheduler + 44u, event_id + 1u);
+                SEMU_TEST_EQ_U64(context, SEMU_OK,
+                                 semu_snapshot_write_section(loaded,
+                                     SEMU_SNAPSHOT_SECTION_SCHEDULER,
+                                     mismatched_scheduler, section_size,
+                                     &error));
+                SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                                 semu_machine_snapshot_load(second, loaded,
+                                                            &error));
+                SEMU_TEST_EQ_U64(context, saved_instructions,
+                                 semu_machine_instructions(second));
+                SEMU_TEST_EQ_U64(context, saved_time,
+                                 semu_machine_virtual_time(second));
+                SEMU_TEST_EQ_U64(context, saved_pc,
+                                 semu_machine_program_counter(second));
+            }
+            free(mismatched_scheduler);
+        }
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_snapshot_read_section(loaded,
                              SEMU_SNAPSHOT_SECTION_MACHINE,

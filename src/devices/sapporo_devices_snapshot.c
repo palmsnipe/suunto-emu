@@ -112,3 +112,16 @@ semu_status semu_sapporo_devices_snapshot_resolve_event(
     return semu_sapporo_cxd5610_snapshot_resolve_event(
         devices->gps, subject, callback, context, error);
 }
+
+semu_status semu_sapporo_devices_snapshot_event_id_matches(
+    const semu_sapporo_devices *devices, uint32_t subject,
+    semu_event_id event_id, semu_error *error)
+{
+    if (devices == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo snapshot event identity requires devices");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return semu_sapporo_cxd5610_snapshot_event_id_matches(
+        devices->gps, subject, event_id, error);
+}

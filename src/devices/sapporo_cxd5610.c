@@ -431,3 +431,20 @@ semu_status semu_sapporo_cxd5610_snapshot_resolve_event(
     semu_error_set(error, SEMU_ERR_CONFLICT, "CXD5610 snapshot event is not present");
     return SEMU_ERR_CONFLICT;
 }
+
+semu_status semu_sapporo_cxd5610_snapshot_event_id_matches(
+    const semu_sapporo_cxd5610 *transport, uint32_t subject,
+    semu_event_id event_id, semu_error *error)
+{
+    if (transport != NULL &&
+        ((subject == 0u && transport->rx_event == event_id &&
+          transport->rx_event != 0u) ||
+         ((subject == 2u || subject == 3u) &&
+          transport->awake_event == event_id &&
+          transport->awake_event_context.kind == subject &&
+          transport->awake_event != 0u)))
+        return SEMU_OK;
+    semu_error_set(error, SEMU_ERR_FORMAT,
+                   "CXD5610 snapshot event identity does not match device");
+    return SEMU_ERR_FORMAT;
+}

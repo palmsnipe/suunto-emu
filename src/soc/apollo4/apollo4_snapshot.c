@@ -1,6 +1,9 @@
 #include "apollo4_internal.h"
 
 #include "../../core/scheduler_internal.h"
+#include "stimer_internal.h"
+#include "timer_internal.h"
+#include "uart_internal.h"
 
 static semu_status write_child(const semu_apollo4 *soc,
                                semu_snapshot_writer *writer, semu_error *error)
@@ -133,4 +136,37 @@ semu_status semu_apollo4_snapshot_resolve_event(
     semu_error_set(error, SEMU_ERR_CONFLICT,
                    "Apollo4 snapshot event kind is not present");
     return SEMU_ERR_CONFLICT;
+}
+
+semu_status semu_apollo4_snapshot_event_id_matches(
+    const semu_apollo4 *soc, uint32_t kind, uint32_t subject,
+    semu_event_id event_id, semu_error *error)
+{
+    const rx_event *rx;
+    if (soc == NULL || soc->timer == NULL || soc->stimer == NULL ||
+        soc->uart == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Apollo4 snapshot event identity requires SoC");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (kind == SEMU_SCHED_EVENT_CTIMER && subject < TIMER_CHANNEL_COUNT &&
+        soc->timer->channels[subject].event_valid != 0u &&
+        soc->timer->channels[subject].event == event_id)
+        return SEMU_OK;
+    if (kind == SEMU_SCHED_EVENT_STIMER && subject < 2u &&
+        soc->stimer->compare[subject].event_valid != 0u &&
+        soc->stimer->compare[subject].event == event_id)
+        return SEMU_OK;
+    if (kind == SEMU_SCHED_EVENT_UART_TX && subject == 0u &&
+        soc->uart->tx_event == event_id && soc->uart->tx_event != 0u)
+        return SEMU_OK;
+    if (kind == SEMU_SCHED_EVENT_UART_RX) {
+        for (rx = soc->uart->rx_events; rx != NULL; rx = rx->next) {
+            if (rx->slot == subject && rx->id == event_id)
+                return SEMU_OK;
+        }
+    }
+    semu_error_set(error, SEMU_ERR_FORMAT,
+                   "Apollo4 snapshot event identity does not match device");
+    return SEMU_ERR_FORMAT;
 }

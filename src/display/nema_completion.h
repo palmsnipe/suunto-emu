@@ -67,5 +67,8 @@ semu_status nema_completion_snapshot_read(
 semu_status nema_completion_snapshot_resolve_event(
     nema_completion *comp, uint32_t subject, semu_event_callback *callback,
     void **context, semu_error *error);
+semu_status nema_completion_snapshot_event_id_matches(
+    const nema_completion *comp, uint32_t subject, semu_event_id event_id,
+    semu_error *error);
 
 #endif

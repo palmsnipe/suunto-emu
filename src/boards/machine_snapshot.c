@@ -200,6 +200,31 @@ static semu_status resolve_event(semu_machine *machine,
     return SEMU_ERR_FORMAT;
 }
 
+static semu_status validate_event_id(const semu_machine *machine,
+                                     const semu_scheduled_event_state *state,
+                                     semu_error *error)
+{
+    if (state->kind == SEMU_SCHED_EVENT_SYSTICK)
+        return semu_cpu_snapshot_event_id_matches(
+            machine->cpu, state->kind, state->subject, state->id, error);
+    if (state->kind == SEMU_SCHED_EVENT_CTIMER ||
+        state->kind == SEMU_SCHED_EVENT_STIMER ||
+        state->kind == SEMU_SCHED_EVENT_UART_RX ||
+        state->kind == SEMU_SCHED_EVENT_UART_TX)
+        return semu_apollo4_snapshot_event_id_matches(
+            machine->soc, state->kind, state->subject, state->id, error);
+    if (state->kind == SEMU_SCHED_EVENT_CXD_RX ||
+        state->kind == SEMU_SCHED_EVENT_CXD_AWAKE)
+        return semu_sapporo_devices_snapshot_event_id_matches(
+            machine->devices, state->subject, state->id, error);
+    if (state->kind == SEMU_SCHED_EVENT_NEMA_COMPLETION)
+        return semu_nema_gpu_snapshot_event_id_matches(
+            machine->nema_gpu, state->subject, state->id, error);
+    semu_error_set(error, SEMU_ERR_FORMAT,
+                   "snapshot event kind is unsupported");
+    return SEMU_ERR_FORMAT;
+}
+
 static semu_status apply_sections(semu_machine *machine,
                                   const semu_snapshot *snapshot,
                                   semu_error *error)
@@ -282,8 +307,11 @@ static semu_status apply_sections(semu_machine *machine,
     for (index = 0u; index < scheduler_image.count; ++index) {
         semu_event_callback callback;
         void *context;
-        status = resolve_event(machine, &scheduler_image.events[index].state,
-                               &callback, &context, error);
+        status = validate_event_id(machine, &scheduler_image.events[index].state,
+                                   error);
+        if (status == SEMU_OK)
+            status = resolve_event(machine, &scheduler_image.events[index].state,
+                                   &callback, &context, error);
         if (status == SEMU_OK)
             status = semu_scheduler_restore_event(machine->scheduler,
                 &scheduler_image.events[index].state, callback, context, error);

@@ -482,3 +482,16 @@ semu_status semu_nema_gpu_snapshot_resolve_event(
     return nema_completion_snapshot_resolve_event(
         gpu->completion, subject, callback, context, error);
 }
+
+semu_status semu_nema_gpu_snapshot_event_id_matches(
+    const semu_nema_gpu *gpu, uint32_t subject, semu_event_id event_id,
+    semu_error *error)
+{
+    if (gpu == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "NEMA snapshot event identity requires GPU");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return nema_completion_snapshot_event_id_matches(
+        gpu->completion, subject, event_id, error);
+}

@@ -280,3 +280,16 @@ semu_status nema_completion_snapshot_resolve_event(
     *context = &comp->entries[subject];
     return SEMU_OK;
 }
+
+semu_status nema_completion_snapshot_event_id_matches(
+    const nema_completion *comp, uint32_t subject, semu_event_id event_id,
+    semu_error *error)
+{
+    if (comp != NULL && subject < NEMA_COMPLETION_MAX_EVENTS &&
+        comp->entries[subject].active != 0 &&
+        comp->entries[subject].event_id == event_id)
+        return SEMU_OK;
+    semu_error_set(error, SEMU_ERR_FORMAT,
+                   "NEMA snapshot event identity does not match completion");
+    return SEMU_ERR_FORMAT;
+}

@@ -61,5 +61,8 @@ semu_status semu_sapporo_devices_snapshot_read(
 semu_status semu_sapporo_devices_snapshot_resolve_event(
     semu_sapporo_devices *devices, uint32_t subject,
     semu_event_callback *callback, void **context, semu_error *error);
+semu_status semu_sapporo_devices_snapshot_event_id_matches(
+    const semu_sapporo_devices *devices, uint32_t subject,
+    semu_event_id event_id, semu_error *error);
 
 #endif

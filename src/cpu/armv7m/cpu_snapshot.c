@@ -458,3 +458,16 @@ semu_status semu_cpu_snapshot_resolve_event(
     *context = cpu;
     return SEMU_OK;
 }
+
+semu_status semu_cpu_snapshot_event_id_matches(
+    const semu_cpu *cpu, uint32_t kind, uint32_t subject,
+    semu_event_id event_id, semu_error *error)
+{
+    if (cpu == NULL || kind != SEMU_SCHED_EVENT_SYSTICK || subject != 0u ||
+        cpu->systick_event_valid == 0u || cpu->systick_event != event_id) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CPU snapshot event identity does not match SysTick");
+        return SEMU_ERR_FORMAT;
+    }
+    return SEMU_OK;
+}
