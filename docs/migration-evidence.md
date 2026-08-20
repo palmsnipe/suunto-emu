@@ -6,6 +6,11 @@ This ledger records facts migrated from `suunto-firmware`, firmware traces, docu
 
 Each future entry must contain: ID, date, source kind and location, product/firmware hashes, observation, confidence, affected modules, validation test, and unresolved questions. Local-only source locations must be described symbolically, such as `$FIRMWARE_ROOT`, rather than with a user path.
 
+Rows that describe an earlier blocked probe remain historical evidence. In
+particular, E-SAP-0013 records the pre-705 state in which later-version
+profiles were unavailable; E-SAP-0014 and E-SAP-0017 supersede its current
+profile and gap conclusions without changing the original observation.
+
 ## Seed Evidence
 
 | ID | Source | Product/version | Observation | Confidence / validation |
