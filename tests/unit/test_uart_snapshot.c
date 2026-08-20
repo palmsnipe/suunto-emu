@@ -154,6 +154,10 @@ static void test_register_state_refuses(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      semu_apollo4_uart_snapshot_read(uart, &reader, &error));
     writer.data[1u] = 0u;
+    put_u32le(writer.data + 82u, 1u);
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_uart_snapshot_read(uart, &reader, &error));
     semu_snapshot_writer_destroy(&writer);
     semu_apollo4_uart_destroy(uart);
     semu_scheduler_destroy(scheduler);

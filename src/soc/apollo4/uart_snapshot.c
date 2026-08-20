@@ -140,6 +140,7 @@ semu_status semu_apollo4_uart_snapshot_read(
         tx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         rx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         tx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+        (attached == 0u && tx_count != 0u) ||
         rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY - rx_count ||
         count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
