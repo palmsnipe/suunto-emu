@@ -168,8 +168,8 @@ trace is still required before changing Apollo4 reset semantics.
 
 The later-Sapporo audit is now recorded as E-SAP-0017. The 2.33 MSPI power
 change remains a static hotfix candidate without a recovered failing runtime
-state, and E-SAP-0014's current 2.33 stop is a CP11/UsageFault CPU boundary
-outside ticket 710's device/storage scope. The 2.39 storage and UI probes still
+state, and the current E-SAP-0014 profile run reaches its bounded max-time
+checkpoint without a device/storage stop. The 2.39 storage and UI probes still
 require a native `storage/` open and watch-face notification before any binding;
 fabricating those events would bypass the observed owner. No implementation-
 eligible later-Sapporo device/storage gap is currently available.

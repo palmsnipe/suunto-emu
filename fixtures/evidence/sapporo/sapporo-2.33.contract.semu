@@ -94,12 +94,13 @@ application_size=1561551
 resources_sha256=5ff9562d2ddd402fc101fe84fb303393db1da6299c5169d04c08428491e409bc
 
 [bounded_traces]
-status=blocked
-reason=No profile exists for Sapporo 2.33; profile creation is ticket 705 scope
-reset_mmio_traces=not captured
-startup_stop=not captured
+status=observed
+profile=sapporo-2.33.16
+reset_mmio_traces=E-SAP-0015
+reset_trace_sha256=f2ba977943301be8ffd3332a4cd188df1549160da71c24e059bd30e272de7d12
+startup_stop=budget pc=0x000c97f8 instructions=12700000
 
 [limitations]
 cache_interventions=unknown
 logical_storage_interventions=unknown
-description=Component contracts are exact; emulator run traces require a version-specific profile
+description=Component contracts and the 2.33.16 bounded profile run are exact; cache/logical-storage behavior remains unknown
