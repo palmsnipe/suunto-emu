@@ -93,6 +93,22 @@ int nema_completion_pending(const nema_completion *comp, uint32_t list_id)
     return 0;
 }
 
+void nema_completion_rebind_active(
+    nema_completion *comp, nema_reg_write_fn on_reg_write,
+    void *reg_context, nema_irq_fn on_irq, void *irq_context)
+{
+    size_t index;
+    if (comp == NULL) return;
+    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
+        if (comp->entries[index].active != 0) {
+            comp->entries[index].on_reg_write = on_reg_write;
+            comp->entries[index].reg_context = reg_context;
+            comp->entries[index].on_irq = on_irq;
+            comp->entries[index].irq_context = irq_context;
+        }
+    }
+}
+
 semu_status nema_completion_schedule(nema_completion *comp,
                                      semu_scheduler *scheduler,
                                      uint32_t list_id,

@@ -56,6 +56,9 @@ size_t nema_completion_count(const nema_completion *comp);
 /* Whether a completion is pending for the given list ID. */
 int nema_completion_pending(const nema_completion *comp,
                             uint32_t list_id);
+void nema_completion_rebind_active(
+    nema_completion *comp, nema_reg_write_fn on_reg_write,
+    void *reg_context, nema_irq_fn on_irq, void *irq_context);
 semu_status nema_completion_snapshot_write(
     const nema_completion *comp, semu_snapshot_writer *writer,
     semu_error *error);
