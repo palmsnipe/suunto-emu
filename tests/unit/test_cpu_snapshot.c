@@ -28,6 +28,16 @@
 #define CPU_SNAPSHOT_SYSTEM_PRIORITY 1563u
 #define CPU_SNAPSHOT_SYSTEM_PENDING 1579u
 #define CPU_SNAPSHOT_SYSTEM_ACTIVE 1595u
+#define CPU_SNAPSHOT_VECTOR_TABLE 247u
+#define CPU_SNAPSHOT_SCR 1615u
+#define CPU_SNAPSHOT_CCR 1619u
+#define CPU_SNAPSHOT_SHCSR 1623u
+#define CPU_SNAPSHOT_CFSR 1627u
+#define CPU_SNAPSHOT_HFSR 1631u
+#define CPU_SNAPSHOT_CPACR 1643u
+#define CPU_SNAPSHOT_FPCCR 1647u
+#define CPU_SNAPSHOT_FPCAR 1651u
+#define CPU_SNAPSHOT_FPDSCR 1655u
 
 static semu_cpu_state initial_state(void)
 {
@@ -180,6 +190,39 @@ static void test_interrupt_snapshot_arrays_refuse(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_system_snapshot_masks_refuse(semu_test_context *context)
+{
+    static const size_t offsets[] = {
+        CPU_SNAPSHOT_VECTOR_TABLE, CPU_SNAPSHOT_SCR, CPU_SNAPSHOT_CCR,
+        CPU_SNAPSHOT_SHCSR, CPU_SNAPSHOT_CFSR, CPU_SNAPSHOT_HFSR,
+        CPU_SNAPSHOT_CPACR, CPU_SNAPSHOT_FPCCR, CPU_SNAPSHOT_FPCAR,
+        CPU_SNAPSHOT_FPDSCR
+    };
+    static const uint8_t values[] = {
+        1u, 1u, 1u, 1u, 1u, 1u, 1u, 4u, 1u, 1u
+    };
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+    size_t index;
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    for (index = 0u; index < SEMU_ARRAY_LEN(offsets); ++index) {
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         refuse_byte(&fixture, offsets[index], values[index]));
+    }
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->vector_table);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->scr);
+    SEMU_TEST_EQ_U64(context, 1u << 9, fixture.cpu->ccr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->shcsr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->cfsr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->hfsr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->cpacr);
+    SEMU_TEST_EQ_U64(context, ARMV7M_FPCCR_CONTROL_MASK, fixture.cpu->fpccr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->fpcar);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->fpdscr);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_exclusive_snapshot_width_refuse(semu_test_context *context)
 {
     semu_cpu_fixture fixture;
@@ -201,6 +244,7 @@ int main(void)
         SEMU_TEST_CASE(test_binary_snapshot_flags_refuse),
         SEMU_TEST_CASE(test_sleep_snapshot_enums_refuse),
         SEMU_TEST_CASE(test_interrupt_snapshot_arrays_refuse),
+        SEMU_TEST_CASE(test_system_snapshot_masks_refuse),
         SEMU_TEST_CASE(test_exclusive_snapshot_width_refuse)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

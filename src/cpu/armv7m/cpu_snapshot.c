@@ -55,6 +55,37 @@ static int valid_interrupt_state(const semu_cpu *cpu)
     return 1;
 }
 
+static int valid_system_state(const semu_cpu *cpu)
+{
+    const uint32_t cfsr_mask = ARMV7M_CFSR_MUNSTKERR |
+                               ARMV7M_CFSR_MSTKERR |
+                               ARMV7M_CFSR_MLSPERR |
+                               ARMV7M_CFSR_BFSR_IBUSERR |
+                               ARMV7M_CFSR_BFSR_PRECISERR |
+                               ARMV7M_CFSR_BFSR_IMPRECISERR |
+                               ARMV7M_CFSR_BFSR_UNSTKERR |
+                               ARMV7M_CFSR_BFSR_STKERR |
+                               ARMV7M_CFSR_BFSR_LSPERR |
+                               ARMV7M_CFSR_BFSR_BFARVALID |
+                               ARMV7M_CFSR_UFSR_DIVBYZERO |
+                               ARMV7M_CFSR_UFSR_UNALIGNED |
+                               ARMV7M_CFSR_UFSR_INVPC |
+                               ARMV7M_CFSR_UFSR_INVSTATE |
+                               ARMV7M_CFSR_UFSR_UNDEFINSTR;
+
+    return (cpu->vector_table & 0x7fu) == 0u &&
+           (cpu->scr & ~((1u << 4) | (1u << 2) | (1u << 1))) == 0u &&
+           (cpu->ccr & ~((1u << 9) | (1u << 8) | (1u << 4) |
+                         (1u << 3))) == 0u &&
+           (cpu->shcsr & 0x00070000u) == cpu->shcsr &&
+           (cpu->cfsr & ~cfsr_mask) == 0u &&
+           (cpu->hfsr & ~(1u << 30)) == 0u &&
+           (cpu->cpacr & ~0x00f00000u) == 0u &&
+           (cpu->fpccr & ~ARMV7M_FPCCR_READ_MASK) == 0u &&
+           (cpu->fpcar & ~0xfffffff8u) == 0u &&
+           (cpu->fpdscr & ~0x07c00000u) == 0u;
+}
+
 static semu_status write_state(const semu_cpu_state *state,
                                semu_snapshot_writer *writer,
                                semu_error *error)
@@ -283,6 +314,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u8(reader, &candidate.exclusive_valid, error));
     R(semu_snapshot_reader_u32(reader, &candidate.exclusive_address, error));
     R(semu_snapshot_reader_u32(reader, &value, error));
+    if (!valid_system_state(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU system register state");
+        return SEMU_ERR_FORMAT;
+    }
     if (!valid_interrupt_state(&candidate)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU interrupt state");
