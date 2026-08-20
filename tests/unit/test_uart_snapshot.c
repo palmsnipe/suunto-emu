@@ -163,6 +163,29 @@ static void test_register_state_refuses(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_attached_snapshot_requires_endpoint(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_uart *uart = make_uart(&scheduler, &error);
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, uart != NULL);
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_uart_snapshot_write(uart, &writer,
+                                                      &error));
+    writer.data[0u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_uart_snapshot_read(uart, &reader, &error));
+
+    semu_snapshot_writer_destroy(&writer);
+    semu_apollo4_uart_destroy(uart);
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_duplicate_event_id_refuses(semu_test_context *context)
 {
     static const uint8_t byte = 0xa5u;
@@ -199,6 +222,7 @@ int main(void)
         SEMU_TEST_CASE(test_rx_reservation_mismatch_refuses),
         SEMU_TEST_CASE(test_rx_event_identity_refuses),
         SEMU_TEST_CASE(test_register_state_refuses),
+        SEMU_TEST_CASE(test_attached_snapshot_requires_endpoint),
         SEMU_TEST_CASE(test_duplicate_event_id_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

@@ -136,6 +136,7 @@ semu_status semu_apollo4_uart_snapshot_read(
         semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK)
         return error->code;
     if (attached > 1u || irq_level > 1u || candidate.next_rx_slot == 0u ||
+        (attached != 0u && candidate.endpoint.transmit == NULL) ||
         rx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         tx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
         rx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
