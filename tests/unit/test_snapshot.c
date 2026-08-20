@@ -286,6 +286,42 @@ static void test_identity_hash_validation(semu_test_context *context)
     semu_snapshot_destroy(snap);
 }
 
+static void test_identity_padding_validation(semu_test_context *context)
+{
+    semu_error err;
+    semu_snapshot *snap;
+    uint8_t buf[4096];
+    size_t len;
+    size_t profile_offset = 4u + 4u;
+    size_t hash_offset = profile_offset + SEMU_ID_MAX;
+
+    semu_error_clear(&err);
+    snap = semu_snapshot_create(&err);
+    SEMU_TEST_ASSERT(context, snap != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_set_identity(snap, PROFILE, FWHASH, &err));
+    len = semu_snapshot_serialize(snap, buf, sizeof(buf));
+    SEMU_TEST_ASSERT(context, len > 0u);
+
+    /* Padding after the profile terminator must remain zero. */
+    buf[profile_offset + strlen(PROFILE) + 1u] = 'x';
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_deserialize(snap, buf, len, &err));
+    SEMU_TEST_ASSERT(context,
+        strcmp(semu_snapshot_profile_id(snap), PROFILE) == 0);
+
+    len = semu_snapshot_serialize(snap, buf, sizeof(buf));
+    SEMU_TEST_ASSERT(context, len > 0u);
+    /* The fixed-width hash field also requires its final NUL terminator. */
+    buf[hash_offset + SEMU_SHA256_SIZE * 2u] = 'x';
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_deserialize(snap, buf, len, &err));
+    SEMU_TEST_ASSERT(context,
+        strcmp(semu_snapshot_firmware_hash(snap), FWHASH) == 0);
+
+    semu_snapshot_destroy(snap);
+}
+
 static void test_continued_run_matches(semu_test_context *context)
 {
     /* Run a synthetic program, snapshot state, continue both ways,
@@ -438,6 +474,7 @@ int main(void)
         SEMU_TEST_CASE(test_too_many_sections),
         SEMU_TEST_CASE(test_unchanged_after_refusal),
         SEMU_TEST_CASE(test_identity_hash_validation),
+        SEMU_TEST_CASE(test_identity_padding_validation),
         SEMU_TEST_CASE(test_continued_run_matches),
         SEMU_TEST_CASE(test_null_safety)
     };

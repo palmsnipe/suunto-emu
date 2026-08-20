@@ -99,6 +99,27 @@ static int is_lower_hex_hash(const char *value, size_t length)
     return 1;
 }
 
+static int is_zero_padded_id(const uint8_t *value, size_t length)
+{
+    size_t index;
+
+    if (value == NULL || length == 0u || value[0] == 0u) {
+        return 0;
+    }
+    for (index = 0u; index < length && value[index] != 0u; ++index) {
+        /* Find the required terminator. */
+    }
+    if (index == length) {
+        return 0;
+    }
+    for (; index < length; ++index) {
+        if (value[index] != 0u) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 semu_status semu_snapshot_set_identity(semu_snapshot *snap,
     const char *profile_id, const char *firmware_hash,
     semu_error *error)
@@ -327,9 +348,18 @@ semu_status semu_snapshot_deserialize(semu_snapshot *snap,
             "snapshot: unsupported version %u", version);
         return SEMU_ERR_FORMAT;
     }
+    if (!is_zero_padded_id(buf + offset, SEMU_ID_MAX)) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "snapshot: bad profile id");
+        return SEMU_ERR_FORMAT;
+    }
     memcpy(temp_profile, buf + offset, SEMU_ID_MAX);
     temp_profile[SEMU_ID_MAX - 1u] = '\0';
     offset += SEMU_ID_MAX;
+    if (buf[offset + SEMU_SHA256_SIZE * 2u] != 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+            "snapshot: unterminated firmware hash");
+        return SEMU_ERR_FORMAT;
+    }
     memcpy(temp_hash, buf + offset, SEMU_REPLAY_HASH_HEX_LEN);
     temp_hash[SEMU_REPLAY_HASH_HEX_LEN - 1u] = '\0';
     offset += SEMU_REPLAY_HASH_HEX_LEN;
