@@ -308,6 +308,11 @@ semu_status semu_sapporo_lsm6dsl_snapshot_read(
         semu_error_set(error, SEMU_ERR_CONFLICT, "LSM6 snapshot identity/state mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if (have_command == 0u && (read != 0u || increment != 0u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "LSM6 snapshot has command flags without command");
+        return SEMU_ERR_FORMAT;
+    }
     candidate.have_command = have_command;
     candidate.read = read;
     candidate.increment = increment;
