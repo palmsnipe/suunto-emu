@@ -180,6 +180,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u32(reader, &candidate.fault_instruction, error));
     R(semu_snapshot_reader_u32(reader, &candidate.fault_address, error));
     R(semu_snapshot_reader_u8(reader, &candidate.has_fault_address, error));
+    if (candidate.has_fault_address > 1u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU fault-address flag");
+        return SEMU_ERR_FORMAT;
+    }
     R(semu_snapshot_reader_u32(reader, &candidate.vector_table, error));
     R(semu_snapshot_reader_bytes(reader, candidate.irq_level,
                                  sizeof(candidate.irq_level), error));

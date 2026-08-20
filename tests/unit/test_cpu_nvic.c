@@ -417,6 +417,28 @@ static void test_pending_count_snapshot_refusal(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_fault_address_snapshot_flag_refusal(
+    semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cpu_snapshot_write(fixture.cpu, &writer, &fixture.error));
+    SEMU_TEST_ASSERT(context, writer.size > 246u);
+    writer.data[246u] = 2u; /* state prefix + stop/fault fields */
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_cpu_snapshot_read(fixture.cpu, &reader, &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->has_fault_address);
+    semu_snapshot_writer_destroy(&writer);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -427,6 +449,7 @@ int main(void)
         SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal),
         SEMU_TEST_CASE(test_pending_source_count_tracks_edges),
         SEMU_TEST_CASE(test_pending_count_snapshot_refusal),
+        SEMU_TEST_CASE(test_fault_address_snapshot_flag_refusal),
         SEMU_TEST_CASE(test_system_priority_mask_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
