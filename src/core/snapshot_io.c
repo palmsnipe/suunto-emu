@@ -88,12 +88,15 @@ semu_status semu_snapshot_writer_u32(semu_snapshot_writer *writer,
 }
 
 semu_status semu_snapshot_writer_u64(semu_snapshot_writer *writer,
-                                     uint64_t value, semu_error *error)
+                                    uint64_t value, semu_error *error)
 {
-    semu_status status = semu_snapshot_writer_u32(writer, (uint32_t)value,
-                                                   error);
-    if (status != SEMU_OK) return status;
-    return semu_snapshot_writer_u32(writer, (uint32_t)(value >> 32u), error);
+    uint8_t data[8] = {
+        (uint8_t)value, (uint8_t)(value >> 8u),
+        (uint8_t)(value >> 16u), (uint8_t)(value >> 24u),
+        (uint8_t)(value >> 32u), (uint8_t)(value >> 40u),
+        (uint8_t)(value >> 48u), (uint8_t)(value >> 56u)
+    };
+    return semu_snapshot_writer_bytes(writer, data, sizeof(data), error);
 }
 
 void semu_snapshot_reader_init(semu_snapshot_reader *reader,

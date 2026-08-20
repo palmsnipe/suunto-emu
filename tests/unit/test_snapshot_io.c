@@ -2,6 +2,7 @@
 
 #include "../../src/core/snapshot_io.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static void test_writer_rejects_corrupt_size(semu_test_context *context)
@@ -40,11 +41,37 @@ static void test_writer_round_trip(semu_test_context *context)
     semu_snapshot_writer_destroy(&writer);
 }
 
+static void test_u64_refusal_is_atomic(semu_test_context *context)
+{
+    semu_snapshot_writer writer;
+    semu_error error;
+    size_t marker_offset;
+    uint8_t *data;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    data = (uint8_t *)calloc(1u, SEMU_SNAPSHOT_MAX_SECTION_SIZE);
+    SEMU_TEST_ASSERT(context, data != NULL);
+    marker_offset = SEMU_SNAPSHOT_MAX_SECTION_SIZE - 4u;
+    memset(data + marker_offset, 0xa5, 4u);
+    writer.data = data;
+    writer.capacity = SEMU_SNAPSHOT_MAX_SECTION_SIZE;
+    writer.size = marker_offset;
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+        semu_snapshot_writer_u64(&writer, UINT64_C(0x1122334455667788),
+                                  &error));
+    SEMU_TEST_EQ_U64(context, marker_offset, writer.size);
+    SEMU_TEST_ASSERT(context,
+        data[marker_offset] == 0xa5u && data[marker_offset + 3u] == 0xa5u);
+    semu_snapshot_writer_destroy(&writer);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_writer_rejects_corrupt_size),
-        SEMU_TEST_CASE(test_writer_round_trip)
+        SEMU_TEST_CASE(test_writer_round_trip),
+        SEMU_TEST_CASE(test_u64_refusal_is_atomic)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
