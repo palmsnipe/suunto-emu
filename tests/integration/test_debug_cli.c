@@ -341,6 +341,29 @@ static void test_named_checkpoints(semu_test_context *context)
     SEMU_TEST_ASSERT(context, !is_named_checkpoint("unknown"));
 }
 
+static void test_run_limit_values(semu_test_context *context)
+{
+    run_arguments arguments;
+    semu_error error;
+    char *valid[] = {"run", "--max-time", "0x20",
+                     "--max-instructions", "16"};
+    char *negative_time[] = {"run", "--max-time", "-1"};
+    char *positive_sign[] = {"run", "--max-instructions", "+1"};
+
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, 1u,
+        (uint64_t)parse_options(5, valid, 1, &arguments, &error));
+    SEMU_TEST_EQ_U64(context, 0x20u, arguments.max_time);
+    SEMU_TEST_EQ_U64(context, 16u, arguments.max_instructions);
+
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, 0u,
+        (uint64_t)parse_options(3, negative_time, 1, &arguments, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, 0u,
+        (uint64_t)parse_options(3, positive_sign, 1, &arguments, &error));
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -359,7 +382,8 @@ int main(void)
         SEMU_TEST_CASE(test_null_safety),
         SEMU_TEST_CASE(test_first_frame_gate),
         SEMU_TEST_CASE(test_first_frame_gate_requires_press),
-        SEMU_TEST_CASE(test_named_checkpoints)
+        SEMU_TEST_CASE(test_named_checkpoints),
+        SEMU_TEST_CASE(test_run_limit_values)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

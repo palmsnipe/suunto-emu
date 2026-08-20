@@ -90,9 +90,13 @@ static int parse_u64(const char *text, uint64_t *value)
 {
     char *end;
     unsigned long long result;
+    if (text == NULL || text[0] == '\0' || text[0] == '+' ||
+        text[0] == '-') {
+        return 0;
+    }
     errno = 0;
     result = strtoull(text, &end, 0);
-    if (errno != 0 || text[0] == '\0' || *end != '\0') {
+    if (errno != 0 || *end != '\0') {
         return 0;
     }
     *value = (uint64_t)result;
