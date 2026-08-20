@@ -108,10 +108,10 @@ semu_status semu_apollo4_mspi_snapshot_read(
     }
     candidate.endpoint_attached = attached;
     candidate.irq_level = irq_level;
-    candidate.dma_transaction.tx = candidate.dma_buffer;
-    candidate.dma_transaction.tx_size = (size_t)tx_size;
-    candidate.dma_transaction.rx = NULL;
-    candidate.dma_transaction.rx_size = 0u;
     *mspi = candidate;
+    mspi->dma_transaction.tx = mspi->dma_buffer;
+    mspi->dma_transaction.tx_size = (size_t)tx_size;
+    mspi->dma_transaction.rx = NULL;
+    mspi->dma_transaction.rx_size = 0u;
     return SEMU_OK;
 }

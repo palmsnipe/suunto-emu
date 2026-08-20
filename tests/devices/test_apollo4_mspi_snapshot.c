@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../../src/soc/apollo4/mspi.h"
+#include "../../src/soc/apollo4/mspi_internal.h"
 
 typedef struct mspi_fixture {
     semu_error error;
@@ -136,6 +136,35 @@ static void test_mspi1_queue_count_refuses(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+static void test_dma_transaction_rebinds_buffer(semu_test_context *context)
+{
+    mspi_fixture source;
+    mspi_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_mspi_snapshot_write(source.mspi, &writer,
+                                                      &source.error));
+    /* The transaction sizes follow the 4100-byte DMA buffer and metadata. */
+    writer.data[8208u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_mspi_snapshot_read(target.mspi, &reader,
+                                                     &target.error));
+    SEMU_TEST_ASSERT(context,
+                     target.mspi->dma_transaction.tx ==
+                         target.mspi->dma_buffer);
+    SEMU_TEST_EQ_U64(context, 1u, target.mspi->dma_transaction.tx_size);
+
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 static void test_dma_status_requires_endpoint(semu_test_context *context)
 {
     mspi_fixture source;
@@ -167,7 +196,8 @@ int main(void)
         SEMU_TEST_CASE(test_unreachable_state_refuses),
         SEMU_TEST_CASE(test_round_trip),
         SEMU_TEST_CASE(test_mspi1_queue_count_refuses),
-        SEMU_TEST_CASE(test_dma_status_requires_endpoint)
+        SEMU_TEST_CASE(test_dma_status_requires_endpoint),
+        SEMU_TEST_CASE(test_dma_transaction_rebinds_buffer)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
