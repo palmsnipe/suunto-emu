@@ -89,6 +89,18 @@ bounded continuation budget from the checkpoint's current instruction and
 virtual-time totals. Use the same profile, firmware manifest, and enabled
 compatibility layers used to create the snapshot.
 
+For cold-start iteration, an opt-in LTO build is available without changing the
+normal `make` profile:
+
+```sh
+sh tools/build_fast.sh sdl
+build-fast/suunto-emu-sdl run ...
+```
+
+The measured local improvement to the UI checkpoint is about 16%; use
+`SEMU_FAST_BUILD_DIR` to choose a separate artifact directory. Toolchains
+without LTO support fail explicitly.
+
 For the validated Sapporo OTA image, a useful UI checkpoint is just before the
 first native frame. Create it once, then start each SDL iteration at the
 frame boundary:
@@ -118,9 +130,10 @@ sh tools/run_sapporo_ui.sh /path/to/firmware.semu
 
 The first Return/Enter opens the language screen; after each transition settles,
 the next Up, Down, or Return/Enter edge continues into setup. Pass a second
-argument to choose the checkpoint path. Remove that specific file when the
-emulator or compatibility implementation changes and a fresh boundary is
-needed.
+argument to choose the checkpoint path, or pass `lower-transition` as a third
+argument (or set `SEMU_SAPPORO_UI_CHECKPOINT`) to use the other observed setup
+boundary. Remove that specific file when the emulator or compatibility
+implementation changes and a fresh boundary is needed.
 
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,

@@ -5,16 +5,25 @@
 # resources remain external and are identity-checked by the emulator.
 set -eu
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    echo "usage: sh tools/run_sapporo_ui.sh MANIFEST [SNAPSHOT]" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
+    echo "usage: sh tools/run_sapporo_ui.sh MANIFEST [SNAPSHOT] [CHECKPOINT]" >&2
     exit 2
 fi
 
 manifest=$1
 snapshot=${2:-${SEMU_SAPPORO_UI_SNAPSHOT:-/tmp/suunto-ui-preframe.sems}}
+checkpoint=${3:-${SEMU_SAPPORO_UI_CHECKPOINT:-middle-language}}
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 headless="$root_dir/build/suunto-emu"
 sdl="$root_dir/build/suunto-emu-sdl"
+
+case "$checkpoint" in
+    middle-language|lower-transition) ;;
+    *)
+        echo "unsupported Sapporo UI checkpoint: $checkpoint" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -r "$manifest" ]; then
     echo "manifest is not readable: $manifest" >&2
@@ -43,6 +52,6 @@ fi
 
 exec env SEMU_FIRMWARE_MANIFEST="$manifest" "$sdl" run \
     --profile sapporo-2.22.60 --firmware "$manifest" \
-    --layer sapporo-2.22-no-device --until middle-language \
+    --layer sapporo-2.22-no-device --until "$checkpoint" \
     --snapshot-load "$snapshot" --wait-for-quit \
     --max-instructions 14000000000 --max-time 22000000000
