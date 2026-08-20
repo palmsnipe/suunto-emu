@@ -313,7 +313,7 @@ static semu_status apply_sections(semu_machine *machine,
 #define SECTION(id) do { \
     if (semu_snapshot_read_section(snapshot, (id), &data, &size) != SEMU_OK) { \
         semu_error_set(error, SEMU_ERR_FORMAT, "snapshot section %u is missing", (id)); \
-        return SEMU_ERR_FORMAT; \
+        free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; \
     } \
     semu_snapshot_reader_init(&reader, data, size); \
 } while (0)
