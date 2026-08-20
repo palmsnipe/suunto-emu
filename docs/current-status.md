@@ -108,6 +108,15 @@ its source marks physical NEMAP output and complete watch UI as unavailable, so
 the emulator keeps `setup-next` neutral until an equivalent guest contract is
 reproduced.
 
+The deterministic emulator comparison is recorded as E-SAP-ONBOARD-EMU-001.
+Two identical bounded `setup-next` probes stop at the first visible frame
+(generation 2, raw SHA-256 `0096f059...`, CRC32 `bbf3549e`); a longer diagnostic
+continuation's last distinct frame is generation 59 (raw SHA-256 `688ca665...`,
+CRC32 `d4ed66c7`). Neither matches the native onboarding capture. The external
+snapshot and replay are hash-pinned but have no provenance sidecar, so this
+remains a diagnostic gap rather than authorization for a screen-specific
+checkpoint or pixel golden.
+
 The normal `-O2` runtime now dispatches successful SCS accesses directly to
 SysTick, NVIC, or SCB instead of constructing speculative refusal diagnostics,
 and it calls the 2.22 compatibility dispatcher only at its exact, hash-pinned
@@ -167,10 +176,10 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Audit the available later-Sapporo packages and traces, then instantiate one
   observed-gap task only if an exact failing transaction and provenance exist.
-- Compare the neutral `setup-next` continuation with E-SAP-ONBOARD-001's
-  native command/text contract, then add a screen-specific emulator checkpoint
-  only if the guest transition and refusal boundary are reproduced. This is
-  still an SDL renderer milestone, not a physical-panel claim.
+- Recover a native provenance sidecar and an equivalent settled command/text
+  contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
+  checkpoint; until then keep `setup-next` neutral. This remains an SDL
+  renderer milestone, not a physical-panel claim.
 - Measure snapshot-resume and frame-loop cost before making any performance
   change; retain deterministic virtual time and guest behavior.
 
