@@ -5,7 +5,18 @@
 #define TIMER_INTERRUPT_MASK_ALLOWED UINT32_C(0x27ff)
 #define TIMER_PENDING_MASK UINT32_C(0xffff)
 #define TIMER_CHANNEL_INTERRUPT_ENABLE UINT32_C(0x100)
+#define TIMER_CHANNEL_ENABLE UINT32_C(0x1)
+#define TIMER_FUNCTION_SHIFT 4u
+#define TIMER_FUNCTION_MASK UINT32_C(0xf)
+#define TIMER_FUNCTION_UPCOUNT UINT32_C(0x2)
 #define TIMER_OBSERVED_D8_VALUE UINT32_C(0x1f000000)
+
+static int is_pwm_control(unsigned channel, uint32_t control)
+{
+    return channel == 9u &&
+           (control == UINT32_C(0xa40) || control == UINT32_C(0xa41) ||
+            control == UINT32_C(0xa42) || control == UINT32_C(0xa44));
+}
 
 semu_status semu_apollo4_timer_snapshot_write(
     const semu_apollo4_timer *timer, semu_snapshot_writer *writer,
@@ -78,6 +89,14 @@ semu_status semu_apollo4_timer_snapshot_read(
         if (channel->event_valid > 1u || channel->irq_level > 1u ||
             (channel->event_valid != 0u) != (channel->event != 0u) ||
             (channel->interrupt_enable & ~TIMER_CHANNEL_INTERRUPT_ENABLE) != 0u ||
+            (channel->event_valid != 0u &&
+             ((channel->control & TIMER_CHANNEL_ENABLE) == 0u ||
+              is_pwm_control((unsigned)index, channel->control) ||
+              (((channel->control >> TIMER_FUNCTION_SHIFT) &
+                TIMER_FUNCTION_MASK) != TIMER_FUNCTION_UPCOUNT &&
+               (channel->interrupt_enable &
+                TIMER_CHANNEL_INTERRUPT_ENABLE) == 0u) ||
+              (candidate.interrupt_mask & (UINT32_C(1) << index)) == 0u)) ||
             (channel->irq_level != 0u) !=
                 ((candidate.pending & (UINT32_C(1) << index)) != 0u)) {
             semu_error_set(error, SEMU_ERR_FORMAT,
