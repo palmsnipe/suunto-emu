@@ -31,16 +31,11 @@ semu_status semu_sapporo_devices_snapshot_write(
     return SEMU_OK;
 }
 
-semu_status semu_sapporo_devices_snapshot_read(
+static semu_status read_child(
     semu_sapporo_devices *devices, semu_snapshot_reader *reader,
     semu_error *error)
 {
     uint8_t has_flash, armed;
-    if (devices == NULL || reader == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Sapporo device snapshot arguments are invalid");
-        return SEMU_ERR_ARGUMENT;
-    }
     if (semu_snapshot_reader_u8(reader, &has_flash, error) != SEMU_OK ||
         semu_snapshot_reader_u8(reader, &armed, error) != SEMU_OK)
         return error->code;
@@ -62,6 +57,47 @@ semu_status semu_sapporo_devices_snapshot_read(
         return error->code;
     devices->fixture_context.gps_running_status_armed = armed;
     return SEMU_OK;
+}
+
+semu_status semu_sapporo_devices_snapshot_read(
+    semu_sapporo_devices *devices, semu_snapshot_reader *reader,
+    semu_error *error)
+{
+    semu_snapshot_writer backup;
+    semu_snapshot_reader rollback_reader;
+    semu_error rollback_error;
+    semu_status status;
+    size_t offset;
+
+    if (devices == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo device snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    offset = reader->offset;
+    semu_snapshot_writer_init(&backup);
+    status = semu_sapporo_devices_snapshot_write(devices, &backup, error);
+    if (status != SEMU_OK) {
+        semu_snapshot_writer_destroy(&backup);
+        return status;
+    }
+    status = read_child(devices, reader, error);
+    if (status == SEMU_OK) {
+        semu_snapshot_writer_destroy(&backup);
+        return SEMU_OK;
+    }
+    reader->offset = offset;
+    semu_snapshot_reader_init(&rollback_reader, backup.data, backup.size);
+    semu_error_clear(&rollback_error);
+    if (read_child(devices, &rollback_reader, &rollback_error) != SEMU_OK ||
+        !semu_snapshot_reader_done(&rollback_reader)) {
+        semu_snapshot_writer_destroy(&backup);
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "Sapporo device snapshot rollback failed");
+        return SEMU_ERR_STATE;
+    }
+    semu_snapshot_writer_destroy(&backup);
+    return status;
 }
 
 semu_status semu_sapporo_devices_snapshot_resolve_event(
