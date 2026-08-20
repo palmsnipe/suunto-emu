@@ -409,7 +409,26 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
     BEGIN(); status = semu_bus_snapshot_write(machine->bus, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_RAM);
     BEGIN(); status = semu_snapshot_writer_u64(&writer, semu_machine_virtual_time(machine), error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME);
     BEGIN(); status = semu_snapshot_writer_u32(&writer, (uint32_t)machine->stop_reason, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_STOP_REASON);
-    BEGIN(); status = semu_machine_snapshot_write_scheduler(machine->scheduler, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_SCHEDULER);
+    BEGIN();
+    status = semu_machine_snapshot_write_scheduler(machine->scheduler, &writer, error);
+    if (status == SEMU_OK) {
+        semu_snapshot_reader scheduler_reader;
+        semu_machine_scheduler_image scheduler_image = {0};
+        semu_snapshot_reader_init(&scheduler_reader, writer.data, writer.size);
+        status = semu_machine_snapshot_read_scheduler(
+            &scheduler_reader, &scheduler_image, error);
+        if (status == SEMU_OK && !semu_snapshot_reader_done(&scheduler_reader)) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "scheduler snapshot has trailing data");
+            status = SEMU_ERR_FORMAT;
+        }
+        if (status == SEMU_OK)
+            status = validate_event_links(machine, scheduler_image.events,
+                                          scheduler_image.count, error);
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image);
+    }
+    if (status != SEMU_OK) goto fail_writer;
+    FINISH(SEMU_SNAPSHOT_SECTION_SCHEDULER);
     BEGIN(); status = semu_apollo4_snapshot_write(machine->soc, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_SOC_STATE);
     BEGIN(); status = semu_sapporo_devices_snapshot_write(machine->devices, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_DEVICES);
     BEGIN(); status = write_storage(machine, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_STORAGE);

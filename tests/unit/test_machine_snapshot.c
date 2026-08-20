@@ -148,6 +148,22 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         };
         second->layers[0] = first->layers[0];
         SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_apollo4_uart_schedule_rx(
+                             first->soc->uart, 100u, rx_bytes,
+                             sizeof(rx_bytes), &error));
+        if (semu_scheduler_event_count(first->scheduler) != 0u) {
+            const semu_scheduled_event_state *detached =
+                semu_scheduler_event_get(first->scheduler, 0u);
+            SEMU_TEST_ASSERT(context, detached != NULL);
+            if (detached != NULL)
+                SEMU_TEST_EQ_U64(context, 1u,
+                                 semu_scheduler_cancel(first->scheduler,
+                                                       detached->id));
+        }
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_machine_snapshot_save(first, source, &error));
+        semu_apollo4_uart_reset(first->soc->uart);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_scheduler_schedule(first->scheduler, 0u,
                                                   no_op_event, NULL,
                                                   &unsupported_event, &error));
