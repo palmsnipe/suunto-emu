@@ -101,6 +101,9 @@ static int parse_int32(const char *s, size_t len, int32_t *out)
         neg = 1;
         i = 1u;
     }
+    if (i == len) {
+        return 0;
+    }
     for (; i < len; ++i) {
         if (s[i] < '0' || s[i] > '9') {
             return 0;
@@ -344,6 +347,7 @@ static int parse_event_line(const char *line, size_t line_len,
 semu_status semu_replay_parse(semu_replay *replay,
     const char *text, size_t text_size, semu_error *error)
 {
+    semu_replay candidate;
     size_t i = 0u;
     uint32_t line_no = 0u;
     uint64_t last_time = 0u;
@@ -359,7 +363,7 @@ semu_status semu_replay_parse(semu_replay *replay,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "replay: null argument");
         return SEMU_ERR_ARGUMENT;
     }
-    semu_replay_reset(replay);
+    semu_replay_reset(&candidate);
 
     while (i < text_size) {
         size_t start = i;
@@ -413,7 +417,7 @@ semu_status semu_replay_parse(semu_replay *replay,
                         --val_len;
                     }
                     if (!parse_header_line(key, key_len, val, val_len,
-                            replay, line_no, &declared_events, error)) {
+                            &candidate, line_no, &declared_events, error)) {
                         return SEMU_ERR_FORMAT;
                     }
                     if (key_len == 7u && memcmp(key, "version", 7u) == 0) {
@@ -431,7 +435,7 @@ semu_status semu_replay_parse(semu_replay *replay,
                     }
                 }
             } else {
-                if (!parse_event_line(line, line_len, replay, &last_time,
+                if (!parse_event_line(line, line_len, &candidate, &last_time,
                         &have_last, line_no, error)) {
                     return SEMU_ERR_FORMAT;
                 }
@@ -443,11 +447,12 @@ semu_status semu_replay_parse(semu_replay *replay,
             "replay: missing header field(s)");
         return SEMU_ERR_FORMAT;
     }
-    if (replay->count != declared_events) {
+    if (candidate.count != declared_events) {
         semu_error_set(error, SEMU_ERR_FORMAT,
             "replay: declared %u events but found %u",
             (unsigned)declared_events, (unsigned)replay->count);
         return SEMU_ERR_FORMAT;
     }
+    *replay = candidate;
     return SEMU_OK;
 }

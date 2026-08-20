@@ -195,6 +195,36 @@ static void test_uint64_overflow(semu_test_context *context)
     semu_replay_destroy(r);
 }
 
+static void test_refusal_is_atomic(semu_test_context *context)
+{
+    static const char invalid[] =
+        "version=1\n"
+        "profile=test\n"
+        "firmware=0000000000000000000000000000000000000000000000000000000000000000\n"
+        "events=1\n"
+        "1000000 crown rotate -\n";
+    semu_error err;
+    semu_replay *r;
+    char before[4096];
+    char after[4096];
+    size_t before_len;
+    size_t after_len;
+
+    semu_error_clear(&err);
+    r = semu_replay_create(&err);
+    SEMU_TEST_ASSERT(context, r != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_replay_parse(r, VALID_REPLAY, strlen(VALID_REPLAY), &err));
+    before_len = semu_replay_format(r, before, sizeof(before));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_replay_parse(r, invalid, sizeof(invalid) - 1u, &err));
+    after_len = semu_replay_format(r, after, sizeof(after));
+    SEMU_TEST_EQ_U64(context, before_len, after_len);
+    SEMU_TEST_ASSERT(context, memcmp(before, after, before_len) == 0);
+    SEMU_TEST_EQ_U64(context, 3u, semu_replay_event_count(r));
+    semu_replay_destroy(r);
+}
+
 static void test_bad_hash(semu_test_context *context)
 {
     static const char *text =
@@ -418,6 +448,7 @@ int main(void)
         SEMU_TEST_CASE(test_time_reversal),
         SEMU_TEST_CASE(test_bad_version),
         SEMU_TEST_CASE(test_uint64_overflow),
+        SEMU_TEST_CASE(test_refusal_is_atomic),
         SEMU_TEST_CASE(test_bad_hash),
         SEMU_TEST_CASE(test_bad_hash_length),
         SEMU_TEST_CASE(test_unknown_kind),
