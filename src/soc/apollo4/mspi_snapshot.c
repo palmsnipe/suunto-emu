@@ -2,6 +2,9 @@
 
 #include <stddef.h>
 
+#define MSPI_DMA_STATUS_COMPLETE UINT32_C(0x02)
+#define MSPI_DMA_STATUS_ERROR UINT32_C(0x04)
+
 semu_status semu_apollo4_mspi_snapshot_write(
     const semu_apollo4_mspi *mspi, semu_snapshot_writer *writer,
     semu_error *error)
@@ -66,6 +69,13 @@ semu_status semu_apollo4_mspi_snapshot_read(
         semu_snapshot_reader_u64(reader, &rx_size, error) != SEMU_OK)
         return error->code;
     if (attached > 1u || irq_level > 1u ||
+        (candidate.dma_status != 0u &&
+         candidate.dma_status != MSPI_DMA_STATUS_COMPLETE &&
+         candidate.dma_status != MSPI_DMA_STATUS_ERROR) ||
+        (irq_level != 0u) !=
+            ((candidate.status &
+              candidate.registers[SEMU_APOLLO4_MSPI_INTEN / 4u]) != 0u) ||
+        candidate.dma_transaction.chip_select != 0u ||
         tx_size > sizeof(candidate.dma_buffer) || rx_size != 0u) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid MSPI snapshot transaction");
