@@ -36,6 +36,12 @@ static void put_u32le(uint8_t *data, uint32_t value)
     data[3] = (uint8_t)(value >> 24u);
 }
 
+static void no_op_event(void *context, uint64_t now_ns)
+{
+    (void)context;
+    (void)now_ns;
+}
+
 static int make_contract(const char *path, semu_profile *profile,
                          semu_firmware_manifest *firmware, semu_error *error)
 {
@@ -96,6 +102,7 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
     uint32_t saved_pc;
     uint64_t refused_instructions, refused_time;
     uint32_t refused_pc;
+    semu_event_id unsupported_event;
     size_t index, section_size;
     size_t layer_id_length, malformed_size;
     const uint8_t *section_data;
@@ -124,6 +131,15 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
             &semu_sapporo_222_no_device_layer, 0u, 0
         };
         second->layers[0] = first->layers[0];
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_scheduler_schedule(first->scheduler, 0u,
+                                                  no_op_event, NULL,
+                                                  &unsupported_event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_machine_snapshot_save(first, source, &error));
+        SEMU_TEST_EQ_U64(context, 1u,
+                         semu_scheduler_cancel(first->scheduler,
+                                                unsupported_event));
         SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
                          semu_machine_run(first, &limits, &error));
         saved_instructions = semu_machine_instructions(first);

@@ -7,20 +7,9 @@
 #include "../cpu/armv7m/armv7m_internal.h"
 #include "../devices/sapporo_devices_internal.h"
 #include "../soc/apollo4/apollo4_internal.h"
+#include "machine_snapshot_scheduler.h"
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct snapshot_event {
-    semu_scheduled_event_state state;
-} snapshot_event;
-
-typedef struct scheduler_image {
-    uint64_t now;
-    uint64_t next_sequence;
-    semu_event_id next_id;
-    snapshot_event *events;
-    size_t count;
-} scheduler_image;
 
 typedef struct layer_image {
     char id[SEMU_ID_MAX];
@@ -74,92 +63,6 @@ static semu_status read_storage(semu_machine *machine,
             machine->flash_storage, reader, error) != SEMU_OK)
         return error->code;
     return SEMU_OK;
-}
-
-static semu_status write_scheduler(const semu_scheduler *scheduler,
-                                   semu_snapshot_writer *writer,
-                                   semu_error *error)
-{
-    size_t index;
-    size_t count = semu_scheduler_event_count(scheduler);
-    if (count > UINT32_MAX) {
-        semu_error_set(error, SEMU_ERR_RANGE, "scheduler snapshot has too many events");
-        return SEMU_ERR_RANGE;
-    }
-    if (semu_snapshot_writer_u64(writer, scheduler->now_ns, error) != SEMU_OK ||
-        semu_snapshot_writer_u64(writer, scheduler->next_sequence, error) != SEMU_OK ||
-        semu_snapshot_writer_u64(writer, scheduler->next_id, error) != SEMU_OK ||
-        semu_snapshot_writer_u32(writer, (uint32_t)count, error) != SEMU_OK)
-        return error->code;
-    for (index = 0u; index < count; ++index) {
-        const semu_scheduled_event_state *event =
-            semu_scheduler_event_get(scheduler, index);
-        if (event == NULL ||
-            semu_snapshot_writer_u64(writer, event->due_ns, error) != SEMU_OK ||
-            semu_snapshot_writer_u64(writer, event->sequence, error) != SEMU_OK ||
-            semu_snapshot_writer_u64(writer, event->id, error) != SEMU_OK ||
-            semu_snapshot_writer_u32(writer, event->kind, error) != SEMU_OK ||
-            semu_snapshot_writer_u32(writer, event->subject, error) != SEMU_OK)
-            return error->code != SEMU_OK ? error->code : SEMU_ERR_STATE;
-    }
-    return SEMU_OK;
-}
-
-static semu_status read_scheduler(semu_snapshot_reader *reader,
-                                  scheduler_image *image, semu_error *error)
-{
-    uint32_t count;
-    size_t index;
-    if (semu_snapshot_reader_u64(reader, &image->now, error) != SEMU_OK ||
-        semu_snapshot_reader_u64(reader, &image->next_sequence, error) != SEMU_OK ||
-        semu_snapshot_reader_u64(reader, &image->next_id, error) != SEMU_OK ||
-        semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK)
-        return error->code;
-    if (image->next_id == 0u || image->next_id == UINT64_MAX ||
-        image->next_sequence == UINT64_MAX || count > SEMU_SNAPSHOT_MAX_SECTION_SIZE / 32u) {
-        semu_error_set(error, SEMU_ERR_FORMAT, "invalid scheduler snapshot header");
-        return SEMU_ERR_FORMAT;
-    }
-    image->events = count == 0u ? NULL :
-        (snapshot_event *)calloc(count, sizeof(*image->events));
-    if (count != 0u && image->events == NULL) {
-        semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate scheduler snapshot");
-        return SEMU_ERR_NOMEM;
-    }
-    image->count = count;
-    for (index = 0u; index < image->count; ++index) {
-        semu_scheduled_event_state *event = &image->events[index].state;
-        if (semu_snapshot_reader_u64(reader, &event->due_ns, error) != SEMU_OK ||
-            semu_snapshot_reader_u64(reader, &event->sequence, error) != SEMU_OK ||
-            semu_snapshot_reader_u64(reader, &event->id, error) != SEMU_OK ||
-            semu_snapshot_reader_u32(reader, &event->kind, error) != SEMU_OK ||
-            semu_snapshot_reader_u32(reader, &event->subject, error) != SEMU_OK) {
-            free(image->events);
-            image->events = NULL;
-            image->count = 0u;
-            return error->code;
-        }
-        if (event->id == 0u || event->sequence >= image->next_sequence ||
-            event->id >= image->next_id || event->due_ns < image->now ||
-            event->kind == SEMU_SCHED_EVENT_NONE ||
-            event->kind > SEMU_SCHED_EVENT_NEMA_COMPLETION) {
-            free(image->events);
-            image->events = NULL;
-            image->count = 0u;
-            semu_error_set(error, SEMU_ERR_FORMAT, "invalid scheduler snapshot event");
-            return SEMU_ERR_FORMAT;
-        }
-    }
-    return SEMU_OK;
-}
-
-static void free_scheduler_image(scheduler_image *image)
-{
-    if (image != NULL) {
-        free(image->events);
-        image->events = NULL;
-        image->count = 0u;
-    }
 }
 
 static semu_status write_machine(const semu_machine *machine,
@@ -304,7 +207,7 @@ static semu_status apply_sections(semu_machine *machine,
     const uint8_t *data;
     size_t size;
     semu_snapshot_reader reader;
-    scheduler_image scheduler_image = {0};
+    semu_machine_scheduler_image scheduler_image = {0};
     machine_image machine_image;
     uint64_t virtual_time;
     uint32_t stop_reason;
@@ -313,30 +216,30 @@ static semu_status apply_sections(semu_machine *machine,
 #define SECTION(id) do { \
     if (semu_snapshot_read_section(snapshot, (id), &data, &size) != SEMU_OK) { \
         semu_error_set(error, SEMU_ERR_FORMAT, "snapshot section %u is missing", (id)); \
-        free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; \
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; \
     } \
     semu_snapshot_reader_init(&reader, data, size); \
 } while (0)
 #define DONE(name) do { if (!semu_snapshot_reader_done(&reader)) { \
     semu_error_set(error, SEMU_ERR_FORMAT, "snapshot %s section has trailing data", (name)); \
-    free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; } } while (0)
+    semu_machine_snapshot_free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; } } while (0)
     SECTION(SEMU_SNAPSHOT_SECTION_MACHINE);
     status = read_machine(&reader, &machine_image, error);
     if (status != SEMU_OK) return status;
     DONE("machine");
     SECTION(SEMU_SNAPSHOT_SECTION_SCHEDULER);
-    status = read_scheduler(&reader, &scheduler_image, error);
+    status = semu_machine_snapshot_read_scheduler(&reader, &scheduler_image, error);
     if (status != SEMU_OK) return status;
     DONE("scheduler");
     SECTION(SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME);
     if (semu_snapshot_reader_u64(&reader, &virtual_time, error) != SEMU_OK) {
-        free_scheduler_image(&scheduler_image); return error->code;
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image); return error->code;
     }
     DONE("virtual-time");
     SECTION(SEMU_SNAPSHOT_SECTION_STOP_REASON);
     if (semu_snapshot_reader_u32(&reader, &stop_reason, error) != SEMU_OK ||
         stop_reason > (uint32_t)SEMU_STOP_USER) {
-        free_scheduler_image(&scheduler_image);
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image);
         if (error->code == SEMU_OK) semu_error_set(error, SEMU_ERR_FORMAT, "invalid stop reason section");
         return error->code;
     }
@@ -344,38 +247,38 @@ static semu_status apply_sections(semu_machine *machine,
     if (UINT64_MAX - machine_image.virtual_time_epoch < scheduler_image.now ||
         machine_image.virtual_time_epoch + scheduler_image.now != virtual_time ||
         stop_reason != (uint32_t)machine_image.stop_reason) {
-        free_scheduler_image(&scheduler_image);
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image);
         semu_error_set(error, SEMU_ERR_CONFLICT, "snapshot machine time/reason disagrees");
         return SEMU_ERR_CONFLICT;
     }
     SECTION(SEMU_SNAPSHOT_SECTION_RAM);
     status = semu_bus_snapshot_read(machine->bus, &reader, error);
     if (status == SEMU_OK) DONE("RAM");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     SECTION(SEMU_SNAPSHOT_SECTION_CPU_STATE);
     status = semu_cpu_snapshot_read(machine->cpu, &reader, error);
     if (status == SEMU_OK) DONE("CPU");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     SECTION(SEMU_SNAPSHOT_SECTION_SOC_STATE);
     status = semu_apollo4_snapshot_read(machine->soc, &reader, error);
     if (status == SEMU_OK) DONE("SoC");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     SECTION(SEMU_SNAPSHOT_SECTION_DEVICES);
     status = semu_sapporo_devices_snapshot_read(machine->devices, &reader, error);
     if (status == SEMU_OK) DONE("devices");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     SECTION(SEMU_SNAPSHOT_SECTION_STORAGE);
     status = read_storage(machine, &reader, error);
     if (status == SEMU_OK) DONE("storage");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     SECTION(SEMU_SNAPSHOT_SECTION_NEMA);
     status = semu_nema_gpu_snapshot_read(machine->nema_gpu, &reader, error);
     if (status == SEMU_OK) DONE("NEMA");
-    else { free_scheduler_image(&scheduler_image); return status; }
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     status = semu_scheduler_restore_begin(machine->scheduler,
         scheduler_image.now, scheduler_image.next_sequence,
         scheduler_image.next_id, error);
-    if (status != SEMU_OK) { free_scheduler_image(&scheduler_image); return status; }
+    if (status != SEMU_OK) { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     for (index = 0u; index < scheduler_image.count; ++index) {
         semu_event_callback callback;
         void *context;
@@ -385,12 +288,12 @@ static semu_status apply_sections(semu_machine *machine,
             status = semu_scheduler_restore_event(machine->scheduler,
                 &scheduler_image.events[index].state, callback, context, error);
         if (status != SEMU_OK) {
-            free_scheduler_image(&scheduler_image);
+            semu_machine_snapshot_free_scheduler_image(&scheduler_image);
             return status;
         }
     }
     status = apply_machine_image(machine, &machine_image, error);
-    free_scheduler_image(&scheduler_image);
+    semu_machine_snapshot_free_scheduler_image(&scheduler_image);
     if (status != SEMU_OK) return status;
     semu_log_set_time(machine->logger, semu_scheduler_now(machine->scheduler));
 #undef SECTION
@@ -433,7 +336,7 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
     BEGIN(); status = semu_bus_snapshot_write(machine->bus, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_RAM);
     BEGIN(); status = semu_snapshot_writer_u64(&writer, semu_machine_virtual_time(machine), error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME);
     BEGIN(); status = semu_snapshot_writer_u32(&writer, (uint32_t)machine->stop_reason, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_STOP_REASON);
-    BEGIN(); status = write_scheduler(machine->scheduler, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_SCHEDULER);
+    BEGIN(); status = semu_machine_snapshot_write_scheduler(machine->scheduler, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_SCHEDULER);
     BEGIN(); status = semu_apollo4_snapshot_write(machine->soc, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_SOC_STATE);
     BEGIN(); status = semu_sapporo_devices_snapshot_write(machine->devices, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_DEVICES);
     BEGIN(); status = write_storage(machine, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_STORAGE);
