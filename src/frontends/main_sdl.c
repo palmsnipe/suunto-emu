@@ -1,10 +1,12 @@
 #include "cli.h"
+#include "sdl_options.h"
 
 #include <SDL3/SDL.h>
 
 #include "semu/hash.h"
 
 #include "sdl_present_core.c"
+#include "sdl_options.c"
 #include "sdl_present.c"
 #include "sdl_input.c"
 #include "semantic_input.c"
@@ -304,21 +306,6 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
     return SEMU_STOP_NONE;
 }
 
-static uint32_t parse_scale(int argc, char **argv)
-{
-    int i;
-    for (i = 1; i < argc - 1; ++i) {
-        if (strcmp(argv[i], "--scale") == 0) {
-            char *end;
-            unsigned long v = strtoul(argv[i + 1], &end, 0);
-            if (end != argv[i + 1] && *end == '\0' && v >= 1u && v <= 8u) {
-                return (uint32_t)v;
-            }
-        }
-    }
-    return 2u;
-}
-
 static int filter_sdl_options(int argc, char **argv, char **filtered,
                               int *wait_for_quit)
 {
@@ -383,7 +370,13 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 2;
     }
-    scale = parse_scale(filtered_argc, filtered_argv);
+    semu_error_clear(&error);
+    if (semu_sdl_parse_scale(filtered_argc, filtered_argv, &scale, &error) !=
+        SEMU_OK) {
+        fprintf(stderr, "SDL options: %s\n", error.text);
+        SDL_Quit();
+        return 2;
+    }
     frontend.scale = scale;
     semu_error_clear(&error);
     frontend.input_adapter = semu_sdl_input_create(&error);
