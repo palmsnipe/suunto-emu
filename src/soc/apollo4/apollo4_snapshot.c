@@ -36,16 +36,11 @@ semu_status semu_apollo4_snapshot_write(
     return write_child(soc, writer, error);
 }
 
-semu_status semu_apollo4_snapshot_read(
+static semu_status read_child(
     semu_apollo4 *soc, semu_snapshot_reader *reader, semu_error *error)
 {
     semu_apollo4 candidate;
     size_t index;
-    if (soc == NULL || reader == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Apollo4 snapshot arguments are invalid");
-        return SEMU_ERR_ARGUMENT;
-    }
     candidate = *soc;
     if (semu_snapshot_reader_bytes(reader, candidate.gpio_level,
                                    sizeof(candidate.gpio_level), error) != SEMU_OK) {
@@ -75,6 +70,46 @@ semu_status semu_apollo4_snapshot_read(
         return error->code;
     *soc = candidate;
     return SEMU_OK;
+}
+
+semu_status semu_apollo4_snapshot_read(
+    semu_apollo4 *soc, semu_snapshot_reader *reader, semu_error *error)
+{
+    semu_snapshot_writer backup;
+    semu_snapshot_reader rollback_reader;
+    semu_error rollback_error;
+    semu_status status;
+    size_t offset;
+
+    if (soc == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Apollo4 snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    offset = reader->offset;
+    semu_snapshot_writer_init(&backup);
+    status = semu_apollo4_snapshot_write(soc, &backup, error);
+    if (status != SEMU_OK) {
+        semu_snapshot_writer_destroy(&backup);
+        return status;
+    }
+    status = read_child(soc, reader, error);
+    if (status == SEMU_OK) {
+        semu_snapshot_writer_destroy(&backup);
+        return SEMU_OK;
+    }
+    reader->offset = offset;
+    semu_snapshot_reader_init(&rollback_reader, backup.data, backup.size);
+    semu_error_clear(&rollback_error);
+    if (read_child(soc, &rollback_reader, &rollback_error) != SEMU_OK ||
+        !semu_snapshot_reader_done(&rollback_reader)) {
+        semu_snapshot_writer_destroy(&backup);
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "Apollo4 snapshot rollback failed");
+        return SEMU_ERR_STATE;
+    }
+    semu_snapshot_writer_destroy(&backup);
+    return status;
 }
 
 semu_status semu_apollo4_snapshot_resolve_event(

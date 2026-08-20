@@ -51,10 +51,39 @@ static void test_invalid_gpio_level_refuses(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+static void test_late_child_refusal_is_atomic(semu_test_context *context)
+{
+    apollo4_fixture source;
+    apollo4_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_set_gpio_input(source.soc, 0u, 0,
+                                                 &source.error));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_snapshot_write(source.soc, &writer,
+                                                  &source.error));
+    writer.data[writer.size - 4u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_snapshot_read(target.soc, &reader,
+                                                &target.error));
+    SEMU_TEST_EQ_U64(context, 1u,
+                     semu_apollo4_get_gpio_input(target.soc, 0u));
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
-        SEMU_TEST_CASE(test_invalid_gpio_level_refuses)
+        SEMU_TEST_CASE(test_invalid_gpio_level_refuses),
+        SEMU_TEST_CASE(test_late_child_refusal_is_atomic)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
