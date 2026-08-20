@@ -159,6 +159,18 @@ static void test_sleep_snapshot_enums_refuse(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_stack_alignment_linkage_refuses(semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     refuse_byte(&fixture, CPU_SNAPSHOT_STACK_ALIGN, 0u));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->stack_align);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_interrupt_snapshot_arrays_refuse(semu_test_context *context)
 {
     static const size_t offsets[] = {
@@ -243,6 +255,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_binary_snapshot_flags_refuse),
         SEMU_TEST_CASE(test_sleep_snapshot_enums_refuse),
+        SEMU_TEST_CASE(test_stack_alignment_linkage_refuses),
         SEMU_TEST_CASE(test_interrupt_snapshot_arrays_refuse),
         SEMU_TEST_CASE(test_system_snapshot_masks_refuse),
         SEMU_TEST_CASE(test_exclusive_snapshot_width_refuse)

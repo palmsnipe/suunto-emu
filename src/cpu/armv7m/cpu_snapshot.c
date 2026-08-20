@@ -365,6 +365,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
                        "invalid CPU snapshot state flag");
         return SEMU_ERR_FORMAT;
     }
+    if (candidate.stack_align != (uint8_t)((candidate.ccr >> 9u) & 1u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CPU stack alignment does not match CCR");
+        return SEMU_ERR_FORMAT;
+    }
     if (!itstate_matches_xpsr(&candidate)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "CPU ITSTATE does not match xPSR");
