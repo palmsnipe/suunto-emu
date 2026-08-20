@@ -28,6 +28,15 @@ static int itstate_matches_xpsr(const semu_cpu *cpu)
     return xpsr_itstate == cpu->itstate;
 }
 
+static int stack_pointer_matches_bank(const semu_cpu *cpu)
+{
+    unsigned exception = cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK;
+
+    if (exception != 0u || (cpu->state.control & 2u) == 0u)
+        return cpu->state.r[13] == cpu->state.msp;
+    return cpu->state.r[13] == cpu->state.psp;
+}
+
 static int valid_exclusive_width(unsigned width)
 {
     return width == 0u || width == 1u || width == 2u || width == 4u;
@@ -373,6 +382,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     if (!itstate_matches_xpsr(&candidate)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "CPU ITSTATE does not match xPSR");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!stack_pointer_matches_bank(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CPU stack pointer does not match active bank");
         return SEMU_ERR_FORMAT;
     }
     if ((candidate.state.waiting_for_interrupt != 0) !=

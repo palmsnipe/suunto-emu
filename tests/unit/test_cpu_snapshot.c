@@ -38,6 +38,7 @@
 #define CPU_SNAPSHOT_FPCCR 1647u
 #define CPU_SNAPSHOT_FPCAR 1651u
 #define CPU_SNAPSHOT_FPDSCR 1655u
+#define CPU_SNAPSHOT_R13 52u
 
 static semu_cpu_state initial_state(void)
 {
@@ -171,6 +172,19 @@ static void test_stack_alignment_linkage_refuses(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_stack_pointer_linkage_refuses(semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     refuse_word(&fixture, CPU_SNAPSHOT_R13, 0x804u));
+    SEMU_TEST_EQ_U64(context, 0x800u,
+                     semu_cpu_get_state(fixture.cpu)->r[13]);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_interrupt_snapshot_arrays_refuse(semu_test_context *context)
 {
     static const size_t offsets[] = {
@@ -256,6 +270,7 @@ int main(void)
         SEMU_TEST_CASE(test_binary_snapshot_flags_refuse),
         SEMU_TEST_CASE(test_sleep_snapshot_enums_refuse),
         SEMU_TEST_CASE(test_stack_alignment_linkage_refuses),
+        SEMU_TEST_CASE(test_stack_pointer_linkage_refuses),
         SEMU_TEST_CASE(test_interrupt_snapshot_arrays_refuse),
         SEMU_TEST_CASE(test_system_snapshot_masks_refuse),
         SEMU_TEST_CASE(test_exclusive_snapshot_width_refuse)
