@@ -59,7 +59,8 @@ semu_status semu_apollo4_iom_snapshot_read(
     if (semu_snapshot_reader_u8(reader, &attached, error) != SEMU_OK ||
         semu_snapshot_reader_u8(reader, &irq_level, error) != SEMU_OK)
         return error->code;
-    if (attached > 1u || irq_level > 1u) {
+    if (attached > 1u || irq_level > 1u ||
+        (attached != 0u && candidate.endpoint == NULL)) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid IOM snapshot flag");
         return SEMU_ERR_FORMAT;
     }
