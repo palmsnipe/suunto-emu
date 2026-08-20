@@ -5,6 +5,7 @@
 
 struct semu_sdl_input_adapter {
     uint32_t sequence;
+    uint32_t viewport_height;
 };
 
 static const struct {
@@ -35,11 +36,43 @@ void semu_sdl_input_destroy(semu_sdl_input_adapter *adapter)
     free(adapter);
 }
 
+void semu_sdl_input_set_viewport_height(semu_sdl_input_adapter *adapter,
+    uint32_t height)
+{
+    if (adapter != NULL) {
+        adapter->viewport_height = height;
+    }
+}
+
+static int mouse_button_key(const semu_sdl_input_adapter *adapter,
+    const SDL_Event *event, uint32_t *key)
+{
+    float third;
+    float y;
+    if ((event->type != SDL_EVENT_MOUSE_BUTTON_DOWN &&
+         event->type != SDL_EVENT_MOUSE_BUTTON_UP) ||
+        event->button.button != SDL_BUTTON_LEFT ||
+        adapter->viewport_height == 0u) {
+        return 0;
+    }
+    y = event->button.y;
+    if (!(y >= 0.0f) ||
+        !(y < (float)adapter->viewport_height)) {
+        return 0;
+    }
+    third = (float)adapter->viewport_height / 3.0f;
+    *key = y < third ? SEMU_INPUT_KEY_UPPER :
+           y < third * 2.0f ? SEMU_INPUT_KEY_MIDDLE :
+                              SEMU_INPUT_KEY_LOWER;
+    return 1;
+}
+
 int semu_sdl_input_process(semu_sdl_input_adapter *adapter,
     const SDL_Event *event, semu_normalized_key *out_key,
     int *out_quit, semu_error *error)
 {
     size_t i;
+    uint32_t mouse_key;
     if (adapter == NULL || event == NULL || out_key == NULL ||
         out_quit == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -52,6 +85,13 @@ int semu_sdl_input_process(semu_sdl_input_adapter *adapter,
     if (event->type == SDL_EVENT_QUIT) {
         *out_quit = 1;
         return 0;
+    }
+
+    if (mouse_button_key(adapter, event, &mouse_key)) {
+        out_key->key = mouse_key;
+        out_key->down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+        out_key->sequence = adapter->sequence++;
+        return 1;
     }
 
     if (event->type != SDL_EVENT_KEY_DOWN &&

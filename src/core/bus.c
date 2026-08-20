@@ -3,14 +3,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-static uint64_t region_end(const bus_region *region)
+static uint64_t region_end(const bus_region *region) {
+    return (uint64_t)region->base + region->size; }
+static int valid_interval(uint32_t base, uint32_t size) {
+    return size != 0u && (uint64_t)base + size <= UINT64_C(0x100000000); }
+static void refresh_lookup(semu_bus *bus)
 {
-    return (uint64_t)region->base + region->size;
-}
-
-static int valid_interval(uint32_t base, uint32_t size)
-{
-    return size != 0u && (uint64_t)base + size <= UINT64_C(0x100000000);
+    size_t index;
+    bus->regular_cache_valid = 0u;
+    bus->overlay_count = 0u;
+    bus->overlay_min_base = UINT32_MAX;
+    bus->overlay_max_end = 0u;
+    for (index = 0u; index < bus->count; ++index) {
+        bus_region *region = &bus->regions[index];
+        if (region->overlay == 0u) continue;
+        ++bus->overlay_count;
+        if (region->base < bus->overlay_min_base)
+            bus->overlay_min_base = region->base;
+        if (region_end(region) > bus->overlay_max_end)
+            bus->overlay_max_end = region_end(region);
+    }
 }
 
 static semu_status reserve_region(semu_bus *bus, semu_error *error)
@@ -69,6 +81,7 @@ static semu_status insert_region(semu_bus *bus, bus_region *region,
     }
     bus->regions[position] = *region;
     ++bus->count;
+    refresh_lookup(bus);
     semu_error_clear(error);
     return SEMU_OK;
 }
@@ -77,41 +90,52 @@ static bus_region *find_region_kind(semu_bus *bus, uint32_t address,
                                     size_t size, int include_overlays)
 {
     size_t index;
+    size_t slot;
     uint64_t end = (uint64_t)address + size;
-    bus_region *regular = NULL;
     bus_region *overlay = NULL;
 
     if (end > UINT64_C(0x100000000)) {
         return NULL;
     }
-    for (index = 0u; index < bus->count; ++index) {
-        bus_region *region = &bus->regions[index];
-        if (address >= region->base && end <= region_end(region)) {
-            if (region->overlay != 0u) {
-                if (include_overlays != 0) overlay = region;
-            } else {
-                regular = region;
-            }
+    if (include_overlays != 0 && bus->overlay_count != 0u &&
+        address < bus->overlay_max_end && end > bus->overlay_min_base) {
+        for (index = 0u; index < bus->count; ++index) {
+            bus_region *region = &bus->regions[index];
+            if (region->overlay != 0u && address >= region->base &&
+                end <= region_end(region)) overlay = region;
         }
     }
-    return overlay != NULL ? overlay : regular;
+    if (overlay != NULL) return overlay;
+    for (slot = 0u; slot < 2u; ++slot) {
+        if ((bus->regular_cache_valid & (1u << slot)) != 0u) {
+            bus_region *region = &bus->regions[bus->regular_cache_index[slot]];
+            if (address >= region->base && end <= region_end(region))
+                return region;
+        }
+    }
+    for (index = 0u; index < bus->count; ++index) {
+        bus_region *region = &bus->regions[index];
+        if (region->overlay == 0u && address >= region->base &&
+            end <= region_end(region)) {
+            bus->regular_cache_index[1] = bus->regular_cache_index[0];
+            bus->regular_cache_index[0] = index;
+            bus->regular_cache_valid = (uint8_t)
+                (((bus->regular_cache_valid & 1u) << 1u) | 1u);
+            return region;
+        }
+    }
+    return NULL;
 }
 
-static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size)
-{
-    return find_region_kind(bus, address, size, 1);
-}
+static bus_region *find_region(semu_bus *bus, uint32_t address, size_t size) {
+    return find_region_kind(bus, address, size, 1); }
 
 static bus_region *find_region_below(semu_bus *bus, uint32_t address,
-                                     size_t size)
-{
-    return find_region_kind(bus, address, size, 0);
-}
+                                     size_t size) {
+    return find_region_kind(bus, address, size, 0); }
 
-static int valid_width(unsigned width)
-{
-    return width == 1u || width == 2u || width == 4u;
-}
+static int valid_width(unsigned width) { return width == 1u || width == 2u ||
+                                               width == 4u; }
 
 static uint32_t read_little_endian(const uint8_t *data, unsigned width)
 {
@@ -287,6 +311,7 @@ void semu_bus_unmap_overlay(semu_bus *bus, void *context)
         }
         ++index;
     }
+    refresh_lookup(bus);
 }
 
 static semu_status read_region(bus_region *region, uint32_t address,

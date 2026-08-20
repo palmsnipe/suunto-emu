@@ -264,10 +264,10 @@ void semu_machine_destroy(semu_machine *machine)
     }
 }
 
-static semu_status reset_machine_state(semu_machine *machine,
-                                       uint32_t vector_table,
-                                       int preserve_ram,
-                                       semu_error *error)
+semu_status semu_machine_reset_state_internal(semu_machine *machine,
+                                              uint32_t vector_table,
+                                              int preserve_ram,
+                                              semu_error *error)
 {
     if (machine == NULL || machine->cpu == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "cannot reset null machine");
@@ -324,138 +324,8 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     }
     machine->instruction_epoch = 0u;
     machine->virtual_time_epoch = 0u;
-    return reset_machine_state(machine, machine->profile.vector_table, 0, error);
-}
-
-static semu_status reset_after_request(semu_machine *machine,
-                                       semu_error *error)
-{
-    const semu_cpu_state *state = semu_cpu_get_state(machine->cpu);
-    uint64_t now = semu_scheduler_now(machine->scheduler);
-
-    if (state == NULL || UINT64_MAX - machine->instruction_epoch <
-            state->instructions || UINT64_MAX - machine->virtual_time_epoch <
-            now) {
-        semu_error_set(error, SEMU_ERR_RANGE,
-                       "machine reset accounting overflow");
-        return SEMU_ERR_RANGE;
-    }
-    machine->instruction_epoch += state->instructions;
-    machine->virtual_time_epoch += now;
-    /* Apollo4 software reset retains SRAM; explicit reset remains cold. */
-    return reset_machine_state(machine, machine->profile.vector_table, 1, error);
-}
-
-semu_stop_reason semu_machine_run(semu_machine *machine,
-                                  const semu_run_limits *limits,
-                                  semu_error *error)
-{
-    uint64_t executed = 0u;
-    uint64_t elapsed = 0u;
-    if (machine == NULL || limits == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid run arguments");
-        return SEMU_STOP_USER;
-    }
-    machine->stop_reason = SEMU_STOP_NONE;
-    while (machine->stop_reason == SEMU_STOP_NONE) {
-        const semu_cpu_state *state = semu_cpu_get_state(machine->cpu);
-        uint64_t before_instructions;
-        uint64_t before_time;
-        uint64_t after_instructions;
-        uint64_t after_time;
-        semu_status step_status;
-        if (state == NULL) {
-            semu_error_set(error, SEMU_ERR_STATE,
-                           "machine CPU state is unavailable");
-            machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
-            break;
-        }
-        if (limits->max_instructions != 0u &&
-            executed >= limits->max_instructions) {
-            machine->stop_reason = SEMU_STOP_BUDGET;
-            break;
-        }
-        if (limits->max_virtual_time_ns != 0u &&
-            elapsed >= limits->max_virtual_time_ns) {
-            machine->stop_reason = SEMU_STOP_BUDGET;
-            break;
-        }
-        if (machine->input_poll != NULL && (executed % UINT64_C(4096)) == 0u) {
-            semu_stop_reason input_reason = machine->input_poll(
-                machine->input_poll_context, machine, error);
-            if (input_reason != SEMU_STOP_NONE) {
-                machine->stop_reason = input_reason;
-                break;
-            }
-        }
-        if (machine->layer_count != 0u &&
-            machine->layers[0].descriptor ==
-                &semu_sapporo_222_no_device_layer) {
-            semu_status hook_status = semu_sapporo_devices_apply_compat_hook(
-                machine->devices, machine->bus,
-                semu_cpu_get_state_mutable(machine->cpu),
-                &machine->layers[0], machine->logger, error);
-            if (hook_status != SEMU_OK) {
-                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
-                break;
-            }
-        }
-        before_instructions = state->instructions;
-        before_time = semu_scheduler_now(machine->scheduler);
-        step_status = semu_cpu_step(machine->cpu, error);
-        state = semu_cpu_get_state(machine->cpu);
-        after_instructions = state != NULL ? state->instructions : 0u;
-        after_time = semu_scheduler_now(machine->scheduler);
-        if (state == NULL || after_instructions < before_instructions ||
-            after_instructions - before_instructions >
-                UINT64_MAX - executed || after_time < before_time ||
-            UINT64_MAX - elapsed < after_time - before_time) {
-            semu_error_set(error, SEMU_ERR_RANGE,
-                           "machine run accounting overflow");
-            machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
-            continue;
-        }
-        executed += after_instructions - before_instructions;
-        elapsed += after_time - before_time;
-        if (step_status != SEMU_OK) {
-            machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
-            if (machine->stop_reason == SEMU_STOP_NONE) {
-                machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
-            }
-        } else if (semu_cpu_reset_requested(machine->cpu)) {
-            uint64_t virtual_time = semu_machine_virtual_time(machine);
-            if (machine->reset_request_count == UINT64_MAX) {
-                semu_error_set(error, SEMU_ERR_RANGE,
-                               "machine reset request count overflow");
-                machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
-            } else {
-                ++machine->reset_request_count;
-                semu_log_set_time(machine->logger, virtual_time);
-                semu_log_write(machine->logger, SEMU_LOG_WARNING, "cpu",
-                    "machine-reset-request",
-                    "pc=0x%08x lr=0x%08x sp=0x%08x r0=0x%08x "
-                    "r1=0x%08x r2=0x%08x r3=0x%08x xpsr=0x%08x "
-                    "reset_count=%llu compat_hits=%llu instructions=%llu "
-                    "virtual_time_ns=%llu",
-                    (unsigned)state->r[15], (unsigned)state->r[14],
-                    (unsigned)state->r[13], (unsigned)state->r[0],
-                    (unsigned)state->r[1], (unsigned)state->r[2],
-                    (unsigned)state->r[3], (unsigned)state->xpsr,
-                    (unsigned long long)machine->reset_request_count,
-                    (unsigned long long)(machine->layer_count != 0u
-                        ? machine->layers[0].hits : 0u),
-                    (unsigned long long)state->instructions,
-                    (unsigned long long)virtual_time);
-                if (reset_after_request(machine, error) != SEMU_OK) {
-                    machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
-                }
-            }
-        } else {
-            machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
-        }
-        semu_log_set_time(machine->logger, semu_scheduler_now(machine->scheduler));
-    }
-    return machine->stop_reason;
+    return semu_machine_reset_state_internal(
+        machine, machine->profile.vector_table, 0, error);
 }
 
 semu_status semu_machine_input(semu_machine *machine,

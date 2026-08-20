@@ -32,6 +32,18 @@ make sdl
 make check-sdl
 ```
 
+`make check-sdl` always verifies invalid live-test configuration fails closed.
+When an authentic manifest is available, it also drives one Return/Enter edge
+and one middle-screen click through the dummy SDL frontend and verifies each
+new settled setup frame:
+
+```sh
+SEMU_FIRMWARE_MANIFEST=/path/to/firmware.semu \
+SEMU_SDL_TEST_SNAPSHOT=/tmp/suunto-ui-preframe.sems make check-sdl
+```
+
+The snapshot is optional; supplying one only shortens the bounded firmware run.
+
 An OTA-only Sapporo renderer session does not require a full 32-MiB device
 flash dump. The three validated OTA components, the explicit no-device layer,
 and a sufficiently large deterministic run bound are enough to reach the
@@ -46,7 +58,8 @@ build/suunto-emu-sdl run \
 ```
 
 Arrow Up, Return, and Arrow Down forward the three Sapporo button edges into
-the interpreter. SDL presents renderer output; this does not claim physical
+the interpreter. A left click in the upper, middle, or lower window third maps
+to the same buttons. SDL presents renderer output; this does not claim physical
 panel completion or generic factory-runtime behavior. A full-flash image is
 still optional for persistence/erase coverage and is rejected if it has the
 wrong size or missing footer.
@@ -62,9 +75,9 @@ build/suunto-emu-sdl run \
 ```
 
 After the middle-button setup frame settles, the window waits for a live
-button edge; use Up, Down, or Return/Enter to continue navigating. The named
-checkpoint button is required only for the first edge; subsequent setup edges
-accept any of the three mapped buttons. SDL holds
+button edge; use Up, Down, Return/Enter, or click a screen third to continue
+navigating. The named checkpoint button is required only for the first edge;
+subsequent setup edges accept any of the three mapped buttons. SDL holds
 each button press for 70 ms of guest time and keeps the released level stable
 for another 70 ms, matching the native debounce boundary. Replay input remains
 the deterministic path for headless checkpoints.

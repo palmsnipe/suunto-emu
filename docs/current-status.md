@@ -73,12 +73,35 @@ new renderer generation, excluding stride padding and stale submissions.
 
 SDL also accepts the same `middle-language` and `lower-transition` checkpoints
 without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
-Down are delivered through the semantic input mapper; after a quiet settled
-post-button frame the window pauses for the next live button edge so the setup
-UI can be navigated manually. The named checkpoint button is required only for
-the first edge; subsequent setup edges accept any of the three mapped buttons.
+Down are delivered through the semantic input mapper. Left clicks in the upper,
+middle, and lower window thirds use the same path, and the SDL window requests
+focus when its first validated frame creates the native surface. After a quiet
+settled post-button frame the window pauses for the next live button edge so
+the setup UI can be navigated manually. The named checkpoint button is required
+only for the first edge; subsequent setup edges accept any of the three mapped
+buttons.
 Pressing that edge returns control to the guest immediately and rearms the next
 settled frame; replay checkpoints retain their deterministic stop behavior.
+The optional authentic `check-sdl` flow now queues one SDL Return key-down/up
+pair and one middle-screen mouse click after successive settled frames,
+verifying setup CRC32 checkpoints
+`629da47e` and `d4ed66c7`, then exits through an SDL quit event at the
+repeatable checkpoint `pc=0x080000a2`, `instructions=798836864`,
+`virtual_time_ns=9505920205`. Invalid automation configuration is always
+checked and fails closed; absent private firmware skips only the authentic run.
+
+The normal `-O2` runtime now dispatches successful SCS accesses directly to
+SysTick, NVIC, or SCB instead of constructing speculative refusal diagnostics,
+and it calls the 2.22 compatibility dispatcher only at its exact, hash-pinned
+trigger PCs. CPU state and virtual-time accounting are cached across ordinary
+one-tick instruction steps, while WFI jumps, reset, and refusal paths still
+read the scheduler directly. On the same host, five SDL dummy continuations
+from the identity-pinned pre-frame snapshot to the fixed 650,800,000-
+instruction limit averaged 5.284 seconds before the accounting changes and
+4.700 seconds after them, an 11.1% wall-time reduction. Both paths produced
+first-frame CRC32 `4979f432` and stopped at `pc=0x0009a7e4`, 650,800,000
+instructions, and 15,707,372,848 ns of virtual time. This is a host performance
+measurement; guest execution and virtual time are unchanged.
 
 The reset boundary diagnostic now records the request PC, LR, SP, R0–R3, xPSR,
 runtime reset count, compatibility hit total, and virtual time without changing
@@ -90,9 +113,9 @@ with `compat_hits=0` and then continues to the bounded budget. The exact
 2.22.60 no-layer run likewise repeats `SYSRESETREQ` at `0x000be93e` with
 `compat_hits=0`; the opt-in layer's OHR trace reaches BSL identity/configure,
 MAIN transition, result, and echo exchanges with matching ready edges and no
-refusal (E-SAP-0016). These are reproducible emulator observations, not a later-version
-behavior fix; a native reset-register or post-reset transaction trace is still
-required before changing Apollo4 reset semantics.
+refusal (E-SAP-0016). These are reproducible emulator observations, not a
+later-version behavior fix; a native reset-register or post-reset transaction
+trace is still required before changing Apollo4 reset semantics.
 
 ## Next Actionable Work
 

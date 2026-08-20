@@ -2,6 +2,20 @@
 
 #include "../../core/scheduler_internal.h"
 
+static uint16_t count_pending_sources(const semu_cpu *cpu)
+{
+    uint16_t count = 0u;
+    unsigned index;
+    for (index = 0u; index < SEMU_ARRAY_LEN(cpu->system_pending); ++index) {
+        if (cpu->system_pending[index] != 0u) ++count;
+    }
+    for (index = 0u; index < ARMV7M_IRQ_COUNT; ++index) {
+        if (cpu->irq_level[index] != 0u || cpu->irq_pending[index] != 0u)
+            ++count;
+    }
+    return count;
+}
+
 static semu_status write_state(const semu_cpu_state *state,
                                semu_snapshot_writer *writer,
                                semu_error *error)
@@ -226,6 +240,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
         return SEMU_ERR_FORMAT;
     }
     candidate.exclusive_width = (unsigned)value;
+    if (candidate.pending_source_count != count_pending_sources(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU pending-source count");
+        return SEMU_ERR_FORMAT;
+    }
     *cpu = candidate;
 #undef R
     return SEMU_OK;

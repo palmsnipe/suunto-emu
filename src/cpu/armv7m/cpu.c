@@ -1,5 +1,8 @@
 #include "armv7m_internal.h"
 
+#include "../../core/bus_internal.h"
+#include "../../core/scheduler_internal.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,7 +58,7 @@ static semu_status finish_instruction(semu_cpu *cpu, semu_error *error)
     if (cpu->scheduler == NULL) {
         return SEMU_OK;
     }
-    status = semu_scheduler_advance(cpu->scheduler, 1u, error);
+    status = semu_scheduler_advance_one(cpu->scheduler, error);
     if (status != SEMU_OK) {
         cpu->state.halted = 1;
         cpu->stop_reason = SEMU_STOP_DEVICE_REFUSED;

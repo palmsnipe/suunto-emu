@@ -72,7 +72,8 @@ static int ensure_resources(sdl_presenter *p, uint32_t w, uint32_t h,
         SDL_DestroyWindow(p->window);
         p->window = NULL;
     }
-    if (!SDL_CreateWindowAndRenderer("suunto-emu",
+    if (!SDL_CreateWindowAndRenderer(
+        "suunto-emu | Up / Enter / Down | click screen thirds",
         (int)w * (int)p->scale, (int)h * (int)p->scale, 0,
         &p->window, &p->renderer)) {
         semu_error_set(error, SEMU_ERR_IO,
@@ -80,6 +81,7 @@ static int ensure_resources(sdl_presenter *p, uint32_t w, uint32_t h,
         p->failed = 1;
         return 0;
     }
+    (void)SDL_RaiseWindow(p->window);
     p->texture = SDL_CreateTexture(p->renderer,
         SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,
         (int)w, (int)h);

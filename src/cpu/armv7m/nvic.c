@@ -86,6 +86,7 @@ static int pending_exception(const semu_cpu *cpu, int ignore_primask,
     unsigned selected_source = 0xffffffffu;
     unsigned exception;
 
+    if (cpu->pending_source_count == 0u) return -1;
     for (exception = 2u; exception < 16u; ++exception) {
         unsigned candidate = exception;
         int priority;
@@ -179,13 +180,16 @@ void armv7m_clear_system_pending(semu_cpu *cpu, unsigned exception)
 
 void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq)
 {
+    int was_pending;
+
     if (cpu == NULL || irq >= ARMV7M_IMPLEMENTED_IRQ_COUNT ||
         cpu->irq_pending[irq] != 0u)
         return;
+    was_pending = cpu->irq_level[irq] != 0u;
     cpu->irq_pending[irq] = 1u;
     cpu->irq_source_bits[irq / 64u] |=
         UINT64_C(1) << (irq % 64u);
-    if (cpu->pending_source_count != UINT16_MAX) {
+    if (!was_pending && cpu->pending_source_count != UINT16_MAX) {
         ++cpu->pending_source_count;
     }
     armv7m_signal_pending_event(cpu, 16u + irq);
@@ -298,6 +302,23 @@ static int bit_register(uint32_t offset, unsigned *base, unsigned *kind)
         }
     }
     return 0;
+}
+
+int armv7m_nvic_read_offset(uint32_t offset)
+{
+    unsigned base;
+    unsigned kind;
+    return bit_register(offset, &base, &kind) ||
+           in_range(offset, 0x300u, 0x20u) ||
+           in_range(offset, 0x400u, 0xf0u);
+}
+
+int armv7m_nvic_write_offset(uint32_t offset)
+{
+    unsigned base;
+    unsigned kind;
+    return bit_register(offset, &base, &kind) ||
+           in_range(offset, 0x400u, 0xf0u);
 }
 
 semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,

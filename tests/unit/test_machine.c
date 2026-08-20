@@ -2,6 +2,7 @@
 #include "semu/machine.h"
 #include "sapporo_flash.h"
 #include "test.h"
+#include "../../src/boards/machine_internal.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -74,6 +75,12 @@ typedef struct input_poll_fixture {
     unsigned calls;
     semu_status input_status;
 } input_poll_fixture;
+
+static void no_op_event(void *context, uint64_t now_ns)
+{
+    (void)context;
+    (void)now_ns;
+}
 
 static semu_stop_reason stop_from_input_poll(void *context,
                                               semu_machine *machine,
@@ -354,8 +361,12 @@ static void test_button_input_polarity_and_refusal(
         event.value = 0;
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_scheduler_schedule(machine->scheduler, 20u, no_op_event,
+                                    NULL, NULL, &error));
         SEMU_TEST_EQ_U64(context, SEMU_STOP_WFI_DEADLOCK,
                          semu_machine_run(machine, &limits, &error));
+        SEMU_TEST_EQ_U64(context, 20u, semu_machine_virtual_time(machine));
 
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_machine_reset(machine, &error));

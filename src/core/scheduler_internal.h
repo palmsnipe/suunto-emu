@@ -26,6 +26,27 @@ struct semu_scheduler {
     semu_event_id next_id;
 };
 
+/* CPU instructions advance by exactly one tick. Keep the common no-event
+   case local to the interpreter while preserving the generic refusal and
+   due-event path. */
+static inline semu_status semu_scheduler_advance_one(
+    semu_scheduler *scheduler, semu_error *error)
+{
+    if (scheduler != NULL && scheduler->now_ns != UINT64_MAX) {
+        uint64_t target = scheduler->now_ns + 1u;
+        if (scheduler->count == 0u ||
+            scheduler->events[0].state.due_ns > target) {
+            scheduler->now_ns = target;
+            if (error != NULL) {
+                error->code = SEMU_OK;
+                error->text[0] = '\0';
+            }
+            return SEMU_OK;
+        }
+    }
+    return semu_scheduler_advance(scheduler, 1u, error);
+}
+
 #define SEMU_SCHED_EVENT_NONE 0u
 #define SEMU_SCHED_EVENT_SYSTICK 1u
 #define SEMU_SCHED_EVENT_CTIMER 2u

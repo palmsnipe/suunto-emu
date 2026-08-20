@@ -10,6 +10,7 @@
 #include "semantic_input.c"
 #include "live_frame_gate.c"
 #include "sdl_button_hold.c"
+#include "sdl_live_test.c"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,8 +24,13 @@ typedef struct sdl_frontend {
     semu_sdl_button_hold button_hold;
     semu_machine *machine;
     unsigned long frame_count;
+    uint64_t last_frame_generation;
+    uint32_t last_frame_crc;
+    uint32_t scale;
+    uint32_t viewport_height;
     int failed;
     int window_closed;
+    semu_sdl_live_test live_test;
 } sdl_frontend;
 
 static const char *live_checkpoint_name(int button)
@@ -74,6 +80,7 @@ static void publish_frame(void *context, const semu_frame *frame)
     sdl_frontend *frontend = (sdl_frontend *)context;
     semu_error error;
     uint64_t now_ns = 0u;
+    uint32_t crc = 0u;
     if (frontend->failed) {
         return;
     }
@@ -84,14 +91,22 @@ static void publish_frame(void *context, const semu_frame *frame)
         frontend->failed = 1;
         return;
     }
+    frontend->viewport_height = frame->height * frontend->scale;
+    semu_sdl_input_set_viewport_height(frontend->input_adapter,
+                                       frontend->viewport_height);
+    if (frontend->frame_count == 0u || frontend->live_test.enabled) {
+        crc = semu_crc32(0u, frame->pixels, frame->size);
+    }
     if (frontend->frame_count == 0u) {
         fprintf(stderr,
                 "SDL first-frame width=%u height=%u generation=%llu "
                 "crc32=%08x\n",
                 frame->width, frame->height,
                 (unsigned long long)frame->generation,
-                semu_crc32(0u, frame->pixels, frame->size));
+                crc);
     }
+    frontend->last_frame_generation = frame->generation;
+    frontend->last_frame_crc = crc;
     ++frontend->frame_count;
     if (frontend->machine != NULL) {
         now_ns = semu_machine_virtual_time(frontend->machine);
@@ -189,6 +204,12 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                           frontend->frame_count) &&
                       !semu_sdl_button_hold_waiting(&frontend->button_hold,
                                                     now_ns);
+    if (!semu_sdl_live_test_queue(&frontend->live_test, wait_for_button,
+            frontend->live_checkpoint.ready, frontend->viewport_height,
+            frontend->last_frame_generation, frontend->last_frame_crc,
+            error)) {
+        return SEMU_STOP_DEVICE_REFUSED;
+    }
     for (;;) {
         if (wait_for_button) {
             if (!SDL_WaitEvent(&event)) {
@@ -309,9 +330,17 @@ int main(int argc, char **argv)
     uint32_t scale;
     int wait_for_quit;
     int filtered_argc;
+    const char *live_test;
     memset(&frontend, 0, sizeof(frontend));
     semu_live_frame_gate_init(&frontend.live_checkpoint, -1);
     semu_sdl_button_hold_init(&frontend.button_hold);
+    live_test = getenv("SEMU_SDL_LIVE_TEST");
+    if (live_test != NULL && strcmp(live_test, "middle-language") != 0) {
+        fputs("SDL live test: SEMU_SDL_LIVE_TEST accepts only "
+              "middle-language\n", stderr);
+        return 2;
+    }
+    frontend.live_test.enabled = live_test != NULL;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;
@@ -321,7 +350,15 @@ int main(int argc, char **argv)
     semu_live_frame_gate_init(&frontend.live_checkpoint,
                               parse_live_checkpoint(filtered_argc,
                                                    filtered_argv));
+    if (frontend.live_test.enabled &&
+        frontend.live_checkpoint.required_button != SEMU_BUTTON_MIDDLE) {
+        fputs("SDL live test requires --until middle-language without "
+              "--input-replay\n", stderr);
+        SDL_Quit();
+        return 2;
+    }
     scale = parse_scale(filtered_argc, filtered_argv);
+    frontend.scale = scale;
     semu_error_clear(&error);
     frontend.input_adapter = semu_sdl_input_create(&error);
     frontend.input_mapper = semu_input_mapper_create(&error);

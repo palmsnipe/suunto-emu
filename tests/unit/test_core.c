@@ -1,6 +1,8 @@
 #include "semu/bus.h"
 #include "semu/log.h"
 #include "semu/scheduler.h"
+#include "../../src/core/bus_internal.h"
+#include "../../src/core/scheduler_internal.h"
 #include "test.h"
 
 #include <stdio.h>
@@ -93,11 +95,40 @@ static void test_scheduler_order_and_cancel(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_scheduler_one_tick_fast_and_refusal(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler = semu_scheduler_create(&error);
+    event_log log = {{0u}, 0u};
+    event_item item = {&log, 40u};
+
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    semu_error_set(&error, SEMU_ERR_STATE, "stale");
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance_one(scheduler, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, error.code);
+    SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_now(scheduler));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_schedule(scheduler, 1u, record_event, &item, NULL,
+                                &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance_one(scheduler, &error));
+    SEMU_TEST_EQ_U64(context, 42u, log.values[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_restore_begin(scheduler, UINT64_MAX, 0u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                     semu_scheduler_advance_one(scheduler, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_MAX, semu_scheduler_now(scheduler));
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_bus_memory_and_device(semu_test_context *context)
 {
     static const uint8_t rom[] = {1u, 2u, 3u, 4u};
     semu_bus_device_ops ops = {device_read, device_write, device_reset};
     test_device device = {0u, 0u, 0u};
+    test_device overlay = {0xdeadbeefu, 0u, 0u};
     semu_error error;
     semu_bus *bus = semu_bus_create(&error);
     uint32_t value;
@@ -121,6 +152,19 @@ static void test_bus_memory_and_device(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x1001u, 2u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0x3322u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_map_overlay(bus, "overlay", 0x1004u, 4u, &ops, &overlay,
+                             &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x1004u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xdeadbeefu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read_below(bus, 0x1004u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_unmap_overlay(bus, &overlay);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x1004u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, 0x2000u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0x04030201u, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
@@ -168,6 +212,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_status_names),
         SEMU_TEST_CASE(test_scheduler_order_and_cancel),
+        SEMU_TEST_CASE(test_scheduler_one_tick_fast_and_refusal),
         SEMU_TEST_CASE(test_bus_memory_and_device),
         SEMU_TEST_CASE(test_log_filter)
     };

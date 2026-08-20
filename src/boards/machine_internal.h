@@ -43,5 +43,7 @@ struct semu_machine {
 semu_status semu_machine_snapshot_manifest_hash(
     const semu_firmware_manifest *firmware,
     char output[SEMU_REPLAY_HASH_HEX_LEN], semu_error *error);
+semu_status semu_machine_reset_state_internal(semu_machine *machine,
+    uint32_t vector_table, int preserve_ram, semu_error *error);
 
 #endif

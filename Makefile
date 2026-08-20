@@ -24,6 +24,7 @@ HEADLESS_SOURCES = src/frontends/cli.c src/frontends/main_headless.c
 HEADLESS_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(HEADLESS_SOURCES))
 SDL_SOURCES = src/frontends/cli.c src/frontends/main_sdl.c
 SDL_OBJECTS = $(patsubst %.c,$(BUILD_DIR)/obj-sdl/%.o,$(SDL_SOURCES))
+SDL_INPUT_TEST_BIN = $(BUILD_DIR)/tests/test_sdl_input
 
 UNIT_TEST_SOURCES = $(sort $(wildcard tests/unit/test_*.c))
 DEVICE_TEST_SOURCES = $(sort $(wildcard tests/devices/test_*.c))
@@ -66,6 +67,14 @@ $(BUILD_DIR)/obj-sdl/%.o: %.c
 		$(shell $(PKG_CONFIG) --cflags sdl3 2>/dev/null) -MMD -MP -c $< -o $@
 
 $(SDL_OBJECTS) $(BUILD_DIR)/suunto-emu-sdl: | check-sdl3-required
+
+$(SDL_INPUT_TEST_BIN): tests/sdl/test_sdl_input.c tests/support/test.c \
+		$(BUILD_DIR)/libsemu.a | check-sdl3-required
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) \
+		$(shell $(PKG_CONFIG) --cflags sdl3 2>/dev/null) $< \
+		tests/support/test.c $(BUILD_DIR)/libsemu.a \
+		$(shell $(PKG_CONFIG) --libs sdl3 2>/dev/null) -o $@
 
 $(BUILD_DIR)/tests/%: tests/unit/%.c tests/support/test.c $(BUILD_DIR)/libsemu.a
 	@mkdir -p $(@D)
@@ -110,7 +119,12 @@ check-sdl:
 	@set -e; \
 	if PKG_CONFIG="$(PKG_CONFIG)" sh tools/check_sdl3.sh probe; then \
 		$(MAKE) sdl; \
+		$(MAKE) $(SDL_INPUT_TEST_BIN); \
+		echo "TEST $(SDL_INPUT_TEST_BIN)"; \
+		$(SDL_INPUT_TEST_BIN); \
 		SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null; \
+		SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
+			sh tools/test_sdl_live_input.sh; \
 	fi
 
 test-firmware: all

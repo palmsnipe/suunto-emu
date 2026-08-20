@@ -20,6 +20,22 @@
 
 typedef struct semu_sapporo_devices semu_sapporo_devices;
 
+static inline int semu_sapporo_devices_compat_hook_pc(uint32_t pc)
+{
+    switch (pc) {
+    case UINT32_C(0x001145be): case UINT32_C(0x0009d166):
+    case UINT32_C(0x001145e8): case UINT32_C(0x0011469c):
+    case UINT32_C(0x0011470a): case UINT32_C(0x0010f6d8):
+    case UINT32_C(0x0010f4fc): case UINT32_C(0x0010f610):
+    case UINT32_C(0x0010f7c2): case UINT32_C(0x0010f7b8):
+    case UINT32_C(0x0009aaec): case UINT32_C(0x0009a3b8):
+    case UINT32_C(0x0010fbde):
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 semu_sapporo_devices *semu_sapporo_devices_create(
     semu_scheduler *scheduler, const semu_storage *flash_storage,
     semu_error *error);

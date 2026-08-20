@@ -350,19 +350,7 @@ semu_status semu_sapporo_devices_apply_compat_hook(
                        "Sapporo compatibility hook binding is incomplete");
         return SEMU_ERR_ARGUMENT;
     }
-    if (cpu_state->r[15] != UINT32_C(0x001145be) &&
-        cpu_state->r[15] != UINT32_C(0x0009d166) &&
-        cpu_state->r[15] != UINT32_C(0x001145e8) &&
-        cpu_state->r[15] != UINT32_C(0x0011469c) &&
-        cpu_state->r[15] != UINT32_C(0x0011470a) &&
-        cpu_state->r[15] != UINT32_C(0x0010f6d8) &&
-        cpu_state->r[15] != UINT32_C(0x0010f4fc) &&
-        cpu_state->r[15] != UINT32_C(0x0010f610) &&
-        cpu_state->r[15] != UINT32_C(0x0010f7c2) &&
-        cpu_state->r[15] != UINT32_C(0x0010f7b8) &&
-        cpu_state->r[15] != UINT32_C(0x0009aaec) &&
-        cpu_state->r[15] != UINT32_C(0x0009a3b8) &&
-        cpu_state->r[15] != UINT32_C(0x0010fbde)) {
+    if (!semu_sapporo_devices_compat_hook_pc(cpu_state->r[15])) {
         return SEMU_OK;
     }
     state_hook_hits = state->descriptor != NULL &&

@@ -16,9 +16,17 @@ semu_sdl_input_adapter *semu_sdl_input_create(semu_error *error);
 void semu_sdl_input_destroy(semu_sdl_input_adapter *adapter);
 
 /*
+ * Set the current drawable height used to map a left click in the upper,
+ * middle, or lower screen third to the corresponding watch button.  A zero
+ * height disables mouse mapping until a validated frame has been presented.
+ */
+void semu_sdl_input_set_viewport_height(semu_sdl_input_adapter *adapter,
+    uint32_t height);
+
+/*
  * Process one SDL_Event.
- * Returns 1 if a normalized key event was produced (*out_key is valid).
- * Returns 0 if no key event was produced.
+ * Returns 1 if a normalized key/button event was produced (*out_key is valid).
+ * Returns 0 if no normalized event was produced.
  * Sets *out_quit = 1 when the event is SDL_EVENT_QUIT.
  */
 int semu_sdl_input_process(semu_sdl_input_adapter *adapter,

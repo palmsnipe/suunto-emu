@@ -58,6 +58,7 @@ static void test_nvic_lifecycle_and_scs(semu_test_context *context)
     SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
     SEMU_TEST_ASSERT(context, read_word(&fixture, SCS + 0xd00u, &value));
     SEMU_TEST_EQ_U64(context, 0x410fc241u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, fixture.error.code);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_bus_write(fixture.bus, SCS + 0xd00u, 4u, 0u,
                                     &fixture.error));
@@ -362,9 +363,14 @@ static void test_pending_source_count_tracks_edges(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, (uint64_t)-1,
                      (uint64_t)armv7m_pending_exception(fixture.cpu));
 
+    semu_cpu_set_irq(fixture.cpu, 0u, 1);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x200u, 1u));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
     SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->irq_source_bits[0]);
+    semu_cpu_set_irq(fixture.cpu, 0u, 0);
+    SEMU_TEST_EQ_U64(context, 1u, fixture.cpu->pending_source_count);
     SEMU_TEST_ASSERT(context, write_word(&fixture, SCS + 0x280u, 1u));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->irq_source_bits[0]);
 
     semu_cpu_set_irq(fixture.cpu, 65u, 1);
@@ -381,6 +387,36 @@ static void test_pending_source_count_tracks_edges(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_pending_count_snapshot_refusal(semu_test_context *context)
+{
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    semu_snapshot_writer_init(&writer);
+    semu_cpu_set_irq(fixture.cpu, 255u, 1);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cpu_snapshot_write(fixture.cpu, &writer, &fixture.error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cpu_snapshot_read(fixture.cpu, &reader, &fixture.error));
+    semu_snapshot_writer_destroy(&writer);
+    semu_cpu_set_irq(fixture.cpu, 255u, 0);
+    semu_snapshot_writer_init(&writer);
+    fixture.cpu->pending_source_count = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_cpu_snapshot_write(fixture.cpu, &writer, &fixture.error));
+    fixture.cpu->pending_source_count = 0u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_cpu_snapshot_read(fixture.cpu, &reader, &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->pending_source_count);
+    semu_snapshot_writer_destroy(&writer);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -390,6 +426,7 @@ int main(void)
         SEMU_TEST_CASE(test_prigroup_masks_and_nested_return),
         SEMU_TEST_CASE(test_nmi_mask_bypass_and_reserved_refusal),
         SEMU_TEST_CASE(test_pending_source_count_tracks_edges),
+        SEMU_TEST_CASE(test_pending_count_snapshot_refusal),
         SEMU_TEST_CASE(test_system_priority_mask_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

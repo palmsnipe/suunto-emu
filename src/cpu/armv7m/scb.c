@@ -54,12 +54,6 @@ static semu_status refuse(uint32_t offset, semu_error *error)
     return SEMU_ERR_UNSUPPORTED;
 }
 
-static int privileged(const semu_cpu *cpu)
-{
-    return (cpu->state.xpsr & ARMV7M_XPSR_IPSR_MASK) != 0u ||
-           (cpu->state.control & 1u) == 0u;
-}
-
 static int access_valid(uint32_t offset, unsigned width)
 {
     return (width == 1u || width == 2u || width == 4u) &&
@@ -177,7 +171,23 @@ static uint32_t icsr_value(const semu_cpu *cpu)
     return value;
 }
 
-static semu_status read_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
+int armv7m_scb_offset(uint32_t offset)
+{
+    if (offset >= SCB_SHPR1 && offset < SCB_SHPR3 + 4u) {
+        return 1;
+    }
+    switch (offset & ~3u) {
+    case SCB_CPUID: case SCB_ICSR: case SCB_VTOR: case SCB_AIRCR:
+    case SCB_SCR: case SCB_CCR: case SCB_SHCSR: case SCB_CFSR:
+    case SCB_HFSR: case SCB_MMFAR: case SCB_BFAR: case SCB_CPACR:
+    case SCB_FPCCR: case SCB_FPCAR: case SCB_FPDSCR:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+semu_status armv7m_scb_read(semu_cpu *cpu, uint32_t offset, unsigned width,
                             uint32_t *value, semu_error *error)
 {
     uint32_t raw;
@@ -212,7 +222,7 @@ static semu_status read_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
     return SEMU_OK;
 }
 
-static semu_status write_scb(semu_cpu *cpu, uint32_t offset, unsigned width,
+semu_status armv7m_scb_write(semu_cpu *cpu, uint32_t offset, unsigned width,
                              uint32_t value, semu_error *error)
 {
     uint32_t bits;
@@ -367,42 +377,6 @@ semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
         exception = 3u;
     }
     return armv7m_take_exception(cpu, exception, error);
-}
-
-semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
-                            uint32_t *value, semu_error *error)
-{
-    semu_cpu *cpu = (semu_cpu *)context;
-    semu_status status;
-
-    if (cpu == NULL || !privileged(cpu)) return refuse(offset, error);
-    status = armv7m_nvic_read(cpu, offset, width, value, error);
-    if (status == SEMU_OK) return status;
-    status = read_scb(cpu, offset, width, value, error);
-    if (status == SEMU_OK) return status;
-    if (offset >= 0x010u && offset < 0x020u)
-        return armv7m_systick_read(cpu, offset, width, value, error);
-    status = semu_bus_read_below(cpu->bus, ARMV7M_SCS_BASE + offset,
-                                 width, value, error);
-    return status == SEMU_OK ? status : refuse(offset, error);
-}
-
-semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
-                             uint32_t value, semu_error *error)
-{
-    semu_cpu *cpu = (semu_cpu *)context;
-    semu_status status;
-
-    if (cpu == NULL || !privileged(cpu)) return refuse(offset, error);
-    status = armv7m_nvic_write(cpu, offset, width, value, error);
-    if (status == SEMU_OK) return status;
-    status = write_scb(cpu, offset, width, value, error);
-    if (status == SEMU_OK) return status;
-    if (offset >= 0x010u && offset < 0x020u)
-        return armv7m_systick_write(cpu, offset, width, value, error);
-    status = semu_bus_write_below(cpu->bus, ARMV7M_SCS_BASE + offset,
-                                  width, value, error);
-    return status == SEMU_OK ? status : refuse(offset, error);
 }
 
 void armv7m_scs_reset(void *context)

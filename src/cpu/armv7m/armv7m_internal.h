@@ -127,18 +127,6 @@ semu_status semu_cpu_snapshot_resolve_event(
     semu_cpu *cpu, uint32_t kind, uint32_t subject,
     semu_event_callback *callback, void **context, semu_error *error);
 
-semu_status semu_bus_map_overlay(semu_bus *bus, const char *name,
-                                 uint32_t base, uint32_t size,
-                                 const semu_bus_device_ops *ops,
-                                 void *context, semu_error *error);
-void semu_bus_unmap_overlay(semu_bus *bus, void *context);
-semu_status semu_bus_read_below(semu_bus *bus, uint32_t address,
-                                unsigned width, uint32_t *value,
-                                semu_error *error);
-semu_status semu_bus_write_below(semu_bus *bus, uint32_t address,
-                                 unsigned width, uint32_t value,
-                                 semu_error *error);
-
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);
 semu_status armv7m_exec16_arith(semu_cpu *cpu, uint16_t instruction,
@@ -230,6 +218,11 @@ semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
                             uint32_t *value, semu_error *error);
 semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
                              uint32_t value, semu_error *error);
+int armv7m_scb_offset(uint32_t offset);
+semu_status armv7m_scb_read(semu_cpu *cpu, uint32_t offset, unsigned width,
+                            uint32_t *value, semu_error *error);
+semu_status armv7m_scb_write(semu_cpu *cpu, uint32_t offset, unsigned width,
+                             uint32_t value, semu_error *error);
 semu_status armv7m_systick_read(semu_cpu *cpu, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error);
@@ -243,6 +236,8 @@ semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
                              uint32_t *value, semu_error *error);
 semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,
                               uint32_t value, semu_error *error);
+int armv7m_nvic_read_offset(uint32_t offset);
+int armv7m_nvic_write_offset(uint32_t offset);
 void armv7m_scs_reset(void *context);
 int armv7m_pending_exception(const semu_cpu *cpu);
 int armv7m_pending_exception_for_icsr(const semu_cpu *cpu);
