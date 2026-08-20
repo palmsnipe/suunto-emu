@@ -230,6 +230,14 @@ semu_status semu_sapporo_max17050_snapshot_read(
         semu_error_set(error, SEMU_ERR_CONFLICT, "MAX17050 snapshot identity mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if (candidate.status != MAX_STATUS_VAL ||
+        candidate.repsoc != MAX_REPSOC_VAL ||
+        candidate.temperature != MAX_TEMP_VAL ||
+        candidate.vcell != MAX_VCELL_VAL) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "MAX17050 snapshot fixture mismatch");
+        return SEMU_ERR_FORMAT;
+    }
     *sensor = candidate;
     return SEMU_OK;
 }

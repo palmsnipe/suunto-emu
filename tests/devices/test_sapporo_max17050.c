@@ -275,6 +275,37 @@ static void test_repeated_transcript(semu_test_context *context)
     semu_sapporo_max17050_destroy(sensor);
 }
 
+static void test_snapshot_fixture_values_refuse(semu_test_context *context)
+{
+    semu_error error;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_sapporo_max17050 *source;
+    semu_sapporo_max17050 *target;
+    const size_t value_offsets[] = { 1u, 3u, 5u, 7u };
+    size_t i;
+
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    source = semu_sapporo_max17050_create(0x36u, &error);
+    target = semu_sapporo_max17050_create(0x36u, &error);
+    SEMU_TEST_ASSERT(context, source != NULL && target != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_sapporo_max17050_snapshot_write(source, &writer,
+                                                          &error));
+    for (i = 0u; i < sizeof(value_offsets) / sizeof(value_offsets[0]); ++i) {
+        writer.data[value_offsets[i]] ^= 0x01u;
+        semu_snapshot_reader_init(&reader, writer.data, writer.size);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_sapporo_max17050_snapshot_read(target, &reader,
+                                                             &error));
+        writer.data[value_offsets[i]] ^= 0x01u;
+    }
+    semu_snapshot_writer_destroy(&writer);
+    semu_sapporo_max17050_destroy(target);
+    semu_sapporo_max17050_destroy(source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -288,7 +319,8 @@ int main(void)
         SEMU_TEST_CASE(test_observed_later_registers),
         SEMU_TEST_CASE(test_byte_order),
         SEMU_TEST_CASE(test_write_and_shape_refusals),
-        SEMU_TEST_CASE(test_repeated_transcript)
+        SEMU_TEST_CASE(test_repeated_transcript),
+        SEMU_TEST_CASE(test_snapshot_fixture_values_refuse)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
