@@ -87,6 +87,32 @@ static void test_evidenced_access_sequence(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_runtime_calibration_sequence(semu_test_context *context)
+{
+    clock_fixture fixture;
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    /* The later core-MMIO trace toggles these two observed calibration bits. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80040)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80050)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x44u, &value));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80050), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80040)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80048)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x44u, &value));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80048), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80040)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x44u, &value));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80040), value);
+    fixture_destroy(&fixture);
+}
+
 static void test_wrong_width(semu_test_context *context)
 {
     clock_fixture fixture;
@@ -177,7 +203,7 @@ static void test_snapshot_values_refuse_atomically(semu_test_context *context)
     SEMU_TEST_ASSERT(context, fixture_init(&source));
     SEMU_TEST_ASSERT(context, fixture_init(&target));
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&source, 0x44u,
-                                                      UINT32_C(0xF80040)));
+                                                      UINT32_C(0xF80050)));
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&target, 0x44u,
                                                       UINT32_C(0xF80000)));
     semu_snapshot_writer_init(&writer);
@@ -194,7 +220,7 @@ static void test_snapshot_values_refuse_atomically(semu_test_context *context)
                      semu_apollo4_clock_snapshot_read(target.clock, &reader,
                                                       &target.error));
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&target, 0x44u, &value));
-    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80040), value);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80050), value);
     writer.data[0u] = 0u;
     writer.data[4u] = 0x01u;
     semu_snapshot_reader_init(&reader, writer.data, writer.size);
@@ -239,6 +265,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_reset_values),
         SEMU_TEST_CASE(test_evidenced_access_sequence),
+        SEMU_TEST_CASE(test_runtime_calibration_sequence),
         SEMU_TEST_CASE(test_wrong_width),
         SEMU_TEST_CASE(test_adjacent_and_unknown_offsets_refuse),
         SEMU_TEST_CASE(test_reset_clears_state),

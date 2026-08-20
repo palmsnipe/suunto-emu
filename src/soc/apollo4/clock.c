@@ -6,6 +6,11 @@
 * E-A4-CLK-001 verified trace (sapporo-apollo4-coldboot-clock-reset-unpatched):
 *   offset 0x44: read 0x0, write 0xF80000, read 0xF80000, write 0xF80040
 *   offset 0x0c: read 0x0, write 0x0
+* The same Sapporo 2.22.60 core-MMIO trace records the later calibration
+* sequence 0xF80040 -> 0xF80050 -> 0xF80040 and
+* 0xF80040 -> 0xF80048 -> 0xF80040 at offset 0x44
+* (sapporo-apollo4-core-mmio.trace, SHA-256
+* f33df75bc9c7f684760e4f4e6ba22f291696506dd58b8b5462a5da64135eee26).
 * Offset 0x84 is never accessed by firmware. The Renode clkgen model is a
 * permissive Python register bank; only the observed offsets and values are
 * modeled here. All other offsets and widths fail closed.
@@ -20,7 +25,9 @@ static int is_observed_write_value(uint32_t offset, uint32_t value)
 {
     return (offset == CLOCK_CAL &&
             (value == UINT32_C(0xf80000) ||
-             value == UINT32_C(0xf80040))) ||
+             value == UINT32_C(0xf80040) ||
+             value == UINT32_C(0xf80050) ||
+             value == UINT32_C(0xf80048))) ||
            (offset == CLOCK_INTR && value == 0u);
 }
 
@@ -28,7 +35,9 @@ static int is_valid_state_value(uint32_t offset, uint32_t value)
 {
     return (offset == CLOCK_CAL &&
             (value == 0u || value == UINT32_C(0xf80000) ||
-             value == UINT32_C(0xf80040))) ||
+             value == UINT32_C(0xf80040) ||
+             value == UINT32_C(0xf80050) ||
+             value == UINT32_C(0xf80048))) ||
            (offset == CLOCK_INTR && value == 0u);
 }
 
