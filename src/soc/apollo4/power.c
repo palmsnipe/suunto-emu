@@ -404,6 +404,20 @@ semu_status semu_apollo4_power_snapshot_read(
         if (semu_snapshot_reader_u32(reader, values[index], error) != SEMU_OK)
             return error->code;
     }
+    if ((candidate.performance_control & ~UINT32_C(0x1f)) != 0u ||
+        (candidate.performance_control & UINT32_C(0x4)) == 0u ||
+        ((candidate.performance_control >> 3u) & UINT32_C(0x3)) !=
+            (candidate.performance_control & UINT32_C(0x3)) ||
+        candidate.device_power_status !=
+            device_power_status_for(candidate.device_power_enable) ||
+        candidate.legacy_control_1c != UINT32_C(0x8) ||
+        (candidate.shared_sram_enable & ~SHARED_SRAM_ENABLE_MASK) != 0u ||
+        (candidate.shared_sram_retention & ~SHARED_SRAM_RETENTION_MASK) != 0u ||
+        (candidate.simo_buck_enable & ~UINT32_C(0x1)) != 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "power snapshot state is unreachable");
+        return SEMU_ERR_FORMAT;
+    }
     *power = candidate;
     return SEMU_OK;
 }

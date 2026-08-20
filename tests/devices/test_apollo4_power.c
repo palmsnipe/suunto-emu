@@ -224,6 +224,36 @@ static void test_reset_and_repeatability(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_snapshot_state_refuses(semu_test_context *context)
+{
+    static const size_t offsets[] = { 0u, 8u, 16u, 20u, 25u, 28u };
+    static const uint8_t values[] = { 0u, 1u, 0u, 4u, 4u, 2u };
+    callback_record record = { 0u };
+    power_fixture fixture;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_error error;
+    size_t index;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture, &record));
+    semu_error_clear(&error);
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_power_snapshot_write(fixture.power,
+                                                       &writer, &error));
+    for (index = 0u; index < sizeof(offsets) / sizeof(offsets[0]); ++index) {
+        uint8_t original = writer.data[offsets[index]];
+        writer.data[offsets[index]] = values[index];
+        semu_snapshot_reader_init(&reader, writer.data, writer.size);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         semu_apollo4_power_snapshot_read(fixture.power,
+                                                           &reader, &error));
+        writer.data[offsets[index]] = original;
+    }
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -231,7 +261,8 @@ int main(void)
         SEMU_TEST_CASE(test_requests_masks_and_callbacks),
         SEMU_TEST_CASE(test_observed_legacy_accesses),
         SEMU_TEST_CASE(test_refusal_is_atomic),
-        SEMU_TEST_CASE(test_reset_and_repeatability)
+        SEMU_TEST_CASE(test_reset_and_repeatability),
+        SEMU_TEST_CASE(test_snapshot_state_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
