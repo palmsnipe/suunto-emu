@@ -128,6 +128,9 @@ static void test_register_state_refuses(semu_test_context *context)
                                 0u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      refuse_byte(&source, &target,
+                                 CPU_SNAPSHOT_SYSTICK_EVENT_VALID, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     refuse_byte(&source, &target,
                                  CPU_SNAPSHOT_SYSTICK_EVENT_VALID, 2u));
     SEMU_TEST_EQ_U64(context, 0u, target.cpu->systick_control);
     SEMU_TEST_EQ_U64(context, 0u, target.cpu->systick_reload);

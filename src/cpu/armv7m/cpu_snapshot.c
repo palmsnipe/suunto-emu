@@ -41,10 +41,11 @@ static int valid_systick_state(const semu_cpu *cpu)
         cpu->systick_calibration != 0u) {
         return 0;
     }
-    if (cpu->systick_event_valid != 0u &&
+    if ((cpu->systick_event_valid == 0u && cpu->systick_event != 0u) ||
+        (cpu->systick_event_valid != 0u &&
         (cpu->systick_event == 0u ||
          (cpu->systick_control & UINT32_C(0x5)) != UINT32_C(0x5) ||
-         (cpu->systick_current == 0u && cpu->systick_reload == 0u))) {
+         (cpu->systick_current == 0u && cpu->systick_reload == 0u)))) {
         return 0;
     }
     return 1;
