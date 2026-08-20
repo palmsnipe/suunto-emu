@@ -21,6 +21,13 @@ static int valid_binary(uint8_t value)
     return value <= 1u;
 }
 
+static int itstate_matches_xpsr(const semu_cpu *cpu)
+{
+    uint32_t xpsr_itstate = ((cpu->state.xpsr >> 25u) & 3u) |
+                            ((cpu->state.xpsr >> 8u) & 0xfcu);
+    return xpsr_itstate == cpu->itstate;
+}
+
 static int valid_exclusive_width(unsigned width)
 {
     return width == 0u || width == 1u || width == 2u || width == 4u;
@@ -355,6 +362,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
         !valid_binary(candidate.exclusive_valid)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU snapshot state flag");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!itstate_matches_xpsr(&candidate)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CPU ITSTATE does not match xPSR");
         return SEMU_ERR_FORMAT;
     }
     if ((candidate.state.waiting_for_interrupt != 0) !=
