@@ -157,13 +157,14 @@ semu_status semu_snapshot_reader_u32(semu_snapshot_reader *reader,
 semu_status semu_snapshot_reader_u64(semu_snapshot_reader *reader,
                                      uint64_t *value, semu_error *error)
 {
-    uint32_t low;
-    uint32_t high;
-    semu_status status = semu_snapshot_reader_u32(reader, &low, error);
+    uint8_t data[8];
+    semu_status status = semu_snapshot_reader_bytes(reader, data,
+                                                    sizeof(data), error);
     if (status != SEMU_OK) return status;
-    status = semu_snapshot_reader_u32(reader, &high, error);
-    if (status != SEMU_OK) return status;
-    *value = (uint64_t)low | ((uint64_t)high << 32u);
+    *value = (uint64_t)data[0] | ((uint64_t)data[1] << 8u) |
+             ((uint64_t)data[2] << 16u) | ((uint64_t)data[3] << 24u) |
+             ((uint64_t)data[4] << 32u) | ((uint64_t)data[5] << 40u) |
+             ((uint64_t)data[6] << 48u) | ((uint64_t)data[7] << 56u);
     return SEMU_OK;
 }
 

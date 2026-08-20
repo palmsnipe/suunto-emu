@@ -66,12 +66,28 @@ static void test_u64_refusal_is_atomic(semu_test_context *context)
     semu_snapshot_writer_destroy(&writer);
 }
 
+static void test_reader_u64_refusal_is_atomic(semu_test_context *context)
+{
+    semu_snapshot_reader reader;
+    semu_error error;
+    static const uint8_t truncated[] = { 0x88u, 0x77u, 0x66u, 0x55u };
+    uint64_t value = UINT64_C(0xaabbccddeeff0011);
+
+    semu_error_clear(&error);
+    semu_snapshot_reader_init(&reader, truncated, sizeof(truncated));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_reader_u64(&reader, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+    SEMU_TEST_EQ_U64(context, UINT64_C(0xaabbccddeeff0011), value);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_writer_rejects_corrupt_size),
         SEMU_TEST_CASE(test_writer_round_trip),
-        SEMU_TEST_CASE(test_u64_refusal_is_atomic)
+        SEMU_TEST_CASE(test_u64_refusal_is_atomic),
+        SEMU_TEST_CASE(test_reader_u64_refusal_is_atomic)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
