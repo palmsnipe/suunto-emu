@@ -10,7 +10,8 @@ static semu_status writer_reserve(semu_snapshot_writer *writer, size_t extra,
     size_t capacity;
     uint8_t *replacement;
 
-    if (writer == NULL || extra > SEMU_SNAPSHOT_MAX_SECTION_SIZE - writer->size) {
+    if (writer == NULL || writer->size > SEMU_SNAPSHOT_MAX_SECTION_SIZE ||
+        extra > SEMU_SNAPSHOT_MAX_SECTION_SIZE - writer->size) {
         semu_error_set(error, SEMU_ERR_RANGE, "snapshot section is too large");
         return SEMU_ERR_RANGE;
     }
