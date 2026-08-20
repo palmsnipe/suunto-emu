@@ -275,6 +275,20 @@ static void test_bus_snapshot_region_set_is_exact(semu_test_context *context)
         semu_bus_read(bus, 0x2000u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0xbbbbbbbbu, value);
 
+    /* A truncated later payload must release staging and preserve both RAM regions. */
+    image[16u] = 0u;
+    image[17u] = 0x20u;
+    image[18u] = image[19u] = 0u;
+    semu_snapshot_reader_init(&reader, image, image_size - 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_bus_snapshot_read(bus, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x1000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xaaaaaaaau, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x2000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xbbbbbbbbu, value);
+
     semu_snapshot_writer_destroy(&writer);
     semu_bus_destroy(bus);
 }

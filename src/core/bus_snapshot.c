@@ -100,8 +100,10 @@ semu_status semu_bus_snapshot_read(semu_bus *bus,
         size_t region_index;
         bus_region *region = NULL;
         if (semu_snapshot_reader_u32(reader, &base, error) != SEMU_OK ||
-            semu_snapshot_reader_u32(reader, &size, error) != SEMU_OK)
+            semu_snapshot_reader_u32(reader, &size, error) != SEMU_OK) {
+            free_region_images(images, expected_count);
             return error->code;
+        }
         for (region_index = 0u; region_index < bus->count; ++region_index) {
             bus_region *candidate = &bus->regions[region_index];
             if (snapshot_region(candidate) && candidate->base == base) {
