@@ -92,6 +92,7 @@ semu_status semu_apollo4_mspi_snapshot_read(
         (candidate.dma_status != 0u &&
          candidate.dma_status != MSPI_DMA_STATUS_COMPLETE &&
          candidate.dma_status != MSPI_DMA_STATUS_ERROR) ||
+        (candidate.dma_status != 0u && attached == 0u) ||
         (irq_level != 0u) !=
             ((candidate.status &
               candidate.registers[SEMU_APOLLO4_MSPI_INTEN / 4u]) != 0u) ||

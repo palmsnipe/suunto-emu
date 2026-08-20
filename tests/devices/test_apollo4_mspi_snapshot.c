@@ -136,12 +136,38 @@ static void test_mspi1_queue_count_refuses(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+static void test_dma_status_requires_endpoint(semu_test_context *context)
+{
+    mspi_fixture source;
+    mspi_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_mspi_snapshot_write(source.mspi, &writer,
+                                                      &source.error));
+    /* DMA status follows the attached flag, status, and is four bytes wide. */
+    writer.data[5u] = 2u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_mspi_snapshot_read(target.mspi, &reader,
+                                                     &target.error));
+
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_unreachable_state_refuses),
         SEMU_TEST_CASE(test_round_trip),
-        SEMU_TEST_CASE(test_mspi1_queue_count_refuses)
+        SEMU_TEST_CASE(test_mspi1_queue_count_refuses),
+        SEMU_TEST_CASE(test_dma_status_requires_endpoint)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
