@@ -137,11 +137,30 @@ static void test_reset_clears_state(semu_test_context *context)
     SEMU_TEST_ASSERT(context, fixture_init(&fixture));
     SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
                                                       UINT32_C(0xF80040)));
-    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x0cu,
-                                                      UINT32_C(0xDEAD)));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_register(&fixture, 0x0cu, UINT32_C(0xDEAD)));
     semu_apollo4_clock_reset(fixture.clock);
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x44u, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x0cu, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    fixture_destroy(&fixture);
+}
+
+static void test_unobserved_values_refuse(semu_test_context *context)
+{
+    clock_fixture fixture;
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, write_register(&fixture, 0x44u,
+                                                      UINT32_C(0xF80000)));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_register(&fixture, 0x44u, UINT32_C(0x1)));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x44u, &value));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF80000), value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_register(&fixture, 0x0cu, UINT32_C(0xDEAD)));
     SEMU_TEST_EQ_U64(context, SEMU_OK, read_register(&fixture, 0x0cu, &value));
     SEMU_TEST_EQ_U64(context, 0u, value);
     fixture_destroy(&fixture);
@@ -181,6 +200,7 @@ int main(void)
         SEMU_TEST_CASE(test_wrong_width),
         SEMU_TEST_CASE(test_adjacent_and_unknown_offsets_refuse),
         SEMU_TEST_CASE(test_reset_clears_state),
+        SEMU_TEST_CASE(test_unobserved_values_refuse),
         SEMU_TEST_CASE(test_two_run_equality)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

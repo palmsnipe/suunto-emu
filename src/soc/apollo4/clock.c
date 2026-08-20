@@ -16,6 +16,14 @@ enum {
     CLOCK_INTR = 0x0cu
 };
 
+static int is_observed_value(uint32_t offset, uint32_t value)
+{
+    return (offset == CLOCK_CAL &&
+            (value == UINT32_C(0xf80000) ||
+             value == UINT32_C(0xf80040))) ||
+           (offset == CLOCK_INTR && value == 0u);
+}
+
 struct semu_apollo4_clock {
     semu_bus *bus;
     semu_scheduler *scheduler;
@@ -143,6 +151,12 @@ semu_status semu_apollo4_clock_write(void *context, uint32_t offset,
 
     if (status != SEMU_OK) {
         return status;
+    }
+    if (!is_observed_value(offset, value)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Apollo4 clock value 0x%08x is unsupported at 0x%08x",
+                       value, offset);
+        return SEMU_ERR_UNSUPPORTED;
     }
     switch (offset) {
     case CLOCK_CAL:
