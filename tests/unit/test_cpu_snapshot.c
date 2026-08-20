@@ -39,6 +39,10 @@
 #define CPU_SNAPSHOT_FPCAR 1651u
 #define CPU_SNAPSHOT_FPDSCR 1655u
 #define CPU_SNAPSHOT_R13 52u
+#define CPU_SNAPSHOT_PRIMASK 76u
+#define CPU_SNAPSHOT_BASEPRI 80u
+#define CPU_SNAPSHOT_FAULTMASK 84u
+#define CPU_SNAPSHOT_CONTROL 88u
 
 static semu_cpu_state initial_state(void)
 {
@@ -185,6 +189,33 @@ static void test_stack_pointer_linkage_refuses(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_core_mask_state_refuses(semu_test_context *context)
+{
+    static const size_t offsets[] = {
+        CPU_SNAPSHOT_PRIMASK, CPU_SNAPSHOT_BASEPRI,
+        CPU_SNAPSHOT_FAULTMASK, CPU_SNAPSHOT_CONTROL
+    };
+    static const uint32_t values[] = { 2u, 0x100u, 2u, 4u };
+    semu_cpu_fixture fixture;
+    semu_cpu_state state = initial_state();
+    size_t index;
+
+    SEMU_TEST_ASSERT(context, prepare(&fixture, &state));
+    for (index = 0u; index < SEMU_ARRAY_LEN(offsets); ++index) {
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                         refuse_word(&fixture, offsets[index], values[index]));
+    }
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->primask);
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->basepri);
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->faultmask);
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->control);
+    semu_cpu_fixture_destroy(&fixture);
+}
+
 static void test_interrupt_snapshot_arrays_refuse(semu_test_context *context)
 {
     static const size_t offsets[] = {
@@ -271,6 +302,7 @@ int main(void)
         SEMU_TEST_CASE(test_sleep_snapshot_enums_refuse),
         SEMU_TEST_CASE(test_stack_alignment_linkage_refuses),
         SEMU_TEST_CASE(test_stack_pointer_linkage_refuses),
+        SEMU_TEST_CASE(test_core_mask_state_refuses),
         SEMU_TEST_CASE(test_interrupt_snapshot_arrays_refuse),
         SEMU_TEST_CASE(test_system_snapshot_masks_refuse),
         SEMU_TEST_CASE(test_exclusive_snapshot_width_refuse)

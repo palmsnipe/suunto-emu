@@ -37,6 +37,14 @@ static int stack_pointer_matches_bank(const semu_cpu *cpu)
     return cpu->state.r[13] == cpu->state.psp;
 }
 
+static int valid_core_mask_state(const semu_cpu_state *state)
+{
+    return (state->primask & ~UINT32_C(0x1)) == 0u &&
+           (state->basepri & ~UINT32_C(0xff)) == 0u &&
+           (state->faultmask & ~UINT32_C(0x1)) == 0u &&
+           (state->control & ~UINT32_C(0x3)) == 0u;
+}
+
 static int valid_exclusive_width(unsigned width)
 {
     return width == 0u || width == 1u || width == 2u || width == 4u;
@@ -351,6 +359,11 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     if (!valid_system_state(&candidate)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU system register state");
+        return SEMU_ERR_FORMAT;
+    }
+    if (!valid_core_mask_state(&candidate.state)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU core register mask state");
         return SEMU_ERR_FORMAT;
     }
     if (!valid_interrupt_state(&candidate)) {
