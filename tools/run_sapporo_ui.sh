@@ -14,8 +14,13 @@ manifest=$1
 snapshot=${2:-${SEMU_SAPPORO_UI_SNAPSHOT:-/tmp/suunto-ui-preframe.sems}}
 checkpoint=${3:-${SEMU_SAPPORO_UI_CHECKPOINT:-middle-language}}
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-headless="$root_dir/build/suunto-emu"
-sdl="$root_dir/build/suunto-emu-sdl"
+build_dir=${SEMU_SAPPORO_UI_BUILD_DIR:-build}
+case "$build_dir" in
+    /*) build_root=$build_dir ;;
+    *) build_root="$root_dir/$build_dir" ;;
+esac
+headless="$build_root/suunto-emu"
+sdl="$build_root/suunto-emu-sdl"
 
 case "$checkpoint" in
     middle-language|lower-transition) ;;
@@ -29,12 +34,17 @@ if [ ! -r "$manifest" ]; then
     echo "manifest is not readable: $manifest" >&2
     exit 2
 fi
-if [ ! -x "$headless" ] || [ ! -x "$sdl" ]; then
-    echo "build both binaries first with: make sdl" >&2
+if [ ! -x "$sdl" ]; then
+    echo "SDL binary is missing; build it first with: make sdl" >&2
     exit 2
 fi
 
 if [ ! -s "$snapshot" ]; then
+    if [ ! -x "$headless" ]; then
+        echo "headless binary is required to create: $snapshot" >&2
+        echo "build both binaries first with: make" >&2
+        exit 2
+    fi
     echo "creating Sapporo UI checkpoint: $snapshot" >&2
     set +e
     SEMU_FIRMWARE_MANIFEST="$manifest" "$headless" run \

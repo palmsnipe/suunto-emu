@@ -120,6 +120,9 @@ build/suunto-emu-sdl run \
 
 The checkpoint is external, identity-pinned state; regenerate it whenever the
 firmware manifest or compatibility layer changes.
+Machine snapshots preserve guest and NEMA state, not the SDL surface that was
+already presented; use a pre-frame boundary when the resumed session must
+immediately show the saved UI.
 
 For repeated interactive setup sessions, the helper creates that checkpoint
 once and reuses it:
@@ -132,8 +135,11 @@ The first Return/Enter opens the language screen; after each transition settles,
 the next Up, Down, or Return/Enter edge continues into setup. Pass a second
 argument to choose the checkpoint path, or pass `lower-transition` as a third
 argument (or set `SEMU_SAPPORO_UI_CHECKPOINT`) to use the other observed setup
-boundary. Remove that specific file when the emulator or compatibility
-implementation changes and a fresh boundary is needed.
+boundary. Set `SEMU_SAPPORO_UI_BUILD_DIR=build-fast` to run the helper with the
+isolated fast build. A cached snapshot only needs the SDL binary; the headless
+binary is needed only when the helper must create the snapshot. Remove that
+specific file when the emulator or compatibility implementation changes and a
+fresh boundary is needed.
 
 See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
