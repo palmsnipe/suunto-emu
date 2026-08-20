@@ -308,6 +308,11 @@ semu_status semu_sapporo_lsm6dsl_snapshot_read(
         semu_error_set(error, SEMU_ERR_CONFLICT, "LSM6 snapshot identity/state mismatch");
         return SEMU_ERR_CONFLICT;
     }
+    if ((candidate.config[LSM6_CTRL3_C_REG] & LSM6_CTRL3_C_SW_RESET) != 0u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "LSM6 snapshot has a pending software reset");
+        return SEMU_ERR_FORMAT;
+    }
     if (have_command == 0u && (read != 0u || increment != 0u)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "LSM6 snapshot has command flags without command");

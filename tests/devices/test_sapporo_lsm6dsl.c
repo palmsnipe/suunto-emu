@@ -294,6 +294,12 @@ static void test_snapshot_command_flags_refuse(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      semu_sapporo_lsm6dsl_snapshot_read(target, &reader,
                                                         &error));
+    writer.data[34u] = 0u;
+    writer.data[19u] = 0x05u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_sapporo_lsm6dsl_snapshot_read(target, &reader,
+                                                        &error));
     semu_snapshot_writer_destroy(&writer);
     semu_sapporo_lsm6dsl_destroy(target);
     semu_sapporo_lsm6dsl_destroy(source);
