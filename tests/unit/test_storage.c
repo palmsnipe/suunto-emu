@@ -184,6 +184,39 @@ static void test_snapshot_page_limit_boundary(semu_test_context *context)
     semu_snapshot_writer_destroy(&writer);
 }
 
+static void test_snapshot_rejects_partial_page_tail(semu_test_context *context)
+{
+    semu_storage storage;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    semu_error error;
+    uint8_t page[SEMU_STORAGE_PAGE_SIZE];
+
+    semu_error_clear(&error);
+    memset(&storage, 0, sizeof(storage));
+    storage.logical_size = SEMU_STORAGE_PAGE_SIZE + 1u;
+    storage.erased_value = 0xffu;
+    memset(page, storage.erased_value, sizeof(page));
+    page[1u] = 0u;
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, storage.logical_size, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u8(&writer, storage.erased_value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_u64(&writer, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_snapshot_writer_bytes(&writer, page, sizeof(page), &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_storage_snapshot_read(&storage, &reader, &error));
+    SEMU_TEST_EQ_U64(context, 0u, storage.page_count);
+    SEMU_TEST_ASSERT(context, storage.pages == NULL);
+    semu_snapshot_writer_destroy(&writer);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -192,7 +225,8 @@ int main(void)
         SEMU_TEST_CASE(test_bounds_and_oversized_image),
         SEMU_TEST_CASE(test_aligned_erase_preserves_neighbors),
         SEMU_TEST_CASE(test_read_spans_overlay_pages),
-        SEMU_TEST_CASE(test_snapshot_page_limit_boundary)
+        SEMU_TEST_CASE(test_snapshot_page_limit_boundary),
+        SEMU_TEST_CASE(test_snapshot_rejects_partial_page_tail)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

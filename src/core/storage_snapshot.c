@@ -85,6 +85,22 @@ semu_status semu_storage_snapshot_read(semu_storage *storage,
             free_pages(head);
             return error->code;
         }
+        if (logical_size % SEMU_STORAGE_PAGE_SIZE != 0u &&
+            page->index == logical_size / SEMU_STORAGE_PAGE_SIZE) {
+            size_t valid_bytes = (size_t)(logical_size %
+                                          SEMU_STORAGE_PAGE_SIZE);
+            size_t offset;
+            for (offset = valid_bytes; offset < SEMU_STORAGE_PAGE_SIZE;
+                 ++offset) {
+                if (page->bytes[offset] != erased_value) {
+                    free(page);
+                    free_pages(head);
+                    semu_error_set(error, SEMU_ERR_FORMAT,
+                                   "storage snapshot final page tail is not erased");
+                    return SEMU_ERR_FORMAT;
+                }
+            }
+        }
         if (page->index >= page_limit || (index != 0u && page->index <= previous)) {
             free(page);
             free_pages(head);
