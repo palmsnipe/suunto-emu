@@ -3,6 +3,7 @@
 
 #include "semu/scheduler.h"
 #include "semu/types.h"
+#include "../core/scheduler_internal.h"
 #include "../core/snapshot_io.h"
 
 /*
@@ -70,5 +71,8 @@ semu_status nema_completion_snapshot_resolve_event(
 semu_status nema_completion_snapshot_event_id_matches(
     const nema_completion *comp, uint32_t subject, semu_event_id event_id,
     semu_error *error);
+semu_status nema_completion_snapshot_event_links_match(
+    const nema_completion *comp, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error);
 
 #endif

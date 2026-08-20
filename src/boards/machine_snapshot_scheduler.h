@@ -4,15 +4,11 @@
 #include "../core/scheduler_internal.h"
 #include "../core/snapshot_io.h"
 
-typedef struct semu_machine_snapshot_event {
-    semu_scheduled_event_state state;
-} semu_machine_snapshot_event;
-
 typedef struct semu_machine_scheduler_image {
     uint64_t now;
     uint64_t next_sequence;
     semu_event_id next_id;
-    semu_machine_snapshot_event *events;
+    semu_scheduled_event_state *events;
     size_t count;
 } semu_machine_scheduler_image;
 

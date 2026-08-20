@@ -244,6 +244,24 @@ static semu_status validate_scheduler_events(const semu_machine *machine,
     return SEMU_OK;
 }
 
+static semu_status validate_event_links(
+    const semu_machine *machine, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error)
+{
+    semu_status status;
+    status = semu_cpu_snapshot_event_links_match(
+        machine->cpu, events, count, error);
+    if (status != SEMU_OK) return status;
+    status = semu_apollo4_snapshot_event_links_match(
+        machine->soc, events, count, error);
+    if (status != SEMU_OK) return status;
+    status = semu_sapporo_devices_snapshot_event_links_match(
+        machine->devices, events, count, error);
+    if (status != SEMU_OK) return status;
+    return semu_nema_gpu_snapshot_event_links_match(
+        machine->nema_gpu, events, count, error);
+}
+
 static semu_status apply_sections(semu_machine *machine,
                                   const semu_snapshot *snapshot,
                                   semu_error *error)
@@ -319,6 +337,12 @@ static semu_status apply_sections(semu_machine *machine,
     status = semu_nema_gpu_snapshot_read(machine->nema_gpu, &reader, error);
     if (status == SEMU_OK) DONE("NEMA");
     else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
+    status = validate_event_links(machine, scheduler_image.events,
+                                  scheduler_image.count, error);
+    if (status != SEMU_OK) {
+        semu_machine_snapshot_free_scheduler_image(&scheduler_image);
+        return status;
+    }
     status = semu_scheduler_restore_begin(machine->scheduler,
         scheduler_image.now, scheduler_image.next_sequence,
         scheduler_image.next_id, error);
@@ -326,14 +350,14 @@ static semu_status apply_sections(semu_machine *machine,
     for (index = 0u; index < scheduler_image.count; ++index) {
         semu_event_callback callback;
         void *context;
-        status = validate_event_id(machine, &scheduler_image.events[index].state,
+        status = validate_event_id(machine, &scheduler_image.events[index],
                                    error);
         if (status == SEMU_OK)
-            status = resolve_event(machine, &scheduler_image.events[index].state,
+            status = resolve_event(machine, &scheduler_image.events[index],
                                    &callback, &context, error);
         if (status == SEMU_OK)
             status = semu_scheduler_restore_event(machine->scheduler,
-                &scheduler_image.events[index].state, callback, context, error);
+                &scheduler_image.events[index], callback, context, error);
         if (status != SEMU_OK) {
             semu_machine_snapshot_free_scheduler_image(&scheduler_image);
             return status;

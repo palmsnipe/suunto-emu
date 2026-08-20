@@ -170,3 +170,66 @@ semu_status semu_apollo4_snapshot_event_id_matches(
                    "Apollo4 snapshot event identity does not match device");
     return SEMU_ERR_FORMAT;
 }
+
+static int has_scheduler_event(const semu_scheduled_event_state *events,
+                               size_t count, uint32_t kind, uint32_t subject,
+                               semu_event_id event_id)
+{
+    size_t index;
+    for (index = 0u; index < count; ++index) {
+        if (events[index].kind == kind && events[index].subject == subject &&
+            events[index].id == event_id)
+            return 1;
+    }
+    return 0;
+}
+
+semu_status semu_apollo4_snapshot_event_links_match(
+    const semu_apollo4 *soc, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error)
+{
+    unsigned index;
+    const rx_event *rx;
+    if (soc == NULL || soc->timer == NULL || soc->stimer == NULL ||
+        soc->uart == NULL || (events == NULL && count != 0u)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Apollo4 snapshot event linkage arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    for (index = 0u; index < TIMER_CHANNEL_COUNT; ++index) {
+        const timer_channel *channel = &soc->timer->channels[index];
+        if (channel->event_valid != 0u &&
+            !has_scheduler_event(events, count, SEMU_SCHED_EVENT_CTIMER,
+                                 index, channel->event)) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "CTIMER state has no scheduler event");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    for (index = 0u; index < 2u; ++index) {
+        const stimer_compare *compare = &soc->stimer->compare[index];
+        if (compare->event_valid != 0u &&
+            !has_scheduler_event(events, count, SEMU_SCHED_EVENT_STIMER,
+                                 index, compare->event)) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "STIMER state has no scheduler event");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    if (soc->uart->tx_event != 0u &&
+        !has_scheduler_event(events, count, SEMU_SCHED_EVENT_UART_TX, 0u,
+                             soc->uart->tx_event)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "UART TX state has no scheduler event");
+        return SEMU_ERR_FORMAT;
+    }
+    for (rx = soc->uart->rx_events; rx != NULL; rx = rx->next) {
+        if (!has_scheduler_event(events, count, SEMU_SCHED_EVENT_UART_RX,
+                                 rx->slot, rx->id)) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "UART RX state has no scheduler event");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    return SEMU_OK;
+}

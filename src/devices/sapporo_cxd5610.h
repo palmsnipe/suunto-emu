@@ -6,6 +6,7 @@
 
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
+#include "../core/scheduler_internal.h"
 #include "../core/snapshot_io.h"
 
 #define SEMU_SAPPORO_CXD5610_MAX_REQUEST 9u
@@ -67,5 +68,9 @@ semu_status semu_sapporo_cxd5610_snapshot_resolve_event(
 semu_status semu_sapporo_cxd5610_snapshot_event_id_matches(
     const semu_sapporo_cxd5610 *transport, uint32_t subject,
     semu_event_id event_id, semu_error *error);
+semu_status semu_sapporo_cxd5610_snapshot_event_links_match(
+    const semu_sapporo_cxd5610 *transport,
+    const semu_scheduled_event_state *events, size_t count,
+    semu_error *error);
 
 #endif

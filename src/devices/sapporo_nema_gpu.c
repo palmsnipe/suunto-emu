@@ -6,7 +6,7 @@
  * Raises IRQ 28 on successful completion.
  */
 
-#include "sapporo_nema_gpu.h"
+#include "sapporo_nema_gpu_internal.h"
 
 #include "../display/nema_completion.h"
 #include "../display/nema_framing.h"
@@ -483,15 +483,8 @@ semu_status semu_nema_gpu_snapshot_resolve_event(
         gpu->completion, subject, callback, context, error);
 }
 
-semu_status semu_nema_gpu_snapshot_event_id_matches(
-    const semu_nema_gpu *gpu, uint32_t subject, semu_event_id event_id,
-    semu_error *error)
+const nema_completion *semu_nema_gpu_snapshot_completion(
+    const semu_nema_gpu *gpu)
 {
-    if (gpu == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "NEMA snapshot event identity requires GPU");
-        return SEMU_ERR_ARGUMENT;
-    }
-    return nema_completion_snapshot_event_id_matches(
-        gpu->completion, subject, event_id, error);
+    return gpu != NULL ? gpu->completion : NULL;
 }

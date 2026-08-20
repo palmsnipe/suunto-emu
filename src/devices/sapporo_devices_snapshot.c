@@ -125,3 +125,17 @@ semu_status semu_sapporo_devices_snapshot_event_id_matches(
     return semu_sapporo_cxd5610_snapshot_event_id_matches(
         devices->gps, subject, event_id, error);
 }
+
+semu_status semu_sapporo_devices_snapshot_event_links_match(
+    const semu_sapporo_devices *devices,
+    const semu_scheduled_event_state *events, size_t count,
+    semu_error *error)
+{
+    if (devices == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo snapshot event linkage requires devices");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return semu_sapporo_cxd5610_snapshot_event_links_match(
+        devices->gps, events, count, error);
+}

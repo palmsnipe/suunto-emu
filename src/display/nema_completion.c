@@ -293,3 +293,32 @@ semu_status nema_completion_snapshot_event_id_matches(
                    "NEMA snapshot event identity does not match completion");
     return SEMU_ERR_FORMAT;
 }
+
+semu_status nema_completion_snapshot_event_links_match(
+    const nema_completion *comp, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error)
+{
+    size_t index;
+    size_t event_index;
+    if (comp == NULL || (events == NULL && count != 0u)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "NEMA snapshot event linkage arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
+        const completion_entry *entry = &comp->entries[index];
+        if (entry->active == 0) continue;
+        for (event_index = 0u; event_index < count; ++event_index) {
+            if (events[event_index].kind == SEMU_SCHED_EVENT_NEMA_COMPLETION &&
+                events[event_index].subject == index &&
+                events[event_index].id == entry->event_id)
+                break;
+        }
+        if (event_index == count) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "NEMA completion state has no scheduler event");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    return SEMU_OK;
+}

@@ -2,6 +2,7 @@
 #define SEMU_ARMV7M_INTERNAL_H
 
 #include "semu/cpu.h"
+#include "../../core/scheduler_internal.h"
 #include "../../core/snapshot_io.h"
 
 #define ARMV7M_IRQ_COUNT 256u
@@ -129,6 +130,9 @@ semu_status semu_cpu_snapshot_resolve_event(
 semu_status semu_cpu_snapshot_event_id_matches(
     const semu_cpu *cpu, uint32_t kind, uint32_t subject,
     semu_event_id event_id, semu_error *error);
+semu_status semu_cpu_snapshot_event_links_match(
+    const semu_cpu *cpu, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error);
 
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);

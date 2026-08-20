@@ -63,14 +63,14 @@ semu_status semu_machine_snapshot_read_scheduler(
         return SEMU_ERR_FORMAT;
     }
     image->events = count == 0u ? NULL :
-        (semu_machine_snapshot_event *)calloc(count, sizeof(*image->events));
+        (semu_scheduled_event_state *)calloc(count, sizeof(*image->events));
     if (count != 0u && image->events == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate scheduler snapshot");
         return SEMU_ERR_NOMEM;
     }
     image->count = count;
     for (index = 0u; index < image->count; ++index) {
-        semu_scheduled_event_state *event = &image->events[index].state;
+        semu_scheduled_event_state *event = &image->events[index];
         if (semu_snapshot_reader_u64(reader, &event->due_ns, error) != SEMU_OK ||
             semu_snapshot_reader_u64(reader, &event->sequence, error) != SEMU_OK ||
             semu_snapshot_reader_u64(reader, &event->id, error) != SEMU_OK ||

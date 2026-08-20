@@ -222,6 +222,30 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         }
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_snapshot_read_section(loaded,
+                             SEMU_SNAPSHOT_SECTION_SCHEDULER,
+                             &section_data, &section_size));
+        SEMU_TEST_ASSERT(context, section_size >= 28u);
+        if (section_size >= 28u) {
+            uint8_t detached_scheduler[28u];
+            memcpy(detached_scheduler, section_data, sizeof(detached_scheduler));
+            put_u32le(detached_scheduler + 24u, 0u);
+            SEMU_TEST_EQ_U64(context, SEMU_OK,
+                             semu_snapshot_write_section(loaded,
+                                 SEMU_SNAPSHOT_SECTION_SCHEDULER,
+                                 detached_scheduler,
+                                 sizeof(detached_scheduler), &error));
+            SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                             semu_machine_snapshot_load(second, loaded,
+                                                        &error));
+            SEMU_TEST_EQ_U64(context, saved_instructions,
+                             semu_machine_instructions(second));
+            SEMU_TEST_EQ_U64(context, saved_time,
+                             semu_machine_virtual_time(second));
+            SEMU_TEST_EQ_U64(context, saved_pc,
+                             semu_machine_program_counter(second));
+        }
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_snapshot_read_section(loaded,
                              SEMU_SNAPSHOT_SECTION_MACHINE,
                              &section_data, &section_size));
         layer_id_length = strlen(semu_sapporo_222_no_device_layer.id);

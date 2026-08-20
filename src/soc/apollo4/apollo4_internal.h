@@ -2,6 +2,7 @@
 #define SEMU_APOLLO4_INTERNAL_H
 
 #include "semu/apollo4.h"
+#include "../../core/scheduler_internal.h"
 
 #include "auxiliary.h"
 #include "clock.h"
@@ -54,5 +55,8 @@ semu_status semu_apollo4_snapshot_resolve_event(
 semu_status semu_apollo4_snapshot_event_id_matches(
     const semu_apollo4 *soc, uint32_t kind, uint32_t subject,
     semu_event_id event_id, semu_error *error);
+semu_status semu_apollo4_snapshot_event_links_match(
+    const semu_apollo4 *soc, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error);
 
 #endif

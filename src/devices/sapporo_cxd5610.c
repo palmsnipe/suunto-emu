@@ -448,3 +448,44 @@ semu_status semu_sapporo_cxd5610_snapshot_event_id_matches(
                    "CXD5610 snapshot event identity does not match device");
     return SEMU_ERR_FORMAT;
 }
+
+static int has_scheduler_event(const semu_scheduled_event_state *events,
+                               size_t count, uint32_t kind, uint32_t subject,
+                               semu_event_id event_id)
+{
+    size_t index;
+    for (index = 0u; index < count; ++index) {
+        if (events[index].kind == kind && events[index].subject == subject &&
+            events[index].id == event_id)
+            return 1;
+    }
+    return 0;
+}
+
+semu_status semu_sapporo_cxd5610_snapshot_event_links_match(
+    const semu_sapporo_cxd5610 *transport,
+    const semu_scheduled_event_state *events, size_t count,
+    semu_error *error)
+{
+    if (transport == NULL || (events == NULL && count != 0u)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "CXD5610 snapshot event linkage arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (transport->rx_event != 0u &&
+        !has_scheduler_event(events, count, SEMU_SCHED_EVENT_CXD_RX, 0u,
+                             transport->rx_event)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CXD5610 RX state has no scheduler event");
+        return SEMU_ERR_FORMAT;
+    }
+    if (transport->awake_event != 0u &&
+        !has_scheduler_event(events, count, SEMU_SCHED_EVENT_CXD_AWAKE,
+                             transport->awake_event_context.kind,
+                             transport->awake_event)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "CXD5610 awake state has no scheduler event");
+        return SEMU_ERR_FORMAT;
+    }
+    return SEMU_OK;
+}
