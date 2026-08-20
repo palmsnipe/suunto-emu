@@ -89,6 +89,7 @@ semu_status semu_apollo4_iom_snapshot_read(
          candidate.dma_status != IOM_DMA_STATUS_PROGRESS &&
          candidate.dma_status != IOM_DMA_STATUS_COMPLETE &&
          candidate.dma_status != IOM_DMA_STATUS_ERROR) ||
+        (candidate.dma_status != 0u && !candidate.endpoint_attached) ||
         (candidate.observed_registers[2u] & ~UINT32_C(0x1f)) !=
             (IOM_SUBMODCTRL_RESET & ~UINT32_C(0x1f)) ||
         candidate.observed_registers[11u] != IOM_FIFO_STATUS_RESET ||

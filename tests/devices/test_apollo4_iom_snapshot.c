@@ -66,10 +66,36 @@ static void test_unreachable_state_refuses(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+static void test_dma_status_requires_endpoint(semu_test_context *context)
+{
+    iom_fixture source;
+    iom_fixture target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&source));
+    SEMU_TEST_ASSERT(context, fixture_init(&target));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_iom_snapshot_write(source.iom, &writer,
+                                                     &source.error));
+    /* DMA status begins after the two flag bytes and seven registers. */
+    writer.data[30u] = 1u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_apollo4_iom_snapshot_read(target.iom, &reader,
+                                                    &target.error));
+
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&target);
+    fixture_destroy(&source);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
-        SEMU_TEST_CASE(test_unreachable_state_refuses)
+        SEMU_TEST_CASE(test_unreachable_state_refuses),
+        SEMU_TEST_CASE(test_dma_status_requires_endpoint)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }
