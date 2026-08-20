@@ -1,5 +1,16 @@
 #include "iom_internal.h"
 
+#define IOM_DMA_TRIG_EN_MASK UINT32_C(0x03)
+#define IOM_DMA_CONFIG_MASK UINT32_C(0x03)
+#define IOM_DMA_COUNT_MASK UINT32_C(0x0fff)
+#define IOM_DMA_TARGET_MASK UINT32_C(0x1fffffff)
+#define IOM_DMA_TRIG_TOTAL (UINT32_C(1) << 2)
+#define IOM_DMA_STATUS_PROGRESS UINT32_C(0x01)
+#define IOM_DMA_STATUS_COMPLETE UINT32_C(0x02)
+#define IOM_DMA_STATUS_ERROR UINT32_C(0x04)
+#define IOM_SUBMODCTRL_RESET UINT32_C(0x00000e20)
+#define IOM_FIFO_STATUS_RESET UINT32_C(0x00000004)
+
 semu_status semu_apollo4_iom_snapshot_write(
     const semu_apollo4_iom *iom, semu_snapshot_writer *writer,
     semu_error *error)
@@ -69,6 +80,24 @@ semu_status semu_apollo4_iom_snapshot_read(
     for (index = 0u; index < SEMU_APOLLO4_IOM_OBSERVED_REGISTER_COUNT; ++index)
         if (semu_snapshot_reader_u32(reader, &candidate.observed_registers[index], error) != SEMU_OK)
             return error->code;
+    if ((candidate.dma_trig_en & ~IOM_DMA_TRIG_EN_MASK) != 0u ||
+        (candidate.dma_config & ~IOM_DMA_CONFIG_MASK) != 0u ||
+        (candidate.dma_count & ~IOM_DMA_COUNT_MASK) != 0u ||
+        (candidate.dma_target & ~IOM_DMA_TARGET_MASK) != 0u ||
+        (candidate.dma_trig_stat & ~IOM_DMA_TRIG_TOTAL) != 0u ||
+        (candidate.dma_status != 0u &&
+         candidate.dma_status != IOM_DMA_STATUS_PROGRESS &&
+         candidate.dma_status != IOM_DMA_STATUS_COMPLETE &&
+         candidate.dma_status != IOM_DMA_STATUS_ERROR) ||
+        (candidate.observed_registers[2u] & ~UINT32_C(0x1f)) !=
+            (IOM_SUBMODCTRL_RESET & ~UINT32_C(0x1f)) ||
+        candidate.observed_registers[11u] != IOM_FIFO_STATUS_RESET ||
+        (candidate.irq_level != 0) !=
+            ((candidate.intstat & candidate.inten) != 0u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "IOM snapshot state is unreachable");
+        return SEMU_ERR_FORMAT;
+    }
     *iom = candidate;
     return SEMU_OK;
 }
