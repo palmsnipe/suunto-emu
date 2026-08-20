@@ -140,6 +140,39 @@ static void pwm_and_atomic_refusal(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void snapshot_rejects_invalid_boolean(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_apollo4_timer *timer;
+    semu_snapshot_writer writer;
+    semu_snapshot_writer after;
+    semu_snapshot_reader reader;
+    irq_log log = { 0u };
+
+    semu_error_clear(&error);
+    timer = make_timer(&scheduler, &log, &error);
+    SEMU_TEST_ASSERT(context, timer != NULL);
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_snapshot_write(timer, &writer, &error));
+    /* interrupt_mask, pending, and status_value precede status_written. */
+    writer.data[12u] = 2u;
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_apollo4_timer_snapshot_read(timer, &reader, &error));
+
+    semu_snapshot_writer_init(&after);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_snapshot_write(timer, &after, &error));
+    SEMU_TEST_EQ_U64(context, 0u, after.data[12u]);
+
+    semu_snapshot_writer_destroy(&after);
+    semu_snapshot_writer_destroy(&writer);
+    semu_apollo4_timer_destroy(timer);
+    semu_scheduler_destroy(scheduler);
+}
+
 static void observed_control_three(semu_test_context *context)
 {
     semu_error error;
@@ -419,6 +452,7 @@ int main(void)
         SEMU_TEST_CASE(reset_and_refuse),
         SEMU_TEST_CASE(compare_irq_and_clear),
         SEMU_TEST_CASE(pwm_and_atomic_refusal),
+        SEMU_TEST_CASE(snapshot_rejects_invalid_boolean),
         SEMU_TEST_CASE(observed_control_three),
         SEMU_TEST_CASE(observed_ctimer8_readback),
         SEMU_TEST_CASE(observed_ctimer0_readback),

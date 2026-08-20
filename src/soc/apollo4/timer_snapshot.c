@@ -76,6 +76,11 @@ semu_status semu_apollo4_timer_snapshot_read(
             return SEMU_ERR_FORMAT;
         }
     }
+    if (candidate.status_written > 1u) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CTIMER status flag");
+        return SEMU_ERR_FORMAT;
+    }
     *timer = candidate;
     return SEMU_OK;
 }
