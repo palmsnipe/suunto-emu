@@ -41,10 +41,15 @@ static int parse_u32(const char *text, uint32_t *out)
         return 0;
     }
     for (i = 0u; i < len; ++i) {
+        uint32_t digit;
         if (text[i] < '0' || text[i] > '9') {
             return 0;
         }
-        val = val * 10u + (uint32_t)(text[i] - '0');
+        digit = (uint32_t)(text[i] - '0');
+        if (val > (UINT32_MAX - digit) / 10u) {
+            return 0;
+        }
+        val = val * 10u + digit;
     }
     *out = val;
     return 1;

@@ -167,6 +167,12 @@ static void test_invalid_trace_capacity(semu_test_context *context)
 
     semu_cli_debug_init(&opts);
     semu_error_clear(&err);
+    SEMU_TEST_EQ_U64(context, (uint64_t)-1,
+        (uint64_t)semu_cli_debug_parse_option(&opts, "--trace-capacity",
+            "4294967297", &err));
+
+    semu_cli_debug_init(&opts);
+    semu_error_clear(&err);
     {
         char buf[32];
         snprintf(buf, sizeof(buf), "%u", SEMU_TRACE_MAX_RECORDS + 1u);
