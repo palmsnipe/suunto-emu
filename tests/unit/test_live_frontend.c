@@ -97,6 +97,39 @@ static void test_live_gate_ignores_stride_padding(
             200u + SEMU_LIVE_FRAME_SETTLE_NS));
 }
 
+static void test_live_gate_rejects_stale_visible_frame(
+    semu_test_context *context)
+{
+    semu_live_frame_gate gate;
+    semu_input_event event = {
+        SEMU_INPUT_BUTTON, SEMU_BUTTON_MIDDLE, 0, 0, 0
+    };
+    uint8_t pixels[2] = {0x1Fu, 0u};
+    semu_frame frame = {
+        SEMU_PIXEL_RGB565_LE, 1u, 1u, 2u, 1u,
+        pixels, sizeof(pixels)
+    };
+
+    semu_live_frame_gate_init(&gate, SEMU_BUTTON_MIDDLE);
+    frame.generation = 1u;
+    semu_live_frame_gate_observe(&gate, 1u, 50u, &frame);
+    semu_live_frame_gate_note_input(&gate, 1u, &event);
+
+    /* A renderer generation alone is not a new interactive frame. */
+    frame.generation = 2u;
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_observe(&gate, 2u, 100u, &frame));
+    SEMU_TEST_EQ_U64(context, 0u, gate.candidate_valid);
+
+    pixels[0] = 0xE0u;
+    frame.generation = 3u;
+    SEMU_TEST_EQ_U64(context, 0u,
+        semu_live_frame_gate_observe(&gate, 3u, 200u, &frame));
+    SEMU_TEST_EQ_U64(context, 1u,
+        semu_live_frame_gate_settle(&gate, 3u,
+            200u + SEMU_LIVE_FRAME_SETTLE_NS));
+}
+
 static void test_live_gate_consumes_next_button_edge(
     semu_test_context *context)
 {
@@ -129,6 +162,7 @@ static void test_live_gate_consumes_next_button_edge(
     SEMU_TEST_EQ_U64(context, 0u,
         semu_live_frame_gate_waiting(&gate, 3u));
     frame.generation = 2u;
+    pixels[0] = 0xE0u;
     semu_live_frame_gate_observe(&gate, 4u, 200u, &frame);
     SEMU_TEST_EQ_U64(context, 1u,
         semu_live_frame_gate_settle(&gate, 4u,
@@ -240,6 +274,7 @@ int main(void)
         SEMU_TEST_CASE(test_live_gate_requires_quiet_frame),
         SEMU_TEST_CASE(test_live_gate_rejects_black_and_changed_frames),
         SEMU_TEST_CASE(test_live_gate_ignores_stride_padding),
+        SEMU_TEST_CASE(test_live_gate_rejects_stale_visible_frame),
         SEMU_TEST_CASE(test_live_gate_consumes_next_button_edge),
         SEMU_TEST_CASE(test_live_gate_refuses_wrong_initial_button),
         SEMU_TEST_CASE(test_live_gate_refuses_input_before_first_frame),

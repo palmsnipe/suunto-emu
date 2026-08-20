@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "semu/hash.h"
+
 static int frame_shape_is_valid(const semu_frame *frame)
 {
     uint64_t row_bytes;
@@ -36,12 +38,32 @@ static int frame_has_visible_pixels(const semu_frame *frame)
     return 0;
 }
 
+static uint32_t frame_content_hash(const semu_frame *frame)
+{
+    uint32_t hash = 0u;
+    uint64_t row_bytes;
+    uint32_t y;
+
+    if (!frame_shape_is_valid(frame)) {
+        return 0u;
+    }
+    row_bytes = (uint64_t)frame->width * UINT64_C(2);
+    for (y = 0u; y < frame->height; ++y) {
+        uint64_t offset = (uint64_t)y * (uint64_t)frame->stride;
+        hash = semu_crc32(hash, frame->pixels + (size_t)offset,
+                          (size_t)row_bytes);
+    }
+    return hash;
+}
+
 static void remember_generation(semu_live_frame_gate *gate,
     const semu_frame *frame)
 {
     if (gate != NULL && frame_shape_is_valid(frame)) {
         gate->last_generation = frame->generation;
         gate->last_generation_valid = 1;
+        gate->last_frame_hash = frame_content_hash(frame);
+        gate->last_frame_hash_valid = 1;
     }
 }
 
@@ -52,6 +74,16 @@ static int generation_is_new(const semu_live_frame_gate *gate,
         return 1;
     }
     return frame->generation != gate->generation_baseline;
+}
+
+static int content_is_new(const semu_live_frame_gate *gate,
+    const semu_frame *frame)
+{
+    if (gate == NULL || frame == NULL ||
+        !gate->frame_hash_baseline_valid) {
+        return 1;
+    }
+    return frame_content_hash(frame) != gate->frame_hash_baseline;
 }
 
 static void reset_stability(semu_live_frame_gate *gate)
@@ -85,6 +117,8 @@ void semu_live_frame_gate_note_input(semu_live_frame_gate *gate,
     gate->frame_baseline = frame_count;
     gate->generation_baseline = gate->last_generation;
     gate->generation_baseline_valid = gate->last_generation_valid;
+    gate->frame_hash_baseline = gate->last_frame_hash;
+    gate->frame_hash_baseline_valid = gate->last_frame_hash_valid;
     reset_stability(gate);
 }
 
@@ -125,7 +159,9 @@ int semu_live_frame_gate_observe(semu_live_frame_gate *gate,
     remember_generation(gate, frame);
     if (!gate->input_seen || gate->ready ||
         frame_count <= gate->frame_baseline ||
-        !frame_has_visible_pixels(frame) || !generation_is_new(gate, frame)) {
+        !frame_has_visible_pixels(frame) ||
+        !generation_is_new(gate, frame) ||
+        !content_is_new(gate, frame)) {
         return 0;
     }
     gate->last_frame_time = now_ns;

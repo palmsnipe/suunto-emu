@@ -19,10 +19,14 @@ typedef struct semu_live_frame_gate {
     uint64_t frame_baseline;
     uint64_t generation_baseline;
     uint64_t last_generation;
+    uint32_t frame_hash_baseline;
+    uint32_t last_frame_hash;
     uint64_t last_frame_time;
     uint64_t candidate_frame_count;
     int generation_baseline_valid;
     int last_generation_valid;
+    int frame_hash_baseline_valid;
+    int last_frame_hash_valid;
     int input_seen;
     int ready;
     int candidate_valid;
