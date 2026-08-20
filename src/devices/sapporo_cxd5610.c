@@ -383,10 +383,21 @@ semu_status semu_sapporo_cxd5610_snapshot_read(
          candidate.rx_event_context.kind != 1u) ||
         candidate.awake_event_context.kind > 3u || candidate.awake_stage > 2u ||
         candidate.generation == 0u ||
-        (candidate.rx_event != 0u && candidate.rx_event_context.kind != 1u) ||
+        (candidate.rx_event == 0u && rx_count != 0u) ||
+        (candidate.rx_event != 0u &&
+         (rx_count == 0u ||
+          candidate.rx_event_context.kind != 1u ||
+          candidate.rx_event_context.generation != candidate.generation)) ||
+        (candidate.awake_event == 0u && candidate.awake_stage != 0u) ||
         (candidate.awake_event != 0u &&
          (candidate.awake_event_context.kind < 2u ||
-          candidate.awake_event_context.kind > 3u))) {
+          candidate.awake_event_context.kind > 3u ||
+          candidate.awake_event_context.generation != candidate.generation ||
+          (candidate.awake_stage == 1u &&
+           candidate.awake_event_context.kind != 2u) ||
+          (candidate.awake_stage == 2u &&
+           candidate.awake_event_context.kind != 3u) ||
+          candidate.awake_stage == 0u))) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid CXD5610 snapshot event state");
         return SEMU_ERR_FORMAT;
     }
