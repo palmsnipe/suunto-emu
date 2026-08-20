@@ -25,7 +25,7 @@ headless="$build_root/suunto-emu"
 sdl="$build_root/suunto-emu-sdl"
 
 case "$checkpoint" in
-    middle-language|lower-transition) ;;
+    middle-language|lower-transition|setup-next) ;;
     *)
         echo "unsupported Sapporo UI checkpoint: $checkpoint" >&2
         exit 2

@@ -273,7 +273,8 @@ static int is_named_checkpoint(const char *until)
            strcmp(until, "startup-complete") == 0 ||
            strcmp(until, "normal-frame") == 0 ||
            strcmp(until, "middle-language") == 0 ||
-           strcmp(until, "lower-transition") == 0;
+           strcmp(until, "lower-transition") == 0 ||
+           strcmp(until, "setup-next") == 0;
 }
 
 static int command_run(const run_arguments *arguments,
@@ -306,7 +307,8 @@ static int command_run(const run_arguments *arguments,
     frame_gate.callback_context = frame_context;
     if (arguments->until != NULL && !is_named_checkpoint(arguments->until)) {
         fprintf(stderr, "run: --until accepts only wfi, startup-complete, "
-                        "normal-frame, middle-language, lower-transition\n");
+                        "normal-frame, middle-language, lower-transition, "
+                        "setup-next\n");
         return 2;
     }
     if (arguments->max_time > 0u) {
@@ -354,7 +356,8 @@ static int command_run(const run_arguments *arguments,
         options.frame_context = &frame_gate;
     } else if (arguments->until != NULL &&
                (strcmp(arguments->until, "middle-language") == 0 ||
-                strcmp(arguments->until, "lower-transition") == 0)) {
+                strcmp(arguments->until, "lower-transition") == 0 ||
+                strcmp(arguments->until, "setup-next") == 0)) {
         /*
          * A live frontend supplies input_poll and can keep the guest alive
          * while it presents the requested UI. Headless runs still require
@@ -369,7 +372,8 @@ static int command_run(const run_arguments *arguments,
         if (replay != NULL) {
             frame_gate.wait_for_input = 1;
             frame_gate.required_button =
-                strcmp(arguments->until, "middle-language") == 0
+                (strcmp(arguments->until, "middle-language") == 0 ||
+                 strcmp(arguments->until, "setup-next") == 0)
                     ? SEMU_BUTTON_MIDDLE : SEMU_BUTTON_LOWER;
             options.frame_callback = first_frame_gate_publish;
             options.frame_context = &frame_gate;

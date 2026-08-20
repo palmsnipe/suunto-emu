@@ -75,27 +75,30 @@ post-input non-black setup frame. Live SDL checkpoints wait for a bounded
 so an intermediate logo/text transition is not frozen as the interactive frame.
 SDL button edges hold active-low for 70 ms of guest time and keep the released
 level stable for 70 ms before another press, matching the native debounce
-boundary. The SDL first-frame diagnostic also includes a bounded CRC32 of the
-presented RGB565 bytes; the live checkpoint accepts only visible pixels from a
+boundary (E-SAP-LIVE-0001). The SDL first-frame diagnostic also includes a
+bounded CRC32 of the presented RGB565 bytes; the live checkpoint accepts only
+visible pixels from a
 new renderer generation, excluding stride padding and stale submissions.
 
-SDL also accepts the same `middle-language` and `lower-transition` checkpoints
-without `--input-replay`. In that live mode Arrow Up, Return/Enter, and Arrow
-Down are delivered through the semantic input mapper. Left clicks in the upper,
-middle, and lower window thirds use the same path, and the SDL window requests
-focus when its first validated frame creates the native surface. After a quiet
-settled post-button frame the window pauses for the next live button edge so
-the setup UI can be navigated manually. The named checkpoint button is required
-only for the first edge; subsequent setup edges accept any of the three mapped
-buttons.
+SDL also accepts the `middle-language`, `lower-transition`, and neutral
+`setup-next` checkpoints without `--input-replay`. In that live mode Arrow Up,
+Return/Enter, and Arrow Down are delivered through the semantic input mapper.
+Left clicks in the upper, middle, and lower window thirds use the same path, and
+the SDL window requests focus when its first validated frame creates the native
+surface. After a quiet settled post-button frame the window pauses for the next
+live button edge so the setup UI can be navigated manually. The named checkpoint
+button is required only for the first edge; subsequent setup edges accept any of
+the three mapped buttons.
 Pressing that edge returns control to the guest immediately and rearms the next
 settled frame; replay checkpoints retain their deterministic stop behavior.
 The optional authentic `check-sdl` flow now queues one SDL Return key-down/up
-pair and one middle-screen mouse click after successive settled frames,
-verifying setup CRC32 checkpoints
-`629da47e` and `d4ed66c7`, then exits through an SDL quit event at the
-repeatable checkpoint `pc=0x080000a2`, `instructions=798836864`,
-`virtual_time_ns=9505920205`. Invalid automation configuration is always
+pair and two successive middle-screen mouse clicks, verifying setup CRC32
+checkpoints `629da47e`, `d4ed66c7`, and `83309716`, then exits through an SDL
+quit event at the repeatable checkpoint `pc=0x000bf102`,
+`instructions=1196657344`, `virtual_time_ns=10905302525`. The neutral
+`setup-next` checkpoint is also available for a snapshot-loaded, middle-button
+replay continuation; it reports the first visible post-input frame without
+naming an unverified screen. Invalid automation configuration is always
 checked and fails closed; absent private firmware skips only the authentic run.
 
 The normal `-O2` runtime now dispatches successful SCS accesses directly to

@@ -34,8 +34,8 @@ make check-sdl
 
 `make check-sdl` always verifies invalid live-test configuration fails closed.
 When an authentic manifest is available, it also drives one Return/Enter edge
-and one middle-screen click through the dummy SDL frontend and verifies each
-new settled setup frame:
+and two successive middle-screen clicks through the dummy SDL frontend and
+verifies each new settled setup frame:
 
 ```sh
 SEMU_FIRMWARE_MANIFEST=/path/to/firmware.semu \
@@ -81,6 +81,23 @@ subsequent setup edges accept any of the three mapped buttons. SDL holds
 each button press for 70 ms of guest time and keeps the released level stable
 for another 70 ms, matching the native debounce boundary. Replay input remains
 the deterministic path for headless checkpoints.
+
+For a deterministic continuation from an already captured setup boundary, use
+the neutral `setup-next` checkpoint with a snapshot load and one middle-button
+replay pulse. It reports the first visible post-input frame without claiming
+which later setup screen the frame represents:
+
+```sh
+build/suunto-emu run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --snapshot-load /tmp/suunto-middle.sems \
+  --input-replay /tmp/setup-next.replay \
+  --max-instructions 900000000 --max-time 12000000000
+```
+
+The snapshot and replay are external, identity-pinned inputs; do not commit
+firmware, frame pixels, or private snapshots.
 
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to
@@ -154,9 +171,10 @@ sh tools/run_sapporo_ui.sh /path/to/firmware.semu
 
 The first Return/Enter opens the language screen; after each transition settles,
 the next Up, Down, or Return/Enter edge continues into setup. Pass a second
-argument to choose the checkpoint path, or pass `lower-transition` as a third
-argument (or set `SEMU_SAPPORO_UI_CHECKPOINT`) to use the other observed setup
-boundary. Set `SEMU_SAPPORO_UI_BUILD_DIR=build-fast` to run the helper with the
+argument to choose the checkpoint path, or pass `lower-transition` or
+`setup-next` as a third argument (or set `SEMU_SAPPORO_UI_CHECKPOINT`) to choose
+the required edge at that setup boundary. Set
+`SEMU_SAPPORO_UI_BUILD_DIR=build-fast` to run the helper with the
 isolated fast build. The helper re-creates the snapshot when it is missing,
 older than either selected emulator binary, or fails the provenance check; the
 headless binary is needed for that refresh. Remove the snapshot and its

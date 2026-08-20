@@ -30,20 +30,34 @@ typedef struct sdl_frontend {
     uint32_t viewport_height;
     int failed;
     int window_closed;
+    const char *live_checkpoint_label;
     semu_sdl_live_test live_test;
 } sdl_frontend;
 
-static const char *live_checkpoint_name(int button)
+static const char *live_checkpoint_name(const sdl_frontend *frontend)
 {
-    return button == SEMU_BUTTON_MIDDLE ? "middle-language" :
-           button == SEMU_BUTTON_LOWER ? "lower-transition" : "unknown";
+    if (frontend != NULL && frontend->live_checkpoint_label != NULL) {
+        return frontend->live_checkpoint_label;
+    }
+    if (frontend != NULL &&
+        frontend->live_checkpoint.required_button == SEMU_BUTTON_MIDDLE) {
+        return "middle-language";
+    }
+    if (frontend != NULL &&
+        frontend->live_checkpoint.required_button == SEMU_BUTTON_LOWER) {
+        return "lower-transition";
+    }
+    return "unknown";
 }
 
-static int parse_live_checkpoint(int argc, char **argv)
+static int parse_live_checkpoint(int argc, char **argv, const char **label)
 {
     const char *until = NULL;
     int has_replay = 0;
     int index;
+    if (label != NULL) {
+        *label = NULL;
+    }
     for (index = 1; index < argc; ++index) {
         if (strcmp(argv[index], "--until") == 0 && index + 1 < argc) {
             until = argv[++index];
@@ -57,9 +71,21 @@ static int parse_live_checkpoint(int argc, char **argv)
         return -1;
     }
     if (strcmp(until, "middle-language") == 0) {
+        if (label != NULL) {
+            *label = "middle-language";
+        }
+        return SEMU_BUTTON_MIDDLE;
+    }
+    if (strcmp(until, "setup-next") == 0) {
+        if (label != NULL) {
+            *label = "setup-next";
+        }
         return SEMU_BUTTON_MIDDLE;
     }
     if (strcmp(until, "lower-transition") == 0) {
+        if (label != NULL) {
+            *label = "lower-transition";
+        }
         return SEMU_BUTTON_LOWER;
     }
     return -1;
@@ -192,8 +218,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
         fprintf(stderr,
                 "SDL live checkpoint %s ready; press Up, Down, or "
                 "Return/Enter to continue\n",
-                live_checkpoint_name(
-                    frontend->live_checkpoint.required_button));
+                live_checkpoint_name(frontend));
     }
     if (flush_button_releases(frontend, machine, now_ns, error) !=
         SEMU_STOP_NONE) {
@@ -349,7 +374,8 @@ int main(int argc, char **argv)
                                        &wait_for_quit);
     semu_live_frame_gate_init(&frontend.live_checkpoint,
                               parse_live_checkpoint(filtered_argc,
-                                                   filtered_argv));
+                                                   filtered_argv,
+                                                   &frontend.live_checkpoint_label));
     if (frontend.live_test.enabled &&
         frontend.live_checkpoint.required_button != SEMU_BUTTON_MIDDLE) {
         fputs("SDL live test requires --until middle-language without "

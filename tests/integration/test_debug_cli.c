@@ -330,6 +330,17 @@ static void test_null_safety(semu_test_context *context)
         (uint64_t)semu_cli_debug_validate(NULL, &err));
 }
 
+static void test_named_checkpoints(semu_test_context *context)
+{
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("wfi"));
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("startup-complete"));
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("normal-frame"));
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("middle-language"));
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("lower-transition"));
+    SEMU_TEST_ASSERT(context, is_named_checkpoint("setup-next"));
+    SEMU_TEST_ASSERT(context, !is_named_checkpoint("unknown"));
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -347,7 +358,8 @@ int main(void)
         SEMU_TEST_CASE(test_no_debug_options_inactive),
         SEMU_TEST_CASE(test_null_safety),
         SEMU_TEST_CASE(test_first_frame_gate),
-        SEMU_TEST_CASE(test_first_frame_gate_requires_press)
+        SEMU_TEST_CASE(test_first_frame_gate_requires_press),
+        SEMU_TEST_CASE(test_named_checkpoints)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

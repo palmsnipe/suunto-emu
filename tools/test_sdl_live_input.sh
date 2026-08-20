@@ -7,7 +7,8 @@ snapshot=${SEMU_SDL_TEST_SNAPSHOT:-}
 expected_first='SDL first-frame width=240 height=240 generation=1 crc32=4979f432'
 expected_step_one='SDL live test settled step=1 generation=3 crc32=629da47e'
 expected_step_two='SDL live test settled step=2 generation=61 crc32=d4ed66c7'
-expected_stop='stop=user pc=0x080000a2 instructions=798836864 virtual_time_ns=9505920205'
+expected_step_three='SDL live test settled step=3 generation=159 crc32=83309716'
+expected_stop='stop=user pc=0x000bf102 instructions=1196657344 virtual_time_ns=10905302525'
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-live.XXXXXX")
 
@@ -83,6 +84,8 @@ if [ "$status" -ne 0 ] ||
    ! grep -qx "$expected_step_one" "$log" ||
    ! grep -q '^SDL live test injected middle click step=2$' "$log" ||
    ! grep -qx "$expected_step_two" "$log" ||
+   ! grep -q '^SDL live test injected middle click step=3$' "$log" ||
+   ! grep -qx "$expected_step_three" "$log" ||
    ! grep -q '^SDL live test completed setup-navigation$' "$log" ||
    ! grep -qx "$expected_stop" "$log"; then
     cat "$log" >&2

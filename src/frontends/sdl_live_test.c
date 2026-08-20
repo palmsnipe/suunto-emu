@@ -49,9 +49,29 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
         events[1].button.down = 0;
         events[1].button.y = (float)viewport_height / 2.0f;
         count = 2u;
-    } else if (test->phase == 2u && checkpoint_ready) {
-        events[0].type = SDL_EVENT_QUIT;
-        count = 1u;
+    } else if ((test->phase == 2u || test->phase == 3u) &&
+               checkpoint_ready) {
+        if (test->phase == 2u) {
+            if (viewport_height == 0u) {
+                semu_error_set(error, SEMU_ERR_STATE,
+                               "SDL live test has no validated viewport");
+                return 0;
+            }
+            events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+            events[0].button.button = SDL_BUTTON_LEFT;
+            events[0].button.down = 1;
+            events[0].button.y = (float)viewport_height / 2.0f;
+            events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
+            events[1].button.button = SDL_BUTTON_LEFT;
+            events[1].button.down = 0;
+            events[1].button.y = (float)viewport_height / 2.0f;
+            count = 2u;
+        } else {
+            events[0].type = SDL_EVENT_QUIT;
+            count = 1u;
+        }
+    } else if (test->phase == 4u) {
+        return 1;
     } else {
         return 1;
     }
@@ -74,6 +94,9 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
         fprintf(stderr, "SDL live test injected Return/Enter step=%u\n",
                 test->phase);
     } else if (test->phase == 2u) {
+        fprintf(stderr, "SDL live test injected middle click step=%u\n",
+                test->phase);
+    } else if (test->phase == 3u) {
         fprintf(stderr, "SDL live test injected middle click step=%u\n",
                 test->phase);
     } else {
