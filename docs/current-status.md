@@ -166,6 +166,14 @@ refusal (E-SAP-0016). These are reproducible emulator observations, not a
 later-version behavior fix; a native reset-register or post-reset transaction
 trace is still required before changing Apollo4 reset semantics.
 
+The later-Sapporo audit is now recorded as E-SAP-0017. The 2.33 MSPI power
+change remains a static hotfix candidate without a recovered failing runtime
+state, and E-SAP-0014's current 2.33 stop is a CP11/UsageFault CPU boundary
+outside ticket 710's device/storage scope. The 2.39 storage and UI probes still
+require a native `storage/` open and watch-face notification before any binding;
+fabricating those events would bypass the observed owner. No implementation-
+eligible later-Sapporo device/storage gap is currently available.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -174,8 +182,9 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Audit the available later-Sapporo packages and traces, then instantiate one
-  observed-gap task only if an exact failing transaction and provenance exist.
+- Hold later-Sapporo gap work until an exact failing transaction, native
+  provenance, and an allowed device/storage module boundary are available;
+  E-SAP-0017 records the current refusal boundary.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
