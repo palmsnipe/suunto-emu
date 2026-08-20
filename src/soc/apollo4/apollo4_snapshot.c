@@ -40,6 +40,7 @@ semu_status semu_apollo4_snapshot_read(
     semu_apollo4 *soc, semu_snapshot_reader *reader, semu_error *error)
 {
     semu_apollo4 candidate;
+    size_t index;
     if (soc == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Apollo4 snapshot arguments are invalid");
@@ -47,8 +48,17 @@ semu_status semu_apollo4_snapshot_read(
     }
     candidate = *soc;
     if (semu_snapshot_reader_bytes(reader, candidate.gpio_level,
-                                   sizeof(candidate.gpio_level), error) != SEMU_OK ||
-        semu_apollo4_clock_snapshot_read(candidate.clock, reader, error) != SEMU_OK ||
+                                   sizeof(candidate.gpio_level), error) != SEMU_OK) {
+        return error->code;
+    }
+    for (index = 0u; index < SEMU_APOLLO4_GPIO_COUNT; ++index) {
+        if (candidate.gpio_level[index] > 1u) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "Apollo4 GPIO level snapshot is unreachable");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    if (semu_apollo4_clock_snapshot_read(candidate.clock, reader, error) != SEMU_OK ||
         semu_apollo4_power_snapshot_read(candidate.power, reader, error) != SEMU_OK ||
         semu_apollo4_gpio_snapshot_read(candidate.gpio, reader, error) != SEMU_OK ||
         semu_apollo4_timer_snapshot_read(candidate.timer, reader, error) != SEMU_OK ||
