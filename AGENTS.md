@@ -13,33 +13,46 @@ frame pixels never enter Git.
 
 ## Required Reading
 
-Before editing, read in order:
+Before editing, always read `README.md`, `docs/current-status.md`, and the
+working-tree status. Then select the reading set for the work class:
 
-1. `README.md` and `docs/current-status.md`.
-2. `plans/index.tsv` and the assigned ticket in `plans/tasks/`.
-3. `docs/architecture.md`, `docs/execution-model.md`,
-   `docs/testing-strategy.md`, and `docs/compatibility-policy.md`.
-4. The exact public headers, evidence entries, existing implementation, and
-   tests named by the ticket.
+- **Roadmap work:** read `plans/index.tsv`, the assigned ticket, the relevant
+  architecture/execution/testing/compatibility sections, and every exact
+  header, evidence entry, implementation, and test named by the ticket.
+- **Maintenance work:** read the implementation, tests, public contracts, and
+  focused guides relevant to the bounded change. A pre-existing roadmap ticket
+  is not required.
 
 Do not infer completion from existing code. Later-phase scaffolding is partial
 until the corresponding ticket acceptance conditions pass.
 
-## Task Selection and Ownership
+## Work Classes and Ownership
 
-- Work on one assigned ticket whose status is `ready` or `in-progress`.
-- Confirm every dependency is `done` before implementation.
-- Edit only `Allowed Files`. Preserve all unrelated or pre-existing changes.
-- Public headers, `Makefile`, registries, profiles, and `plans/index.tsv` are
-  integration-owned unless explicitly allowed.
-- Do not change ticket status. The integrator updates the index after review.
+- **Roadmap work** adds or changes guest-visible hardware behavior, CPU or
+  deterministic execution semantics, persistent formats, profiles, firmware
+  compatibility, or release goldens. Work on one assigned `ready` or
+  `in-progress` ticket, confirm its dependencies are `done`, and edit only its
+  `Allowed Files`.
+- **Maintenance work** covers a bounded bug fix, behavior-preserving refactor,
+  performance change, tooling/build change, documentation correction, or
+  frontend usability change. State the scope before editing, touch only files
+  necessary for that scope, and preserve deterministic checkpoints unless a
+  regression plus evidence justifies a correction.
+- Public headers, `Makefile`, registries, profiles, and `plans/index.tsv` must
+  be explicitly in scope. Roadmap component tickets still leave them to their
+  named integration ticket.
+- Do not change roadmap ticket status as part of implementation. The
+  integrator updates the index after review; planning-only maintenance may
+  update status or dependencies when that is its explicit purpose.
 - If an interface is insufficient, stop and report the smallest required
   integration change; do not work around it with a private parallel API.
+- Preserve all unrelated and pre-existing changes in either work class.
 
 ## Evidence and Firmware Safety
 
-- Implement only behavior supported by the ticket's architecture reference or
-  an entry in `docs/migration-evidence.md`.
+- Implement guest-visible hardware and firmware behavior only when supported by
+  the roadmap ticket's architecture reference or an entry in
+  `docs/migration-evidence.md`.
 - Missing evidence is a legitimate blocker. Add a refusal/diagnostic and report
   the missing observation instead of guessing a register or command.
 - Treat `../suunto-firmware` and user firmware roots as read-only evidence.
@@ -56,22 +69,28 @@ until the corresponding ticket acceptance conditions pass.
 - Preserve deterministic virtual time and stable event ordering.
 - Validate the full operation before state mutation, especially DMA, storage,
   parser, multi-register, and rendering operations.
-- Keep handwritten files below 500 lines and normally below 300. Split by
-  responsibility before expanding a file already above the review threshold.
+- New handwritten files should remain below 300 lines and all handwritten
+  files must remain at or below 500. A bounded change may touch an existing
+  file above 300 lines without a mechanical split when it does not materially
+  grow that file; split by responsibility before exceeding the hard limit.
 - Add no dependency to the normal headless build. Do not add platform-specific
   assembly, JITs, Unicorn, or a Renode runtime requirement.
 
 ## Verification
 
-Run the ticket's exact commands. `make test TEST_FILTER=name` must select at
-least one matching test binary. Also run:
+Use verification proportional to the change:
 
-```sh
-make check-lines
-make check
-```
+- Roadmap work runs the ticket's exact commands, `make check-lines`, and
+  `make check`. `make test TEST_FILTER=name` must select at least one test.
+- C behavior changes run the narrowest relevant test and `make check`; core,
+  CPU, parser, storage, DMA, device-protocol, or rendering changes also run
+  `make sanitize`.
+- Build, public-interface, registry, or profile changes run `make check` plus
+  their focused smoke or validation command.
+- Documentation/planning-only changes run `make check-task-contracts` when
+  plans are touched and `make check` when commands, contracts, or build claims
+  change. Trivial repository metadata may use focused validation only.
 
-Run `make sanitize` for memory, parser, CPU, storage, DMA, or rendering changes.
 Use explicit instruction or virtual-time limits for hang-prone tests. Authentic
 firmware tests are optional locally but must validate every component before
 execution; absence may skip, a mismatch must fail.
@@ -84,7 +103,7 @@ fix. Do not weaken a golden, expected stop reason, or hash.
 
 Report:
 
-- ticket ID and outcome;
+- ticket ID and outcome, or the maintenance scope;
 - changed files;
 - evidence/reference IDs used;
 - exact commands and results;

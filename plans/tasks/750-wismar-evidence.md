@@ -2,7 +2,7 @@
 
 **Status:** blocked
 **Phase:** 7
-**Dependencies:** 745
+**Dependencies:** 630
 
 ## Goal
 
@@ -20,8 +20,9 @@ Evidence procedure, Apollo4 coverage, Wismar research/traces in read-only
 
 ## Current Baseline
 
-No Wismar profile or verified behavior exists; all named quirks are roadmap
-leads requiring exact observations.
+Phase 6 supplies the independent evidence/profile tooling; Ulsan release work
+is not a prerequisite. No Wismar profile or verified behavior exists; all
+named quirks are roadmap leads requiring exact observations.
 
 ## Allowed Files
 

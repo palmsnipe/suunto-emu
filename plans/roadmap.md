@@ -2,7 +2,16 @@
 
 ## Delivery Rules
 
-`plans/index.tsv` is the scheduling source of truth. A ticket becomes `ready` only when every dependency is `done` and its frozen interfaces are present. Component work never edits public headers, the Makefile, board/profile registries, or the task index unless its ticket explicitly owns those files.
+`plans/index.tsv` is the scheduling source of truth for roadmap work. A ticket
+becomes `ready` only when every dependency is `done`, its frozen interfaces are
+present, and required private evidence is available. Component work never edits
+public headers, the Makefile, board/profile registries, or the task index unless
+its ticket explicitly owns those files.
+
+Bounded maintenance is governed directly by `AGENTS.md` and does not require a
+placeholder roadmap ticket. It cannot be used to introduce guest-visible
+hardware behavior, compatibility interventions, profiles, persistent-format
+changes, or new release claims.
 
 Agents receive exactly one ready ticket through `plans/agent-prompt.md` and
 must follow `AGENTS.md`. Tickets are sized for roughly one to three model-days.
@@ -38,6 +47,18 @@ blocked; models do not fill missing contracts from intuition. The task checker
 validates index/file/status/dependency consistency, while the integrator still
 reviews ownership overlap and the observable command results.
 
-## Release Definition
+Product evidence inventories are independent after the Phase 6 foundation.
+Their profile, gap, and release tickets remain ordered within each product, but
+missing Sapporo, Ulsan, or Wismar evidence does not block read-only inventory of
+another family.
 
-The first release is a C99 headless executable plus an optional SDL3 executable capable of validating and running exact Sapporo `2.22.60.3383-P`, publishing native 240x240 RGB565 frames, accepting upper/middle/lower input, reporting all compatibility interventions, and reproducing the declared goldens. It does not promise cycle accuracy, wireless connectivity, direct SOF1/XZ loading, or support for unpinned firmware.
+## Functional Milestone and Release Scope
+
+The first-target functional milestone is a C99 headless executable plus an
+optional SDL3 executable capable of validating and running exact Sapporo
+`2.22.60.3383-P`, publishing native-renderer 240x240 RGB565 frames, accepting
+upper/middle/lower input, reporting all compatibility interventions, and
+reproducing the three declared renderer goldens. Those goldens prove only their
+named command-stream checkpoints; they are not a physical-panel, universal
+pixel-equivalence, or complete-device claim. The project does not promise cycle
+accuracy, wireless connectivity, direct SOF1/XZ loading, or unpinned firmware.

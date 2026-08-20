@@ -72,16 +72,16 @@ id	phase	title	status	dependencies	ticket
 710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
 715	7	One Later Sapporo Release Gate	blocked	710	plans/tasks/715-sapporo-version-gate.md
 718	7	Later Sapporo Expansion Gate	blocked	715	plans/tasks/718-sapporo-expansion-gate.md
-720	7	Ulsan 2.35/2.44 Evidence Inventory	blocked	718	plans/tasks/720-ulsan-evidence.md
+720	7	Ulsan 2.35/2.44 Evidence Inventory	blocked	630	plans/tasks/720-ulsan-evidence.md
 725	7	One Ulsan Reset Profile	blocked	720	plans/tasks/725-ulsan-reset-profile.md
 730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
 740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
-750	7	Wismar 2.46 Evidence Inventory	blocked	745	plans/tasks/750-wismar-evidence.md
+750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
 765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
-770	7	Tianjin, Rostock, or Xiamen Intake	blocked	765	plans/tasks/770-product-intake.md
+770	7	Tianjin, Rostock, or Xiamen Intake	blocked	630	plans/tasks/770-product-intake.md
 775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md
 780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md
 790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md

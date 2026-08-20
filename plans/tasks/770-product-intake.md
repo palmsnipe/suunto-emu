@@ -2,7 +2,7 @@
 
 **Status:** blocked
 **Phase:** 7
-**Dependencies:** 765
+**Dependencies:** 630
 
 ## Goal
 
@@ -21,8 +21,10 @@ selected product's read-only research/package sources.
 
 ## Current Baseline
 
-No product is eligible by name alone. Xiamen explicitly lacks an implementation
-contract until an exact package and hardware evidence are available.
+Phase 6 supplies the independent intake tooling; earlier product releases are
+lessons, not scheduling prerequisites. No product is eligible by name alone.
+Xiamen explicitly lacks an implementation contract until an exact package and
+hardware evidence are available.
 
 ## Allowed Files
 

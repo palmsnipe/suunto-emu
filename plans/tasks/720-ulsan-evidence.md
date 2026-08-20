@@ -2,7 +2,7 @@
 
 **Status:** blocked
 **Phase:** 7
-**Dependencies:** 718
+**Dependencies:** 630
 
 ## Goal
 
@@ -20,7 +20,9 @@ read-only Ulsan research/traces in `../suunto-firmware`.
 
 ## Current Baseline
 
-No Ulsan profile or verified sharing contract exists. MSPI1, SDIO/eMMC,
+Phase 6 supplies the independent evidence/profile tooling; later-Sapporo
+release work is not a prerequisite. No Ulsan profile or verified sharing
+contract exists. MSPI1, SDIO/eMMC,
 466x466 NemaDC, crown, touch, pairing, and BLE are hypotheses until traced.
 
 ## Allowed Files

@@ -1,9 +1,10 @@
 # Current Implementation Status
 
-This file records the implemented baseline without weakening the roadmap gates.
-The ticket index remains authoritative: a ticket is `done` only when its full
-acceptance conditions pass, even if useful pieces of later tickets already
-exist.
+This file records the implemented baseline without weakening the roadmap
+gates. The ticket index remains authoritative for roadmap work; bounded
+maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
+its full acceptance conditions pass, even if useful pieces of later tickets
+already exist.
 
 ## Implemented Baseline
 
@@ -12,13 +13,18 @@ exist.
 - Fail-closed little-endian memory bus and stable integer-time scheduler.
 - Immutable storage bases with sparse session-only program/erase overlays.
 - Bounded machine execution, structured stop reasons, and semantic board input.
-- An in-tree Thumb interpreter foundation with native regression coverage for
-  `MOV.W r0,sp` and `STMDB`.
-- Narrow Apollo4 register banks and GPIO input state with unknown-offset refusal.
-- Small pressure, LSM6DSL, and OHR2 transaction models with refusal tests.
+- An in-tree ARMv7E-M/Thumb-2 interpreter with exception, NVIC, SysTick,
+  sleep/wake, DSP, and single-precision FPU coverage; a deterministic synthetic
+  RTOS guest exercises nested interrupts, context switching, WFI, and FP state.
+- Evidence-scoped Apollo4 clock, power, reset, GPIO, timer, STIMER, UART, IOM,
+  MSPI, DMA, and MRAM models with unknown-offset and invalid-shape refusal.
+- Sapporo flash, pressure, motion, magnetic, haptic, ambient-light, fuel-gauge,
+  GPS, and OHR transports with deterministic fixtures and refusal tests.
 - Exact Sapporo 2.22.60 component metadata and an opt-in, hit-bounded synthetic
   manufacturing-state compatibility layer.
-- RGB565 surface and SDL3 presentation primitives.
+- NEMA command framing/state, RGB565/A2LE rasterization, native-renderer frame
+  publication, SDL3 presentation, semantic three-button input, and versioned
+  input replay.
 - Identity-pinned machine snapshots covering CPU, guest RAM, scheduler events,
   Apollo4 controller state, Sapporo device state, flash overlays, NEMA state,
   virtual time, and compatibility counters. Snapshot load is atomic on a
@@ -59,8 +65,10 @@ through NEMA snapshots and applies the native A2LE destination-to-source
 translation path. Two fresh SDL dummy runs with middle (5.400/5.470 seconds)
 and lower (8.000/8.070 seconds) semantic button pulses were byte-identical;
 both accepted the language/setup command lists and reached the bounded budget
-without reset or display refusal. This exposes the evidenced setup UI in SDL;
-it does not claim physical-panel or pixel-golden equivalence. The
+without reset or display refusal. This exposes the evidenced setup UI in SDL.
+The three declared Phase 5 renderer goldens remain exact for their named
+checkpoints; this does not claim physical-panel equivalence or bit-identical
+behavior for every unobserved A2LE edge. The
 `--until middle-language` replay checkpoint still stops at the first
 post-input non-black setup frame. Live SDL checkpoints wait for a bounded
 350-ms virtual-time quiet window after the last post-input renderer submission,
@@ -141,9 +149,11 @@ trace is still required before changing Apollo4 reset semantics.
 
 ## Next Actionable Work
 
-The ticket index currently has no `ready` tickets: Phases 0–6 are complete, and
-the Phase 7 expansion templates remain blocked until their product-specific
-evidence is instantiated. The practical work queue is:
+Phases 0–6 and the first-target functional milestone are complete. The Phase 7
+behavior/release templates remain blocked until their product-specific evidence
+is instantiated; independent product evidence inventories no longer wait on
+another product's release. Bounded maintenance may proceed under `AGENTS.md`
+without manufacturing a roadmap row. The practical work queue is:
 
 - Audit the available later-Sapporo packages and traces, then instantiate one
   observed-gap task only if an exact failing transaction and provenance exist.

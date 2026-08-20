@@ -42,7 +42,10 @@ adequate evidence input.
 
 ## Implementation
 
-List only decisions required to complete the bounded goal. Keep hand-written C/header/test files below 500 lines and normally below 300.
+List only decisions required to complete the bounded goal. New hand-written
+C/header/test files should remain below 300 lines and every hand-written file
+must remain at or below 500. Avoid materially growing existing files above the
+review threshold without splitting by responsibility.
 
 ## Tests and Commands
 

@@ -40,6 +40,23 @@ CPU vectors record initial registers/memory and expected registers, flags, memor
 
 `make check` warns for hand-written C/header/test files above 300 lines and fails above 500. Only declared generated data tables are exempt.
 
+## Proportional Maintenance Verification
+
+Roadmap tickets retain their exact acceptance commands. For bounded maintenance,
+verification follows the affected risk rather than requiring a synthetic ticket:
+
+- documentation or planning changes run contract validation when plans are
+  touched, plus `make check` when executable commands or behavior claims change;
+- build, public-interface, registry, and profile changes run `make check` and a
+  focused smoke or validation command;
+- C behavior changes run the narrowest regression and `make check`;
+- CPU, parser, storage, DMA, device-protocol, and rendering changes additionally
+  run `make sanitize`.
+
+Performance changes compare the same bounded checkpoint before and after and
+record guest-visible hashes, stop reason, instruction count, and virtual time.
+Wall-clock measurements are supporting evidence only.
+
 ## First Release Golden Contract
 
 For exact Sapporo `2.22.60.3383-P`, private integration tests compare:

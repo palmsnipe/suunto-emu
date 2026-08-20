@@ -4,11 +4,11 @@
 uses an in-tree ARMv7-M interpreter, deterministic virtual time, strict device
 contracts, immutable firmware inputs, and optional SDL3 presentation.
 
-The repository is under active bring-up. The deterministic core, strict
-profile/manifest validation, instruction interpreter foundation, Sapporo
-memory contract, and explicitly synthetic no-device compatibility state are
-implemented first. Full Sapporo firmware/UI coverage is tracked as gated work
-in `plans/` rather than being claimed prematurely.
+The first Sapporo target is functional: the deterministic interpreter runs the
+exact pinned firmware through startup and native renderer traffic, publishes a
+240x240 UI, accepts three-button interaction, and supports replay and machine
+snapshots. Hardware coverage remains evidence-scoped; physical-panel behavior,
+unobserved device commands, and unpinned firmware versions are not implied.
 
 Firmware is not included. Extract a legally obtained Sapporo 2.22.60 package,
 copy `profiles/sapporo/2.22.60/firmware.example.semu`, and point its paths at
@@ -168,7 +168,7 @@ See `docs/architecture.md`, `docs/compatibility-policy.md`,
 `docs/current-status.md`, and `plans/roadmap.md` for the fidelity rules,
 implemented baseline, and remaining gates.
 
-Agents and other models must follow `AGENTS.md`. Select only a `ready` row from
-`plans/index.tsv` and dispatch its single ticket with `plans/agent-prompt.md`;
-blocked Phase 7 templates must first be instantiated with exact evidence and
-expected checkpoints by the integrator.
+Agents and other models must follow `AGENTS.md`. Guest-visible hardware,
+firmware-compatibility, profile, format, and release work uses one instantiated
+`ready` ticket from `plans/index.tsv`. Bounded maintenance may proceed without
+a roadmap row when its scope and proportional verification are explicit.
