@@ -357,6 +357,14 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
                        "invalid CPU snapshot state flag");
         return SEMU_ERR_FORMAT;
     }
+    if ((candidate.state.waiting_for_interrupt != 0) !=
+            (candidate.sleep_mode != ARMV7M_SLEEP_NONE) ||
+        (candidate.sleep_mode != ARMV7M_SLEEP_NONE &&
+         candidate.sleep_wake_source != 0u)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU sleep state");
+        return SEMU_ERR_FORMAT;
+    }
     if (!valid_systick_state(&candidate)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU SysTick state");
