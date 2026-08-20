@@ -48,6 +48,12 @@ Replay is dependency-free, bounded, deterministic, and board-semantic; invalid f
 
 No JSON parser/dependency, direct SDL/GPIO, wall-clock sleep, command-line edit, arbitrary sensor events, hidden default replay, or private native file copy.
 
+## Post-completion scope clarification
+
+The deferred SDL/CLI wording describes the parser boundary. Ticket 520 now
+consumes this format from both headless and SDL runs, while JSON, arbitrary
+sensor events, host timestamps, and direct GPIO replay remain outside scope.
+
 ## Handoff
 
 Report grammar/limits, normalization provenance, transcript schema, tests, and CLI/machine pump hooks for 520.

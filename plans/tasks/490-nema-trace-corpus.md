@@ -48,6 +48,14 @@ All fixtures have provenance/hash/expected result; no raw firmware/texture/frame
 
 No parser/raster code, proprietary bytes, inferred shader semantics, relabeling staging rows as frames, golden change, or capture regeneration.
 
+## Post-completion scope clarification
+
+The deferred renderer wording describes the corpus-only boundary. Tickets
+500–520 subsequently implemented the evidence-scoped software renderer, SDL
+presentation, and replay path from this corpus. Proprietary firmware, texture,
+and frame bytes remain external, and the corpus does not establish physical
+panel equivalence.
+
 ## Handoff
 
 Report case IDs/kinds, verified/missing evidence, synthetic fixture hashes, optional skips, and exact cases consumed by 500–513.

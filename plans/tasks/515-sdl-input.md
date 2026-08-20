@@ -48,6 +48,13 @@ Core validation is exhaustive/overflow-safe; presenter handles recreate/destroy/
 
 No event/input mapping, CLI edit, renderer/raster, frame generation, host-time advancement, screenshot write, mandatory SDL, or `main_sdl.c` edit.
 
+## Post-completion scope clarification
+
+The deferred semantic-input/CLI wording describes the presenter-only boundary.
+Tickets 516–520 subsequently wired semantic input, deterministic replay, and
+the CLI/live SDL flow. SDL remains optional; the headless build remains free of
+SDL symbols and host-time advancement.
+
 ## Handoff
 
 Report presenter API, validation cases, SDL version/dummy result, headless link audit, and 520 integration calls.

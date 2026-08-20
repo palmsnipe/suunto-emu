@@ -48,6 +48,13 @@ Synthetic/evidenced framing outputs match corpus; bootstrap emits no IRQ/draw; m
 
 No render/state/texture semantics, unbounded allocation, treating size as bytes when evidence says words, firmware memory write, completion IRQ, or support for unobserved suffixes.
 
+## Post-completion scope clarification
+
+The deferred state/pixel wording describes the framing-only boundary. Tickets
+502–520 now consume the records for evidence-scoped draw state, rasterization,
+software frame publication, SDL presentation, and replay; unobserved register
+and command suffixes still refuse.
+
 ## Handoff
 
 Report accepted grammar/limits, refusal categories, evidence/corpus cases, tests, and callback contract for 502/504/506.

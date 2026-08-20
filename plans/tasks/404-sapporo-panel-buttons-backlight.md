@@ -48,6 +48,13 @@ Observed physical transcripts match; no event is labeled a frame; input polarity
 
 No rasterization, GPU registers, SDL keys, invented DCS/DSI commands, pixel capture from staging rows, controller implementation, board hardcoding, or integration edit.
 
+## Post-completion scope clarification
+
+The deferred Nema/SDL wording describes the ticket-404 boundary. Later tickets
+513–520 now consume this transport and publish software-renderer frames through
+SDL with semantic input and replay. This ticket still does not prove physical
+panel completion or add unobserved panel commands.
+
 ## Handoff
 
 Report three interfaces, exact pins/polarity/controller, panel event schema, evidence hashes, and 420/513/516 connection points.
