@@ -284,9 +284,6 @@ static void test_completion_budget_refusal(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, SEMU_OK,
             nema_completion_schedule(comp, sched, index,
                                      on_reg_write, &cap, on_irq, &cap, &err));
-        SEMU_TEST_EQ_U64(context, SEMU_OK,
-                         semu_scheduler_advance(sched,
-                             NEMA_COMPLETION_DELAY_NS, &err));
     }
     SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS,
                      nema_completion_count(comp));
@@ -294,6 +291,16 @@ static void test_completion_budget_refusal(semu_test_context *context)
         nema_completion_schedule(comp, sched, NEMA_COMPLETION_MAX_EVENTS,
                                  on_reg_write, &cap, on_irq, &cap, &err));
     SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS,
+                     nema_completion_count(comp));
+
+    /* Completed slots are reusable while the total diagnostic count remains. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(sched,
+                         NEMA_COMPLETION_DELAY_NS, &err));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        nema_completion_schedule(comp, sched, NEMA_COMPLETION_MAX_EVENTS,
+                                 on_reg_write, &cap, on_irq, &cap, &err));
+    SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS + 1u,
                      nema_completion_count(comp));
     semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);

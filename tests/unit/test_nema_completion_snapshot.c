@@ -168,13 +168,59 @@ static void test_active_count_mismatch_refuses(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_total_count_round_trip(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *scheduler = semu_scheduler_create(&error);
+    nema_completion *comp = NULL;
+    nema_completion *target = NULL;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    unsigned index;
+
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_completion_create(&comp, &error));
+    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            nema_completion_schedule(comp, scheduler, index,
+                                     NULL, NULL, NULL, NULL, &error));
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler,
+                         NEMA_COMPLETION_DELAY_NS, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        nema_completion_schedule(comp, scheduler, 99u,
+                                 NULL, NULL, NULL, NULL, &error));
+    SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS + 1u,
+                     nema_completion_count(comp));
+
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_completion_snapshot_write(comp, &writer, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_completion_create(&target, &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_completion_snapshot_read(target, &reader, &error));
+    SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS + 1u,
+                     nema_completion_count(target));
+    SEMU_TEST_ASSERT(context, nema_completion_pending(target, 99u));
+
+    semu_snapshot_writer_destroy(&writer);
+    nema_completion_destroy(target);
+    nema_completion_destroy(comp);
+    semu_scheduler_destroy(scheduler);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_active_entry_round_trip),
         SEMU_TEST_CASE(test_missing_event_id_refuses),
         SEMU_TEST_CASE(test_active_identity_mismatch_refuses),
-        SEMU_TEST_CASE(test_active_count_mismatch_refuses)
+        SEMU_TEST_CASE(test_active_count_mismatch_refuses),
+        SEMU_TEST_CASE(test_total_count_round_trip)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

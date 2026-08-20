@@ -10,6 +10,7 @@
 #include <string.h>
 
 typedef struct {
+    struct nema_completion *owner;
     uint32_t list_id;
     semu_event_id event_id;
     nema_reg_write_fn on_reg_write;
@@ -22,14 +23,21 @@ typedef struct {
 struct nema_completion {
     completion_entry entries[NEMA_COMPLETION_MAX_EVENTS];
     size_t count;
+    size_t active_count;
 };
 
 static void completion_callback(void *context, uint64_t now_ns)
 {
     completion_entry *e = (completion_entry *)context;
+    nema_completion *comp;
     (void)now_ns;
     if (!e->active) {
         return;
+    }
+    comp = e->owner;
+    e->active = 0;
+    if (comp != NULL && comp->active_count > 0u) {
+        --comp->active_count;
     }
     if (e->on_reg_write != NULL) {
         e->on_reg_write(e->reg_context, NEMA_REG_CLID, e->list_id);
@@ -38,7 +46,6 @@ static void completion_callback(void *context, uint64_t now_ns)
     if (e->on_irq != NULL) {
         e->on_irq(e->irq_context, NEMA_COMPLETION_IRQ_LINE, 1);
     }
-    e->active = 0;
 }
 
 semu_status nema_completion_create(nema_completion **out,
@@ -68,6 +75,7 @@ void nema_completion_reset(nema_completion *comp)
     if (comp == NULL) return;
     memset(comp->entries, 0, sizeof(comp->entries));
     comp->count = 0u;
+    comp->active_count = 0u;
 }
 
 void nema_completion_cancel(nema_completion *comp)
@@ -79,6 +87,7 @@ void nema_completion_cancel(nema_completion *comp)
             comp->entries[i].active = 0;
         }
     }
+    comp->active_count = 0u;
 }
 
 int nema_completion_pending(const nema_completion *comp, uint32_t list_id)
@@ -129,10 +138,15 @@ semu_status nema_completion_schedule(nema_completion *comp,
     if (nema_completion_pending(comp, list_id)) {
         return SEMU_OK;
     }
-    if (comp->count >= NEMA_COMPLETION_MAX_EVENTS) {
+    if (comp->active_count >= NEMA_COMPLETION_MAX_EVENTS) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "completion: event budget exhausted");
         return SEMU_ERR_UNSUPPORTED;
+    }
+    if (comp->count == SIZE_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE,
+                       "completion: total count overflow");
+        return SEMU_ERR_RANGE;
     }
 
     free_slot = NEMA_COMPLETION_MAX_EVENTS;
@@ -148,6 +162,7 @@ semu_status nema_completion_schedule(nema_completion *comp,
         return SEMU_ERR_UNSUPPORTED;
     }
 
+    comp->entries[free_slot].owner = comp;
     comp->entries[free_slot].list_id = list_id;
     comp->entries[free_slot].on_reg_write = on_reg_write;
     comp->entries[free_slot].reg_context = reg_context;
@@ -167,6 +182,7 @@ semu_status nema_completion_schedule(nema_completion *comp,
     }
 
     ++comp->count;
+    ++comp->active_count;
     return SEMU_OK;
 }
 
@@ -185,8 +201,9 @@ semu_status nema_completion_snapshot_write(
                        "completion snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
-    if (comp->count > NEMA_COMPLETION_MAX_EVENTS) {
-        semu_error_set(error, SEMU_ERR_RANGE, "completion count exceeds capacity");
+    if (comp->count > UINT32_MAX ||
+        comp->active_count > NEMA_COMPLETION_MAX_EVENTS) {
+        semu_error_set(error, SEMU_ERR_RANGE, "invalid completion counters");
         return SEMU_ERR_RANGE;
     }
     if (semu_snapshot_writer_u32(writer, (uint32_t)comp->count, error) != SEMU_OK)
@@ -214,10 +231,7 @@ semu_status nema_completion_snapshot_read(
         return SEMU_ERR_ARGUMENT;
     }
     candidate = *comp;
-    if (semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK ||
-        count > NEMA_COMPLETION_MAX_EVENTS) {
-        if (error->code == SEMU_OK)
-            semu_error_set(error, SEMU_ERR_FORMAT, "invalid completion count");
+    if (semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK) {
         return error->code;
     }
     candidate.count = count;
@@ -261,7 +275,11 @@ semu_status nema_completion_snapshot_read(
             }
         }
     }
+    candidate.active_count = active_count;
     *comp = candidate;
+    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
+        comp->entries[index].owner = comp;
+    }
     return SEMU_OK;
 }
 
