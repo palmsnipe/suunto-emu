@@ -57,14 +57,14 @@ sha256_differs_per_build=true (except shared resident/xip)
 
 [bounded_traces]
 status=blocked
-reason=No profiles exist for later Sapporo versions; profile creation is ticket 705 scope
-all_versions_startup_stop=not captured
-all_versions_reset_mmio=not captured
+reason=No profiles exist for Sapporo 2.35 or 2.39; the 2.33.16 profile and bounded reset trace are recorded by E-SAP-0014/E-SAP-0015
+all_versions_startup_stop=2.33.16 bounded by E-SAP-0014; 2.35/2.39 not captured
+all_versions_reset_mmio=2.33.16 diagnostic by E-SAP-0015; 2.35/2.39 not captured
 
 [cache_logical_storage]
 status=unknown
 interventions_real_or_synthetic=not yet determinable without emulator run traces
-requires=version-specific profile and bounded authentic run
+requires=version-specific profiles and bounded authentic runs for 2.35/2.39
 
 [provenance]
 extraction_tool=$FIRMWARE_ROOT/tools/inspect_sapporo_boot.py
