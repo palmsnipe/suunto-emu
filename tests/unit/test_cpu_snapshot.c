@@ -228,6 +228,11 @@ static void test_xpsr_reserved_state_refuses(semu_test_context *context)
                                  (1u << 24) | (1u << 23)));
     SEMU_TEST_EQ_U64(context, 1u << 24,
                      semu_cpu_get_state(fixture.cpu)->xpsr);
+    /* POP/LDM can leave EPSR.T clear until the next fetch reports INVSTATE. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     refuse_word(&fixture, CPU_SNAPSHOT_XPSR, 0u));
+    SEMU_TEST_EQ_U64(context, 0u,
+                     semu_cpu_get_state(fixture.cpu)->xpsr);
     semu_cpu_fixture_destroy(&fixture);
 }
 
