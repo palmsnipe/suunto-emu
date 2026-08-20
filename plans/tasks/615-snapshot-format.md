@@ -64,3 +64,12 @@ private firmware bytes, or partial restore.
 ## Handoff
 
 Report format, state inventory, size bounds, equality hashes, and exclusions.
+
+## Completed Maintenance Notes
+
+The implementation preserves the atomic refusal contract with component-local
+candidate state and a machine snapshot rollback boundary; it does not swap a
+temporary machine object. Scheduler entries are identity-pinned to their CPU,
+Apollo4, Sapporo, or NEMA owner in both directions. Save refuses unsupported
+or unowned entries and detached owner events, while restore validates those
+links before committing the restored scheduler queue.

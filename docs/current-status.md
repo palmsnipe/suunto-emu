@@ -29,6 +29,9 @@ already exist.
   Apollo4 controller state, Sapporo device state, flash overlays, NEMA state,
   virtual time, and compatibility counters. Snapshot load is atomic on a
   malformed or incompatible image and keeps firmware/resource files external.
+  Save and restore reject unsupported scheduler kinds, unowned scheduler
+  entries, detached device-owned events, and mismatched event identities
+  before the scheduler queue is committed.
 
 All normal tests use synthetic inputs. The checked-in repository contains no
 firmware bytes or frame pixels.
