@@ -68,6 +68,19 @@ semu_status semu_apollo4_gpio_snapshot_read(
     }
     if (semu_snapshot_reader_u32(reader, &candidate.pad_key, error) != SEMU_OK)
         return error->code;
+    for (index = 0u; index < SEMU_APOLLO4_GPIO_COUNT; ++index) {
+        if (candidate.input[index] > 1u || candidate.direction[index] > 1u ||
+            candidate.edge[index] > SEMU_APOLLO4_GPIO_EDGE_BOTH) {
+            semu_error_set(error, SEMU_ERR_FORMAT,
+                           "GPIO snapshot pin state is unreachable");
+            return SEMU_ERR_FORMAT;
+        }
+    }
+    if (candidate.pad_key != 0u && candidate.pad_key != UINT32_C(0x73)) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "GPIO snapshot pad key is invalid");
+        return SEMU_ERR_FORMAT;
+    }
     *gpio = candidate;
     return SEMU_OK;
 }
