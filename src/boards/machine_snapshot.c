@@ -7,6 +7,7 @@
 #include "../cpu/armv7m/armv7m_internal.h"
 #include "../devices/sapporo_devices_internal.h"
 #include "../soc/apollo4/apollo4_internal.h"
+#include "machine_snapshot_events.h"
 #include "machine_snapshot_scheduler.h"
 #include <stdlib.h>
 #include <string.h>
@@ -200,68 +201,6 @@ static semu_status resolve_event(semu_machine *machine,
     return SEMU_ERR_FORMAT;
 }
 
-static semu_status validate_event_id(const semu_machine *machine,
-                                     const semu_scheduled_event_state *state,
-                                     semu_error *error)
-{
-    if (state->kind == SEMU_SCHED_EVENT_SYSTICK)
-        return semu_cpu_snapshot_event_id_matches(
-            machine->cpu, state->kind, state->subject, state->id, error);
-    if (state->kind == SEMU_SCHED_EVENT_CTIMER ||
-        state->kind == SEMU_SCHED_EVENT_STIMER ||
-        state->kind == SEMU_SCHED_EVENT_UART_RX ||
-        state->kind == SEMU_SCHED_EVENT_UART_TX)
-        return semu_apollo4_snapshot_event_id_matches(
-            machine->soc, state->kind, state->subject, state->id, error);
-    if (state->kind == SEMU_SCHED_EVENT_CXD_RX ||
-        state->kind == SEMU_SCHED_EVENT_CXD_AWAKE)
-        return semu_sapporo_devices_snapshot_event_id_matches(
-            machine->devices, state->subject, state->id, error);
-    if (state->kind == SEMU_SCHED_EVENT_NEMA_COMPLETION)
-        return semu_nema_gpu_snapshot_event_id_matches(
-            machine->nema_gpu, state->subject, state->id, error);
-    semu_error_set(error, SEMU_ERR_FORMAT,
-                   "snapshot event kind is unsupported");
-    return SEMU_ERR_FORMAT;
-}
-
-static semu_status validate_scheduler_events(const semu_machine *machine,
-                                             semu_error *error)
-{
-    size_t index;
-    size_t count = semu_scheduler_event_count(machine->scheduler);
-    for (index = 0u; index < count; ++index) {
-        const semu_scheduled_event_state *event =
-            semu_scheduler_event_get(machine->scheduler, index);
-        if (event == NULL) {
-            semu_error_set(error, SEMU_ERR_STATE,
-                           "scheduler snapshot event is missing");
-            return SEMU_ERR_STATE;
-        }
-        if (validate_event_id(machine, event, error) != SEMU_OK)
-            return error->code;
-    }
-    return SEMU_OK;
-}
-
-static semu_status validate_event_links(
-    const semu_machine *machine, const semu_scheduled_event_state *events,
-    size_t count, semu_error *error)
-{
-    semu_status status;
-    status = semu_cpu_snapshot_event_links_match(
-        machine->cpu, events, count, error);
-    if (status != SEMU_OK) return status;
-    status = semu_apollo4_snapshot_event_links_match(
-        machine->soc, events, count, error);
-    if (status != SEMU_OK) return status;
-    status = semu_sapporo_devices_snapshot_event_links_match(
-        machine->devices, events, count, error);
-    if (status != SEMU_OK) return status;
-    return semu_nema_gpu_snapshot_event_links_match(
-        machine->nema_gpu, events, count, error);
-}
-
 static semu_status apply_sections(semu_machine *machine,
                                   const semu_snapshot *snapshot,
                                   semu_error *error)
@@ -337,8 +276,8 @@ static semu_status apply_sections(semu_machine *machine,
     status = semu_nema_gpu_snapshot_read(machine->nema_gpu, &reader, error);
     if (status == SEMU_OK) DONE("NEMA");
     else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
-    status = validate_event_links(machine, scheduler_image.events,
-                                  scheduler_image.count, error);
+    status = semu_machine_snapshot_validate_event_links(
+        machine, scheduler_image.events, scheduler_image.count, error);
     if (status != SEMU_OK) {
         semu_machine_snapshot_free_scheduler_image(&scheduler_image);
         return status;
@@ -350,8 +289,8 @@ static semu_status apply_sections(semu_machine *machine,
     for (index = 0u; index < scheduler_image.count; ++index) {
         semu_event_callback callback;
         void *context;
-        status = validate_event_id(machine, &scheduler_image.events[index],
-                                   error);
+        status = semu_machine_snapshot_validate_event_id(
+            machine, &scheduler_image.events[index], error);
         if (status == SEMU_OK)
             status = resolve_event(machine, &scheduler_image.events[index],
                                    &callback, &context, error);
@@ -403,7 +342,7 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
     status = semu_snapshot_set_identity(built, machine->profile.id,
                                         firmware_hash, error);
     if (status != SEMU_OK) goto fail;
-    status = validate_scheduler_events(machine, error);
+    status = semu_machine_snapshot_validate_scheduler_events(machine, error);
     if (status != SEMU_OK) goto fail;
     BEGIN(); status = semu_cpu_snapshot_write(machine->cpu, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_CPU_STATE);
     BEGIN(); status = semu_bus_snapshot_write(machine->bus, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_RAM);
@@ -423,8 +362,8 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
             status = SEMU_ERR_FORMAT;
         }
         if (status == SEMU_OK)
-            status = validate_event_links(machine, scheduler_image.events,
-                                          scheduler_image.count, error);
+            status = semu_machine_snapshot_validate_event_links(
+                machine, scheduler_image.events, scheduler_image.count, error);
         semu_machine_snapshot_free_scheduler_image(&scheduler_image);
     }
     if (status != SEMU_OK) goto fail_writer;
