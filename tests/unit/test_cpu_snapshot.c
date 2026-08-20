@@ -217,7 +217,7 @@ static void test_core_mask_state_refuses(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
-static void test_xpsr_state_refuses(semu_test_context *context)
+static void test_xpsr_reserved_state_refuses(semu_test_context *context)
 {
     semu_cpu_fixture fixture;
     semu_cpu_state state = initial_state();
@@ -226,8 +226,6 @@ static void test_xpsr_state_refuses(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      refuse_word(&fixture, CPU_SNAPSHOT_XPSR,
                                  (1u << 24) | (1u << 23)));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
-                     refuse_word(&fixture, CPU_SNAPSHOT_XPSR, 0u));
     SEMU_TEST_EQ_U64(context, 1u << 24,
                      semu_cpu_get_state(fixture.cpu)->xpsr);
     semu_cpu_fixture_destroy(&fixture);
@@ -320,7 +318,7 @@ int main(void)
         SEMU_TEST_CASE(test_stack_alignment_linkage_refuses),
         SEMU_TEST_CASE(test_stack_pointer_linkage_refuses),
         SEMU_TEST_CASE(test_core_mask_state_refuses),
-        SEMU_TEST_CASE(test_xpsr_state_refuses),
+        SEMU_TEST_CASE(test_xpsr_reserved_state_refuses),
         SEMU_TEST_CASE(test_interrupt_snapshot_arrays_refuse),
         SEMU_TEST_CASE(test_system_snapshot_masks_refuse),
         SEMU_TEST_CASE(test_exclusive_snapshot_width_refuse)

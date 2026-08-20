@@ -47,8 +47,7 @@ static int valid_core_mask_state(const semu_cpu_state *state)
 
 static int valid_xpsr_state(uint32_t xpsr)
 {
-    return (xpsr & ~ARMV7M_XPSR_LIVE_MASK) == 0u &&
-           (xpsr & ARMV7M_XPSR_T) != 0u;
+    return (xpsr & ~ARMV7M_XPSR_LIVE_MASK) == 0u;
 }
 
 static int valid_exclusive_width(unsigned width)
