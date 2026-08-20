@@ -167,6 +167,37 @@ static void test_bad_version(semu_test_context *context)
     semu_replay_destroy(r);
 }
 
+static void test_duplicate_header_refuses(semu_test_context *context)
+{
+    static const char invalid[] =
+        "version=1\n"
+        "profile=sapporo-2.22.60\n"
+        "profile=other\n"
+        "firmware=c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc\n"
+        "events=0\n";
+    semu_error err;
+    semu_replay *replay;
+    char before[4096];
+    char after[4096];
+    size_t before_len;
+    size_t after_len;
+
+    semu_error_clear(&err);
+    replay = semu_replay_create(&err);
+    SEMU_TEST_ASSERT(context, replay != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_replay_parse(replay, VALID_REPLAY,
+                                       strlen(VALID_REPLAY), &err));
+    before_len = semu_replay_format(replay, before, sizeof(before));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+                     semu_replay_parse(replay, invalid, sizeof(invalid) - 1u,
+                                       &err));
+    after_len = semu_replay_format(replay, after, sizeof(after));
+    SEMU_TEST_EQ_U64(context, before_len, after_len);
+    SEMU_TEST_ASSERT(context, memcmp(before, after, before_len) == 0);
+    semu_replay_destroy(replay);
+}
+
 static void test_uint64_overflow(semu_test_context *context)
 {
     static const char *header_overflow =
@@ -447,6 +478,7 @@ int main(void)
         SEMU_TEST_CASE(test_duplicate_times),
         SEMU_TEST_CASE(test_time_reversal),
         SEMU_TEST_CASE(test_bad_version),
+        SEMU_TEST_CASE(test_duplicate_header_refuses),
         SEMU_TEST_CASE(test_uint64_overflow),
         SEMU_TEST_CASE(test_refusal_is_atomic),
         SEMU_TEST_CASE(test_bad_hash),

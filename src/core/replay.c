@@ -416,6 +416,16 @@ semu_status semu_replay_parse(semu_replay *replay,
                         ++val;
                         --val_len;
                     }
+                    if ((key_len == 7u &&
+                         memcmp(key, "version", 7u) == 0 && seen_version) ||
+                        (key_len == 7u &&
+                         memcmp(key, "profile", 7u) == 0 && seen_profile) ||
+                        (key_len == 8u &&
+                         memcmp(key, "firmware", 8u) == 0 && seen_firmware)) {
+                        semu_error_set(error, SEMU_ERR_FORMAT,
+                            "replay: line %u: duplicate header key", line_no);
+                        return SEMU_ERR_FORMAT;
+                    }
                     if (!parse_header_line(key, key_len, val, val_len,
                             &candidate, line_no, &declared_events, error)) {
                         return SEMU_ERR_FORMAT;
@@ -450,7 +460,7 @@ semu_status semu_replay_parse(semu_replay *replay,
     if (candidate.count != declared_events) {
         semu_error_set(error, SEMU_ERR_FORMAT,
             "replay: declared %u events but found %u",
-            (unsigned)declared_events, (unsigned)replay->count);
+            (unsigned)declared_events, (unsigned)candidate.count);
         return SEMU_ERR_FORMAT;
     }
     *replay = candidate;
