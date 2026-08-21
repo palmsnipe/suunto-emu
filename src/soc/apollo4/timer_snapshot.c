@@ -123,6 +123,7 @@ semu_status semu_apollo4_timer_snapshot_read(
          candidate.pattern != UINT32_C(0x10101) &&
          candidate.pattern != UINT32_C(0x10300) &&
          candidate.pattern != UINT32_C(0x10301) &&
+         candidate.pattern != UINT32_C(0x12301) &&
          candidate.pattern != UINT32_C(0x12100) &&
          candidate.pattern != UINT32_C(0x12101)) ||
         (candidate.observed_d8 != 0u &&
