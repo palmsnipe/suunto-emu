@@ -35,7 +35,7 @@ static semu_layer_intervention sapporo_interventions[] = {
       "E-SAP-COMPAT-GPS-004", 1u, 0u },
     { "gps-awake-pulse",
       "replay the observed GPIO24 awake pulse after GPS state 10",
-      "E-SAP-COMPAT-GPS-005", 8u, 0u },
+      "E-SAP-COMPAT-GPS-005", 11u, 0u },
     { "ohr-startup",
       "supply synthetic BSL-to-MAIN startup body responses",
       "E-SAP-COMPAT-OHR-001", 1u, 0u },

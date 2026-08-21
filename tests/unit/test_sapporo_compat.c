@@ -121,6 +121,29 @@ static void test_separate_intervention_budgets(semu_test_context *context)
             SEMU_SAPPORO_222_IV_GPS_STARTUP, &error));
 }
 
+static void test_gps_awake_evidence_budget(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    unsigned i;
+
+    semu_error_clear(&error);
+    semu_log_init(&logger, NULL, SEMU_LOG_ERROR);
+    SEMU_TEST_ASSERT(context,
+        semu_layer_enable_checked(&state,
+            &semu_sapporo_222_no_device_layer,
+            "sapporo-2.22.60", correct_hashes, 3u, &error) == SEMU_OK);
+    for (i = 0u; i < 11u; ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_layer_intervention_hit(&state, &logger,
+                SEMU_SAPPORO_222_IV_GPS_AWAKE_PULSE, &error));
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+        semu_layer_intervention_hit(&state, &logger,
+            SEMU_SAPPORO_222_IV_GPS_AWAKE_PULSE, &error));
+}
+
 static void test_gps_state_hook(semu_test_context *context)
 {
     semu_cpu_state cpu_state;
@@ -332,6 +355,7 @@ int main(void)
         SEMU_TEST_CASE(test_disabled_intervention_refuses),
         SEMU_TEST_CASE(test_out_of_range_intervention),
         SEMU_TEST_CASE(test_separate_intervention_budgets),
+        SEMU_TEST_CASE(test_gps_awake_evidence_budget),
         SEMU_TEST_CASE(test_gps_state_hook),
         SEMU_TEST_CASE(test_resource_status_hook),
         SEMU_TEST_CASE(test_production_install_and_checksum)
