@@ -36,8 +36,16 @@ TEST_BINS = $(patsubst tests/unit/%.c,$(BUILD_DIR)/tests/%,$(UNIT_TEST_SOURCES))
             $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
 INTEGRATION_TEST_BINS = $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
 
-.PHONY: all sdl check-sdl3-required test check check-lines \
-	check-task-contracts check-sdl test-firmware test-differential sanitize clean
+.PHONY: all sdl bench check-sdl3-required test check check-lines \
+	check-task-contracts check-sdl test-firmware test-differential sanitize clean bench
+
+BENCH_BINS = $(BUILD_DIR)/bench_cpu
+
+bench: $(BENCH_BINS)
+	@for b in $(BENCH_BINS); do \
+		echo "=== $$b ==="; \
+		$$b; \
+	done
 
 all: $(BUILD_DIR)/suunto-emu
 
@@ -75,6 +83,11 @@ $(SDL_INPUT_TEST_BIN): tests/sdl/test_sdl_input.c tests/support/test.c \
 		$(shell $(PKG_CONFIG) --cflags sdl3 2>/dev/null) $< \
 		tests/support/test.c $(BUILD_DIR)/libsemu.a \
 		$(shell $(PKG_CONFIG) --libs sdl3 2>/dev/null) -o $@
+
+$(BUILD_DIR)/bench_cpu: tools/bench_cpu.c $(BUILD_DIR)/libsemu.a
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(PROJECT_CFLAGS) tools/bench_cpu.c \
+		$(BUILD_DIR)/libsemu.a -o $@
 
 $(BUILD_DIR)/tests/%: tests/unit/%.c tests/support/test.c $(BUILD_DIR)/libsemu.a
 	@mkdir -p $(@D)

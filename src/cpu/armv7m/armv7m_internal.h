@@ -118,6 +118,17 @@ struct semu_cpu {
     unsigned exclusive_width;
 };
 
+/*
+ * Forward declarations used by the inline helpers defined below.
+ * armv7m_request_fault is defined in scb.c; semu_bus_read_u16 is
+ * defined in core/bus_access.c.
+ */
+semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
+                                 uint32_t status_bits, uint32_t address,
+                                 int address_valid, semu_error *error);
+semu_status semu_bus_read_u16(semu_bus *bus, uint32_t address,
+                              uint32_t *value, semu_error *error);
+
 semu_status semu_cpu_snapshot_write(const semu_cpu *cpu,
                                     semu_snapshot_writer *writer,
                                     semu_error *error);
@@ -133,6 +144,153 @@ semu_status semu_cpu_snapshot_event_id_matches(
 semu_status semu_cpu_snapshot_event_links_match(
     const semu_cpu *cpu, const semu_scheduled_event_state *events,
     size_t count, semu_error *error);
+
+/*
+ * Hot-path helpers defined as static inline so the compiler can eliminate
+ * call/return overhead on the per-instruction execution path.  These were
+ * previously regular functions in support.c; they are moved here because
+ * they are called from many translation units on the inner loop.
+ */
+
+static inline uint32_t armv7m_reg(const semu_cpu *cpu, unsigned reg,
+                                  uint32_t pc)
+{
+    if (reg == 15u) {
+        return pc + 4u;
+    }
+    return cpu->state.r[reg];
+}
+
+static inline void armv7m_set_sp(semu_cpu *cpu, uint32_t value)
+{
+    cpu->state.r[13] = value;
+    if ((cpu->state.control & 2u) != 0u &&
+        (cpu->state.xpsr & 0x1ffu) == 0u) {
+        cpu->state.psp = value;
+    } else {
+        cpu->state.msp = value;
+    }
+}
+
+static inline void armv7m_set_nz(semu_cpu *cpu, uint32_t value)
+{
+    cpu->state.xpsr &= ~(ARMV7M_XPSR_N | ARMV7M_XPSR_Z);
+    if ((value & 0x80000000u) != 0u) {
+        cpu->state.xpsr |= ARMV7M_XPSR_N;
+    }
+    if (value == 0u) {
+        cpu->state.xpsr |= ARMV7M_XPSR_Z;
+    }
+}
+
+static inline uint32_t armv7m_add(semu_cpu *cpu, uint32_t left,
+                                  uint32_t right, unsigned carry,
+                                  int update_flags)
+{
+    uint64_t wide = (uint64_t)left + (uint64_t)right + (uint64_t)carry;
+    uint32_t result = (uint32_t)wide;
+    uint32_t overflow = (~(left ^ right) & (left ^ result)) >> 31;
+
+    if (update_flags) {
+        armv7m_set_nz(cpu, result);
+        cpu->state.xpsr &= ~(ARMV7M_XPSR_C | ARMV7M_XPSR_V);
+        if ((wide >> 32) != 0u) {
+            cpu->state.xpsr |= ARMV7M_XPSR_C;
+        }
+        if (overflow != 0u) {
+            cpu->state.xpsr |= ARMV7M_XPSR_V;
+        }
+    }
+    return result;
+}
+
+static inline int32_t armv7m_sign_extend(uint32_t value, unsigned bits)
+{
+    uint32_t sign = 1u << (bits - 1u);
+    uint32_t mask = (1u << bits) - 1u;
+
+    value &= mask;
+    if ((value & sign) != 0u) {
+        uint32_t magnitude = ((~value) & mask) + 1u;
+        return -(int32_t)magnitude;
+    }
+    return (int32_t)value;
+}
+
+static inline int armv7m_condition_passed(const semu_cpu *cpu,
+                                           unsigned condition)
+{
+    int n = (cpu->state.xpsr & ARMV7M_XPSR_N) != 0u;
+    int z = (cpu->state.xpsr & ARMV7M_XPSR_Z) != 0u;
+    int c = (cpu->state.xpsr & ARMV7M_XPSR_C) != 0u;
+    int v = (cpu->state.xpsr & ARMV7M_XPSR_V) != 0u;
+
+    switch (condition & 15u) {
+    case 0u: return z;
+    case 1u: return !z;
+    case 2u: return c;
+    case 3u: return !c;
+    case 4u: return n;
+    case 5u: return !n;
+    case 6u: return v;
+    case 7u: return !v;
+    case 8u: return c && !z;
+    case 9u: return !c || z;
+    case 10u: return n == v;
+    case 11u: return n != v;
+    case 12u: return !z && (n == v);
+    case 13u: return z || (n != v);
+    case 14u: return 1;
+    default: return 0;
+    }
+}
+
+/*
+ * Bus fault handling for fetch and data accesses.  Inlined here so the
+ * fetch fast path in semu_cpu_step avoids an extra call into support.c.
+ */
+static inline int armv7m_scs_address(uint32_t address)
+{
+    return address >= ARMV7M_SCS_BASE &&
+           address - ARMV7M_SCS_BASE < ARMV7M_SCS_SIZE;
+}
+
+static inline void armv7m_request_bus_fault(semu_cpu *cpu, uint32_t address,
+                                            semu_status status)
+{
+    if (status == SEMU_ERR_UNSUPPORTED &&
+        armv7m_scs_address(address)) {
+        cpu->state.halted = 1;
+        cpu->stop_reason = SEMU_STOP_UNSUPPORTED_INSTRUCTION;
+        return;
+    }
+    if (cpu->bus_fault_active != 0u) {
+        cpu->state.halted = 1;
+        cpu->stop_reason = SEMU_STOP_UNMAPPED_ACCESS;
+        cpu->fault_address = address;
+        cpu->has_fault_address = 1u;
+        cpu->cfsr |= ARMV7M_CFSR_BFSR_PRECISERR |
+                      ARMV7M_CFSR_BFSR_BFARVALID;
+        return;
+    }
+    cpu->bus_fault_active = 1u;
+    (void)armv7m_request_fault(cpu, 5u,
+                               ARMV7M_CFSR_BFSR_PRECISERR |
+                               ARMV7M_CFSR_BFSR_BFARVALID,
+                               address, 1, NULL);
+    cpu->bus_fault_active = 0u;
+}
+
+static inline semu_status armv7m_fetch16(semu_cpu *cpu, uint32_t address,
+                                         uint32_t *value, semu_error *error)
+{
+    semu_status status =
+        semu_bus_read_u16(cpu->bus, address, value, error);
+    if (status != SEMU_OK) {
+        armv7m_request_bus_fault(cpu, address, status);
+    }
+    return status;
+}
 
 semu_status armv7m_exec16(semu_cpu *cpu, uint16_t instruction,
                           uint32_t pc, semu_error *error);
@@ -177,8 +335,6 @@ semu_status armv7m_fpu_context_unstack(semu_cpu *cpu, uint32_t frame_sp,
 
 semu_status armv7m_read(semu_cpu *cpu, uint32_t address, unsigned width,
                         uint32_t *value, semu_error *error);
-semu_status armv7m_fetch16(semu_cpu *cpu, uint32_t address,
-                           uint32_t *value, semu_error *error);
 semu_status armv7m_write(semu_cpu *cpu, uint32_t address, unsigned width,
                          uint32_t value, semu_error *error);
 semu_status armv7m_validate_write(semu_cpu *cpu, uint32_t address,
@@ -199,13 +355,6 @@ uint32_t armv7m_expand_modified_immediate(uint16_t first,
                                           uint16_t second);
 uint32_t armv7m_shifted_register(uint32_t value, uint16_t second);
 
-uint32_t armv7m_reg(const semu_cpu *cpu, unsigned reg, uint32_t pc);
-void armv7m_set_sp(semu_cpu *cpu, uint32_t value);
-void armv7m_set_nz(semu_cpu *cpu, uint32_t value);
-uint32_t armv7m_add(semu_cpu *cpu, uint32_t left, uint32_t right,
-                    unsigned carry, int update_flags);
-int armv7m_condition_passed(const semu_cpu *cpu, unsigned condition);
-int32_t armv7m_sign_extend(uint32_t value, unsigned bits);
 void armv7m_clear_exclusive(semu_cpu *cpu);
 void armv7m_set_exclusive(semu_cpu *cpu, uint32_t address, unsigned width);
 int armv7m_exclusive_matches(const semu_cpu *cpu, uint32_t address,
@@ -261,9 +410,6 @@ void armv7m_set_irq_pending(semu_cpu *cpu, unsigned irq);
 void armv7m_clear_irq_pending(semu_cpu *cpu, unsigned irq);
 void armv7m_signal_pending_event(semu_cpu *cpu, unsigned exception);
 int armv7m_pending_wake(const semu_cpu *cpu);
-semu_status armv7m_request_fault(semu_cpu *cpu, unsigned exception,
-                                 uint32_t status_bits, uint32_t address,
-                                 int address_valid, semu_error *error);
 void armv7m_sleep_wfi(semu_cpu *cpu);
 void armv7m_sleep_wfe(semu_cpu *cpu);
 void armv7m_sleep_event(semu_cpu *cpu);

@@ -161,7 +161,6 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
     uint16_t first;
     uint16_t second = 0u;
     uint8_t old_itstate;
-    int irq;
     int is_wide;
     int preserve_it_flags;
     semu_status status;
@@ -180,9 +179,17 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         return armv7m_request_fault(cpu, 6u,
                                      ARMV7M_CFSR_UFSR_INVSTATE, 0u, 0, error);
     }
-    irq = armv7m_pending_exception(cpu);
-    if (irq >= 0) {
-        return armv7m_take_exception(cpu, (unsigned)irq, error);
+    /*
+     * pending_source_count is maintained in lockstep with every pending
+     * system exception and IRQ source (see set/clear helpers and the
+     * snapshot invariant).  Zero means no candidate can pass the priority
+     * scan, so skip the scan entirely on the common no-exception path.
+     */
+    if (cpu->pending_source_count != 0u) {
+        int irq = armv7m_pending_exception(cpu);
+        if (irq >= 0) {
+            return armv7m_take_exception(cpu, (unsigned)irq, error);
+        }
     }
 
     pc = cpu->state.r[15];
@@ -214,10 +221,14 @@ semu_status semu_cpu_step(semu_cpu *cpu, semu_error *error)
         advance_itstate(cpu);
         return finish_instruction(cpu, error);
     }
-    it_flags = cpu->state.xpsr & (ARMV7M_XPSR_N | ARMV7M_XPSR_Z |
-                                  ARMV7M_XPSR_C | ARMV7M_XPSR_V);
-    preserve_it_flags = old_itstate != 0u && !is_wide &&
-                        thumb16_it_instruction_preserves_flags(first);
+    it_flags = 0u;
+    preserve_it_flags = 0;
+    if (old_itstate != 0u) {
+        it_flags = cpu->state.xpsr & (ARMV7M_XPSR_N | ARMV7M_XPSR_Z |
+                                      ARMV7M_XPSR_C | ARMV7M_XPSR_V);
+        preserve_it_flags = !is_wide &&
+                            thumb16_it_instruction_preserves_flags(first);
+    }
     status = is_wide ? armv7m_exec32(cpu, first, second, pc, error)
                      : armv7m_exec16(cpu, first, pc, error);
     if (status != SEMU_OK) {
