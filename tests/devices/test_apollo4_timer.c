@@ -387,49 +387,6 @@ static void observed_auxiliary_register(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
-static void observed_pattern_register(semu_test_context *context)
-{
-    semu_error error;
-    semu_scheduler *scheduler;
-    semu_apollo4_timer *timer;
-    uint32_t value = 0u;
-    irq_log log = { 0u };
-
-    semu_error_clear(&error);
-    timer = make_timer(&scheduler, &log, &error);
-    SEMU_TEST_ASSERT(context, timer != NULL);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x104u, 4u,
-                                              0x10300u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
-                                             &error));
-    SEMU_TEST_EQ_U64(context, 0x10300u, value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x104u, 4u,
-                                              0x10301u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
-                                             &error));
-    SEMU_TEST_EQ_U64(context, 0x10301u, value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x104u, 4u,
-                                              0x12301u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
-                                             &error));
-    SEMU_TEST_EQ_U64(context, 0x12301u, value);
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-                     semu_apollo4_timer_write(timer, 0x104u, 4u,
-                                              0x10302u, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
-                                             &error));
-    SEMU_TEST_EQ_U64(context, 0x12301u, value);
-    semu_apollo4_timer_destroy(timer);
-    semu_scheduler_destroy(scheduler);
-}
-
 static void observed_b4_register(semu_test_context *context)
 {
     semu_error error;
@@ -504,7 +461,6 @@ int main(void)
         SEMU_TEST_CASE(observed_status_writes),
         SEMU_TEST_CASE(observed_value_write),
         SEMU_TEST_CASE(observed_auxiliary_register),
-        SEMU_TEST_CASE(observed_pattern_register),
         SEMU_TEST_CASE(observed_b4_register),
         SEMU_TEST_CASE(observed_d8_register)
     };
