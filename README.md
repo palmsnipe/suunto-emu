@@ -64,6 +64,11 @@ panel completion or generic factory-runtime behavior. A full-flash image is
 still optional for persistence/erase coverage and is rejected if it has the
 wrong size or missing footer.
 
+For the observed 2.22 onboarding layout, the semantic upper/previous edge is
+GPIO59, middle/select is GPIO58, and lower/next is GPIO57. The mapping is kept
+at the board input boundary; the generic button device remains constructor-
+driven.
+
 For live setup navigation, omit `--input-replay` and use the SDL checkpoint
 with `--wait-for-quit`:
 
@@ -112,15 +117,15 @@ build/suunto-emu-sdl run \
   --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
   --layer sapporo-2.22-no-device --until setup-next \
   --snapshot-load /tmp/suunto-ui-preframe.sems \
-  --max-instructions 30000000000 --max-time 60000000000
+  --max-instructions 8000000000 --max-time 90000000000
 ```
 
-`setup-walk` settles 19 observed renderer transitions and then exits through a
-synthetic SDL quit event. It is a diagnostic for the fixed language/TSC6A path,
-not a claim that all onboarding screens or the phone-pairing boundary are
-implemented. On the current OTA-only run the firmware requests `SYSRESETREQ`
-at `0x000be93e` before the full native setup sequence; the emulator preserves
-that fail-closed boundary until a native reset/post-reset trace is available.
+`setup-walk` settles 12 deterministic renderer transitions and then exits
+through a synthetic SDL quit event. The final settled frame is the observed
+native handoff screen, `Continue the setup on your phone` (generation 1295,
+CRC32 `ea3bc5f8`). This proves the bounded language-to-phone-handoff path; it
+does not claim phone pairing, post-setup watch-face assets, or physical-panel
+completion.
 
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to

@@ -6,8 +6,8 @@
 #include <string.h>
 
 enum {
-    SEMU_SDL_SETUP_WALK_LAST_STEP = 19u,
-    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 20u
+    SEMU_SDL_SETUP_WALK_LAST_STEP = 12u,
+    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 13u
 };
 
 int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
@@ -80,7 +80,7 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
             events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
             events[1].button.button = SDL_BUTTON_LEFT;
             events[1].button.down = 0;
-            events[1].button.y = (float)viewport_height / 2.0f;
+            events[1].button.y = events[0].button.y;
             count = 2u;
         } else {
             events[0].type = SDL_EVENT_QUIT;

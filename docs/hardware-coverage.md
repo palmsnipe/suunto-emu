@@ -28,7 +28,7 @@ Only evidence recorded in `docs/migration-evidence.md` may advance a component b
 | Sapporo fuel gauge | E-SAP-MAX17050-001 | functional | startup/status, byte-order, reset, and refusal tests pass |
 | Sapporo GPS UART | E-SAP-CXD5610-001 and E-SAP-COMPAT-GPS-001/004 | fixture-backed | bounded startup exchange reaches the authentic GPS checkpoint; unsupported exchanges refuse |
 | Sapporo Nema/renderer 240x240 | E-NEMA-*-001, E-NEMA-TSC6A-001, and E-SAP-0002..0004 | verified | three declared private renderer goldens and the observed TSC6A transition forms pass; physical panel remains unresolved |
-| Sapporo buttons/backlight | E-SAP-BUTTONS/BACKLIGHT-001 and E-SAP-LIVE-0001 | functional | three-button replay/live input and the first language/profile transitions pass; full OTA-only onboarding remains at the evidenced reset boundary |
+| Sapporo buttons/backlight | E-SAP-BUTTONS/BACKLIGHT-001, E-SAP-LIVE-0001, and E-SAP-ONBOARD-EMU-006 | functional | semantic three-button input reaches the bounded `Continue the setup on your phone` handoff; phone pairing, watch-face assets, and physical-panel completion remain unsupported |
 | Sapporo 2.33/2.35/2.39 component contracts | SOF extraction manifests and bounded reset/OHR diagnostics (E-SAP-0009/0010/0011/0012/0015/0016) | traced | exact component hashes and vector tables verified; 2.33 has repeatable bounded reset diagnostics, while 2.35/2.39 still need profiles and traces |
 | Ulsan platform | future exact profiles/traces | unknown | native display transaction obtained |
 | Wismar platform | future exact profiles/traces | unknown | stable reset, then native display |

@@ -107,15 +107,13 @@ replay continuation; it reports the first visible post-input frame without
 naming an unverified screen. Invalid automation configuration is always
 checked and fails closed; absent private firmware skips only the authentic run.
 
-The opt-in `SEMU_SDL_LIVE_TEST=setup-walk` diagnostic settles 19 successive
-middle-button transitions after the language boundary and verifies the
-renderer continues to accept the observed TSC6A command forms. A long current
-OTA-only run reached settled step 19 (`generation=2009`, CRC32 `629da47e`) but
-also reproduced the firmware's deliberate reset loop at `PC=0x000be93e`
-(multiple `SYSRESETREQ` requests) before the native 28-transition setup
-sequence could be proven. This is a remaining firmware/device contract gap,
-not a renderer refusal; no reset compatibility hook is added without a native
-reset-register/post-reset trace.
+The opt-in `SEMU_SDL_LIVE_TEST=setup-walk` diagnostic now settles 12
+deterministic middle-button transitions after the language boundary and reaches
+the observed native `Continue the setup on your phone` handoff frame
+(`generation=1295`, CRC32 `ea3bc5f8`). The board input boundary maps semantic
+upper/middle/lower to GPIO59/58/57, matching the native onboarding navigation
+observation. The walk intentionally exits at that handoff; phone pairing,
+post-setup watch-face assets, and physical-panel completion remain unsupported.
 
 The next native transition is now provenance-pinned as E-SAP-ONBOARD-001: an
 English-row selection reaches a native software-rendered `Define your profile`
@@ -218,11 +216,11 @@ without manufacturing a roadmap row. The practical work queue is:
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
   renderer milestone, not a physical-panel claim.
-- Recover the native reset-register write and post-reset transaction trace for
-  the repeated 2.22 `SYSRESETREQ` at `0x000be93e` before attempting to carry the
-  emulator through the remaining onboarding transitions. The current
-  `setup-walk` result is intentionally a bounded diagnostic, not completion of
-  phone pairing or the post-setup watch-face boundary.
+- Recover the native phone-pairing/post-setup transaction and a researcher-owned
+  full-flash dump before claiming completion beyond the `Continue the setup on
+  your phone` handoff. The repeated 2.22 `SYSRESETREQ` at `0x000be93e` remains
+  a separate reset-semantics gap and still requires a native reset-register or
+  post-reset trace before any compatibility hook is added.
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.

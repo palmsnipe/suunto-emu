@@ -332,7 +332,9 @@ semu_status semu_machine_input(semu_machine *machine,
                                const semu_input_event *event,
                                semu_error *error)
 {
-    static const unsigned pins[] = { 57u, 58u, 59u };
+    /* E-SAP-ONBOARD-EMU-006: the observed onboarding path maps GPIO59 to
+     * upper/previous and GPIO57 to lower/next; semantic IDs stay spatial. */
+    static const unsigned pins[] = { 59u, 58u, 57u };
     if (machine == NULL || event == NULL || event->kind != SEMU_INPUT_BUTTON ||
         event->code >= SEMU_ARRAY_LEN(pins)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unsupported board input");
