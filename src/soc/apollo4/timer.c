@@ -332,6 +332,7 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
     } else if (offset == TIMER_PATTERN) {
         if (value != 0u && value != 0x100u && value != 0x2000u &&
             value != 0x2100u && value != 0x10100u && value != 0x10101u &&
+            value != 0x10301u &&
             value != 0x12100u && value != 0x12101u)
             return refuse(offset, error);
         timer->pattern = value;
