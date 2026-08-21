@@ -7,6 +7,7 @@
 
 typedef struct semu_sdl_live_test {
     int enabled;
+    int setup_walk;
     unsigned phase;
 } semu_sdl_live_test;
 

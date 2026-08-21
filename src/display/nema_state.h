@@ -55,6 +55,7 @@
 #define NEMA_DRAW_QUAD         0x00000005u
 #define NEMA_DRAW_TRI_SOLID    0x00000004u
 #define NEMA_DRAW_TRI_AA       0x40000004u
+#define NEMA_DRAW_TSC6A_RESOLVE 0x00000002u
 
 /* Texture format constants (from FSTRIDE high byte). */
 #define NEMA_FMT_RGB565        0x04u
@@ -95,6 +96,9 @@ typedef struct {
     uint32_t tex_color;
     uint32_t matmult;
     uint32_t codeptr;
+    uint32_t imem_addr;
+    uint32_t imem_datah;
+    uint32_t imem_datal;
     uint32_t matrix_present;
     uint32_t mm00, mm01, mm02;
     uint32_t mm10, mm11, mm12;

@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 
+enum {
+    SEMU_SDL_SETUP_WALK_LAST_STEP = 19u,
+    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 20u
+};
+
 int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
     int checkpoint_ready, uint32_t viewport_height,
     uint64_t last_frame_generation, uint32_t last_frame_crc,
@@ -49,7 +54,8 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
         events[1].button.down = 0;
         events[1].button.y = (float)viewport_height / 2.0f;
         count = 2u;
-    } else if ((test->phase == 2u || test->phase == 3u) &&
+    } else if (test->setup_walk && test->phase >= 2u &&
+               test->phase < SEMU_SDL_SETUP_WALK_QUIT_PHASE &&
                checkpoint_ready) {
         if (test->phase == 2u) {
             if (viewport_height == 0u) {
@@ -66,12 +72,37 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
             events[1].button.down = 0;
             events[1].button.y = (float)viewport_height / 2.0f;
             count = 2u;
+        } else if (test->phase < SEMU_SDL_SETUP_WALK_LAST_STEP) {
+            events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+            events[0].button.button = SDL_BUTTON_LEFT;
+            events[0].button.down = 1;
+            events[0].button.y = (float)viewport_height / 2.0f;
+            events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
+            events[1].button.button = SDL_BUTTON_LEFT;
+            events[1].button.down = 0;
+            events[1].button.y = (float)viewport_height / 2.0f;
+            count = 2u;
         } else {
             events[0].type = SDL_EVENT_QUIT;
             count = 1u;
         }
-    } else if (test->phase == 4u) {
-        return 1;
+    } else if (!test->setup_walk &&
+               (test->phase == 2u || test->phase == 3u) &&
+               checkpoint_ready) {
+        if (test->phase == 2u) {
+            events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+            events[0].button.button = SDL_BUTTON_LEFT;
+            events[0].button.down = 1;
+            events[0].button.y = (float)viewport_height / 2.0f;
+            events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
+            events[1].button.button = SDL_BUTTON_LEFT;
+            events[1].button.down = 0;
+            events[1].button.y = (float)viewport_height / 2.0f;
+            count = 2u;
+        } else {
+            events[0].type = SDL_EVENT_QUIT;
+            count = 1u;
+        }
     } else {
         return 1;
     }
@@ -99,8 +130,18 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
     } else if (test->phase == 3u) {
         fprintf(stderr, "SDL live test injected middle click step=%u\n",
                 test->phase);
-    } else {
-        fputs("SDL live test completed setup-navigation\n", stderr);
+    } else if ((!test->setup_walk && test->phase == 4u) ||
+               (test->setup_walk &&
+                test->phase == SEMU_SDL_SETUP_WALK_QUIT_PHASE)) {
+        if (test->setup_walk) {
+            fprintf(stderr,
+                    "SDL live test completed bounded setup-navigation "
+                    "steps=%u\n", SEMU_SDL_SETUP_WALK_LAST_STEP);
+        } else {
+            fputs("SDL live test completed setup-navigation\n", stderr);
+        }
+    } else if (test->setup_walk) {
+        fprintf(stderr, "SDL live test advanced setup step=%u\n", test->phase);
     }
     return 1;
 }

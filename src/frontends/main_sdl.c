@@ -347,12 +347,15 @@ int main(int argc, char **argv)
     semu_live_frame_gate_init(&frontend.live_checkpoint, -1);
     semu_sdl_button_hold_init(&frontend.button_hold);
     live_test = getenv("SEMU_SDL_LIVE_TEST");
-    if (live_test != NULL && strcmp(live_test, "middle-language") != 0) {
+    if (live_test != NULL && strcmp(live_test, "setup-walk") != 0 &&
+        strcmp(live_test, "middle-language") != 0) {
         fputs("SDL live test: SEMU_SDL_LIVE_TEST accepts only "
-              "middle-language\n", stderr);
+              "middle-language or setup-walk\n", stderr);
         return 2;
     }
     frontend.live_test.enabled = live_test != NULL;
+    frontend.live_test.setup_walk = live_test != NULL &&
+                                    strcmp(live_test, "setup-walk") == 0;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;
@@ -363,9 +366,18 @@ int main(int argc, char **argv)
                               parse_live_checkpoint(filtered_argc,
                                                    filtered_argv,
                                                    &frontend.live_checkpoint_label));
-    if (frontend.live_test.enabled &&
+    if (frontend.live_test.enabled && strcmp(live_test, "middle-language") == 0 &&
         frontend.live_checkpoint.required_button != SEMU_BUTTON_MIDDLE) {
         fputs("SDL live test requires --until middle-language without "
+              "--input-replay\n", stderr);
+        SDL_Quit();
+        return 2;
+    }
+    if (frontend.live_test.setup_walk &&
+        (frontend.live_checkpoint.required_button != SEMU_BUTTON_MIDDLE ||
+         frontend.live_checkpoint_label == NULL ||
+         strcmp(frontend.live_checkpoint_label, "setup-next") != 0)) {
+        fputs("SDL setup-walk requires --until setup-next without "
               "--input-replay\n", stderr);
         SDL_Quit();
         return 2;

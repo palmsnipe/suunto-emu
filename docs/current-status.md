@@ -64,14 +64,17 @@ explicit software-renderer approximation; physical-panel completion, panel
 wire bytes, and generic factory-runtime behavior remain unsupported.
 
 The renderer also now carries the observed binary32 affine matrix registers
-through NEMA snapshots and applies the native A2LE destination-to-source
-translation path. Two fresh SDL dummy runs with middle (5.400/5.470 seconds)
-and lower (8.000/8.070 seconds) semantic button pulses were byte-identical;
-both accepted the language/setup command lists and reached the bounded budget
-without reset or display refusal. This exposes the evidenced setup UI in SDL.
-The three declared Phase 5 renderer goldens remain exact for their named
-checkpoints; this does not claim physical-panel equivalence or bit-identical
-behavior for every unobserved A2LE edge. The
+through NEMA snapshots and applies the native TSC6A semantic shadow/resolve
+path without decoding private compressed bytes. The observed TSC6A target
+triangles, A2LE masks, and 480x480-to-240x240 resolves are accepted
+transactionally; unknown programs and geometry still refuse. Two fresh SDL
+dummy runs with middle (5.400/5.470 seconds) and lower (8.000/8.070 seconds)
+semantic button pulses were byte-identical through the language/profile
+transition and reached the bounded budget without renderer refusal. This
+exposes the evidenced setup UI in SDL. The three declared Phase 5 renderer
+goldens remain exact for their named checkpoints; this does not claim
+physical-panel equivalence or bit-identical behavior for every unobserved
+A2LE/TSC6A edge. The
 `--until middle-language` replay checkpoint still stops at the first
 post-input non-black setup frame. Live SDL checkpoints wait for a bounded
 350-ms virtual-time quiet window after the last post-input renderer submission,
@@ -96,13 +99,23 @@ Pressing that edge returns control to the guest immediately and rearms the next
 settled frame; replay checkpoints retain their deterministic stop behavior.
 The optional authentic `check-sdl` flow now queues one SDL Return key-down/up
 pair and two successive middle-screen mouse clicks, verifying setup CRC32
-checkpoints `629da47e`, `d4ed66c7`, and `83309716`, then exits through an SDL
-quit event at the repeatable checkpoint `pc=0x000bf102`,
-`instructions=1196657344`, `virtual_time_ns=10905302525`. The neutral
+checkpoints `629da47e`, `d4ed66c7`, and `2a01c517`, then exits through an SDL
+quit event at the repeatable checkpoint `pc=0x000bd696`,
+`instructions=1519357344`, `virtual_time_ns=12273391898`. The neutral
 `setup-next` checkpoint is also available for a snapshot-loaded, middle-button
 replay continuation; it reports the first visible post-input frame without
 naming an unverified screen. Invalid automation configuration is always
 checked and fails closed; absent private firmware skips only the authentic run.
+
+The opt-in `SEMU_SDL_LIVE_TEST=setup-walk` diagnostic settles 19 successive
+middle-button transitions after the language boundary and verifies the
+renderer continues to accept the observed TSC6A command forms. A long current
+OTA-only run reached settled step 19 (`generation=2009`, CRC32 `629da47e`) but
+also reproduced the firmware's deliberate reset loop at `PC=0x000be93e`
+(multiple `SYSRESETREQ` requests) before the native 28-transition setup
+sequence could be proven. This is a remaining firmware/device contract gap,
+not a renderer refusal; no reset compatibility hook is added without a native
+reset-register/post-reset trace.
 
 The next native transition is now provenance-pinned as E-SAP-ONBOARD-001: an
 English-row selection reaches a native software-rendered `Define your profile`
@@ -205,6 +218,11 @@ without manufacturing a roadmap row. The practical work queue is:
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
   renderer milestone, not a physical-panel claim.
+- Recover the native reset-register write and post-reset transaction trace for
+  the repeated 2.22 `SYSRESETREQ` at `0x000be93e` before attempting to carry the
+  emulator through the remaining onboarding transitions. The current
+  `setup-walk` result is intentionally a bounded diagnostic, not completion of
+  phone pairing or the post-setup watch-face boundary.
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.

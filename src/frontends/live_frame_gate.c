@@ -175,7 +175,7 @@ int semu_live_frame_gate_settle(semu_live_frame_gate *gate,
 {
     uint64_t deadline;
     if (gate == NULL || gate->ready ||
-        !gate->candidate_valid || frame_count != gate->candidate_frame_count ||
+        !gate->candidate_valid || frame_count < gate->candidate_frame_count ||
         now_ns < gate->last_frame_time) {
         return 0;
     }

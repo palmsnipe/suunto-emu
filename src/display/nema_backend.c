@@ -12,6 +12,7 @@
 #include "sampling.h"
 #include "blend.h"
 #include "nema_texture.h"
+#include "nema_tsc6a.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -20,13 +21,17 @@ struct semu_nema_backend {
     semu_surface *surface;
     nema_state *state;
     nema_diagnostics *diag;
+    nema_tsc6a *tsc6a;
+    nema_tsc6a *pending_tsc6a;
     uint8_t *backup;
     int draw_failed;
+    int tsc6a_dirty;
 };
 
 typedef struct {
     semu_nema_backend *backend;
     semu_bus *bus;
+    nema_tsc6a *shadow;
 } nema_draw_context;
 
 static int is_observed_display_target(uint32_t base)
@@ -67,8 +72,20 @@ static void on_draw(void *context, const nema_draw_snapshot *snap)
         return;
     }
 
-    if (snap->target_format != NEMA_FMT_RGB565) {
-        backend->draw_failed = 1;
+    if (snap->target_format == NEMA_FMT_TSC6A) {
+        semu_status st;
+        semu_error draw_error;
+        semu_error_clear(&draw_error);
+        if (!backend->tsc6a_dirty) {
+            nema_tsc6a_copy(backend->pending_tsc6a, backend->tsc6a);
+            backend->tsc6a_dirty = 1;
+        }
+        draw_context->shadow = backend->pending_tsc6a;
+        st = nema_tsc6a_draw_target(draw_context->shadow, draw_context->bus,
+                                    snap, &draw_error);
+        if (st != SEMU_OK) {
+            backend->draw_failed = 1;
+        }
         return;
     }
 
@@ -85,6 +102,47 @@ static void on_draw(void *context, const nema_draw_snapshot *snap)
     clip.min_y = snap->clip_min_y;
     clip.max_x = snap->clip_max_x;
     clip.max_y = snap->clip_max_y;
+
+    if (snap->draw_cmd == NEMA_DRAW_TSC6A_RESOLVE) {
+        semu_error err;
+        semu_status st = nema_tsc6a_resolve(
+            backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a,
+            snap, target.pixels, target.stride, &err);
+        if (st != SEMU_OK) {
+            backend->draw_failed = 1;
+        }
+        return;
+    }
+
+    if (snap->draw_cmd == NEMA_DRAW_QUAD &&
+        snap->src_format == NEMA_FMT_TSC6A) {
+        semu_error err;
+        semu_status st = nema_tsc6a_resolve_mask(
+            backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a,
+            snap, target.pixels, target.stride, &err);
+        if (st != SEMU_OK) {
+            backend->draw_failed = 1;
+        }
+        return;
+    }
+
+    if (snap->draw_cmd == NEMA_DRAW_TRI_SOLID ||
+        snap->draw_cmd == NEMA_DRAW_TRI_AA) {
+        semu_error err;
+        semu_status st = nema_tsc6a_draw_rgb565_triangle(
+            snap, target.pixels, NEMA_BACKEND_PANEL_WIDTH,
+            NEMA_BACKEND_PANEL_HEIGHT, target.stride,
+            snap->draw_cmd == NEMA_DRAW_TRI_AA, &err);
+        if (st != SEMU_OK) {
+            backend->draw_failed = 1;
+        }
+        return;
+    }
+
+    if (snap->target_format != NEMA_FMT_RGB565) {
+        backend->draw_failed = 1;
+        return;
+    }
 
     dst_x = snap->point0_x >> RASTER_FP_SHIFT;
     dst_y = snap->point0_y >> RASTER_FP_SHIFT;
@@ -182,10 +240,22 @@ semu_nema_backend *semu_nema_backend_create(semu_error *error)
         free(backend);
         return NULL;
     }
+    if (nema_tsc6a_create(&backend->tsc6a, error) != SEMU_OK ||
+        nema_tsc6a_create(&backend->pending_tsc6a, error) != SEMU_OK) {
+        nema_tsc6a_destroy(backend->pending_tsc6a);
+        nema_tsc6a_destroy(backend->tsc6a);
+        nema_diagnostics_destroy(backend->diag);
+        nema_state_destroy(backend->state);
+        semu_surface_destroy(backend->surface);
+        free(backend);
+        return NULL;
+    }
     backend->backup = (uint8_t *)calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
     if (backend->backup == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate backup");
         nema_diagnostics_destroy(backend->diag);
+        nema_tsc6a_destroy(backend->pending_tsc6a);
+        nema_tsc6a_destroy(backend->tsc6a);
         nema_state_destroy(backend->state);
         semu_surface_destroy(backend->surface);
         free(backend);
@@ -200,6 +270,8 @@ void semu_nema_backend_destroy(semu_nema_backend *backend)
         return;
     }
     free(backend->backup);
+    nema_tsc6a_destroy(backend->pending_tsc6a);
+    nema_tsc6a_destroy(backend->tsc6a);
     nema_diagnostics_destroy(backend->diag);
     nema_state_destroy(backend->state);
     semu_surface_destroy(backend->surface);
@@ -213,7 +285,10 @@ void semu_nema_backend_reset(semu_nema_backend *backend)
     }
     nema_state_reset(backend->state);
     nema_diagnostics_reset(backend->diag);
+    nema_tsc6a_reset(backend->tsc6a);
+    nema_tsc6a_reset(backend->pending_tsc6a);
     backend->draw_failed = 0;
+    backend->tsc6a_dirty = 0;
     semu_surface_clear(backend->surface, 0u);
 }
 
@@ -221,6 +296,17 @@ static semu_status read_word(semu_bus *bus, uint32_t addr, uint32_t *out,
                               semu_error *error)
 {
     return semu_bus_read(bus, addr, 4u, out, error);
+}
+
+static void rollback_submission(semu_nema_backend *backend, uint8_t *pixels)
+{
+    if (backend == NULL || pixels == NULL) {
+        return;
+    }
+    memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+    /* A failed list must not carry a speculative TSC6A shadow into the next
+     * list.  The next target draw will clone the committed shadow afresh. */
+    backend->tsc6a_dirty = 0;
 }
 
 semu_transaction_result semu_nema_backend_submit(
@@ -267,7 +353,9 @@ semu_transaction_result semu_nema_backend_submit(
 
     draw_context.backend = backend;
     draw_context.bus = bus;
+    draw_context.shadow = backend->tsc6a;
     backend->draw_failed = 0;
+    backend->tsc6a_dirty = 0;
     nema_state_begin_list(backend->state, 0u);
 
     for (i = 0u; i + 1u < command_word_count; i += 2u) {
@@ -278,7 +366,7 @@ semu_transaction_result semu_nema_backend_submit(
 
         st = read_word(bus, command_ring_address + i * 4u, &reg_word, error);
         if (st != SEMU_OK) {
-            memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+            rollback_submission(backend, pixels);
             nema_diagnostics_record(backend->diag, NEMA_DIAG_FRAMING_ERROR,
                                      0u, command_ring_address + i * 4u,
                                      0u, 0u, NULL, 0u, error);
@@ -287,7 +375,7 @@ semu_transaction_result semu_nema_backend_submit(
         st = read_word(bus, command_ring_address + (i + 1u) * 4u,
                         &val_word, error);
         if (st != SEMU_OK) {
-            memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+            rollback_submission(backend, pixels);
             nema_diagnostics_record(backend->diag, NEMA_DIAG_FRAMING_ERROR,
                                      0u, command_ring_address + (i + 1u) * 4u,
                                      0u, 0u, NULL, 0u, error);
@@ -296,14 +384,14 @@ semu_transaction_result semu_nema_backend_submit(
 
         prefix = (uint8_t)(reg_word >> 24u);
         if (prefix != 0x00u && prefix != 0xFFu) {
-            memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+            rollback_submission(backend, pixels);
             nema_diagnostics_record(backend->diag, NEMA_DIAG_BAD_PREFIX, 0u,
                                      command_ring_address + i * 4u,
                                      reg_word, val_word, NULL, 0u, error);
             return SEMU_TRANSACTION_REFUSE;
         }
         if ((reg_word & 3u) != 0u) {
-            memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+            rollback_submission(backend, pixels);
             nema_diagnostics_record(backend->diag, NEMA_DIAG_BAD_ALIGNMENT,
                                      0u, command_ring_address + i * 4u,
                                      reg_word, val_word, NULL, 0u, error);
@@ -318,7 +406,7 @@ semu_transaction_result semu_nema_backend_submit(
         st = nema_state_record(backend->state, &rec, on_draw,
                                &draw_context, error);
         if (st != SEMU_OK || backend->draw_failed) {
-            memcpy(pixels, backend->backup, NEMA_BACKEND_PANEL_BYTES);
+            rollback_submission(backend, pixels);
             if (!backend->draw_failed) {
                 nema_diagnostics_record(backend->diag,
                                          NEMA_DIAG_UNKNOWN_REGISTER, 0u,
@@ -332,6 +420,13 @@ semu_transaction_result semu_nema_backend_submit(
             }
             return SEMU_TRANSACTION_REFUSE;
         }
+    }
+
+    if (backend->tsc6a_dirty) {
+        nema_tsc6a *committed = backend->tsc6a;
+        backend->tsc6a = backend->pending_tsc6a;
+        backend->pending_tsc6a = committed;
+        backend->tsc6a_dirty = 0;
     }
 
     /*

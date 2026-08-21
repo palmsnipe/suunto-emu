@@ -100,7 +100,8 @@ static int is_supported_draw_cmd(uint32_t cmd)
 {
     return cmd == NEMA_DRAW_QUAD ||
            cmd == NEMA_DRAW_TRI_SOLID ||
-           cmd == NEMA_DRAW_TRI_AA;
+           cmd == NEMA_DRAW_TRI_AA ||
+           cmd == NEMA_DRAW_TSC6A_RESOLVE;
 }
 
 static void build_snapshot(const nema_state *st, nema_draw_snapshot *s)
@@ -149,6 +150,9 @@ static void build_snapshot(const nema_state *st, nema_draw_snapshot *s)
     s->tex_color = st->values[P_TEX_COLOR];
     s->matmult = st->values[P_MATMULT];
     s->codeptr = st->values[P_CODEPTR];
+    s->imem_addr = st->values[P_IMEM_ADDR];
+    s->imem_datah = st->values[P_IMEM_DATAH];
+    s->imem_datal = st->values[P_IMEM_DATAL];
     s->matrix_present = ((st->presence &
                           (BIT(P_MM00) | BIT(P_MM01) | BIT(P_MM02) |
                            BIT(P_MM10) | BIT(P_MM11) | BIT(P_MM12))) ==
@@ -197,6 +201,29 @@ static int validate_draw(const nema_state *st, semu_error *error)
         if ((st->presence & geo) != geo) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "nema_state: missing quad geometry");
+            return 0;
+        }
+    }
+    if (cmd == NEMA_DRAW_TRI_SOLID || cmd == NEMA_DRAW_TRI_AA) {
+        uint64_t geo = BIT(P_POINT0_X) | BIT(P_POINT0_Y) |
+                       BIT(P_POINT1_X) | BIT(P_POINT1_Y) |
+                       BIT(P_POINT2_X) | BIT(P_POINT2_Y);
+        if ((st->presence & geo) != geo) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "nema_state: missing triangle geometry");
+            return 0;
+        }
+    }
+    if (cmd == NEMA_DRAW_TSC6A_RESOLVE) {
+        uint64_t resolve_req = BIT(P_TEX1_BASE) | BIT(P_TEX1_FSTRIDE) |
+                               BIT(P_TEX1_RESXY) | BIT(P_TEX_COLOR) |
+                               BIT(P_DRAW_COLOR) | BIT(P_IMEM_ADDR) |
+                               BIT(P_IMEM_DATAH) | BIT(P_IMEM_DATAL) |
+                               BIT(P_MM00) | BIT(P_MM01) | BIT(P_MM02) |
+                               BIT(P_MM10) | BIT(P_MM11) | BIT(P_MM12);
+        if ((st->presence & resolve_req) != resolve_req) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "nema_state: incomplete TSC6A resolve state");
             return 0;
         }
     }

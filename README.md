@@ -103,6 +103,25 @@ firmware, frame pixels, or private snapshots.
 `Define your profile` capture is comparison evidence only, and its provenance
 does not authorize a screen-specific emulator checkpoint or pixel golden.
 
+The SDL frontend also has a bounded renderer/input walk for reproducing the
+post-language path without manually injecting each edge:
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --snapshot-load /tmp/suunto-ui-preframe.sems \
+  --max-instructions 30000000000 --max-time 60000000000
+```
+
+`setup-walk` settles 19 observed renderer transitions and then exits through a
+synthetic SDL quit event. It is a diagnostic for the fixed language/TSC6A path,
+not a claim that all onboarding screens or the phone-pairing boundary are
+implemented. On the current OTA-only run the firmware requests `SYSRESETREQ`
+at `0x000be93e` before the full native setup sequence; the emulator preserves
+that fail-closed boundary until a native reset/post-reset trace is available.
+
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to
 the profile and all three firmware component hashes; firmware and immutable

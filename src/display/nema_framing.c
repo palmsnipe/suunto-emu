@@ -46,6 +46,27 @@ static semu_status scan_and_stage(semu_bus *bus,
         st = read_word(bus, ring_base + idx * 4u, &w0, error);
         if (st != SEMU_OK) return st;
 
+        /* A completion marker is a four-word transaction.  Consume it
+         * before interpreting the marker payload as a ring command: a
+         * list ID may equal CMDADDR (0xf0), which is a valid observed
+         * value in the onboarding ring. */
+        if (w0 == NEMA_REG_CLID && i + 3u < submitted) {
+            uint32_t marker_interrupt;
+            uint32_t marker_value;
+            st = read_word(bus,
+                ring_base + ((old_word + i + 2u) % ring_words) * 4u,
+                &marker_interrupt, error);
+            if (st != SEMU_OK) return st;
+            st = read_word(bus,
+                ring_base + ((old_word + i + 3u) % ring_words) * 4u,
+                &marker_value, error);
+            if (st != SEMU_OK) return st;
+            if (marker_interrupt == NEMA_REG_INTERRUPT && marker_value == 1u) {
+                i += 3u;
+                continue;
+            }
+        }
+
         if ((w0 & 0xFFFFFF00u) == NEMA_CL_NOP) {
             continue;
         }

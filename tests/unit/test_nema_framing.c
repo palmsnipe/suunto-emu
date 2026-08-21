@@ -188,6 +188,35 @@ static void test_nop_and_holdcmd(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_completion_marker_payload_is_not_a_command(
+    semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    capture_ctx cap = {0};
+    semu_status st;
+    uint32_t ring[RING_WORDS] = {0};
+
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_ASSERT(context,
+        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
+
+    /* 0xf0 is both the observed list ID and CMDADDR. */
+    ring[0u] = NEMA_REG_CLID;
+    ring[1u] = NEMA_REG_CMDADDR;
+    ring[2u] = NEMA_REG_INTERRUPT;
+    ring[3u] = 1u;
+    load_words(bus, RING_BASE, ring, 4u, &error);
+    st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 4u,
+                             on_child, &cap, on_record, &cap, &error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, st);
+    SEMU_TEST_EQ_U64(context, 0u, cap.children);
+    SEMU_TEST_EQ_U64(context, 0u, cap.count);
+    semu_bus_destroy(bus);
+}
+
 static void test_truncated_child(semu_test_context *context)
 {
     semu_error error;
@@ -352,6 +381,7 @@ int main(void)
         SEMU_TEST_CASE(test_complete_child),
         SEMU_TEST_CASE(test_multiple_children),
         SEMU_TEST_CASE(test_nop_and_holdcmd),
+        SEMU_TEST_CASE(test_completion_marker_payload_is_not_a_command),
         SEMU_TEST_CASE(test_truncated_child),
         SEMU_TEST_CASE(test_bad_prefix),
         SEMU_TEST_CASE(test_bad_alignment),

@@ -123,24 +123,23 @@ static void submit_child(void *context, uint32_t child_address,
     }
 }
 
-static semu_status find_completion_marker(semu_nema_gpu *gpu,
-                                           uint32_t ring_base,
-                                           uint32_t ring_words,
-                                           uint32_t old_word,
-                                           uint32_t new_word,
-                                           uint32_t *list_id,
-                                           int *found,
-                                           semu_error *error)
+static semu_status schedule_completion_markers(semu_nema_gpu *gpu,
+                                                uint32_t ring_base,
+                                                uint32_t ring_words,
+                                                uint32_t old_word,
+                                                uint32_t new_word,
+                                                size_t *marker_count,
+                                                semu_error *error)
 {
     uint32_t submitted;
     uint32_t i;
 
-    if (list_id == NULL || found == NULL || ring_words == 0u) {
+    if (gpu == NULL || marker_count == NULL || ring_words == 0u) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "nema: invalid completion scan arguments");
         return SEMU_ERR_ARGUMENT;
     }
-    *found = 0;
+    *marker_count = 0u;
     submitted = (new_word - old_word) % ring_words;
     if (submitted == 0u) {
         submitted = ring_words;
@@ -153,15 +152,16 @@ static semu_status find_completion_marker(semu_nema_gpu *gpu,
         if (status != SEMU_OK) {
             return status;
         }
-        if (word == NEMA_REG_CLID) {
+        if (word == NEMA_REG_CLID && i + 3u < submitted) {
             uint32_t next_index = (index + 1u) % ring_words;
             uint32_t interrupt_index = (index + 2u) % ring_words;
             uint32_t value_index = (index + 3u) % ring_words;
+            uint32_t list_id;
             uint32_t interrupt_word;
             uint32_t value_word;
 
             status = semu_bus_read(gpu->bus,
-                ring_base + next_index * 4u, 4u, list_id, error);
+                ring_base + next_index * 4u, 4u, &list_id, error);
             if (status != SEMU_OK) return status;
             status = semu_bus_read(gpu->bus,
                 ring_base + interrupt_index * 4u, 4u,
@@ -171,8 +171,13 @@ static semu_status find_completion_marker(semu_nema_gpu *gpu,
                 ring_base + value_index * 4u, 4u, &value_word, error);
             if (status != SEMU_OK) return status;
             if (interrupt_word == NEMA_REG_INTERRUPT && value_word == 1u) {
-                *found = 1;
-                return SEMU_OK;
+                if (gpu->scheduler == NULL || gpu->completion == NULL ||
+                    nema_completion_schedule(gpu->completion, gpu->scheduler,
+                        list_id, completion_reg_write, gpu, completion_irq,
+                        gpu, error) != SEMU_OK) {
+                    return error->code;
+                }
+                ++*marker_count;
             }
         }
     }
@@ -214,8 +219,7 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
 
         {
             render_submission submission;
-            uint32_t list_id = 0u;
-            int marker_found = 0;
+            size_t marker_count = 0u;
             semu_status status;
 
             submission.gpu = gpu;
@@ -230,17 +234,9 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
             } else {
                 result = submission.result;
                 if (result == SEMU_TRANSACTION_OK) {
-                    status = find_completion_marker(gpu, address, word_count,
-                        old_word, new_word, &list_id, &marker_found, &error);
+                    status = schedule_completion_markers(gpu, address,
+                        word_count, old_word, new_word, &marker_count, &error);
                     if (status != SEMU_OK) {
-                        result = SEMU_TRANSACTION_REFUSE;
-                    } else if (marker_found &&
-                               (gpu->scheduler == NULL ||
-                                gpu->completion == NULL ||
-                                nema_completion_schedule(gpu->completion,
-                                    gpu->scheduler, list_id,
-                                    completion_reg_write, gpu,
-                                    completion_irq, gpu, &error) != SEMU_OK)) {
                         result = SEMU_TRANSACTION_REFUSE;
                     }
                 }
@@ -248,7 +244,7 @@ static void trigger_rendering(semu_nema_gpu *gpu, uint32_t raw_stop)
                  * transaction after the rendered child list.  It is
                  * consumed by the completion path, not by the raster
                  * backend. */
-                if (result == SEMU_TRANSACTION_OK && !marker_found &&
+                if (result == SEMU_TRANSACTION_OK && marker_count == 0u &&
                     submission.child_count == 0u) {
                     result = new_word >= old_word
                         ? gpu->backend_submit(gpu->backend_context, gpu->bus,
