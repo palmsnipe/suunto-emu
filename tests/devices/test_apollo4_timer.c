@@ -400,6 +400,13 @@ static void observed_pattern_register(semu_test_context *context)
     SEMU_TEST_ASSERT(context, timer != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_write(timer, 0x104u, 4u,
+                                              0x10300u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x10300u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0x104u, 4u,
                                               0x10301u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
