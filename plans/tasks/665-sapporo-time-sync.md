@@ -122,13 +122,18 @@ plus one new SDL diagnostic helper and one focused regression test.
   400 ms virtual spacing): all three runs settle byte-identical through step
   21. The `w-tida` resource shows the "Time/date" popup is `#vs-h` index 1
   (the only non-empty `selected` div), where a single `onTap` should reach
-  `targetData==2` and open `w-ltim`/`w-year` - which never happens. Since the
-  emulator input model exposes only the three GPIO buttons (no swipe channel),
-  `8362b9bc` is a phone-gated handoff: the "Continue the setup on your phone"
-  branch leaves time setup to the phone.
-- Correction to 008: the furthest reached screen is "Time/date" (`w-tida`,
-  `8362b9bc`), one viewset-advance before `w-ltim`; the `w-ltim` "Search for
-  GPS" screen is not reached by the walk.
+  `targetData==2` and open `w-ltim`/`w-year` - which never happens under that
+  model. The original conclusion that `8362b9bc` is a phone-gated handoff was
+  subsequently CORRECTED by E-SAP-ONBOARD-EMU-010: MIDDLE does open `w-ltim`;
+  the walk only failed to observe it because the `w-ltim` "Searching for GPS"
+  ring animates continuously and never reports a settled frame, so the
+  one-press-per-settled-frame model cannot act on it.
+- Correction to 008 (superseded in part by E-SAP-ONBOARD-EMU-010): the
+  furthest *settled* screen under the plain walk is "Time/date" (`w-tida`,
+  `8362b9bc`); the `w-ltim` "Search for GPS" screen is reached by MIDDLE but
+  is never observed by the plain walk. With the time-scheduled
+  `SEMU_SDL_SETUP_WALK_TIMELINE` driver, onboarding completes standalone to
+  `main` via the firmware's own manual-entry chain.
 - Every run (RTC-value gated or not) stops byte-stably at
   `pc=0x0010fbde`, `stop=compat-refused`, 11-hit `gps-awake-pulse` budget at
   virtual time 73.08–73.15 s.
@@ -161,11 +166,12 @@ E-SAP-ONBOARD-EMU-009 (corrected screen map to "Time/date", time-source RE,
 NMEA-time/RTC-value boundaries) plus a new opt-in
 `SEMU_SDL_SETUP_WALK_REPEAT` bounded same-frame re-press helper
 (`sdl_live_test.{c,h}` + `main_sdl.c`; off by default, walk stays
-byte-identical). Remaining / gated: `8362b9bc` "Time/date" (`w-tida`) is the
-walk's genuine stop point - every physical button is inert there, singly and
-repeatedly, so it is a phone-gated handoff, not a walk-model limitation.
-Completing onboarding past it to `w-done`/`main` requires the phone (OHR2)
-side of the flow plus a native 2.22.60 onboarding time-sync capture to
-evidence the phone's time-delivery protocol (or an owner decision on a
-standalone time seed); both are outside this ticket's scope. Keep the ticket
-`in-progress`.
+byte-identical). CORRECTION (E-SAP-ONBOARD-EMU-010): `8362b9bc` "Time/date"
+is not phone-gated - MIDDLE opens `w-ltim`, and onboarding completes
+standalone to `main` through the firmware's own manual-entry chain driven by
+the new time-scheduled `SEMU_SDL_SETUP_WALK_TIMELINE` walk helper (ticket
+670); the earlier "phone-gated / inert buttons" reading was an artifact of
+the `w-ltim` ring animating without ever settling a frame. The negative
+time-source RE stands: 2.22.60 has no OHR2/phone time-delivery command, and
+synthetic NMEA time resets the guest, so manual entry is the only authorized
+standalone time source. Keep the ticket `in-progress`.

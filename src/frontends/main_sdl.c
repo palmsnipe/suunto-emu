@@ -407,6 +407,21 @@ int main(int argc, char **argv)
             frontend.live_test.repeat_max = (unsigned)v;
         }
     }
+    {
+        /* Opt-in absolute-virtual-time press schedule for the setup-walk:
+         * SEMU_SDL_SETUP_WALK_TIMELINE="ms:letter[,ms:letter...]". Drives
+         * screens that never report a settled frame (the `w-ltim`
+         * "Searching for GPS" ring animates continuously). Bounded, off by
+         * default. */
+        const char *tl = getenv("SEMU_SDL_SETUP_WALK_TIMELINE");
+        if (tl != NULL && frontend.live_test.setup_walk &&
+            semu_sdl_live_test_set_timeline(&frontend.live_test, tl,
+                                            &error) != SEMU_OK) {
+            fprintf(stderr, "SDL setup-walk: %s\n", error.text);
+            SDL_Quit();
+            return 2;
+        }
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;

@@ -119,15 +119,16 @@ post-handoff frames: CRC32 `9b58f243`, `eb868d29`, and `ed7eeb7a` (the rendered
 `Watch info: SUUNTO 9 PEAK PRO` / "Later" step). MIDDLE on `ed7eeb7a` then
 settles the phone-pairing recommendation sequence `74a5e6ab`, `b26dd658`,
 `0b93f6c9` ("Connect / Connect Later"), `a797ec30`, and MIDDLE on `a797ec30`
-settles `8362b9bc` "Time/date" (`w-tida`, ~23.0 s virtual) — the furthest
-reached screen. On `8362b9bc` none of MIDDLE, LOWER, or UPPER produces a new
-settled frame under the walk's one-press-per-settled-frame model: the `w-tida`
-view must first advance its internal horizontal viewset `#vs-h` via
-`onTap next('#vs-h')` until `onIdle` sees `targetData==2`, only then opening
-`w-ltim` (location) or `w-year` (manual entry). Every walk stops byte-stably
-at `pc=0x0010fbde`, `stop=compat-refused`, when the background GPS
+settles `8362b9bc` "Time/date" (`w-tida`, ~23.0 s virtual). MIDDLE on
+`8362b9bc` *does* advance the onboarding: it opens `w-ltim`, whose
+"Searching for GPS" ring animates every ~1–4 ms of virtual time and therefore
+never reports a settled frame, so the frame-stepped walk cannot observe the
+advance and no further step-driven press is possible there
+(E-SAP-ONBOARD-EMU-010 corrects the earlier phone-gated reading of this
+boundary). Every walk without a time-scheduled driver stops byte-stably at
+`pc=0x0010fbde`, `stop=compat-refused`, when the background GPS
 power-cycling exhausts the eleven-hit `gps-awake-pulse` budget
-(E-SAP-COMPAT-GPS-005) at virtual time 73.08–73.15 s.
+(E-SAP-COMPAT-GPS-005) at virtual time ~71 s.
 The time zone screen `w-ltim` (next view after `w-tida`) puts
 `Navigation/State=1`, waits 5 s, then subscribes to `Dev/Time/LocalTime`:
 `t >= 1646092800` (2022-03-01Z, unix seconds) routes to the UTC-offset menu and
@@ -142,12 +143,21 @@ GGA/RMC/EPU NMEA group injected on the `@GSR` running-status exchange makes the
 firmware issue repeated deliberate `SYSRESETREQ` writes from `0x000be93e`
 (synthetic NMEA time is not usable), and a gated value at RTC `0x40004820`
 leaves the onboarding byte-identical (the register does not feed
-`Dev/Time/LocalTime`). Completing to `w-done` ("All done!") → `main` therefore
-requires either (a) a multi-press viewset driver plus a `LocalTime` source
-evidenced by a native 2.22.60 onboarding time-sync capture, or (b) an owner
-decision to drive the manual-entry chain while budgeting past the eleven-hit
-`gps-awake-pulse` boundary; both remain evidence/roadmap-gated
-(E-SAP-ONBOARD-EMU-008/009).
+`Dev/Time/LocalTime`). Onboarding **does complete** standalone through the
+firmware's own manual-entry chain, verified deterministically: MIDDLE on
+`8362b9bc` opens `w-ltim`; an opt-in time-scheduled LOWER press
+(`SEMU_SDL_SETUP_WALK_TIMELINE`, ~30 s virtual) hits "SET MANUALLY" and opens
+`w-year`; the walk's POST letters then confirm `w-year` → `w-mont` → `w-day` →
+`w-time` (its `next` button toggles hour/minute focus; the second MIDDLE saves
+hour+minute+local) → `w-done` "Done" → `main`, with settled CRCs
+`5321867e`/`c683e828`/`cd1b0979`/`455b603a`/`53d3f0c1`/`17e1772c`/`578e2601`/
+`1c62ab1a` and final main-menu frame `fb8e0155` (Navigation/Logbook/Media
+controls); the run then idles and stops at `stop=halt` ~43.8 s virtual (no
+phone time source needed, and no `OHR2` time command exists to build one).
+Note: a manual time below the `1646092800` gate (e.g. 2022-01-01) still
+finishes the wizard, but the next boot routes to `n-sync-rec` instead of
+`main`; year ≥ 2023 (or month ≥ Mar) keeps `LocalTime` post-gate
+(E-SAP-ONBOARD-EMU-008/009/010).
 
 E-SAP-ONBOARD-EMU-007 recorded that, under the pre-fix board mapping, replayed
 upper/middle/lower presses were delivered to the guest's `INPUT_READ1` button
@@ -271,23 +281,19 @@ without manufacturing a roadmap row. The practical work queue is:
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
   renderer milestone, not a physical-panel claim.
 - The skip-phone-pairing transition now works via the corrected LOWER/GPIO59
-  mapping (E-SAP-ONBOARD-EMU-008). The walk reaches the `w-ltim` "Search for
-  GPS" / Time-zone screen (`ed7eeb7a`, gen 1592) deterministically at ~20.76 s.
-  The screen is fully static after settling: no new PPM frame renders for ~52 s
-  (time-ordered PPM log confirms 0 distinct CRCs after step 15). The 5 s
-  `setTimeout` fallback to "Set manually" never fires because it subscribes to
-  `Dev/Time/LocalTime` (local resource ID `0x2705`, packed `0x2705001f`) and
-  no such value is ever published by the no-device layer; structural PPM
-  analysis confirms the "Set manually" bottom button is absent. Completing
-  `w-ltim` → `w-done` ("All done!") → `main` therefore requires a new
-  TimeProvider-style publish of `/Dev/Time/LocalTime` in the no-device layer:
-  a post-2022 epoch value routes through the UTC-offset menu to `w-done` in one
-  lower press; a pre-2022 value routes through "Set manually" to manual
-  year/month/day/time entry. This is a roadmap/evidence-gated compatibility
-  change needing a 2.22.60 onboarding time-sync native trace (the 2.39
-  `sapporo-2.39-wfa-atlas-lifecycle.md` trace documents the same data point but
-  for a different firmware version and scenario). The repeated 2.22
-  `SYSRESETREQ` at `0x000be93e` remains a separate reset-semantics gap.
+  mapping (E-SAP-ONBOARD-EMU-008). The onboarding now completes standalone,
+  end-to-end, to `main` (E-SAP-ONBOARD-EMU-010): MIDDLE on `w-tida`
+  (`8362b9bc`, ~23 s) opens `w-ltim` ("Searching for GPS"); after its 5 s
+  subscribe fires with the pre-gate `LocalTime`, the "SET MANUALLY" button
+  (LOWER) appears at ~28.5 s; a time-scheduled LOWER (new opt-in
+  `SEMU_SDL_SETUP_WALK_TIMELINE`) then drives the manual chain
+  `w-year` → `w-mont` → `w-day` → `w-time` → `w-done` ("Done") → `main`
+  (settled CRCs through `1c62ab1a`, final main-menu frame `fb8e0155`, stop
+  `halt` at ~43.8 s virtual). No phone/OHR2 time source is involved: the 2.22.60
+  firmware has none (009(c)). Remaining: a committed deterministic completion
+  sequence under ticket 670 (regression + evidence), and optionally a valid
+  post-gate time (year ≥ 2023 or month ≥ Mar 2022) so the next boot routes to
+  `main` instead of `n-sync-rec`.
 - The firmware-gated `check-sdl` live-input check (`tools/test_sdl_live_input.sh`)
   no longer matches its pinned CRCs and stop checkpoint when run against the
   current 2.22.60.3383-P manifest: cold-boot `middle-language` now settles
