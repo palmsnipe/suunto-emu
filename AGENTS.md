@@ -26,6 +26,14 @@ working-tree status. Then select the reading set for the work class:
 Do not infer completion from existing code. Later-phase scaffolding is partial
 until the corresponding ticket acceptance conditions pass.
 
+## Todo Tool Discipline
+
+When `todo_write` is available, send the complete replacement list on every
+call. Each item must contain exactly `content` and `status`; never add `active`,
+`activeForm`, IDs, or other fields. Valid statuses are only `pending`,
+`in_progress`, and `completed`. For multi-step work, create a fresh list near
+the start of the turn and update it as each step changes state.
+
 ## Work Classes and Ownership
 
 - **Roadmap work** adds or changes guest-visible hardware behavior, CPU or

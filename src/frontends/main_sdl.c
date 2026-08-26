@@ -13,6 +13,7 @@
 #include "live_frame_gate.c"
 #include "sdl_button_hold.c"
 #include "sdl_live_test.c"
+#include "sdl_ppm_dump.c"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,8 @@ typedef struct sdl_frontend {
     int failed;
     int window_closed;
     const char *live_checkpoint_label;
+    const char *ppm_dump_dir;
+    uint32_t ppm_last_crc;
     semu_sdl_live_test live_test;
 } sdl_frontend;
 
@@ -135,10 +138,19 @@ static void publish_frame(void *context, const semu_frame *frame)
     }
     frontend->last_frame_generation = frame->generation;
     frontend->last_frame_crc = crc;
-    ++frontend->frame_count;
     if (frontend->machine != NULL) {
         now_ns = semu_machine_virtual_time(frontend->machine);
     }
+    if (frontend->ppm_dump_dir != NULL &&
+        (frontend->frame_count == 1u || frontend->live_test.enabled)) {
+        uint32_t dump_crc = crc;
+        if (dump_crc == 0u) {
+            dump_crc = semu_crc32(0u, frame->pixels, frame->size);
+        }
+        semu_sdl_ppm_dump(frontend->ppm_dump_dir, &frontend->ppm_last_crc,
+                          dump_crc, now_ns, frame);
+    }
+    ++frontend->frame_count;
     semu_live_frame_gate_observe(&frontend->live_checkpoint,
                                  frontend->frame_count, now_ns, frame);
 }
@@ -234,7 +246,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
     if (!semu_sdl_live_test_queue(&frontend->live_test, wait_for_button,
             frontend->live_checkpoint.ready, frontend->viewport_height,
             frontend->last_frame_generation, frontend->last_frame_crc,
-            error)) {
+            now_ns, error)) {
         return SEMU_STOP_DEVICE_REFUSED;
     }
     for (;;) {
@@ -356,6 +368,31 @@ int main(int argc, char **argv)
     frontend.live_test.enabled = live_test != NULL;
     frontend.live_test.setup_walk = live_test != NULL &&
                                     strcmp(live_test, "setup-walk") == 0;
+    frontend.ppm_dump_dir = getenv("SEMU_SDL_PPM_DIR");
+    {
+        const char *post = getenv("SEMU_SDL_SETUP_WALK_POST");
+        size_t n;
+        int ok = 1;
+        size_t i;
+        frontend.live_test.post_buttons = NULL;
+        if (post != NULL) {
+            n = strlen(post);
+            for (i = 0; i < n; ++i) {
+                char c = post[i];
+                if (c != 'u' && c != 'm' && c != 'l') {
+                    ok = 0;
+                    break;
+                }
+            }
+            if (!ok || n == 0u || n > 32u) {
+                fputs("SDL setup-walk: SEMU_SDL_SETUP_WALK_POST must be a "
+                      "non-empty run of u/m/l letters (max 32)\n", stderr);
+                SDL_Quit();
+                return 2;
+            }
+            frontend.live_test.post_buttons = post;
+        }
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;

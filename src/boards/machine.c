@@ -332,9 +332,11 @@ semu_status semu_machine_input(semu_machine *machine,
                                const semu_input_event *event,
                                semu_error *error)
 {
-    /* E-SAP-ONBOARD-EMU-006: the observed onboarding path maps GPIO59 to
-     * upper/previous and GPIO57 to lower/next; semantic IDs stay spatial. */
-    static const unsigned pins[] = { 59u, 58u, 57u };
+    /* Sapporo physical button wiring (E-SAP-BUTTONS-001,
+     * docs/research/native-live-ui-navigation.md): GPIO57 = upper/previous,
+     * GPIO58 = middle, GPIO59 = lower/next. Semantic IDs stay spatial, so the
+     * semantic LOWER button drives the physical next/skip button (pin 59). */
+    static const unsigned pins[] = { 57u, 58u, 59u };
     if (machine == NULL || event == NULL || event->kind != SEMU_INPUT_BUTTON ||
         event->code >= SEMU_ARRAY_LEN(pins)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unsupported board input");

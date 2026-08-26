@@ -111,9 +111,44 @@ The opt-in `SEMU_SDL_LIVE_TEST=setup-walk` diagnostic now settles 12
 deterministic middle-button transitions after the language boundary and reaches
 the observed native `Continue the setup on your phone` handoff frame
 (`generation=1295`, CRC32 `ea3bc5f8`). The board input boundary maps semantic
-upper/middle/lower to GPIO59/58/57, matching the native onboarding navigation
-observation. The walk intentionally exits at that handoff; phone pairing,
-post-setup watch-face assets, and physical-panel completion remain unsupported.
+upper/middle/lower to GPIO57/58/59 (top/middle/bottom), matching the verified
+`sapporo_wiring.c` table and the native onboarding observation; a prior build
+had upper/lower inverted to 59/57. Pressing the bottom button at the handoff
+now skips the phone-pairing step and advances the onboarding through three more
+post-handoff frames: CRC32 `9b58f243`, `eb868d29`, and `ed7eeb7a` (the
+`Time zone` / "Search for GPS" screen, view `w-ltim`). Two independent walks
+are byte-identical through `pc=0x0010fbde`, 5,280,223,507 instructions,
+virtual time 73,145,995,522 ns. The precise walk timing shows `w-ltim`
+settling at ~20.76 s and then no new frame for ~52 s: the onboarding is
+genuinely stuck on `w-ltim`, not merely pacing-limited. Root cause: the view
+subscribes to `Dev/Time/LocalTime` and only advances when that value updates
+to a post-2022 epoch (to reach the "Set manually" fallback or the UTC-offset
+menu), but the `sapporo-2.22-no-device` layer never publishes a clock value,
+so the subscription callback never fires. The walk additionally halts at
+73.146 s when the eleven-hit `gps-awake-pulse` budget (E-SAP-COMPAT-GPS-005)
+is exhausted on the 12th poll. Completing to `w-done` ("All done!") → `main`
+therefore requires (a) a synthetic `Dev/Time/LocalTime`/clock source and
+(b) an increased `gps-awake-pulse` budget; both are evidence/roadmap-gated
+compat additions (E-SAP-ONBOARD-EMU-008).
+
+E-SAP-ONBOARD-EMU-007 recorded that, under the pre-fix board mapping, replayed
+upper/middle/lower presses were delivered to the guest's `INPUT_READ1` button
+polling yet the 2.22.60 guest submitted zero NEMA command lists on the
+`Continue the setup on your phone` screen across all press patterns and a
+51-second idle continuation. That "inert button" symptom is now explained by
+the inverted upper/lower mapping (semantic lower drove GPIO57, the physical
+back pin, instead of GPIO59, the bottom/Skip pin); with the corrected mapping
+the same press advances the onboarding, so the conclusion in 007 that the
+handoff button path is inert and that the post-handoff view definitions are
+missing from the resource is superseded by E-SAP-ONBOARD-EMU-008. The
+post-handoff onboarding strings (`Skip` `750d4b9f`, `Time/date` `6a5c2eec`,
+`Time zone` `6072e392`, `All done!` `2bb84502`) and their view definitions
+(`w-conn-1`, `w-tida`, `w-ltim`, `w-year`, `w-mont`, `w-day`, `w-time`,
+`w-done`) are present in the recovered 2.22.60 resource. Skipping phone pairing
+now works; the remaining boundary is the eleven-hit `gps-awake-pulse` budget
+(E-SAP-COMPAT-GPS-005), which caps such continuations and stops the walk at the
+`w-ltim` "Search for GPS" screen (`ed7eeb7a`) before the "Set manually"
+fallback and the `All done!` screen are reached.
 
 The next native transition is now provenance-pinned as E-SAP-ONBOARD-001: an
 English-row selection reaches a native software-rendered `Define your profile`
@@ -216,11 +251,32 @@ without manufacturing a roadmap row. The practical work queue is:
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
   renderer milestone, not a physical-panel claim.
-- Recover the native phone-pairing/post-setup transaction and a researcher-owned
-  full-flash dump before claiming completion beyond the `Continue the setup on
-  your phone` handoff. The repeated 2.22 `SYSRESETREQ` at `0x000be93e` remains
-  a separate reset-semantics gap and still requires a native reset-register or
-  post-reset trace before any compatibility hook is added.
+- The skip-phone-pairing transition now works via the corrected LOWER/GPIO59
+  mapping (E-SAP-ONBOARD-EMU-008). The walk reaches the `w-ltim` "Search for
+  GPS" / Time-zone screen (`ed7eeb7a`, gen 1592) deterministically at ~20.76 s.
+  The screen is fully static after settling: no new PPM frame renders for ~52 s
+  (time-ordered PPM log confirms 0 distinct CRCs after step 15). The 5 s
+  `setTimeout` fallback to "Set manually" never fires because it subscribes to
+  `Dev/Time/LocalTime` (local resource ID `0x2705`, packed `0x2705001f`) and
+  no such value is ever published by the no-device layer; structural PPM
+  analysis confirms the "Set manually" bottom button is absent. Completing
+  `w-ltim` → `w-done` ("All done!") → `main` therefore requires a new
+  TimeProvider-style publish of `/Dev/Time/LocalTime` in the no-device layer:
+  a post-2022 epoch value routes through the UTC-offset menu to `w-done` in one
+  lower press; a pre-2022 value routes through "Set manually" to manual
+  year/month/day/time entry. This is a roadmap/evidence-gated compatibility
+  change needing a 2.22.60 onboarding time-sync native trace (the 2.39
+  `sapporo-2.39-wfa-atlas-lifecycle.md` trace documents the same data point but
+  for a different firmware version and scenario). The repeated 2.22
+  `SYSRESETREQ` at `0x000be93e` remains a separate reset-semantics gap.
+- The firmware-gated `check-sdl` live-input check (`tools/test_sdl_live_input.sh`)
+  no longer matches its pinned CRCs and stop checkpoint when run against the
+  current 2.22.60.3383-P manifest: cold-boot `middle-language` now settles
+  `4979f432` / `629da47e` / `d4ed66c7` and stops at `pc=0x080000a2`, 804398304
+  instructions, 9504428769 ns, rather than the pinned
+  `629da47e` / `d4ed66c7` / `2a01c517` at `pc=0x000bd696`. This reproduces on a
+  clean baseline; the cause is firmware/manifest drift and re-pinning is a
+  golden change requiring separate evidence.
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.

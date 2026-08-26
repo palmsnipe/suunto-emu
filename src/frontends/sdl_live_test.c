@@ -6,14 +6,36 @@
 #include <string.h>
 
 enum {
-    SEMU_SDL_SETUP_WALK_LAST_STEP = 12u,
-    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 13u
+    /* The "Continue the setup on your phone" handoff frame settles as step
+     * 12.  From that step onward the walk drives the bottom (LOWER) button to
+     * skip phone pairing and continue through the remaining setup screens.
+     * The post-handoff button sequence is overridable via
+     * SEMU_SDL_SETUP_WALK_POST (a run of 'u'/'m'/'l' letters, one per step). */
+    SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE = 12u,
+    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 32u
 };
+
+static float post_handoff_button_y(const semu_sdl_live_test *test,
+    unsigned post_index, uint32_t viewport_height)
+{
+    const char *sequence = test->post_buttons;
+    char letter = 'l';
+    if (sequence != NULL && post_index < strlen(sequence)) {
+        letter = sequence[post_index];
+    }
+    if (letter == 'u') {
+        return (float)viewport_height * 0.25f;
+    }
+    if (letter == 'm') {
+        return (float)viewport_height * 0.5f;
+    }
+    return (float)viewport_height * 0.75f;
+}
 
 int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
     int checkpoint_ready, uint32_t viewport_height,
     uint64_t last_frame_generation, uint32_t last_frame_crc,
-    semu_error *error)
+    uint64_t virtual_time_ns, semu_error *error)
 {
     SDL_Event events[2];
     unsigned count;
@@ -57,34 +79,33 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
     } else if (test->setup_walk && test->phase >= 2u &&
                test->phase < SEMU_SDL_SETUP_WALK_QUIT_PHASE &&
                checkpoint_ready) {
-        if (test->phase == 2u) {
+        if (test->phase >= SEMU_SDL_SETUP_WALK_QUIT_PHASE - 1u) {
+            events[0].type = SDL_EVENT_QUIT;
+            count = 1u;
+        } else {
+            float y;
             if (viewport_height == 0u) {
                 semu_error_set(error, SEMU_ERR_STATE,
                                "SDL live test has no validated viewport");
                 return 0;
             }
+            if (test->phase >= SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE) {
+                y = post_handoff_button_y(
+                        test,
+                        test->phase - SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE,
+                        viewport_height);
+            } else {
+                y = (float)viewport_height / 2.0f;
+            }
             events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
             events[0].button.button = SDL_BUTTON_LEFT;
             events[0].button.down = 1;
-            events[0].button.y = (float)viewport_height / 2.0f;
+            events[0].button.y = y;
             events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
             events[1].button.button = SDL_BUTTON_LEFT;
             events[1].button.down = 0;
-            events[1].button.y = (float)viewport_height / 2.0f;
+            events[1].button.y = y;
             count = 2u;
-        } else if (test->phase < SEMU_SDL_SETUP_WALK_LAST_STEP) {
-            events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-            events[0].button.button = SDL_BUTTON_LEFT;
-            events[0].button.down = 1;
-            events[0].button.y = (float)viewport_height / 2.0f;
-            events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
-            events[1].button.button = SDL_BUTTON_LEFT;
-            events[1].button.down = 0;
-            events[1].button.y = events[0].button.y;
-            count = 2u;
-        } else {
-            events[0].type = SDL_EVENT_QUIT;
-            count = 1u;
         }
     } else if (!test->setup_walk &&
                (test->phase == 2u || test->phase == 3u) &&
@@ -111,6 +132,11 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
                 "SDL live test settled step=%u generation=%llu crc32=%08x\n",
                 test->phase, (unsigned long long)last_frame_generation,
                 last_frame_crc);
+        if (test->setup_walk) {
+            fprintf(stderr,
+                    "SDL live test setup-walk step=%u virtual_ns=%llu\n",
+                    test->phase, (unsigned long long)virtual_time_ns);
+        }
     }
     for (index = 0u; index < count; ++index) {
         if (!SDL_PushEvent(&events[index])) {
@@ -135,8 +161,8 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
                 test->phase == SEMU_SDL_SETUP_WALK_QUIT_PHASE)) {
         if (test->setup_walk) {
             fprintf(stderr,
-                    "SDL live test completed bounded setup-navigation "
-                    "steps=%u\n", SEMU_SDL_SETUP_WALK_LAST_STEP);
+                    "SDL live test completed setup-navigation "
+                    "last-step=%u\n", SEMU_SDL_SETUP_WALK_QUIT_PHASE - 1u);
         } else {
             fputs("SDL live test completed setup-navigation\n", stderr);
         }
