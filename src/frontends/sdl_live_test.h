@@ -43,8 +43,8 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
 /* Parse and store the optional time-scheduled press schedule
  * ("ms:letter[,ms:letter...]", letter one of u/m/l). Entries are stored in
  * non-decreasing time order. SEMU_OK on success, SEMU_ERR_ARGUMENT with
- * *error set on a malformed or over-long spec. An empty spec leaves the
- * test unchanged. */
+ * *error set on a malformed or over-long spec. An empty spec stores an
+ * empty schedule. */
 int semu_sdl_live_test_set_timeline(semu_sdl_live_test *test,
     const char *spec, semu_error *error);
 

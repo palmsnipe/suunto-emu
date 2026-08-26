@@ -122,11 +122,20 @@ are unchanged. The manual entry uses the firmware's existing
    (twice) to reach `w-done` -> `main` within the eleven-hit
    `gps-awake-pulse` budget.
 3. Record the settled CRCs for `w-year`/`w-mont`/`w-day`/`w-time`/`w-done`/`main`
-   and the stop reason in `E-SAP-ONBOARD-EMU-009`.
+   and the stop reason in `E-SAP-ONBOARD-EMU-010`.
+4. Unit-test the timeline parser in `tests/sdl/test_sdl_input.c`
+   (`test_setup_walk_timeline_parse` valid/single/empty +
+   `test_setup_walk_timeline_parse_fails_closed` malformed/over-long/NULL),
+   covering the multi-entry comma-separator bug and the fail-closed edge
+   cases.
 
 ## Tests and Commands
 
 - `make check` (full), `make check-sdl`, and `make check-lines` pass.
+- `make check-sdl` builds `tests/sdl/test_sdl_input`, which now includes
+  `test_setup_walk_timeline_parse` (valid / single / empty spec) and
+  `test_setup_walk_timeline_parse_fails_closed` (malformed / over-long / NULL),
+  pinning the parser against the multi-entry comma-separator regression.
 - Reproduce the completion:
   `SDL_VIDEODRIVER=dummy SEMU_SDL_PPM_DIR=<dir> SEMU_SDL_LIVE_TEST=setup-walk SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm SEMU_SDL_SETUP_WALK_TIMELINE=30000:l build/suunto-emu-sdl run --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu --layer sapporo-2.22-no-device --until setup-next --max-instructions 40000000000 --max-time 300000000000`
   Expect deterministic settle past `8362b9bc` into `w-year`/`w-mont`/`w-day`/
@@ -169,6 +178,9 @@ Progress (this session):
   (same `frames.log`, stop `pc=0x0010fbde`, `stop=compat-refused`, ~71 s).
 - Evidence E-SAP-ONBOARD-EMU-010 added; 009, 665 and current-status.md
   corrected (the "phone-gated Time/date" conclusion is superseded).
+- Parser unit tests added to `tests/sdl/test_sdl_input.c` (valid / single /
+  empty + fail-closed malformed / over-long / NULL), covering the
+  multi-entry comma-separator regression; `make check-sdl` green.
 
 Remaining before this ticket can be closed:
 - A committed regression for the completion walk (a new script under

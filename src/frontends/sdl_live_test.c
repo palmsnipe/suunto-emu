@@ -68,11 +68,11 @@ int semu_sdl_live_test_set_timeline(semu_sdl_live_test *test,
                            "u, m, or l");
             return SEMU_ERR_ARGUMENT;
         }
-        next = end + 1;
-        while (*next != '\0' && *next != ',') {
-            ++next;
-        }
-        if (*next != '\0' && *(next + 1u) != '\0') {
+        /* The character right after the letter must end the entry (either
+         * the string or the next-entry separator); anything else is
+         * trailing garbage. */
+        next = end + 2;
+        if (*next != '\0' && *next != ',') {
             semu_error_set(error, SEMU_ERR_ARGUMENT,
                            "SDL live test timeline entry must be ms:letter");
             return SEMU_ERR_ARGUMENT;
