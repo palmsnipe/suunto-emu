@@ -393,6 +393,20 @@ int main(int argc, char **argv)
             frontend.live_test.post_buttons = post;
         }
     }
+    {
+        /* Opt-in same-frame repeat-press for the setup-walk. The onboarding
+         * `w-tida` viewset and the time-entry spinners require several presses
+         * on the SAME settled frame; the frame-stepped walk otherwise cannot
+         * drive them. Bounded and off by default (repeat_max stays 0). */
+        const char *rep = getenv("SEMU_SDL_SETUP_WALK_REPEAT");
+        if (rep != NULL && frontend.live_test.setup_walk) {
+            unsigned long v = strtoul(rep, NULL, 10);
+            if (v > 64u) {
+                v = 64u;
+            }
+            frontend.live_test.repeat_max = (unsigned)v;
+        }
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());
         return 2;

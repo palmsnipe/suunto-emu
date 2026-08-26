@@ -12,7 +12,12 @@ enum {
      * The post-handoff button sequence is overridable via
      * SEMU_SDL_SETUP_WALK_POST (a run of 'u'/'m'/'l' letters, one per step). */
     SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE = 12u,
-    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 32u
+    SEMU_SDL_SETUP_WALK_QUIT_PHASE = 32u,
+    /* Virtual-time spacing between same-frame repeat presses. Mirrors the
+     * ~350 ms live-frame settle window so a re-press lands only after the
+     * previous press's transition has had a full settle window to produce a
+     * new frame. */
+    SEMU_SDL_SETUP_WALK_REPEAT_INTERVAL_NS = 400000000u
 };
 
 static float post_handoff_button_y(const semu_sdl_live_test *test,
@@ -77,35 +82,65 @@ int semu_sdl_live_test_queue(semu_sdl_live_test *test, int waiting,
         events[1].button.y = (float)viewport_height / 2.0f;
         count = 2u;
     } else if (test->setup_walk && test->phase >= 2u &&
-               test->phase < SEMU_SDL_SETUP_WALK_QUIT_PHASE &&
-               checkpoint_ready) {
-        if (test->phase >= SEMU_SDL_SETUP_WALK_QUIT_PHASE - 1u) {
-            events[0].type = SDL_EVENT_QUIT;
-            count = 1u;
-        } else {
-            float y;
-            if (viewport_height == 0u) {
-                semu_error_set(error, SEMU_ERR_STATE,
-                               "SDL live test has no validated viewport");
-                return 0;
-            }
-            if (test->phase >= SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE) {
-                y = post_handoff_button_y(
-                        test,
-                        test->phase - SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE,
-                        viewport_height);
+               test->phase < SEMU_SDL_SETUP_WALK_QUIT_PHASE) {
+        if (checkpoint_ready) {
+            if (test->phase >= SEMU_SDL_SETUP_WALK_QUIT_PHASE - 1u) {
+                events[0].type = SDL_EVENT_QUIT;
+                count = 1u;
             } else {
-                y = (float)viewport_height / 2.0f;
+                float y;
+                if (viewport_height == 0u) {
+                    semu_error_set(error, SEMU_ERR_STATE,
+                                   "SDL live test has no validated viewport");
+                    return 0;
+                }
+                if (test->phase >= SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE) {
+                    y = post_handoff_button_y(
+                            test,
+                            test->phase - SEMU_SDL_SETUP_WALK_PHONE_PAIR_PHASE,
+                            viewport_height);
+                } else {
+                    y = (float)viewport_height / 2.0f;
+                }
+                events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+                events[0].button.button = SDL_BUTTON_LEFT;
+                events[0].button.down = 1;
+                events[0].button.y = y;
+                events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
+                events[1].button.button = SDL_BUTTON_LEFT;
+                events[1].button.down = 0;
+                events[1].button.y = y;
+                count = 2u;
+                /* Track the press so the same-frame re-press path can re-issue
+                 * the identical button when the frame does not settle to a new
+                 * distinct frame (viewset / spinner panels). */
+                test->last_button_y = y;
+                test->pressed_crc = last_frame_crc;
+                test->same_frame_presses = 0u;
+                test->last_press_time_ns = virtual_time_ns;
             }
+        } else if (test->repeat_max > 0u &&
+                   test->last_press_time_ns != 0u &&
+                   test->same_frame_presses < test->repeat_max &&
+                   virtual_time_ns >= test->last_press_time_ns &&
+                   virtual_time_ns - test->last_press_time_ns >=
+                       SEMU_SDL_SETUP_WALK_REPEAT_INTERVAL_NS &&
+                   last_frame_crc == test->pressed_crc &&
+                   viewport_height != 0u) {
+            /* Re-issue the same button on the unchanged frame. */
             events[0].type = SDL_EVENT_MOUSE_BUTTON_DOWN;
             events[0].button.button = SDL_BUTTON_LEFT;
             events[0].button.down = 1;
-            events[0].button.y = y;
+            events[0].button.y = test->last_button_y;
             events[1].type = SDL_EVENT_MOUSE_BUTTON_UP;
             events[1].button.button = SDL_BUTTON_LEFT;
             events[1].button.down = 0;
-            events[1].button.y = y;
+            events[1].button.y = test->last_button_y;
             count = 2u;
+            ++test->same_frame_presses;
+            test->last_press_time_ns = virtual_time_ns;
+        } else {
+            return 1;
         }
     } else if (!test->setup_walk &&
                (test->phase == 2u || test->phase == 3u) &&

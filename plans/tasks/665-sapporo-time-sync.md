@@ -116,9 +116,16 @@ plus one new SDL diagnostic helper and one focused regression test.
   `b26dd658`, `0b93f6c9` ("Connect / Connect Later"), `a797ec30`, and MIDDLE
   on `a797ec30` settles `8362b9bc` "Time/date" (`w-tida`, step 21, ~23.0 s
   virtual). On `8362b9bc` MIDDLE/LOWER/UPPER all fail to settle a new frame
-  under the walk's one-press-per-frame model: `w-tida` needs its internal
-  `#vs-h` viewset advanced by `onTap next('#vs-h')` until `onIdle` sees
-  `targetData==2`, only then opening `w-ltim`/`w-year`.
+  under the walk's one-press-per-frame model; this was confirmed with the new
+  opt-in `SEMU_SDL_SETUP_WALK_REPEAT` bounded same-frame re-press helper
+  (repeat-off `reg` vs. repeat-on `rep`/`repU`/`repL`, up to 12 re-presses at
+  400 ms virtual spacing): all three runs settle byte-identical through step
+  21. The `w-tida` resource shows the "Time/date" popup is `#vs-h` index 1
+  (the only non-empty `selected` div), where a single `onTap` should reach
+  `targetData==2` and open `w-ltim`/`w-year` - which never happens. Since the
+  emulator input model exposes only the three GPIO buttons (no swipe channel),
+  `8362b9bc` is a phone-gated handoff: the "Continue the setup on your phone"
+  branch leaves time setup to the phone.
 - Correction to 008: the furthest reached screen is "Time/date" (`w-tida`,
   `8362b9bc`), one viewset-advance before `w-ltim`; the `w-ltim` "Search for
   GPS" screen is not reached by the walk.
@@ -150,12 +157,15 @@ plus one new SDL diagnostic helper and one focused regression test.
 Delivered: the pin-mapping root cause and fix, the extended bounded walk, the
 PPM diagnostic, evidence E-SAP-ONBOARD-EMU-008, and the mapping regression
 test (all in commit 895ef29). 2026-08-26 session added evidence
-E-SAP-ONBOARD-EMU-009 (corrected screen map, time-source RE, NMEA-time reset
-boundary). Remaining / gated: completing onboarding past `Watch info /
-Later` → `w-ltim` → `w-done`/`main` needs either (a) a native 2.22.60
-onboarding time-sync trace proving reset-free `GpsTimeSynchronizer`
-acceptance of a time-bearing NMEA group, or (b) an owner decision to drive
-the evidenced manual-entry chain (`w-year` → `w-mont` → `w-day` →
-`w-time`) through the walk while budgeting past the eleven-hit
-`gps-awake-pulse` boundary. Both are blocked as of this session; keep the
-ticket `in-progress`.
+E-SAP-ONBOARD-EMU-009 (corrected screen map to "Time/date", time-source RE,
+NMEA-time/RTC-value boundaries) plus a new opt-in
+`SEMU_SDL_SETUP_WALK_REPEAT` bounded same-frame re-press helper
+(`sdl_live_test.{c,h}` + `main_sdl.c`; off by default, walk stays
+byte-identical). Remaining / gated: `8362b9bc` "Time/date" (`w-tida`) is the
+walk's genuine stop point - every physical button is inert there, singly and
+repeatedly, so it is a phone-gated handoff, not a walk-model limitation.
+Completing onboarding past it to `w-done`/`main` requires the phone (OHR2)
+side of the flow plus a native 2.22.60 onboarding time-sync capture to
+evidence the phone's time-delivery protocol (or an owner decision on a
+standalone time seed); both are outside this ticket's scope. Keep the ticket
+`in-progress`.
