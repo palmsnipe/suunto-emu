@@ -106,12 +106,42 @@ plus one new SDL diagnostic helper and one focused regression test.
 - No raising of the `gps-awake-pulse` budget, no new NEMA/CTIMER opcodes, no
   screen-specific golden for the post-handoff screens.
 
+## Session findings (2026-08-26, recorded in E-SAP-ONBOARD-EMU-009)
+
+- Fresh-boot screen map (corrected pin mapping): steps 1–11 advance on
+  MIDDLE; step 12 is "Connect with mobile" (`261712ad`), which advances only
+  on MIDDLE from a fresh boot; MIDDLE then reaches the handoff
+  (`ea3bc5f8`), and three LOWER presses settle `9b58f243`, `eb868d29`,
+  `ed7eeb7a` ("Watch info / Later"). The run caps at the 11-hit
+  `gps-awake-pulse` budget (~73.2 s virtual).
+- Correction to 008: `ed7eeb7a` is the "Watch info / Later" step, one step
+  BEFORE `w-ltim`; the time screen itself is not reached before the cap.
+- Time-source RE (2.22.60 application binary): the authoritative clock path
+  is the `GpsTimeSynchronizer` worker (log strings "Timesync: ...", "setting
+  new utc time %u"), driven by NMEA GGA/RMC time; the Apollo4 RTC value
+  register is `0x40004820` with time-set bit 0 of `0x40004800`. `w-ltim`
+  gates on `Dev/Time/LocalTime >= 1646092800` (2022-03-01Z). No
+  OHR2/phone time-sync command exists in 2.22.60. The manual chain
+  `w-year` → `w-mont` → `w-day` → `w-time` → `w-tset` → `w-done` is fully
+  present in the 2.22.60 resources.
+- Empirical NMEA-time boundary: injecting a valid time-bearing GGA+RMC+EPU
+  group on the `@GSR` running-status exchange (with or without coordinates)
+  makes the firmware issue repeated deliberate `SYSRESETREQ` writes from
+  `0x000be93e` and does not stop the GPS power-cycling. Synthetic NMEA time
+  is therefore not an authorized `LocalTime` source in the standalone
+  no-device context (experiment code reverted; tree clean).
+
 ## Handoff
 
 Delivered: the pin-mapping root cause and fix, the extended bounded walk, the
 PPM diagnostic, evidence E-SAP-ONBOARD-EMU-008, and the mapping regression
-test (all in commit 895ef29). Remaining / gated: driving past `w-ltim` to
-`w-done`→`main` requires a synthetic `Dev/Time/LocalTime` publish (local
-resource `0x2705`, packed `0x2705001f`) plus `gps-awake-pulse` budget
-headroom, which needs a 2.22.60 onboarding time-sync native trace before it is
-authorized. Keep this ticket `in-progress` until that trace exists.
+test (all in commit 895ef29). 2026-08-26 session added evidence
+E-SAP-ONBOARD-EMU-009 (corrected screen map, time-source RE, NMEA-time reset
+boundary). Remaining / gated: completing onboarding past `Watch info /
+Later` → `w-ltim` → `w-done`/`main` needs either (a) a native 2.22.60
+onboarding time-sync trace proving reset-free `GpsTimeSynchronizer`
+acceptance of a time-bearing NMEA group, or (b) an owner decision to drive
+the evidenced manual-entry chain (`w-year` → `w-mont` → `w-day` →
+`w-time`) through the walk while budgeting past the eleven-hit
+`gps-awake-pulse` boundary. Both are blocked as of this session; keep the
+ticket `in-progress`.
