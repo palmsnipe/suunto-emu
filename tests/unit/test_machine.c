@@ -380,13 +380,81 @@ static void test_button_input_polarity_and_refusal(
     (void)remove(path);
 }
 
+/* Pins the semantic-to-physical Sapporo button wiring: UPPER=GPIO57,
+ * MIDDLE=GPIO58, LOWER=GPIO59 (E-SAP-BUTTONS-001). Guards against the
+ * upper/lower inversion that stalled 2.22.60 onboarding at the phone-pair
+ * handoff (E-SAP-ONBOARD-EMU-008). */
+static void test_semantic_button_pin_mapping(semu_test_context *context)
+{
+    uint8_t program[34] = {
+        0x00u, 0x01u, 0x00u, 0x10u, /* MSP = 0x10000100 */
+        0x21u, 0x00u, 0x00u, 0x00u, /* reset = 0x00000021 */
+        [32] = 0x00u, [33] = 0xbeu  /* BKPT */
+    };
+    semu_firmware_manifest firmware;
+    semu_machine_options options;
+    semu_profile profile;
+    semu_machine *machine;
+    semu_input_event event;
+    semu_error error;
+    char path[128];
+
+    SEMU_TEST_ASSERT(context,
+        semu_test_temp_path(path, sizeof(path), "machine-mapping.bin"));
+    SEMU_TEST_ASSERT(context, write_program(path, program));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    memset(&options, 0, sizeof(options));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    machine = semu_machine_create(&options, &error);
+    SEMU_TEST_ASSERT(context, machine != NULL);
+    if (machine != NULL) {
+        semu_apollo4 *soc = machine->soc;
+        semu_button_id button;
+
+        SEMU_TEST_ASSERT(context, machine->soc != NULL);
+        /* GPIO inputs reset to high. A semantic press (value=1) drives the
+         * mapped pin high; release (value=0) drives it low. Release all three
+         * first so each mapping check starts from a known low baseline. */
+        for (button = SEMU_BUTTON_UPPER; button <= SEMU_BUTTON_LOWER; ++button) {
+            event = (semu_input_event){ SEMU_INPUT_BUTTON, button, 0, 0, 0 };
+            SEMU_TEST_EQ_U64(context, SEMU_OK,
+                             semu_machine_input(machine, &event, &error));
+        }
+        /* Upper drives only the top pin (57). */
+        event = (semu_input_event){ SEMU_INPUT_BUTTON, SEMU_BUTTON_UPPER, 1, 0, 0 };
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, 1, semu_apollo4_get_gpio_input(soc, 57u));
+        SEMU_TEST_EQ_U64(context, 0, semu_apollo4_get_gpio_input(soc, 58u));
+        SEMU_TEST_EQ_U64(context, 0, semu_apollo4_get_gpio_input(soc, 59u));
+        /* Release UPPER before checking the lower pin, so only one pin is
+         * asserted at a time and the 57/59 ordering is the thing under test. */
+        event = (semu_input_event){ SEMU_INPUT_BUTTON, SEMU_BUTTON_UPPER, 0, 0, 0 };
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, 0, semu_apollo4_get_gpio_input(soc, 57u));
+        /* Lower drives the bottom/Skip pin (59), not the top pin 57. */
+        event = (semu_input_event){ SEMU_INPUT_BUTTON, SEMU_BUTTON_LOWER, 1, 0, 0 };
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_machine_input(machine, &event, &error));
+        SEMU_TEST_EQ_U64(context, 1, semu_apollo4_get_gpio_input(soc, 59u));
+        SEMU_TEST_EQ_U64(context, 0, semu_apollo4_get_gpio_input(soc, 57u));
+        SEMU_TEST_EQ_U64(context, 0, semu_apollo4_get_gpio_input(soc, 58u));
+        semu_machine_destroy(machine);
+    }
+    (void)remove(path);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_repeated_reset_and_source_guard),
         SEMU_TEST_CASE(test_requested_reset_retains_ram_explicit_clears),
         SEMU_TEST_CASE(test_input_poll_can_stop_and_inject),
-        SEMU_TEST_CASE(test_button_input_polarity_and_refusal)
+        SEMU_TEST_CASE(test_button_input_polarity_and_refusal),
+        SEMU_TEST_CASE(test_semantic_button_pin_mapping)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

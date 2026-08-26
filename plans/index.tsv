@@ -67,6 +67,7 @@ id	phase	title	status	dependencies	ticket
 620	6	Debugging CLI Integration	done	605,610,615	plans/tasks/620-debug-cli-integration.md
 625	6	Deterministic Malformed-Input Corpus	done	620	plans/tasks/625-hardening-corpus.md
 630	6	Portability and Optional Differential Gate	done	625	plans/tasks/630-portability-differential.md
+665	6	2.22 Time/Onboarding Trace: Fix Button Pins, Extend Walk, Document Time-Sync Gate	in-progress	515,516	plans/tasks/665-sapporo-time-sync.md
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
 710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
