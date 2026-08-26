@@ -290,10 +290,10 @@ without manufacturing a roadmap row. The practical work queue is:
   `w-year` → `w-mont` → `w-day` → `w-time` → `w-done` ("Done") → `main`
   (settled CRCs through `1c62ab1a`, final main-menu frame `fb8e0155`, stop
   `halt` at ~43.8 s virtual). No phone/OHR2 time source is involved: the 2.22.60
-  firmware has none (009(c)). Remaining: a committed deterministic completion
-  sequence under ticket 670 (regression + evidence), and optionally a valid
-  post-gate time (year ≥ 2023 or month ≥ Mar 2022) so the next boot routes to
-  `main` instead of `n-sync-rec`.
+  firmware has none (009(c)). The deterministic completion sequence is committed
+  under ticket 670 with a regression (`tools/test_sdl_onboarding_completion.sh`,
+   wired into `make check-sdl`); the canonical sequence writes a post-gate time
+   (2023-01-01), so the next boot routes to `main` instead of `n-sync-rec`.
 - The firmware-gated `check-sdl` live-input check (`tools/test_sdl_live_input.sh`)
   no longer matches its pinned CRCs and stop checkpoint when run against the
   current 2.22.60.3383-P manifest: cold-boot `middle-language` now settles

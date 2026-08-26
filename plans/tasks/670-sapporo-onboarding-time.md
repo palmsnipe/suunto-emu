@@ -86,6 +86,8 @@ corrected evidence entry. No new guest-visible device behavior.
 - `docs/migration-evidence.md` (extend `E-SAP-ONBOARD-EMU-009` with the
   corrected boundary and the completion chain; add the phone-time negative-RE
   note).
+- `tools/test_sdl_onboarding_completion.sh` (new firmware-gated regression
+  script) and `Makefile` (wire the script into `check-sdl`).
 
 ## Frozen Interfaces
 
@@ -136,15 +138,18 @@ are unchanged. The manual entry uses the firmware's existing
   `test_setup_walk_timeline_parse` (valid / single / empty spec) and
   `test_setup_walk_timeline_parse_fails_closed` (malformed / over-long / NULL),
   pinning the parser against the multi-entry comma-separator regression.
-- Reproduce the completion:
-  `SDL_VIDEODRIVER=dummy SEMU_SDL_PPM_DIR=<dir> SEMU_SDL_LIVE_TEST=setup-walk SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm SEMU_SDL_SETUP_WALK_TIMELINE=30000:l build/suunto-emu-sdl run --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu --layer sapporo-2.22-no-device --until setup-next --max-instructions 40000000000 --max-time 300000000000`
+- `tools/test_sdl_onboarding_completion.sh` (new, wired into `make check-sdl`):
+  parser refusal cases run unconditionally; with `SEMU_FIRMWARE_MANIFEST` set it
+  asserts the completion walk (timeline press + settled CRCs
+  `5321867e`/`c683e828`/`cd1b0979`/`455b603a`/`53d3f0c1`/`17e1772c`/
+  `578e2601`/`1c62ab1a`, main-menu PPM `fb8e0155`, `stop=halt` @ 43807257472 ns)
+  and the byte-identical disabled baseline (last settled step `8362b9bc`,
+  `stop=compat-refused` @ `pc=0x0010fbde`, 71118716877 ns).
+- Manual reproduce:
+  `SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm SEMU_SDL_SETUP_WALK_TIMELINE=30000:l build/suunto-emu-sdl run --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu --layer sapporo-2.22-no-device --until setup-next --max-instructions 40000000000 --max-time 300000000000`
   Expect deterministic settle past `8362b9bc` into `w-year`/`w-mont`/`w-day`/
   `w-time`/`w-done` (`578e2601`) and the `main` menu face (`fb8e0155`), stop
   `halt` at ~43.8 s virtual.
-- Refusal / baseline case: with the timeline driver and POST extensions disabled
-  (default walk), the run must remain byte-identical to the
-  `E-SAP-ONBOARD-EMU-009` baseline (last settled frame `8362b9bc`; abort at
-  `pc=0x0010fbde`, `stop=compat-refused`, eleven-hit GPS budget, ~71-73 s).
 
 ## Acceptance
 
@@ -181,12 +186,21 @@ Progress (this session):
 - Parser unit tests added to `tests/sdl/test_sdl_input.c` (valid / single /
   empty + fail-closed malformed / over-long / NULL), covering the
   multi-entry comma-separator regression; `make check-sdl` green.
+- Committed regression `tools/test_sdl_onboarding_completion.sh`, wired into
+  `make check-sdl`: parser refusal cases run unconditionally; with
+  `SEMU_FIRMWARE_MANIFEST` set it re-runs the completion walk (asserts the
+  timeline press, settled CRCs, main-menu PPM `fb8e0155`, `stop=halt`) and the
+  byte-identical disabled baseline (last settled step `8362b9bc`,
+  `stop=compat-refused`, CLI exit status 3). Verified end-to-end with the
+  private manifest this session: both walks passed, script exit 0.
 
 Remaining before this ticket can be closed:
-- A committed regression for the completion walk (a new script under
-  `tools/` or an extension of `test_sdl_live_input.sh`); note the existing
-  live-input pins are stale due to manifest drift, so re-pinning there is a
-  separate golden change.
-- Optionally, a sequence variant that writes a post-gate time
-  (year >= 2023 or month >= Mar 2022) so the next boot routes to `main`
-  instead of `n-sync-rec`.
+- Nothing in scope. Acceptance criteria are met: completion walk reaches the
+  `main` face within the eleven-hit `gps-awake-pulse` budget; the disabled
+  driver is byte-identical to the 009 baseline; the regression is committed
+  and wired into `make check-sdl`. The canonical sequence writes a post-gate
+  time (2023-01-01), so the next boot routes to `main` instead of
+  `n-sync-rec`.
+- Out of scope (separate work): re-pinning the stale `test_sdl_live_input.sh`
+  middle-language pins, which drifted with the manifest (recorded in
+  `docs/current-status.md`).

@@ -138,6 +138,8 @@ check-sdl:
 		SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null; \
 		SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
 			sh tools/test_sdl_live_input.sh; \
+		SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
+			sh tools/test_sdl_onboarding_completion.sh; \
 	fi
 
 test-firmware: all
