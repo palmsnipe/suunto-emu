@@ -115,33 +115,39 @@ the middle button through the profile screens, and step 12 settles on the
 `Connect with mobile` frame (`261712ad`). From a fresh boot that screen advances
 only on the middle button; a middle press then reaches the `Continue the setup
 on your phone` handoff (`ea3bc5f8`), and three lower presses settle three more
-post-handoff frames: CRC32 `9b58f243`, `eb868d29`, and `ed7eeb7a`. The rendered
-`ed7eeb7a` frame is the `Watch info: SUUNTO 9 PEAK PRO` / "Later" step, which is
-one step *before* the `Time zone` / "Search for GPS" screen (`w-ltim`); the
-`w-ltim` screen itself is the next screen and is not reached before the run is
-capped. Two independent walks are byte-identical through `pc=0x0010fbde`,
-5,280,223,507 instructions, virtual time ~73.15 s (`stop=compat-refused`).
-Root cause of the cap: the background GPS power-cycling consumes the eleven-hit
-`gps-awake-pulse` budget (E-SAP-COMPAT-GPS-005), which the run exhausts at
-~73.1 s before the onboarding advances past `Watch info / Later` into the time
-zone screen. The time zone screen `w-ltim` subscribes to `Dev/Time/LocalTime`
-and advances only when that value updates to a post-2022 epoch (`>= 1646092800`,
-i.e. 2022-03-01Z), routing to the UTC-offset menu; otherwise it offers "Set
-manually" (manual `w-year`/`w-mont`/`w-day`/`w-time` entry). The 2.22.60
-application binary has no clock source configured in the standalone no-device
-context: the authoritative clock path is the `GpsTimeSynchronizer` worker
-(driven by NMEA GGA/RMC time, writing the Apollo4 RTC value register
-`0x40004820` with time-set bit 0 of `0x40004800`), and no OHR2/phone time-sync
-command exists in the 2.22.60 application. An experiment that injected a valid
-time-bearing GGA/RMC/EPU NMEA group on the `@GSR` running-status exchange made
-the firmware issue repeated deliberate `SYSRESETREQ` writes from
-`0x000be93e` and did not stop the GPS power-cycling, so synthetic NMEA time is
-not a clean `LocalTime` source in this context (E-SAP-ONBOARD-EMU-009).
-Completing to `w-done` ("All done!") → `main` therefore requires either (a) a
-native 2.22.60 onboarding time-sync trace proving reset-free `GpsTimeSynchronizer`
-acceptance, or (b) an owner decision to drive the evidenced manual-entry chain
-while budgeting past the eleven-hit `gps-awake-pulse` boundary; both remain
-evidence/roadmap-gated (E-SAP-ONBOARD-EMU-008/009).
+post-handoff frames: CRC32 `9b58f243`, `eb868d29`, and `ed7eeb7a` (the rendered
+`Watch info: SUUNTO 9 PEAK PRO` / "Later" step). MIDDLE on `ed7eeb7a` then
+settles the phone-pairing recommendation sequence `74a5e6ab`, `b26dd658`,
+`0b93f6c9` ("Connect / Connect Later"), `a797ec30`, and MIDDLE on `a797ec30`
+settles `8362b9bc` "Time/date" (`w-tida`, ~23.0 s virtual) — the furthest
+reached screen. On `8362b9bc` none of MIDDLE, LOWER, or UPPER produces a new
+settled frame under the walk's one-press-per-settled-frame model: the `w-tida`
+view must first advance its internal horizontal viewset `#vs-h` via
+`onTap next('#vs-h')` until `onIdle` sees `targetData==2`, only then opening
+`w-ltim` (location) or `w-year` (manual entry). Every walk stops byte-stably
+at `pc=0x0010fbde`, `stop=compat-refused`, when the background GPS
+power-cycling exhausts the eleven-hit `gps-awake-pulse` budget
+(E-SAP-COMPAT-GPS-005) at virtual time 73.08–73.15 s.
+The time zone screen `w-ltim` (next view after `w-tida`) puts
+`Navigation/State=1`, waits 5 s, then subscribes to `Dev/Time/LocalTime`:
+`t >= 1646092800` (2022-03-01Z, unix seconds) routes to the UTC-offset menu and
+then `w-done`; otherwise it shows "Search for GPS" whose down button
+("Set manually") opens `w-year`. The manual chain `w-year` → `w-mont` →
+`w-day` → `w-time` → `w-tset`/`w-done` (which auto-opens `main` after 3 s) is
+fully present in the resource. The 2.22.60 application binary has no
+standalone clock source: the authoritative path is the `GpsTimeSynchronizer`
+worker (NMEA GGA/RMC time-of-day), and no OHR2/phone time-sync command exists
+in 2.22.60. Two experiments bound the alternatives: a valid time-bearing
+GGA/RMC/EPU NMEA group injected on the `@GSR` running-status exchange makes the
+firmware issue repeated deliberate `SYSRESETREQ` writes from `0x000be93e`
+(synthetic NMEA time is not usable), and a gated value at RTC `0x40004820`
+leaves the onboarding byte-identical (the register does not feed
+`Dev/Time/LocalTime`). Completing to `w-done` ("All done!") → `main` therefore
+requires either (a) a multi-press viewset driver plus a `LocalTime` source
+evidenced by a native 2.22.60 onboarding time-sync capture, or (b) an owner
+decision to drive the manual-entry chain while budgeting past the eleven-hit
+`gps-awake-pulse` boundary; both remain evidence/roadmap-gated
+(E-SAP-ONBOARD-EMU-008/009).
 
 E-SAP-ONBOARD-EMU-007 recorded that, under the pre-fix board mapping, replayed
 upper/middle/lower presses were delivered to the guest's `INPUT_READ1` button
@@ -157,11 +163,11 @@ post-handoff onboarding strings (`Skip` `750d4b9f`, `Time/date` `6a5c2eec`,
 `Time zone` `6072e392`, `All done!` `2bb84502`) and their view definitions
 (`w-conn-1`, `w-tida`, `w-ltim`, `w-year`, `w-mont`, `w-day`, `w-time`,
 `w-done`) are present in the recovered 2.22.60 resource. Skipping phone pairing
-now works; the remaining boundary is the eleven-hit `gps-awake-pulse` budget
-(E-SAP-COMPAT-GPS-005), which caps such continuations at ~73.1 s and stops the
-walk on the `Watch info / Later` screen (`ed7eeb7a`), one step before the
-`w-ltim` "Time zone / Search for GPS" screen and its "Set manually" fallback
-(E-SAP-ONBOARD-EMU-009).
+now works; the walk advances through the phone-pairing recommendation screens
+to the `Time/date` step (`w-tida`, `8362b9bc`), one internal-viewset advance
+before the `w-ltim` "Time zone / Search for GPS" screen, and stops at ~73.1 s
+when the eleven-hit `gps-awake-pulse` budget (E-SAP-COMPAT-GPS-005) is
+exhausted (E-SAP-ONBOARD-EMU-009).
 
 The next native transition is now provenance-pinned as E-SAP-ONBOARD-001: an
 English-row selection reaches a native software-rendered `Define your profile`

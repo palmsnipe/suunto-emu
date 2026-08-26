@@ -110,26 +110,40 @@ plus one new SDL diagnostic helper and one focused regression test.
 
 - Fresh-boot screen map (corrected pin mapping): steps 1–11 advance on
   MIDDLE; step 12 is "Connect with mobile" (`261712ad`), which advances only
-  on MIDDLE from a fresh boot; MIDDLE then reaches the handoff
-  (`ea3bc5f8`), and three LOWER presses settle `9b58f243`, `eb868d29`,
-  `ed7eeb7a` ("Watch info / Later"). The run caps at the 11-hit
-  `gps-awake-pulse` budget (~73.2 s virtual).
-- Correction to 008: `ed7eeb7a` is the "Watch info / Later" step, one step
-  BEFORE `w-ltim`; the time screen itself is not reached before the cap.
-- Time-source RE (2.22.60 application binary): the authoritative clock path
-  is the `GpsTimeSynchronizer` worker (log strings "Timesync: ...", "setting
-  new utc time %u"), driven by NMEA GGA/RMC time; the Apollo4 RTC value
-  register is `0x40004820` with time-set bit 0 of `0x40004800`. `w-ltim`
-  gates on `Dev/Time/LocalTime >= 1646092800` (2022-03-01Z). No
-  OHR2/phone time-sync command exists in 2.22.60. The manual chain
-  `w-year` → `w-mont` → `w-day` → `w-time` → `w-tset` → `w-done` is fully
-  present in the 2.22.60 resources.
+  on MIDDLE from a fresh boot to the handoff (`ea3bc5f8`); three LOWER presses
+  settle `9b58f243`, `eb868d29`, `ed7eeb7a` ("Watch info / Later"); MIDDLE on
+  `ed7eeb7a` settles a phone-pairing recommendation sequence `74a5e6ab`,
+  `b26dd658`, `0b93f6c9` ("Connect / Connect Later"), `a797ec30`, and MIDDLE
+  on `a797ec30` settles `8362b9bc` "Time/date" (`w-tida`, step 21, ~23.0 s
+  virtual). On `8362b9bc` MIDDLE/LOWER/UPPER all fail to settle a new frame
+  under the walk's one-press-per-frame model: `w-tida` needs its internal
+  `#vs-h` viewset advanced by `onTap next('#vs-h')` until `onIdle` sees
+  `targetData==2`, only then opening `w-ltim`/`w-year`.
+- Correction to 008: the furthest reached screen is "Time/date" (`w-tida`,
+  `8362b9bc`), one viewset-advance before `w-ltim`; the `w-ltim` "Search for
+  GPS" screen is not reached by the walk.
+- Every run (RTC-value gated or not) stops byte-stably at
+  `pc=0x0010fbde`, `stop=compat-refused`, 11-hit `gps-awake-pulse` budget at
+  virtual time 73.08–73.15 s.
+- Time-source RE (2.22.60 application binary + resources): `w-ltim` puts
+  `Navigation/State=1`, waits 5 s, subscribes to `Dev/Time/LocalTime`;
+  `t >= 1646092800` (2022-03-01Z, unix seconds) → UTC-offset menu → `w-done`;
+  otherwise "Search for GPS" whose down button ("Set manually") opens
+  `w-year`. The authoritative application clock path is the
+  `GpsTimeSynchronizer` worker (NMEA GGA/RMC time-of-day; "setting new utc
+  time %u"); no OHR2/phone time-sync command exists in 2.22.60. The manual
+  chain `w-year` → `w-mont` → `w-day` → `w-time` → `w-tset`/`w-done`
+  (auto-opens `main` after 3 s) is fully present in the resources.
 - Empirical NMEA-time boundary: injecting a valid time-bearing GGA+RMC+EPU
   group on the `@GSR` running-status exchange (with or without coordinates)
   makes the firmware issue repeated deliberate `SYSRESETREQ` writes from
   `0x000be93e` and does not stop the GPS power-cycling. Synthetic NMEA time
   is therefore not an authorized `LocalTime` source in the standalone
   no-device context (experiment code reverted; tree clean).
+- Empirical RTC boundary: returning `1704110400` from `0x40004820` (plus
+  time-set bit at `0x40004800`) leaves the onboarding byte-identical — the
+  RTC value register does not feed `Dev/Time/LocalTime` in the standalone
+  context (experiment code reverted; tree clean).
 
 ## Handoff
 
