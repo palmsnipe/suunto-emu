@@ -45,6 +45,58 @@ static void test_iom2_pressure_via_mux(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_versioned_lps22_selection(semu_test_context *context)
+{
+    static const char *const common_profiles[] = {
+        "sapporo-2.22.60", "sapporo-2.33.16"
+    };
+    semu_error error;
+    semu_scheduler *scheduler;
+    semu_sapporo_devices *devices;
+    const semu_serial_endpoint *iom2;
+    uint8_t selector = 0x0fu;
+    uint8_t value = 0u;
+    semu_serial_transaction transaction;
+    size_t index;
+
+    semu_error_clear(&error);
+    scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    memset(&transaction, 0, sizeof(transaction));
+    transaction.address = 0x5cu;
+    transaction.tx = &selector;
+    transaction.tx_size = 1u;
+    transaction.rx = &value;
+    transaction.rx_size = 1u;
+    for (index = 0u; index < SEMU_ARRAY_LEN(common_profiles); ++index) {
+        devices = semu_sapporo_devices_create(scheduler, NULL, &error);
+        SEMU_TEST_ASSERT(context, devices != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_devices_select_profile(
+                devices, common_profiles[index], &error));
+        iom2 = semu_sapporo_devices_iom_endpoint(devices, 2u);
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+            iom2->transfer(iom2->context, &transaction, &error));
+        semu_sapporo_devices_destroy(devices);
+    }
+    devices = semu_sapporo_devices_create(scheduler, NULL, &error);
+    SEMU_TEST_ASSERT(context, devices != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_sapporo_devices_select_profile(devices, "sapporo-9", &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_devices_select_profile(
+            devices, "sapporo-2.39.20", &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+        semu_sapporo_devices_select_profile(
+            devices, "sapporo-2.39.20", &error));
+    iom2 = semu_sapporo_devices_iom_endpoint(devices, 2u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        iom2->transfer(iom2->context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 0xb1u, value);
+    semu_sapporo_devices_destroy(devices);
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_iom0_accelerometer(semu_test_context *context)
 {
     semu_error error;
@@ -285,6 +337,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_iom2_pressure_via_mux),
+        SEMU_TEST_CASE(test_versioned_lps22_selection),
         SEMU_TEST_CASE(test_iom0_accelerometer),
         SEMU_TEST_CASE(test_iom4_observed_endpoint),
         SEMU_TEST_CASE(test_iom2_ohr2_via_mux),

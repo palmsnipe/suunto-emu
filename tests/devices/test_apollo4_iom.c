@@ -37,6 +37,10 @@ typedef struct lsm6_phase_log {
     int held_read_seen;
 } lsm6_phase_log;
 
+typedef struct selector_log {
+    int selector_seen;
+} selector_log;
+
 static semu_serial_endpoint test_endpoint;
 
 static void irq_sink(void *context, unsigned irq, int level)
@@ -175,6 +179,46 @@ static semu_transaction_result lsm6_held_phase_probe(
     }
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
+}
+
+static semu_transaction_result lps22_selector_probe(
+    void *context, semu_serial_transaction *transaction, semu_error *error)
+{
+    selector_log *log = (selector_log *)context;
+
+    if (transaction == NULL || transaction->address != 0x5cu ||
+        transaction->tx == NULL || transaction->tx_size != 1u ||
+        transaction->tx[0u] != 0x0fu) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "IOM2 LPS22 selector transaction is invalid");
+        return SEMU_TRANSACTION_REFUSE;
+    }
+    log->selector_seen = 1;
+    semu_error_clear(error);
+    return SEMU_TRANSACTION_OK;
+}
+
+static void test_lps22_read_selector(semu_test_context *context)
+{
+    iom_fixture f;
+    irq_log irq = {0u};
+    dma_log dma = {0u};
+    selector_log selector = {0};
+
+    SEMU_TEST_ASSERT(context, fixture_init(&f, &irq, &dma));
+    test_endpoint.name = "lps22-probe";
+    test_endpoint.transfer = lps22_selector_probe;
+    test_endpoint.context = &selector;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_iom_attach_endpoint(
+                         f.iom, &test_endpoint, &f.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x21cu, 1u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x220u, 0x10001000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x2c4u, 0x5cu));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x218u, 0x01u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(&f, 0x120u, 0x0f000112u));
+    SEMU_TEST_EQ_U64(context, 1u, selector.selector_seen);
+    fixture_destroy(&f);
 }
 
 static void test_lsm6_held_read_phase(semu_test_context *context)
@@ -420,6 +464,7 @@ int main(void)
         SEMU_TEST_CASE(test_dma_request_emission),
         SEMU_TEST_CASE(test_p2m_dma_request),
         SEMU_TEST_CASE(test_lsm6_held_read_phase),
+        SEMU_TEST_CASE(test_lps22_read_selector),
         SEMU_TEST_CASE(test_irq_status_and_clear),
         SEMU_TEST_CASE(test_endpoint_refusal),
         SEMU_TEST_CASE(test_dma_refusal),

@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=82fe5769ed4c6d886a8adca29ac4cda61b5a7b8bc1e63045ca42c26bd4fcb5b9
-expected_snapshot_hash=d3f7d317553d689ca7595631a84193d788c4cc95563acbefeaeb241aa9364024
+expected_log_hash=f61318b9a56255656473779a779a2eba973d98120520c61c319f0df031b285b2
+expected_snapshot_hash=3d94e3517488f4d672d6542cad14db0866610483c90b2b0d16f8ab22a080b301
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical-files runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -112,7 +112,7 @@ for event in \
 done
 if grep -E -q '0x0f676e34|event=machine-reset-request|compat-refused|unknown Sapporo' \
     "$run_dir/first.log" || ! grep -F -x -q \
-    'stop=budget pc=0x000d2f6c instructions=78868137 virtual_time_ns=520697206' \
+    'stop=budget pc=0x000be522 instructions=78868137 virtual_time_ns=520697206' \
     "$run_dir/first.log";
 then
     echo "error: Sapporo 2.39 logical-files checkpoint changed" >&2
@@ -130,10 +130,10 @@ then
 else
     resume_status=$?
 fi
-if [ "$resume_status" -ne 3 ] || ! grep -F -q \
+if [ "$resume_status" -ne 3 ] || grep -F -q \
     'event=machine-reset-request pc=0x000d2f6e' "$run_dir/resume.log" ||
    ! grep -F -x -q \
-    'stop=budget pc=0x001c4fb6 instructions=78868138 virtual_time_ns=520697207' \
+    'stop=budget pc=0x000be524 instructions=78868138 virtual_time_ns=520697207' \
     "$run_dir/resume.log";
 then
     echo "error: Sapporo 2.39 logical-files snapshot resume changed" >&2

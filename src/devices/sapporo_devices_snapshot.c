@@ -28,6 +28,10 @@ semu_status semu_sapporo_devices_snapshot_write(
         return error->code;
     if (has_flash && semu_sapporo_flash_snapshot_write(devices->flash, writer, error) != SEMU_OK)
         return error->code;
+    if (devices->lps22 != NULL &&
+        semu_sapporo_lps22_snapshot_write(devices->lps22, writer,
+                                           error) != SEMU_OK)
+        return error->code;
     return SEMU_OK;
 }
 
@@ -55,6 +59,14 @@ static semu_status read_child(
         return error->code;
     if (has_flash && semu_sapporo_flash_snapshot_read(devices->flash, reader, error) != SEMU_OK)
         return error->code;
+    if (devices->lps22 != NULL) {
+        if (semu_snapshot_reader_done(reader)) {
+            semu_sapporo_lps22_reset(devices->lps22);
+        } else if (semu_sapporo_lps22_snapshot_read(
+                       devices->lps22, reader, error) != SEMU_OK) {
+            return error->code;
+        }
+    }
     devices->fixture_context.gps_running_status_armed = armed;
     return SEMU_OK;
 }

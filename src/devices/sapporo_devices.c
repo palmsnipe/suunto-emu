@@ -264,9 +264,49 @@ fail:
     return NULL;
 }
 
+semu_status semu_sapporo_devices_select_profile(
+    semu_sapporo_devices *devices, const char *profile_id,
+    semu_error *error)
+{
+    int is_239;
+    if (devices == NULL || profile_id == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo profile selection is incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (devices->soc != NULL || devices->profile_selected) {
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "Sapporo profile must be selected once before attach");
+        return SEMU_ERR_STATE;
+    }
+    is_239 = strcmp(profile_id, "sapporo-2.39.20") == 0;
+    if (!is_239 && strcmp(profile_id, "sapporo-2.22.60") != 0 &&
+        strcmp(profile_id, "sapporo-2.33.16") != 0) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Sapporo device profile %s is unsupported", profile_id);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (is_239) {
+        semu_serial_endpoint endpoint;
+        if (devices->iom2_bus.count >= SEMU_SAPPORO_MAX_I2C_CHILDREN) {
+            semu_error_set(error, SEMU_ERR_RANGE,
+                           "Sapporo IOM2 device table is full");
+            return SEMU_ERR_RANGE;
+        }
+        devices->lps22 = semu_sapporo_lps22_create(0x5cu, error);
+        if (devices->lps22 == NULL) return error->code;
+        endpoint = semu_sapporo_lps22_endpoint(devices->lps22);
+        i2c_bus_attach(&devices->iom2_bus, 0x5cu, &endpoint);
+    }
+    devices->profile_selected = 1;
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 void semu_sapporo_devices_destroy(semu_sapporo_devices *devices)
 {
     if (devices == NULL) return;
+    semu_sapporo_lps22_destroy(devices->lps22);
     semu_sapporo_ohr2_destroy(devices->ohr2);
     semu_sapporo_flash_destroy(devices->flash);
     semu_sapporo_cxd5610_destroy(devices->gps);
@@ -286,6 +326,7 @@ void semu_sapporo_devices_reset(semu_sapporo_devices *devices)
     devices->fixture_context.logger = NULL;
     semu_sapporo_cxd5610_set_exchange(devices->gps, NULL, NULL);
     devices->fixture_context.gps_running_status_armed = 0;
+    semu_sapporo_lps22_reset(devices->lps22);
     semu_sapporo_hsppad143_reset(devices->pressure);
     semu_sapporo_lsm6dsl_reset(devices->accelerometer);
     semu_sapporo_tli493d_reset(devices->magnetometer);

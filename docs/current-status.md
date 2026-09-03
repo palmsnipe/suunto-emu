@@ -369,6 +369,23 @@ at `0x40052120` from stacked PC `0x0014e8ee`, matching the reference's I2C
 probe of address `0x5c` (E-SAP-COMPAT-FILES-239-001). No generic IOM or sensor
 response is yet implemented.
 
+Ticket 731 implements that independently evidenced boundary as
+E-SAP-LPS22-239-001. The board factory now adds a strict LPS22HB endpoint at
+I2C address `0x5c` only for `sapporo-2.39.20`; 2.22 and 2.33 continue to
+refuse that address and retain byte-identical device snapshots. The IOM2
+adapter forwards the command's high-byte selector only for the newly evidenced
+address. Authentic firmware performs the reference's exact fourteen reads and
+writes, observes identity `0xb1`, completes both self-clearing CTRL_REG2
+commands, and finishes with CTRL_REG1 `0x1e`. Two 79,000,000-instruction runs
+and snapshots are byte-identical (log SHA-256
+`fa74015d06b9aa988787724e666f4e37c1223c14fc36f996cd773b2a93d61592`,
+snapshot SHA-256
+`75f0f534bfc9aae60adabd642f0d4fa982146ed9a743abb7e584aa0e1664e290`),
+stop at PC `0x000a7b2e` and virtual time 520,829,069 ns, and contain no reset.
+Snapshot continuation advances one instruction identically. A longer
+exploratory run reaches a distinct firmware reset request at instruction
+122,452,650 and virtual time 1,230,991,337 ns; its owner is not inferred here.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -390,11 +407,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Reverse engineer and implement only the exact Sapporo 2.39 IOM2 transaction
-  needed for the observed I2C address-`0x5c` pressure-sensor probe. Begin from
-  the ticket-729 pre-reset checkpoint and recover the command/register transcript
-  from the hash-pinned reference before changing IOM or device behavior; do not
-  add a generic acknowledgement or guessed sensor identity.
+- Recover the owner and intent of Sapporo 2.39's later firmware reset request
+  at instruction 122,452,650 and virtual time 1,230,991,337 ns. Begin from the
+  ticket-731 post-LPS22 checkpoint; do not suppress or reinterpret the reset
+  without a hash-pinned native/reference observation.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

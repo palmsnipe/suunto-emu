@@ -39,6 +39,11 @@ static inline int semu_sapporo_devices_compat_hook_pc(uint32_t pc)
 semu_sapporo_devices *semu_sapporo_devices_create(
     semu_scheduler *scheduler, const semu_storage *flash_storage,
     semu_error *error);
+
+/* Selects version-specific devices. Must be called at most once, pre-attach. */
+semu_status semu_sapporo_devices_select_profile(
+    semu_sapporo_devices *devices, const char *profile_id,
+    semu_error *error);
 void semu_sapporo_devices_destroy(semu_sapporo_devices *devices);
 void semu_sapporo_devices_reset(semu_sapporo_devices *devices);
 void semu_sapporo_devices_set_logger(semu_sapporo_devices *devices,

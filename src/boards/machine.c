@@ -80,6 +80,10 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     if (machine->devices == NULL) {
         return error->code;
     }
+    if (semu_sapporo_devices_select_profile(
+            machine->devices, machine->profile.id, error) != SEMU_OK) {
+        return error->code;
+    }
     semu_sapporo_devices_set_logger(machine->devices, machine->logger);
     if (semu_sapporo_devices_bind_bus(machine->devices, machine->bus,
                                       error) != SEMU_OK) {

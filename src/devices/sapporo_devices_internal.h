@@ -7,6 +7,7 @@
 #include "sapporo_hsppad143.h"
 #include "sapporo_haptic.h"
 #include "sapporo_lsm6dsl.h"
+#include "sapporo_lps22.h"
 #include "sapporo_max17050.h"
 #include "sapporo_ohr2.h"
 #include "sapporo_opt3007.h"
@@ -30,6 +31,7 @@ struct semu_sapporo_devices {
     semu_scheduler *scheduler;
     semu_apollo4 *soc;
     semu_sapporo_hsppad143 *pressure;
+    semu_sapporo_lps22 *lps22;
     semu_sapporo_lsm6dsl *accelerometer;
     semu_sapporo_tli493d *magnetometer;
     semu_sapporo_haptic *haptic;
@@ -50,6 +52,7 @@ struct semu_sapporo_devices {
     semu_serial_endpoint refuse_ep;
     semu_apollo4_uart_endpoint uart_ep;
     semu_sapporo_222_fixture_context fixture_context;
+    int profile_selected;
 };
 
 semu_status semu_sapporo_devices_snapshot_write(
