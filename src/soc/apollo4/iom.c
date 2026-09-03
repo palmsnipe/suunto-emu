@@ -227,9 +227,10 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
     transaction.chip_select = transaction.address;
     if (request.direction == SEMU_DMA_FROM_ENDPOINT &&
         (transaction.address == 0x48u || transaction.address == 0x10u ||
-         transaction.address == 0x45u || transaction.address == 0x5cu)) {
+         transaction.address == 0x45u || transaction.address == 0x50u ||
+         transaction.address == 0x5cu)) {
         offset_byte = (uint8_t)(value >> 24u); transaction.tx = &offset_byte; transaction.tx_size = 1u;
-    } else if (request.direction == SEMU_DMA_FROM_ENDPOINT && (transaction.address == 0x36u || transaction.address == 0x50u) && iom->dma_target >= 0x10000010u) {
+    } else if (request.direction == SEMU_DMA_FROM_ENDPOINT && transaction.address == 0x36u && iom->dma_target >= 0x10000010u) {
         if (semu_bus_copy_out(iom->bus, iom->dma_target - 8u,
                               &offset_byte, 1u, error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_RANGE;

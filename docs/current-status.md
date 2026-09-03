@@ -386,6 +386,19 @@ Snapshot continuation advances one instruction identically. A longer
 exploratory run reaches a distinct firmware reset request at instruction
 122,452,650 and virtual time 1,230,991,337 ns; its owner is not inferred here.
 
+That reset is now attributed to an IOM4 haptic selector adapter error rather
+than firmware reset policy. Native command `0x22000112` reads autotune register
+`0x22` at address `0x50`, but the adapter supplied stale byte `0xa0` from a
+fixed DMA-adjacent location. Address-scoped command-selector forwarding makes
+the poll succeed without changing the haptic endpoint or compatibility layer.
+Two fresh runs stop byte-identically before the next strict boundary at PC
+`0x0014e8ea`, instruction 122,457,908, virtual time 1,230,996,595 ns (log
+SHA-256 `f1c41ec3d40617174d8cbb299883c69b028a6bfb445b44a0bb7aaf2622915354`,
+snapshot `629ba604acfbb1eb1265a755283c6133b9650d45dcf2c44d9439752365e22247`).
+The next command is the evidenced haptic calibration read `0x23000112`;
+registers `0x23`/`0x24` remain intentionally unsupported pending a bounded
+fixture contract (E-SAP-IOM4-HAPTIC-239-001).
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -407,10 +420,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover the owner and intent of Sapporo 2.39's later firmware reset request
-  at instruction 122,452,650 and virtual time 1,230,991,337 ns. Begin from the
-  ticket-731 post-LPS22 checkpoint; do not suppress or reinterpret the reset
-  without a hash-pinned native/reference observation.
+- Recover the deterministic calibration-byte fixture for Sapporo's haptic
+  registers `0x23` and `0x24`. The exact 2.39 path reaches command
+  `0x23000112` at instruction 122,457,908 after the corrected `0x22` autotune
+  poll; do not expose either register until a hash-pinned native/reference
+  observation defines its values and reset/snapshot behavior.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
