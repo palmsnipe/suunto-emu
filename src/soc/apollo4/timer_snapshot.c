@@ -108,14 +108,18 @@ semu_status semu_apollo4_timer_snapshot_read(
         (candidate.pending & ~TIMER_PENDING_MASK) != 0u ||
         (candidate.status_value != 0u && candidate.status_value != 1u &&
          candidate.status_value != 2u &&
+         candidate.status_value != UINT32_C(0x4000) &&
+         candidate.status_value != UINT32_C(0x4001) &&
          candidate.status_value != UINT32_C(0x8000000) &&
          candidate.status_value != UINT32_C(0x8000001)) ||
         candidate.status_written > 1u ||
         (candidate.output_control != 0u && candidate.output_control != 1u &&
+         candidate.output_control != UINT32_C(0x4000) &&
          candidate.output_control != UINT32_C(0x30000) &&
          candidate.output_control != UINT32_C(0x8000000) &&
          candidate.output_control != UINT32_C(0xc000000)) ||
-        (candidate.auxiliary != 0u && candidate.auxiliary != UINT32_C(0x12)) ||
+        (candidate.auxiliary != 0u && candidate.auxiliary != UINT32_C(0x12) &&
+         candidate.auxiliary != UINT32_C(0x3f)) ||
         (candidate.pattern != 0u && candidate.pattern != UINT32_C(0x100) &&
          candidate.pattern != UINT32_C(0x2000) &&
          candidate.pattern != UINT32_C(0x2100) &&
@@ -123,6 +127,7 @@ semu_status semu_apollo4_timer_snapshot_read(
          candidate.pattern != UINT32_C(0x10101) &&
          candidate.pattern != UINT32_C(0x10300) &&
          candidate.pattern != UINT32_C(0x10301) &&
+         candidate.pattern != UINT32_C(0x12300) &&
          candidate.pattern != UINT32_C(0x12301) &&
          candidate.pattern != UINT32_C(0x12100) &&
          candidate.pattern != UINT32_C(0x12101)) ||

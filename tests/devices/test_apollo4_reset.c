@@ -102,6 +102,30 @@ static void test_chiprev(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_deterministic_chip_identity(semu_test_context *context)
+{
+    reset_fixture fixture;
+    uint32_t value = UINT32_MAX;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_read(&fixture, SEMU_APOLLO4_CHIPID0_OFFSET, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     mcu_read(&fixture, SEMU_APOLLO4_CHIPID1_OFFSET, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     mcu_write(&fixture, SEMU_APOLLO4_CHIPID0_OFFSET, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     mcu_write(&fixture, SEMU_APOLLO4_CHIPID1_OFFSET, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(fixture.bus,
+                                   SEMU_APOLLO4_MCU_CONTROL_BASE +
+                                       SEMU_APOLLO4_CHIPID0_OFFSET,
+                                   2u, &value, &fixture.error));
+    fixture_destroy(&fixture);
+}
+
 static void test_mcu_other_offsets_read_zero(semu_test_context *context)
 {
     reset_fixture fixture;
@@ -270,6 +294,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_chiprev),
+        SEMU_TEST_CASE(test_deterministic_chip_identity),
         SEMU_TEST_CASE(test_mcu_other_offsets_read_zero),
         SEMU_TEST_CASE(test_mcu_write_accept_and_unknown_refuse),
         SEMU_TEST_CASE(test_reset_order_deterministic),

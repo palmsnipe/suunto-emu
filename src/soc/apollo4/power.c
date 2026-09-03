@@ -12,6 +12,10 @@ enum {
     SHARED_SRAM_ENABLE = 0x24u,
     SHARED_SRAM_STATUS = 0x28u,
     SHARED_SRAM_RETENTION = 0x2cu,
+    DSP0_MEMORY_ENABLE = 0x58u, DSP0_MEMORY_STATUS = 0x5cu,
+    DSP0_MEMORY_RETENTION = 0x60u,
+    DSP1_MEMORY_ENABLE = 0x78u, DSP1_MEMORY_STATUS = 0x7cu,
+    DSP1_MEMORY_RETENTION = 0x80u,
     SIMO_BUCK_ENABLE = 0x100u,
     VOLTAGE_REGULATORS_STATUS = 0x108u,
     LEGACY_WINDOW_FIRST = 0x140u,
@@ -28,6 +32,8 @@ static const uint32_t DEVICE_POWER_STATUS_HIGH = UINT32_C(0x1e00);
 static const uint32_t SIMO_STATUS_MASK = UINT32_C(0x30);
 static const uint32_t SHARED_SRAM_ENABLE_MASK = UINT32_C(0x3);
 static const uint32_t SHARED_SRAM_RETENTION_MASK = UINT32_C(0x3ff);
+static const uint32_t DSP_MEMORY_ENABLE_MASK = UINT32_C(0x3);
+static const uint32_t DSP_MEMORY_RETENTION_MASK = UINT32_C(0x1f);
 
 struct semu_apollo4_power {
     semu_bus *bus;
@@ -41,6 +47,8 @@ struct semu_apollo4_power {
     uint32_t legacy_control_1c;
     uint32_t shared_sram_enable;
     uint32_t shared_sram_retention;
+    uint32_t dsp0_memory_enable, dsp0_memory_retention;
+    uint32_t dsp1_memory_enable, dsp1_memory_retention;
     uint32_t simo_buck_enable;
 };
 
@@ -56,7 +64,11 @@ static int is_known_read_offset(uint32_t offset)
            offset == DEVICE_POWER_STATUS || offset == LEGACY_STATUS_14 ||
            offset == LEGACY_STATUS_18 || offset == LEGACY_CONTROL_1C ||
            offset == SHARED_SRAM_ENABLE || offset == SHARED_SRAM_STATUS ||
-           offset == SHARED_SRAM_RETENTION || offset == SIMO_BUCK_ENABLE ||
+           offset == SHARED_SRAM_RETENTION ||
+           offset == DSP0_MEMORY_ENABLE || offset == DSP0_MEMORY_STATUS ||
+           offset == DSP0_MEMORY_RETENTION ||
+           offset == DSP1_MEMORY_ENABLE || offset == DSP1_MEMORY_STATUS ||
+           offset == DSP1_MEMORY_RETENTION || offset == SIMO_BUCK_ENABLE ||
            offset == VOLTAGE_REGULATORS_STATUS;
 }
 
@@ -71,7 +83,23 @@ static int is_known_write_offset(uint32_t offset)
     return offset == PERFORMANCE_CONTROL || offset == DEVICE_POWER_ENABLE ||
            offset == LEGACY_STATUS_14 || offset == LEGACY_CONTROL_1C ||
            offset == SHARED_SRAM_ENABLE || offset == SHARED_SRAM_RETENTION ||
+           offset == DSP0_MEMORY_ENABLE ||
+           offset == DSP0_MEMORY_RETENTION ||
+           offset == DSP1_MEMORY_ENABLE ||
+           offset == DSP1_MEMORY_RETENTION ||
            offset == SIMO_BUCK_ENABLE || is_legacy_window_offset(offset);
+}
+
+static semu_status validate_masked_value(uint32_t offset, uint32_t value,
+                                         uint32_t mask, semu_error *error)
+{
+    if ((value & ~mask) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Apollo4 power offset 0x%08x value 0x%08x is unsupported",
+                       offset, value);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
 }
 
 static uint32_t device_power_status_for(uint32_t enable)
@@ -142,6 +170,8 @@ static void reset_state(semu_apollo4_power *power, int report)
     power->legacy_status_14 = 0x3fu;
     power->legacy_control_1c = 0x8u;
     power->shared_sram_retention = 0x3fcu;
+    power->dsp0_memory_enable = power->dsp0_memory_retention = 0u;
+    power->dsp1_memory_enable = power->dsp1_memory_retention = 0u;
     power->simo_buck_enable = 0u;
     if (report) {
         report_gate(power, SEMU_APOLLO4_POWER_GATE_NEMA, old_nema, 0);
@@ -240,6 +270,20 @@ semu_status semu_apollo4_power_read(void *context, uint32_t offset,
     case SHARED_SRAM_RETENTION:
         *value = power->shared_sram_retention;
         break;
+    case DSP0_MEMORY_ENABLE:
+    case DSP0_MEMORY_STATUS:
+        *value = power->dsp0_memory_enable;
+        break;
+    case DSP0_MEMORY_RETENTION:
+        *value = power->dsp0_memory_retention;
+        break;
+    case DSP1_MEMORY_ENABLE:
+    case DSP1_MEMORY_STATUS:
+        *value = power->dsp1_memory_enable;
+        break;
+    case DSP1_MEMORY_RETENTION:
+        *value = power->dsp1_memory_retention;
+        break;
     case SIMO_BUCK_ENABLE:
         *value = power->simo_buck_enable;
         break;
@@ -308,6 +352,26 @@ semu_status semu_apollo4_power_write(void *context, uint32_t offset,
     case SHARED_SRAM_RETENTION:
         power->shared_sram_retention = value & SHARED_SRAM_RETENTION_MASK;
         break;
+    case DSP0_MEMORY_ENABLE:
+        if (validate_masked_value(offset, value, DSP_MEMORY_ENABLE_MASK,
+                                  error) != SEMU_OK) return error->code;
+        power->dsp0_memory_enable = value;
+        break;
+    case DSP0_MEMORY_RETENTION:
+        if (validate_masked_value(offset, value, DSP_MEMORY_RETENTION_MASK,
+                                  error) != SEMU_OK) return error->code;
+        power->dsp0_memory_retention = value;
+        break;
+    case DSP1_MEMORY_ENABLE:
+        if (validate_masked_value(offset, value, DSP_MEMORY_ENABLE_MASK,
+                                  error) != SEMU_OK) return error->code;
+        power->dsp1_memory_enable = value;
+        break;
+    case DSP1_MEMORY_RETENTION:
+        if (validate_masked_value(offset, value, DSP_MEMORY_RETENTION_MASK,
+                                  error) != SEMU_OK) return error->code;
+        power->dsp1_memory_retention = value;
+        break;
     case SIMO_BUCK_ENABLE:
         next = value & UINT32_C(0x1);
         old_enabled = power->simo_buck_enable != 0u;
@@ -364,6 +428,10 @@ semu_status semu_apollo4_power_snapshot_write(
         power != NULL ? power->legacy_control_1c : 0u,
         power != NULL ? power->shared_sram_enable : 0u,
         power != NULL ? power->shared_sram_retention : 0u,
+        power != NULL ? power->dsp0_memory_enable : 0u,
+        power != NULL ? power->dsp0_memory_retention : 0u,
+        power != NULL ? power->dsp1_memory_enable : 0u,
+        power != NULL ? power->dsp1_memory_retention : 0u,
         power != NULL ? power->simo_buck_enable : 0u
     };
     size_t index;
@@ -384,7 +452,7 @@ semu_status semu_apollo4_power_snapshot_read(
     semu_error *error)
 {
     semu_apollo4_power candidate;
-    uint32_t *values[8];
+    uint32_t *values[12];
     size_t index;
     if (power == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -399,7 +467,11 @@ semu_status semu_apollo4_power_snapshot_read(
     values[4] = &candidate.legacy_control_1c;
     values[5] = &candidate.shared_sram_enable;
     values[6] = &candidate.shared_sram_retention;
-    values[7] = &candidate.simo_buck_enable;
+    values[7] = &candidate.dsp0_memory_enable;
+    values[8] = &candidate.dsp0_memory_retention;
+    values[9] = &candidate.dsp1_memory_enable;
+    values[10] = &candidate.dsp1_memory_retention;
+    values[11] = &candidate.simo_buck_enable;
     for (index = 0u; index < SEMU_ARRAY_LEN(values); ++index) {
         if (semu_snapshot_reader_u32(reader, values[index], error) != SEMU_OK)
             return error->code;
@@ -413,6 +485,10 @@ semu_status semu_apollo4_power_snapshot_read(
         candidate.legacy_control_1c != UINT32_C(0x8) ||
         (candidate.shared_sram_enable & ~SHARED_SRAM_ENABLE_MASK) != 0u ||
         (candidate.shared_sram_retention & ~SHARED_SRAM_RETENTION_MASK) != 0u ||
+        (candidate.dsp0_memory_enable & ~DSP_MEMORY_ENABLE_MASK) != 0u ||
+        (candidate.dsp0_memory_retention & ~DSP_MEMORY_RETENTION_MASK) != 0u ||
+        (candidate.dsp1_memory_enable & ~DSP_MEMORY_ENABLE_MASK) != 0u ||
+        (candidate.dsp1_memory_retention & ~DSP_MEMORY_RETENTION_MASK) != 0u ||
         (candidate.simo_buck_enable & ~UINT32_C(0x1)) != 0u) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "power snapshot state is unreachable");

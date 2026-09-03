@@ -58,6 +58,16 @@ int main(void)
 
     CHECK(semu_bus_write(bus, 0x400B2024u, 4u, 0x80000000u, &error) ==
           SEMU_OK);
+    CHECK(semu_bus_read(bus, 0x400B2000u, 4u, &value, &error) == SEMU_OK);
+    CHECK(value == 0u);
+    CHECK(semu_bus_write(bus, 0x400B2000u, 4u, 0x02000000u, &error) ==
+          SEMU_OK);
+    CHECK(semu_bus_read(bus, 0x400B2000u, 4u, &value, &error) == SEMU_OK);
+    CHECK(value == 0u);
+    CHECK(semu_bus_write(bus, 0x400B2000u, 4u, 0x01000000u, &error) ==
+          SEMU_ERR_UNSUPPORTED);
+    CHECK(semu_bus_read(bus, 0x400B2000u, 1u, &value, &error) ==
+          SEMU_ERR_UNSUPPORTED);
     CHECK(semu_bus_write(bus, 0x400B0001u, 1u, 0x40u, &error) == SEMU_OK);
     CHECK(semu_bus_write(bus, 0x400B000Cu, 4u, 0x50000u, &error) ==
           SEMU_OK);

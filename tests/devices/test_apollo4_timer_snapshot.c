@@ -138,12 +138,68 @@ static void test_event_requires_schedulable_channel(semu_test_context *context)
     semu_scheduler_destroy(source_scheduler);
 }
 
+static void test_later_values_round_trip(semu_test_context *context)
+{
+    semu_error error;
+    semu_scheduler *source_scheduler;
+    semu_scheduler *target_scheduler;
+    semu_apollo4_timer *source;
+    semu_apollo4_timer *target;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    uint32_t value = 0u;
+
+    semu_error_clear(&error);
+    source_scheduler = semu_scheduler_create(&error);
+    target_scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, source_scheduler != NULL);
+    SEMU_TEST_ASSERT(context, target_scheduler != NULL);
+    source = semu_apollo4_timer_create(source_scheduler, NULL, NULL, &error);
+    target = semu_apollo4_timer_create(target_scheduler, NULL, NULL, &error);
+    SEMU_TEST_ASSERT(context, source != NULL);
+    SEMU_TEST_ASSERT(context, target != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(source, 0xe8u, 4u, 0x3fu, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(source, 0x104u, 4u, 0x12300u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(source, 0x68u, 4u, 0x4000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(source, 0x60u, 4u, 0x4001u, &error));
+
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_snapshot_write(source, &writer, &error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_snapshot_read(target, &reader, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(target, 0xe8u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(target, 0x104u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x12300u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(target, 0x68u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(target, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4001u, value);
+
+    semu_snapshot_writer_destroy(&writer);
+    semu_apollo4_timer_destroy(target);
+    semu_apollo4_timer_destroy(source);
+    semu_scheduler_destroy(target_scheduler);
+    semu_scheduler_destroy(source_scheduler);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_inconsistent_event_refuses),
         SEMU_TEST_CASE(test_invalid_control_state_refuses),
-        SEMU_TEST_CASE(test_event_requires_schedulable_channel)
+        SEMU_TEST_CASE(test_event_requires_schedulable_channel),
+        SEMU_TEST_CASE(test_later_values_round_trip)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

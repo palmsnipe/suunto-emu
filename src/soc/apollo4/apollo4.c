@@ -52,7 +52,10 @@ static semu_status clock_reset_cb(void *context, semu_error *error)
 
 static semu_status power_reset_cb(void *context, semu_error *error)
 {
-    semu_apollo4_power_reset(context);
+    semu_apollo4 *soc = (semu_apollo4 *)context;
+    semu_apollo4_power_reset(soc->power);
+    semu_apollo4_watchdog_reset(soc->watchdog);
+    semu_apollo4_rstgen_reset(soc->rstgen);
     semu_error_clear(error);
     return SEMU_OK;
 }
@@ -209,6 +212,14 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
     if (soc->power == NULL) {
         goto fail;
     }
+    soc->watchdog = semu_apollo4_watchdog_create(soc->bus, error);
+    if (soc->watchdog == NULL) {
+        goto fail;
+    }
+    soc->rstgen = semu_apollo4_rstgen_create(soc->bus, error);
+    if (soc->rstgen == NULL) {
+        goto fail;
+    }
     soc->mcu_control = semu_apollo4_mcu_control_create(soc->bus, scheduler,
                                                         error);
     if (soc->mcu_control == NULL) {
@@ -310,7 +321,7 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
     if (semu_apollo4_reset_controller_register(soc->reset_ctrl,
             clock_reset_cb, soc->clock, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
-            power_reset_cb, soc->power, error) != SEMU_OK ||
+            power_reset_cb, soc, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
             mcu_reset_cb, soc->mcu_control, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
@@ -371,6 +382,8 @@ void semu_apollo4_destroy(semu_apollo4 *soc)
         semu_apollo4_timer_destroy(soc->timer);
         semu_apollo4_gpio_destroy(soc->gpio);
         semu_apollo4_mcu_control_destroy(soc->mcu_control);
+        semu_apollo4_rstgen_destroy(soc->rstgen);
+        semu_apollo4_watchdog_destroy(soc->watchdog);
         semu_apollo4_power_destroy(soc->power);
         semu_apollo4_clock_destroy(soc->clock);
         semu_apollo4_reset_controller_destroy(soc->reset_ctrl);

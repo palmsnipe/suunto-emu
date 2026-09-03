@@ -5,5 +5,7 @@ status=interpreter-bring-up
 
 [profile sapporo-2.33.16]
 path=profiles/sapporo/2.33.16/profile.semu
-status=evidence-contract
 
+[profile sapporo-2.39.20]
+path=profiles/sapporo/2.39.20/profile.semu
+status=evidence-contract

@@ -1,0 +1,28 @@
+# Copy this file outside the repository, update paths, and pass it to
+# `suunto-emu validate` or `suunto-emu run`. Relative paths are interpreted
+# from the manifest directory.
+[firmware]
+format=1
+product=Sapporo
+version=2.39.20.22297-P
+
+[component resident]
+role=resident
+path=component-03-type-2-v2.raw
+load_address=0x00019000
+size=73377
+sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5
+
+[component application]
+role=application
+path=component-04-type-4-v2.raw
+load_address=0x00040000
+size=1596337
+sha256=85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89
+
+[component resources]
+role=resources
+path=component-05-type-1-v3.raw
+load_address=0x14000000
+size=16519168
+sha256=49a3936f4c9d61dbceee12324f41412334c42aa98b900f6f2d3fc5633ae43aea

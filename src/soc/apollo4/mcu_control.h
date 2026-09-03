@@ -9,6 +9,8 @@
 #define SEMU_APOLLO4_MCU_CONTROL_BASE 0x40020000u
 #define SEMU_APOLLO4_MCU_CONTROL_SIZE 0x1000u
 
+#define SEMU_APOLLO4_CHIPID0_OFFSET 0x04u
+#define SEMU_APOLLO4_CHIPID1_OFFSET 0x08u
 #define SEMU_APOLLO4_CHIPREV 0x21u
 
 typedef struct semu_apollo4_mcu_control semu_apollo4_mcu_control;

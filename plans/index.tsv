@@ -71,11 +71,25 @@ id	phase	title	status	dependencies	ticket
 670	6	Sapporo 2.22 Onboarding Completion via Manual Time Entry	in-progress	665	plans/tasks/670-sapporo-onboarding-time.md
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
+706	7	Sapporo 2.39.20 Exact Profile	done	700	plans/tasks/706-sapporo-239-profile.md
 710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
+711	7	Sapporo 2.39 DSP Memory Power	done	706	plans/tasks/711-sapporo-239-dsp-power.md
+712	7	Sapporo 2.39 Watchdog Configuration Entry	done	711	plans/tasks/712-sapporo-239-watchdog-config.md
+713	7	Sapporo 2.39 Reset Generator Configuration	done	712	plans/tasks/713-sapporo-239-rstgen-config.md
+714	7	Sapporo 2.39 Watchdog Interrupt Enable	done	713	plans/tasks/714-sapporo-239-watchdog-inten.md
 715	7	One Later Sapporo Release Gate	blocked	710	plans/tasks/715-sapporo-version-gate.md
+716	7	Sapporo 2.39 Watchdog Restart Key	done	714	plans/tasks/716-sapporo-239-watchdog-restart.md
+717	7	Sapporo 2.39 Deterministic Chip Identity	done	716	plans/tasks/717-sapporo-239-chip-identity.md
 718	7	Later Sapporo Expansion Gate	blocked	715	plans/tasks/718-sapporo-expansion-gate.md
+719	7	Sapporo 2.39 CTIMER OUTCFG26	done	717	plans/tasks/719-sapporo-239-ctimer-outcfg26.md
 720	7	Ulsan 2.35/2.44 Evidence Inventory	blocked	630	plans/tasks/720-ulsan-evidence.md
+721	7	Sapporo 2.39 USB CLKCTRL	done	719	plans/tasks/721-sapporo-239-usb-clkctrl.md
+722	7	Sapporo 2.39 CTIMER Pattern Transition	done	721	plans/tasks/722-sapporo-239-ctimer-pattern.md
+723	7	Sapporo 2.39 NOR Page-Program Semantics	done	402,722	plans/tasks/723-sapporo-239-nor-program.md
+724	7	Sapporo 2.39 CTIMER7 Interrupt Clear	done	310,723	plans/tasks/724-sapporo-239-ctimer7-intclr.md
 725	7	One Ulsan Reset Profile	blocked	720	plans/tasks/725-ulsan-reset-profile.md
+726	7	Sapporo 2.39 CTIMER7 Interrupt Enable	done	310,724	plans/tasks/726-sapporo-239-ctimer7-inten.md
+727	7	Sapporo 2.39 Combined CTIMER Interrupt Enable	done	310,726	plans/tasks/727-sapporo-239-ctimer-combined-inten.md
 730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
 740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md

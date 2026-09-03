@@ -6,7 +6,7 @@
 #define TIMER_CHANNEL_BASE 0x200u
 #define TIMER_CHANNEL_STRIDE 0x20u
 #define TIMER_GLOBAL_MASK 0x10u
-#define TIMER_GLOBAL_STATUS 0x60u
+#define TIMER_GLOBAL_INTEN 0x60u
 #define TIMER_GLOBAL_STATUS2 0x64u
 #define TIMER_GLOBAL_CLEAR 0x68u
 #define TIMER_AUXILIARY 0xe8u
@@ -268,7 +268,7 @@ semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
     if (timer == NULL || value == NULL || !valid_access(offset, width))
         return refuse(offset, error);
     if (offset == TIMER_GLOBAL_MASK) *value = timer->interrupt_mask;
-    else if (offset == TIMER_GLOBAL_STATUS)
+    else if (offset == TIMER_GLOBAL_INTEN)
         *value = timer->status_written != 0u ? timer->status_value
                                              : timer->pending;
     else if (offset == TIMER_GLOBAL_STATUS2) *value = 0u;
@@ -312,28 +312,31 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
             semu_error_clear(&local_error);
             (void)reschedule(&timer->channels[index], &local_error);
         }
-    } else if (offset == TIMER_GLOBAL_STATUS) {
-        if (value != 0u && value != 1u && value != 2u && value != 0x8000000u &&
+    } else if (offset == TIMER_GLOBAL_INTEN) {
+        if (value != 0u && value != 1u && value != 2u && value != 0x4000u &&
+            value != 0x4001u && value != 0x8000000u &&
             value != 0x8000001u)
             return refuse(offset, error);
         timer->status_value = value;
         timer->status_written = 1u;
     } else if (offset == TIMER_GLOBAL_CLEAR) {
-        if (value != 1u && value != 0x30000u && value != 0x8000000u &&
-            value != 0xc000000u)
+        if (value != 1u && value != 0x4000u && value != 0x30000u &&
+            value != 0x8000000u && value != 0xc000000u)
             return refuse(offset, error);
         timer->output_control = value;
         if (value == 1u) clear_pending(timer, 1u);
+        if (value == 0x4000u) clear_pending(timer, 1u << 7);
         if (value == 0x8000000u || value == 0xc000000u)
             clear_pending(timer, 1u << 13);
     } else if (offset == TIMER_AUXILIARY) {
-        if (value != 0u && value != 0x12u) return refuse(offset, error);
+        if (value != 0u && value != 0x12u && value != 0x3fu)
+            return refuse(offset, error);
         timer->auxiliary = value;
     } else if (offset == TIMER_PATTERN) {
         if (value != 0u && value != 0x100u && value != 0x2000u &&
             value != 0x2100u && value != 0x10100u && value != 0x10101u &&
             value != 0x10300u && value != 0x10301u &&
-            value != 0x12301u &&
+            value != 0x12300u && value != 0x12301u &&
             value != 0x12100u && value != 0x12101u)
             return refuse(offset, error);
         timer->pattern = value;

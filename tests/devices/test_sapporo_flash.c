@@ -161,7 +161,7 @@ static void test_flash_program_and_erase(semu_test_context *context)
     uint8_t readback[2] = { 0u, 0u };
     const uint8_t write_enable[] = { 0x06u };
     const uint8_t program[] = { 0x12u, 0x00u, 0x01u, 0x20u, 0x0fu, 0xf0u };
-    const uint8_t invalid_program[] = {
+    const uint8_t set_bits_program[] = {
         0x12u, 0x00u, 0x01u, 0x20u, 0xffu, 0xffu
     };
     const uint8_t crossing_program[] = {
@@ -199,8 +199,29 @@ static void test_flash_program_and_erase(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0xf0u, readback[1u]);
 
     memset(&txn, 0, sizeof(txn));
-    txn.tx = invalid_program;
-    txn.tx_size = sizeof(invalid_program);
+    txn.tx = write_enable;
+    txn.tx_size = sizeof(write_enable);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    memset(&txn, 0, sizeof(txn));
+    txn.tx = set_bits_program;
+    txn.tx_size = sizeof(set_bits_program);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    memset(readback, 0u, sizeof(readback));
+    memset(&txn, 0, sizeof(txn));
+    txn.tx = read_command;
+    txn.tx_size = sizeof(read_command);
+    txn.rx = readback;
+    txn.rx_size = sizeof(readback);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     ep.transfer(ep.context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0x0fu, readback[0u]);
+    SEMU_TEST_EQ_U64(context, 0xf0u, readback[1u]);
+
+    memset(&txn, 0, sizeof(txn));
+    txn.tx = set_bits_program;
+    txn.tx_size = sizeof(set_bits_program);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      ep.transfer(ep.context, &txn, &error));
     memset(&txn, 0, sizeof(txn));

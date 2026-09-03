@@ -155,8 +155,10 @@ static semu_transaction_result program_page(
     semu_sapporo_flash *flash, semu_serial_transaction *transaction,
     semu_error *error)
 {
+    uint8_t merged[FLASH_PAGE_SIZE];
     uint32_t address;
     size_t data_size;
+    size_t offset;
     semu_status status;
 
     if (transaction->tx_size <= 4u || transaction->rx_size != 0u) {
@@ -180,8 +182,14 @@ static semu_transaction_result program_page(
         return refuse(error, SEMU_ERR_STATE,
                       "external flash page program requires write-enable");
     }
+    status = semu_storage_read((semu_storage *)flash->storage, address,
+                               merged, data_size, error);
+    if (status != SEMU_OK) return SEMU_TRANSACTION_REFUSE;
+    for (offset = 0u; offset < data_size; ++offset) {
+        merged[offset] &= transaction->tx[offset + 4u];
+    }
     status = semu_storage_program((semu_storage *)flash->storage, address,
-                                  transaction->tx + 4u, data_size, error);
+                                  merged, data_size, error);
     flash->write_enabled = 0u;
     if (status != SEMU_OK) return SEMU_TRANSACTION_REFUSE;
     semu_error_clear(error);

@@ -45,17 +45,17 @@ sha256=f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22
 compression=xz
 
 [vector_table resident]
-initial_sp=0x10080000
-reset_vector=0x0001df75
-reset_code_address=0x0001df74
+initial_sp=0x1005ffc0
+reset_vector=0x0001dfd5
+reset_code_address=0x0001dfd4
 sp_in_apollo_sram=true
 reset_is_thumb=true
 reset_in_component=true
 
 [vector_table application]
-initial_sp=0x10080000
-reset_vector=0x001c2b05
-reset_code_address=0x001c2b04
+initial_sp=0x1005ffc0
+reset_vector=0x001c2225
+reset_code_address=0x001c2224
 sp_in_apollo_sram=true
 reset_is_thumb=true
 reset_in_component=true

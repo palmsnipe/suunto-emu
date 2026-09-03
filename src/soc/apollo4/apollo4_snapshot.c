@@ -12,6 +12,8 @@ static semu_status write_child(const semu_apollo4 *soc,
                                    sizeof(soc->gpio_level), error) != SEMU_OK ||
         semu_apollo4_clock_snapshot_write(soc->clock, writer, error) != SEMU_OK ||
         semu_apollo4_power_snapshot_write(soc->power, writer, error) != SEMU_OK ||
+        semu_apollo4_watchdog_snapshot_write(soc->watchdog, writer, error) != SEMU_OK ||
+        semu_apollo4_rstgen_snapshot_write(soc->rstgen, writer, error) != SEMU_OK ||
         semu_apollo4_gpio_snapshot_write(soc->gpio, writer, error) != SEMU_OK ||
         semu_apollo4_timer_snapshot_write(soc->timer, writer, error) != SEMU_OK ||
         semu_apollo4_stimer_snapshot_write(soc->stimer, writer, error) != SEMU_OK ||
@@ -58,6 +60,8 @@ static semu_status read_child(
     }
     if (semu_apollo4_clock_snapshot_read(candidate.clock, reader, error) != SEMU_OK ||
         semu_apollo4_power_snapshot_read(candidate.power, reader, error) != SEMU_OK ||
+        semu_apollo4_watchdog_snapshot_read(candidate.watchdog, reader, error) != SEMU_OK ||
+        semu_apollo4_rstgen_snapshot_read(candidate.rstgen, reader, error) != SEMU_OK ||
         semu_apollo4_gpio_snapshot_read(candidate.gpio, reader, error) != SEMU_OK ||
         semu_apollo4_timer_snapshot_read(candidate.timer, reader, error) != SEMU_OK ||
         semu_apollo4_stimer_snapshot_read(candidate.stimer, reader, error) != SEMU_OK ||

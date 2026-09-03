@@ -3,6 +3,7 @@
 enum {
     ADC_BASE = 0x400b0000u,
     ADC_SIZE = 0x3000u,
+    USB_CLKCTRL = 0x2000u,
     ADC_CONTROL = 0x2024u
 };
 
@@ -15,6 +16,7 @@ static int read_allowed(uint32_t offset, unsigned width)
         offset == 0x10u || offset == 0x14u || offset == 0x18u) {
         return width == 4u;
     }
+    if (offset == USB_CLKCTRL) return width == 4u;
     if (offset == 0x4u) {
         return width == 1u || width == 4u;
     }
@@ -30,6 +32,9 @@ static int read_allowed(uint32_t offset, unsigned width)
 
 static int write_allowed(uint32_t offset, unsigned width, uint32_t value)
 {
+    if (offset == USB_CLKCTRL) {
+        return width == 4u && value == UINT32_C(0x02000000);
+    }
     if (offset == ADC_CONTROL) {
         return width == 4u && value == UINT32_C(0x80000000);
     }

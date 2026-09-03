@@ -98,10 +98,11 @@ the three mapped buttons.
 Pressing that edge returns control to the guest immediately and rearms the next
 settled frame; replay checkpoints retain their deterministic stop behavior.
 The optional authentic `check-sdl` flow now queues one SDL Return key-down/up
-pair and two successive middle-screen mouse clicks, verifying setup CRC32
-checkpoints `629da47e`, `d4ed66c7`, and `2a01c517`, then exits through an SDL
-quit event at the repeatable checkpoint `pc=0x000bd696`,
-`instructions=1519357344`, `virtual_time_ns=12273391898`. The neutral
+pair and two successive middle-screen mouse clicks. From the initial validated
+frame CRC32 `2a01c517`, it verifies settled setup checkpoints `4979f432`,
+`629da47e`, and `d4ed66c7`, then exits through an SDL quit event at the
+repeatable checkpoint `pc=0x080000a2`, `instructions=804398304`,
+`virtual_time_ns=9504428769` (E-SAP-ONBOARD-EMU-011). The neutral
 `setup-next` checkpoint is also available for a snapshot-loaded, middle-button
 replay continuation; it reports the first visible post-input frame without
 naming an unverified screen. Invalid automation configuration is always
@@ -244,13 +245,99 @@ refusal (E-SAP-0016). These are reproducible emulator observations, not a
 later-version behavior fix; a native reset-register or post-reset transaction
 trace is still required before changing Apollo4 reset semantics.
 
-The later-Sapporo audit is now recorded as E-SAP-0017. The 2.33 MSPI power
+The later-Sapporo audit is recorded as E-SAP-0017, and the first executable
+2.39 C-emulator boundary is now recorded as E-SAP-0018. The 2.33 MSPI power
 change remains a static hotfix candidate without a recovered failing runtime
-state, and the current E-SAP-0014 profile run reaches its bounded max-time
-checkpoint without a device/storage stop. The 2.39 storage and UI probes still
-require a native `storage/` open and watch-face notification before any binding;
-fabricating those events would bypass the observed owner. No implementation-
-eligible later-Sapporo device/storage gap is currently available.
+state, while the exact 2.39 image now has a concrete fail-closed sequence: its
+HardFault handler resets after a precise access fault at the missing Apollo4
+DSP0 memory-power register `0x40021058`. Fully reverted diagnostic experiments
+show that the six-register DSP0/DSP1 enable/status/retention cluster advances
+the image to the next distinct initialization boundary. The image writes
+watchdog CFG at `0x40024000`, configures Reset/BoD routing at `0x40000000`, then
+accesses watchdog INTEN at `0x40024200`. The 2.39 storage/UI probes still
+require their native owner events; the power/reset/watchdog result does not
+authorize fabricated storage opens. The exact built-in `sapporo-2.39.20`
+profile pins all three component
+hashes under ticket 706. Ticket 711 now implements the evidenced DSP0/DSP1
+memory enable/status/retention registers, including reset and snapshot state;
+two byte-identical firmware runs advance the first reset from 11,897,027 ns to
+11,897,251 ns. Ticket 712 implements only the evidenced watchdog CFG register,
+including reset, snapshot, reserved-bit, selector, offset, and width checks;
+two byte-identical runs advance three more instructions to the precise
+Reset/BoD fault and first reset at 11,897,254 ns. Ticket 713 implements only
+RSTGEN CFG, with a zero reset value, valid bits 0..1, strict access refusal, and
+snapshot validation. Two byte-identical post-713 logs (SHA-256
+`540b62b500147fffa74f44f5ba4d0f1f02c9fa1c7713512a8834c78700fee7b5`)
+advance the first reset to 11,897,266 ns and stop at the next unsupported
+watchdog INTEN access. Ticket 714 implements only WDTIEREN at offset `0x200`,
+with reset zero, valid bits 0..1, strict access refusal, and snapshot
+validation. Two byte-identical post-714 logs (SHA-256
+`493e50f23db1149402e2aadb20cbe6108c7e37fec27be6700e23c8821d5c35fa`)
+advance the first reset to 11,897,284 ns. The next unsupported access is the
+watchdog restart-key write at `0x40024004`. Ticket 716 implements only the
+write-only `0xb2` restart command and zero readback, without inventing timer or
+expiry behavior. Two byte-identical post-716 logs (SHA-256
+`0a092da13d76a589b189bc43a22461bd5e280d68e791927d81dd2193f96958f6`)
+advance the first reset to instruction 19,945,598 and virtual time 25,285,493
+ns. Ticket 717 adds only deterministic zero-valued CHIPID0/CHIPID1 reads,
+matching both PAC reset values and the pinned reference environment, while
+keeping writes and all other MCUCTRL identity offsets refused. Two
+byte-identical post-717 logs (SHA-256
+`3d182aea65869a4414579e79ce5f942610570257b606d5b99b71c3f2674a483a`)
+advance the first reset to instruction 19,948,596 and 25,288,491 ns. The next
+precise fault is CTIMER auxiliary offset `0xe8` refusing firmware value
+`0x3f`. Ticket 719 identifies that address as OUTCFG26 and accepts only the
+observed whole-register value while retaining strict refusal and the existing
+reset value. Its snapshot validator now accepts the same value without a
+format change. Two byte-identical 30,000,000-instruction logs (SHA-256
+`8e079f452fdc7f6485d6688746a1db93f0688fe517b01f1ca295ad6db5e8cb23`)
+advance the first reset to instruction 24,771,518 and 30,111,413 ns. The next
+precise fault is a 32-bit USB CLKCTRL read at `0x400b2000`; firmware PC
+`0x000f8c02` reads it before PC `0x000f8c08` writes `0x02000000`. Ticket 721
+implements exactly that zero read and trace-matching no-output write. Two
+byte-identical 100,000,000-instruction logs (SHA-256
+`06e69fa86a9034a491bc7381a4b51b6dea538e9d326d29fb81bba10945d79374`)
+advance the first reset to instruction 77,220,237 and 368,259,842 ns. The next
+precise fault is CTIMER observed-pattern offset `0x104` refusing value
+`0x00012300` at firmware PC `0x000f7d60`. Ticket 722 accepts only that
+temporary pattern value and preserves snapshot validation. Two byte-identical
+200,000,000-instruction/2,000,000,000 ns budget runs (SHA-256
+`96e428de7caf01f866ed3a91193a7e45ff2c37d700a63a9deb9764d8f0506890`)
+now contain no reset or unsupported access. They reach the firmware WFI/ISB
+idle path and stop at PC `0x000e955a`, instruction 84,856,118, virtual time
+6,372,873,793 ns solely because of the configured time budget. Ticket 723
+then exercises the production storage path with an explicit, hash-gated
+synthetic full-flash fixture. The Sapporo flash endpoint now applies the
+reference model's NOR page-program rule (`old & requested`) before calling the
+unchanged strict storage API, so requested zero-to-one bits remain clear
+instead of causing a bus fault. Two production logs are byte-identical
+(SHA-256
+`21c415dee3c52ef4f77f0da42c3ea4020e0c7dc0e7092bf3bcab08d2c6661cc5`)
+and advance beyond the former `0x0010272a` HardFault to instruction
+41,435,661 at 278,677,270 ns. The new independent fail-closed boundary is a
+write of `0x00004000` to CTIMER address `0x40008068` at PC `0x000cb882`;
+the completed flash DMA is no longer the fault owner (E-SAP-0026). Ticket 724
+identifies that write as Timer7 CMP0's write-one-to-clear INTCLR bit and maps
+it to the timer model's channel-7 pending/IRQ state. Two complete logs are
+byte-identical (SHA-256
+`32a5bc1df226ca20da0c94aa90dc121fea14125f45890397f3671d6cb95c0b33`)
+and advance 22 instructions and 22 ns. The next precise fault is the same
+firmware routine writing `0x00004000` to CTIMER INTEN at `0x40008060`, with
+stacked PC `0x000cb854` (E-SAP-0027). Ticket 726 accepts and retains only that
+additional INTEN value, preserving the existing IRQ model and snapshot format.
+Two complete logs are byte-identical (SHA-256
+`5e0d8dd23c863aaa00b44489d9235b4967183d44d26d49f538f094e55e6affe0`)
+and advance the first reset to instruction 49,456,422 at 441,085,096 ns. The
+next precise fault is IRQ21's handler reading `0x00004000`, ORing Timer0 CMP0
+bit zero, and writing combined INTEN value `0x00004001` at PC `0x000f7d7e`
+(E-SAP-0028). Ticket 727 accepts only that combined value. Two complete runs
+are byte-identical (SHA-256
+`db1ba19b3e47306cf304b52f32b86db8dd4aa97f6afc6c64d962f7fdf24e43d8`),
+contain no reset, and halt at PC `0x00079e1e`, instruction 72,774,982,
+virtual time 521,257,564 ns. The halt follows firmware `BKPT #0`; its caller
+identifies `StartupClient.cpp` line 67, so the next boundary is application
+startup-state reverse engineering rather than another unsupported MMIO
+transaction (E-SAP-0029).
 
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
@@ -273,9 +360,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Hold later-Sapporo gap work until an exact failing transaction, native
-  provenance, and an allowed device/storage module boundary are available;
-  E-SAP-0017 records the current refusal boundary.
+- Reverse engineer the Sapporo 2.39 `StartupClient.cpp:67` fatal path reached
+  after ticket 727 removes the reset loop. Identify the exact missing owner
+  state or response before changing a device, service, fixture, or
+  compatibility layer. Continue toward a bounded
+  frame-publication and interaction checkpoint without fabricating missing
+  owner events or relaxing compatibility budgets.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
@@ -295,13 +385,14 @@ without manufacturing a roadmap row. The practical work queue is:
    wired into `make check-sdl`); the canonical sequence writes a post-gate time
    (2023-01-01), so the next boot routes to `main` instead of `n-sync-rec`.
 - The firmware-gated `check-sdl` live-input check (`tools/test_sdl_live_input.sh`)
-  no longer matches its pinned CRCs and stop checkpoint when run against the
-  current 2.22.60.3383-P manifest: cold-boot `middle-language` now settles
-  `4979f432` / `629da47e` / `d4ed66c7` and stops at `pc=0x080000a2`, 804398304
-  instructions, 9504428769 ns, rather than the pinned
-  `629da47e` / `d4ed66c7` / `2a01c517` at `pc=0x000bd696`. This reproduces on a
-  clean baseline; the cause is firmware/manifest drift and re-pinning is a
-  golden change requiring separate evidence.
+  is re-pinned to the current 2.22.60.3383-P cold-boot sequence under
+  E-SAP-ONBOARD-EMU-011. Two complete logs were byte-identical (SHA-256
+  `55d96468b4b41a938f98ab9db500dabc99ad491d7cc1e5595b933119a7b1f72b`):
+  initial frame `2a01c517`, settled checkpoints `4979f432` / `629da47e` /
+  `d4ed66c7`, and `stop=user` at `pc=0x080000a2`, 804398304 instructions,
+  9504428769 ns. This maintenance correction changes no renderer or guest
+  behavior and makes the authentic `check-sdl` path enforce the observed
+  current checkpoint again.
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.

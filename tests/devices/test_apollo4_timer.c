@@ -110,6 +110,21 @@ static void compare_irq_and_clear(semu_test_context *context)
                                               &error));
     SEMU_TEST_EQ_U64(context, 2u, log.count);
     SEMU_TEST_EQ_U64(context, 0u, log.level[1]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x200u, 4u, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x10u, 4u, 1u << 7, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x2f0u, 4u, 0x100u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x2e8u, 4u, 5u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x2e0u, 4u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 5u, &error));
+    SEMU_TEST_EQ_U64(context, 3u, log.count);
+    SEMU_TEST_EQ_U64(context, 7u, log.channel[2]);
+    SEMU_TEST_EQ_U64(context, 1u, log.level[2]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x68u, 4u, 0x4000u, &error));
+    SEMU_TEST_EQ_U64(context, 4u, log.count);
+    SEMU_TEST_EQ_U64(context, 0u, log.level[3]);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_apollo4_timer_write(timer, 0x68u, 4u, 0x8000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x68u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4000u, value);
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
 }
@@ -315,19 +330,25 @@ static void observed_status_writes(semu_test_context *context)
     semu_error_clear(&error);
     timer = make_timer(&scheduler, &log, &error);
     SEMU_TEST_ASSERT(context, timer != NULL);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x60u, 4u, 0x8000000u,
-                                              &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_read(timer, 0x60u, 4u, &value,
-                                             &error));
+    semu_apollo4_timer_reset(timer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x60u, 4u, 0x8000000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0x8000000u, value);
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-                     semu_apollo4_timer_write(timer, 0x60u, 4u, 4u,
-                                             &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_timer_write(timer, 0x60u, 4u, 1u,
-                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_apollo4_timer_write(timer, 0x60u, 4u, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x60u, 4u, 0x4000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_write(timer, 0x60u, 4u, 0x4001u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4001u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_apollo4_timer_write(timer, 0x60u, 4u, 0x4002u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4001u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_apollo4_timer_write(timer, 0x60u, 4u, 0x8000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_timer_read(timer, 0x60u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x4001u, value);
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
 }
@@ -376,13 +397,20 @@ static void observed_auxiliary_register(semu_test_context *context)
                      semu_apollo4_timer_read(timer, 0xe8u, 4u, &value,
                                              &error));
     SEMU_TEST_EQ_U64(context, 0x12u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_write(timer, 0xe8u, 4u, 0x3fu,
+                                              &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_timer_read(timer, 0xe8u, 4u, &value,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_apollo4_timer_write(timer, 0xe8u, 4u, 1u,
                                               &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_read(timer, 0xe8u, 4u, &value,
                                              &error));
-    SEMU_TEST_EQ_U64(context, 0x12u, value);
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
 }

@@ -1,0 +1,27 @@
+[profile]
+format=1
+id=sapporo-2.39.20
+board=sapporo
+product=Sapporo
+version=2.39.20.22297-P
+vector_table=0x00040000
+display_width=240
+display_height=240
+
+[component resident]
+role=resident
+load_address=0x00019000
+size=73377
+sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5
+
+[component application]
+role=application
+load_address=0x00040000
+size=1596337
+sha256=85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89
+
+[component resources]
+role=resources
+load_address=0x14000000
+size=16519168
+sha256=49a3936f4c9d61dbceee12324f41412334c42aa98b900f6f2d3fc5633ae43aea

@@ -11,12 +11,15 @@
 */
 
 enum {
+    MCU_CHIPID0 = 0x04u,
+    MCU_CHIPID1 = 0x08u,
     MCU_CHIPREV = 0x0cu
 };
 
 /* Evidenced read offsets (including CHIPREV). */
 static const uint32_t read_offsets[] = {
-    0x0cu, 0x28u, 0x44u, 0x60u, 0x80u, 0x88u, 0x108u, 0x124u,
+    MCU_CHIPID0, MCU_CHIPID1, MCU_CHIPREV,
+    0x28u, 0x44u, 0x60u, 0x80u, 0x88u, 0x108u, 0x124u,
     0x33cu, 0x340u, 0x344u, 0x34cu, 0x354u, 0x358u, 0x360u,
     0x36cu, 0x370u, 0x378u, 0x37cu, 0x380u, 0x418u, 0x42cu, 0x250u
 };
@@ -137,7 +140,7 @@ semu_status semu_apollo4_mcu_control_read(void *context, uint32_t offset,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "MCU control read value required");
         return SEMU_ERR_ARGUMENT;
     }
-    *value = (offset == MCU_CHIPREV) ? SEMU_APOLLO4_CHIPREV : 0u;
+    *value = offset == MCU_CHIPREV ? SEMU_APOLLO4_CHIPREV : 0u;
     semu_error_clear(error);
     return SEMU_OK;
 }

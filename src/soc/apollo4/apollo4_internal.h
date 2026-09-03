@@ -14,9 +14,11 @@
 #include "iom.h"
 #include "power.h"
 #include "reset.h"
+#include "rstgen.h"
 #include "stimer.h"
 #include "timer.h"
 #include "uart.h"
+#include "watchdog.h"
 
 #define SEMU_APOLLO4_GPIO_COUNT 128u
 
@@ -28,6 +30,8 @@ struct semu_apollo4 {
     uint8_t gpio_level[SEMU_APOLLO4_GPIO_COUNT];
     semu_apollo4_clock *clock;
     semu_apollo4_power *power;
+    semu_apollo4_watchdog *watchdog;
+    semu_apollo4_rstgen *rstgen;
     semu_apollo4_mcu_control *mcu_control;
     semu_apollo4_reset_controller *reset_ctrl;
     semu_apollo4_gpio *gpio;

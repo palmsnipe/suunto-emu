@@ -19,7 +19,7 @@ post_2.22_sha256=c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c
 post_2.22_size=73377
 post_2.22_identical_from=2.33.12 through 2.39.20
 resident_load_address=0x00019000 (all versions)
-resident_initial_sp=0x10080000 (all versions)
+resident_initial_sp=0x1005ffc0 (all versions)
 
 [xip_component]
 2.22_expanded_sha256=ddb2e95ebdb294f994e6eeebc887fe366a9204845a7a014de22105a7f5d55aab
@@ -29,7 +29,7 @@ xip_load_address=0x00040000 (all versions)
 
 [application_component]
 load_address=0x00040000 (all versions)
-initial_sp=0x10080000 (all versions)
+initial_sp=0x1005ffc0 (all versions)
 sha256_differs_per_build=true
 reset_vector_differs_per_build=true
 size_trend=monotonically_increasing_from_2.22_to_2.39
@@ -48,12 +48,12 @@ sha256_differs_per_build=true (except shared resident/xip)
 2.39.20=1596337
 
 [application_reset_vector_progression]
-2.22.60=0x001a2e91
-2.33.12=0x001bcfbd
-2.33.14=0x001bcf8d
-2.33.16=0x001bcefd
-2.35.34=0x001c2b05
-2.39.20=0x001c4727
+2.22.60=0x001a2431
+2.33.12=0x001bc6bd
+2.33.14=0x001bc67d
+2.33.16=0x001bc5dd
+2.35.34=0x001c2225
+2.39.20=0x001c4fb7
 
 [bounded_traces]
 status=blocked

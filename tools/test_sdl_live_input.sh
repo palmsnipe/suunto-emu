@@ -4,11 +4,11 @@ set -eu
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-}
 snapshot=${SEMU_SDL_TEST_SNAPSHOT:-}
-expected_first='SDL first-frame width=240 height=240 generation=1 crc32=4979f432'
-expected_step_one='SDL live test settled step=1 generation=3 crc32=629da47e'
-expected_step_two='SDL live test settled step=2 generation=61 crc32=d4ed66c7'
-expected_step_three='SDL live test settled step=3 generation=717 crc32=2a01c517'
-expected_stop='stop=user pc=0x000bd696 instructions=1519357344 virtual_time_ns=12273391898'
+expected_first='SDL first-frame width=240 height=240 generation=1 crc32=2a01c517'
+expected_step_one='SDL live test settled step=1 generation=3 crc32=4979f432'
+expected_step_two='SDL live test settled step=2 generation=5 crc32=629da47e'
+expected_step_three='SDL live test settled step=3 generation=63 crc32=d4ed66c7'
+expected_stop='stop=user pc=0x080000a2 instructions=804398304 virtual_time_ns=9504428769'
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-live.XXXXXX")
 
