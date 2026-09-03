@@ -399,6 +399,21 @@ The next command is the evidenced haptic calibration read `0x23000112`;
 registers `0x23`/`0x24` remain intentionally unsupported pending a bounded
 fixture contract (E-SAP-IOM4-HAPTIC-239-001).
 
+Ticket 733 supplies that bounded fixture under E-SAP-HAPTIC-CAL-239-001.
+After autotune completes, the strict haptic endpoint now exposes registers
+`0x23` and `0x24` as separate, one-byte, read-only zero values. Zero is the
+hash-pinned reference endpoint's reset fixture, not a recovered physical
+calibration. Writes and multi-byte spans refuse before mutation, and the
+fixture adds no writable state or snapshot bytes. Two fresh authentic runs
+advance byte-identically to PC `0x000cceb2`, instruction 357,033,113, virtual
+time 1,878,381,357 ns (log SHA-256
+`3aee5f2f3271f54448ab2ca681908e6dfa766348b4dfbe0e2099add4c7b24ca7`,
+snapshot `c287c2c1e256e55c100b083a6db1b35730a646ad9aabeea21600347873a9e95e`)
+without reset or a new compatibility hit. The next instruction is a native
+word read from GPIO address `0x40010218`; one-instruction continuation takes
+the precise fault vector at PC `0x001c0db4`. GPIO offset `0x218` remains
+fail-closed pending independent register evidence.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -420,11 +435,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover the deterministic calibration-byte fixture for Sapporo's haptic
-  registers `0x23` and `0x24`. The exact 2.39 path reaches command
-  `0x23000112` at instruction 122,457,908 after the corrected `0x22` autotune
-  poll; do not expose either register until a hash-pinned native/reference
-  observation defines its values and reset/snapshot behavior.
+- Identify Sapporo's GPIO register at address `0x40010218` (peripheral offset
+  `0x218`). The exact 2.39 path reaches a word read at guest PC `0x000cceb2`,
+  instruction 357,033,113 after completing haptic calibration. Preserve the
+  current precise fault until a hash-pinned primary or native source defines
+  the register, access width, reset value, and side effects.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

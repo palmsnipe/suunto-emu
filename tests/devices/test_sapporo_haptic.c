@@ -45,6 +45,48 @@ static void test_autotune_trigger(semu_test_context *context)
     semu_sapporo_haptic_destroy(sensor);
 }
 
+static void test_autotune_calibration_fixture(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_haptic *sensor;
+    semu_serial_endpoint ep;
+    uint8_t trigger[] = { 0x22u, 0x01u };
+    uint8_t invalid[] = { 0x23u, 0x55u };
+    uint8_t rx[2];
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_haptic_create(0x50u, &error);
+    SEMU_TEST_ASSERT(context, sensor != NULL);
+    ep = semu_sapporo_haptic_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0x50u, trigger, sizeof(trigger), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x23u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x24u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_write(&ep, 0x50u, invalid, sizeof(invalid), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0x50u, 0x23u, rx, sizeof(rx), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x22u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0x03u, rx[0u]);
+
+    semu_sapporo_haptic_reset(sensor);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_write(&ep, 0x50u, trigger, sizeof(trigger), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x23u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x50u, 0x24u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    semu_sapporo_haptic_destroy(sensor);
+}
+
 static void test_idle_state(semu_test_context *context)
 {
     semu_error error;
@@ -284,6 +326,7 @@ static void test_snapshot_cursor_and_atomic_refusal(
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_sapporo_haptic_snapshot_write(
                          source, &writer, &error));
+    SEMU_TEST_EQ_U64(context, 14u, writer.size);
     semu_snapshot_reader_init(&reader, writer.data, writer.size);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_sapporo_haptic_snapshot_read(
@@ -324,6 +367,7 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_autotune_trigger),
+        SEMU_TEST_CASE(test_autotune_calibration_fixture),
         SEMU_TEST_CASE(test_idle_state),
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),

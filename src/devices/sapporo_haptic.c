@@ -36,6 +36,8 @@ enum {
     HAPTIC_CONFIG4_REG = 0x1du,
     HAPTIC_CONFIG5_REG = 0x1eu,
     HAPTIC_AUTOTUNE_REG = 0x22u,
+    HAPTIC_CALIBRATION_LOW_REG = 0x23u,
+    HAPTIC_CALIBRATION_HIGH_REG = 0x24u,
     HAPTIC_AUTOTUNE_TRIGGER = 0x01u,
     HAPTIC_AUTOTUNE_COMPLETE = 0x02u,
     HAPTIC_WAVEFORM_FIRST = 0x40u,
@@ -84,12 +86,16 @@ static int is_known_register(uint8_t reg)
            reg == HAPTIC_CONFIG1_REG || reg == HAPTIC_CONFIG2_REG ||
            reg == HAPTIC_CONFIG3_REG || reg == HAPTIC_CONFIG4_REG ||
            reg == HAPTIC_CONFIG5_REG || reg == HAPTIC_AUTOTUNE_REG ||
+           reg == HAPTIC_CALIBRATION_LOW_REG ||
+           reg == HAPTIC_CALIBRATION_HIGH_REG ||
            (reg >= HAPTIC_WAVEFORM_FIRST && reg <= HAPTIC_WAVEFORM_LAST);
 }
 
 static int is_writable_register(uint8_t reg)
 {
     return reg != HAPTIC_FAULT_REG && reg != HAPTIC_STATUS_REG &&
+           reg != HAPTIC_CALIBRATION_LOW_REG &&
+           reg != HAPTIC_CALIBRATION_HIGH_REG &&
            is_known_register(reg);
 }
 
@@ -115,6 +121,9 @@ static uint8_t register_value(const semu_sapporo_haptic *sensor,
         return sensor->config5;
     case HAPTIC_AUTOTUNE_REG:
         return sensor->autotune;
+    case HAPTIC_CALIBRATION_LOW_REG:
+    case HAPTIC_CALIBRATION_HIGH_REG:
+        return 0u;
     default:
         if (reg >= HAPTIC_WAVEFORM_FIRST &&
             reg <= HAPTIC_WAVEFORM_LAST) {
@@ -174,6 +183,8 @@ static int span_is_valid(uint8_t start, size_t count, int writable)
     for (i = 0u; i < count; ++i) {
         uint16_t reg = (uint16_t)start + (uint16_t)i;
         if (reg > 0xffu || !is_known_register((uint8_t)reg) ||
+            ((reg == HAPTIC_CALIBRATION_LOW_REG ||
+              reg == HAPTIC_CALIBRATION_HIGH_REG) && count != 1u) ||
             (writable && !is_writable_register((uint8_t)reg))) {
             return 0;
         }
