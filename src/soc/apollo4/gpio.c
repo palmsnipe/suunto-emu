@@ -9,6 +9,7 @@ enum {
     PAD_KEY = 0x200u,
     INPUT_READ0 = 0x204u,
     INPUT_READ1 = 0x208u,
+    OUTPUT_VALUE1 = 0x218u,
     OUTPUT_SET0 = 0x224u,
     OUTPUT_CLEAR0 = 0x234u,
     INTERRUPT_ENABLE0 = 0x2c0u,
@@ -191,6 +192,10 @@ semu_status semu_apollo4_gpio_read(void *context, uint32_t offset,
             if (gpio->input[(unsigned)bank * 32u + bit] != 0u)
                 *value |= UINT32_C(1) << bit;
         }
+        return SEMU_OK;
+    }
+    if (offset == OUTPUT_VALUE1) {
+        *value = gpio->output[1u];
         return SEMU_OK;
     }
     bank = output_bank_register(offset, OUTPUT_SET0);

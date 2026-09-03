@@ -128,6 +128,55 @@ static void test_pin_config_and_output(semu_test_context *context)
     fixture_destroy(&fixture);
 }
 
+static void test_output_readback_bank1(semu_test_context *context)
+{
+    gpio_fixture fixture = { 0 };
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_apollo4_gpio_set_output_observer(
+                         fixture.gpio, output, &fixture, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_register(&fixture, 0x218u, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_register(&fixture, 0x228u, 0x00040000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_register(&fixture, 0x228u, 0x00200000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_register(&fixture, 0x218u, &value));
+    SEMU_TEST_EQ_U64(context, 0x00240000u, value);
+    SEMU_TEST_EQ_U64(context, 2u, fixture.output_count);
+    SEMU_TEST_EQ_U64(context, 50u, fixture.output_pin[0u]);
+    SEMU_TEST_EQ_U64(context, 53u, fixture.output_pin[1u]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     write_register(&fixture, 0x238u, 0x00040000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_register(&fixture, 0x218u, &value));
+    SEMU_TEST_EQ_U64(context, 0x00200000u, value);
+    SEMU_TEST_EQ_U64(context, 3u, fixture.output_count);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.output_level[2u]);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     write_register(&fixture, 0x218u, 0xffffffffu));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(fixture.bus, SEMU_APOLLO4_GPIO_BASE + 0x218u,
+                                   2u, &value, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     read_register(&fixture, 0x214u, &value));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     read_register(&fixture, 0x21cu, &value));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     read_register(&fixture, 0x220u, &value));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_register(&fixture, 0x218u, &value));
+    SEMU_TEST_EQ_U64(context, 0x00200000u, value);
+    semu_apollo4_gpio_reset(fixture.gpio);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     read_register(&fixture, 0x218u, &value));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    fixture_destroy(&fixture);
+}
 static void test_edges_status_and_irq(semu_test_context *context)
 {
     gpio_fixture fixture = { 0 };
@@ -242,6 +291,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_reset_and_input_banks),
         SEMU_TEST_CASE(test_pin_config_and_output),
+        SEMU_TEST_CASE(test_output_readback_bank1),
         SEMU_TEST_CASE(test_edges_status_and_irq),
         SEMU_TEST_CASE(test_refusal_is_atomic),
         SEMU_TEST_CASE(test_reset_repeatability)

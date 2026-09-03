@@ -414,6 +414,20 @@ word read from GPIO address `0x40010218`; one-instruction continuation takes
 the precise fault vector at PC `0x001c0db4`. GPIO offset `0x218` remains
 fail-closed pending independent register evidence.
 
+Ticket 734 identifies that boundary as GPIO WT1 under
+E-SAP-GPIO-WT1-239-001. WT1 is the output-state register for pins 32–63;
+firmware operation 1 reads it to query pin 53. The existing WTS/WTC state is
+`0x00040000`, making pin 53 low. Only aligned 32-bit WT1 reads are added;
+direct WT writes and the other three banks remain fail-closed, and no state or
+snapshot byte changes. Two fresh authentic runs advance byte-identically to
+PC `0x0014e8ea`, instruction 359,772,704, virtual time 1,881,120,948 ns (log
+SHA-256 `48c514ba4504a25122c60e71e2b3966fba9463edc9a3641b4ba3ab5854ff9e02`,
+snapshot `20febdf889a8d8baf7d146f6a1f1bcac6182d009b4ad3ed4b4ace4bd9f28d81a`)
+without reset or a new compatibility hit. The next instruction submits OHR2
+command `0x0010`, sequence zero, while the endpoint is in BSL state; its strict
+refusal enters the precise fault vector. That command remains unsupported
+pending independent protocol and response evidence.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -435,11 +449,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Identify Sapporo's GPIO register at address `0x40010218` (peripheral offset
-  `0x218`). The exact 2.39 path reaches a word read at guest PC `0x000cceb2`,
-  instruction 357,033,113 after completing haptic calibration. Preserve the
-  current precise fault until a hash-pinned primary or native source defines
-  the register, access width, reset value, and side effects.
+- Recover Sapporo OHR2 command `0x0010`. The exact 2.39 path submits sequence
+  zero in BSL state at guest PC `0x0014e8ea`, instruction 359,772,704 after
+  the WT1 pin-53 query. Preserve the current strict refusal until a hash-pinned
+  native/reference transcript defines the command identity, valid state,
+  response body, ready signaling, and resulting state transition.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
