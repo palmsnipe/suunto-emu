@@ -121,7 +121,8 @@ static void set_ready(semu_sapporo_ohr2 *device, int level)
 static int valid_command_state(const semu_sapporo_ohr2 *device,
                                semu_sapporo_ohr2_command command)
 {
-    if (command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY) {
+    if (command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY ||
+        command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE) {
         return 1;
     }
     if (device->state == SEMU_SAPPORO_OHR2_BSL) {
@@ -140,7 +141,19 @@ static int known_command(uint16_t command)
            command == SEMU_SAPPORO_OHR2_COMMAND_REBOOT ||
            command == SEMU_SAPPORO_OHR2_COMMAND_ECHO ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_13 ||
-           command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_14;
+           command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_14 ||
+           command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE;
+}
+
+static int valid_boot_mode_payload(const uint8_t *payload)
+{
+    size_t i;
+
+    if (payload[4u] != 1u) return 0;
+    for (i = 5u; i < SEMU_SAPPORO_OHR2_PAYLOAD_SIZE; ++i) {
+        if (payload[i] != 0xffu) return 0;
+    }
+    return 1;
 }
 
 static int sequence_allowed(const semu_sapporo_ohr2 *device,
@@ -222,6 +235,10 @@ static semu_transaction_result accept_request(
     }
     if (!valid_command_state(device, (semu_sapporo_ohr2_command)command)) {
         return refuse(error, "command in current state");
+    }
+    if (command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE &&
+        !valid_boot_mode_payload(request + 1u)) {
+        return refuse(error, "boot-mode command payload");
     }
     if (device->response_queued) {
         return refuse(error, "queued response not consumed");
@@ -357,9 +374,11 @@ void semu_sapporo_ohr2_destroy(semu_sapporo_ohr2 *device)
 
 void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device)
 {
+    int was_ready;
     if (device == NULL) {
         return;
     }
+    was_ready = device->ready;
     device->state = SEMU_SAPPORO_OHR2_BSL;
     device->response_queued = 0;
     device->selector_armed = 0;
@@ -367,6 +386,10 @@ void semu_sapporo_ohr2_reset(semu_sapporo_ohr2 *device)
     device->expected_sequence = 0u;
     device->sequence_initialized = 0;
     set_ready(device, 0);
+    if (!was_ready && device->ready_callback != NULL) {
+        device->ready_callback(device->ready_context,
+                               SEMU_SAPPORO_OHR2_READY_SIGNAL, 0);
+    }
 }
 
 void semu_sapporo_ohr2_set_logger(semu_sapporo_ohr2 *device,

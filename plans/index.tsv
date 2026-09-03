@@ -97,6 +97,7 @@ id	phase	title	status	dependencies	ticket
 732	7	Sapporo 2.39 IOM4 Haptic Selector	in-progress	315,413,729	plans/tasks/732-sapporo-239-iom4-haptic-selector.md
 733	7	Sapporo 2.39 Haptic Calibration Fixture	in-progress	413,729	plans/tasks/733-sapporo-239-haptic-calibration.md
 734	7	Sapporo 2.39 GPIO WT1 Readback	in-progress	305,729	plans/tasks/734-sapporo-239-gpio-wt1.md
+735	7	Sapporo 2.39 OHR2 Boot Mode	in-progress	417,418,729	plans/tasks/735-sapporo-239-ohr2-boot-mode.md
 740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md

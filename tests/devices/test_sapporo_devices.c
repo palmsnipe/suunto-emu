@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include "sapporo_devices.h"
+#include "sapporo_ohr2.h"
 
 #include "semu/hash.h"
 #include "semu/scheduler.h"
@@ -174,14 +175,19 @@ static void test_iom2_ohr2_via_mux(semu_test_context *context)
     semu_sapporo_devices *devices;
     const semu_serial_endpoint *iom2;
     uint8_t tx[59];
+    uint8_t rx[58];
     uint32_t crc;
     semu_serial_transaction txn;
+    size_t i;
 
     semu_error_clear(&error);
     scheduler = semu_scheduler_create(&error);
     SEMU_TEST_ASSERT(context, scheduler != NULL);
     devices = semu_sapporo_devices_create(scheduler, NULL, &error);
     SEMU_TEST_ASSERT(context, devices != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_devices_select_profile(
+            devices, "sapporo-2.22.60", &error));
     iom2 = semu_sapporo_devices_iom_endpoint(devices, 2u);
     SEMU_TEST_ASSERT(context, iom2 != NULL);
 
@@ -201,10 +207,68 @@ static void test_iom2_ohr2_via_mux(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      iom2->transfer(iom2->context, &txn, &error));
 
+    memset(tx, 0xff, sizeof(tx));
+    tx[0u] = 0u;
+    tx[1u] = 0x10u;
+    tx[2u] = 0u;
+    tx[3u] = 0u;
+    tx[4u] = 0u;
+    tx[5u] = 1u;
+    crc = semu_crc32(0u, tx + 1u, 54u);
+    tx[55u] = (uint8_t)crc;
+    tx[56u] = (uint8_t)(crc >> 8u);
+    tx[57u] = (uint8_t)(crc >> 16u);
+    tx[58u] = (uint8_t)(crc >> 24u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     iom2->transfer(iom2->context, &txn, &error));
+
     txn.address = 0x11u;
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
                      iom2->transfer(iom2->context, &txn, &error));
 
+    semu_sapporo_devices_destroy(devices);
+
+    devices = semu_sapporo_devices_create(scheduler, NULL, &error);
+    SEMU_TEST_ASSERT(context, devices != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_devices_select_profile(
+            devices, "sapporo-2.39.20", &error));
+    iom2 = semu_sapporo_devices_iom_endpoint(devices, 2u);
+    memset(tx, 0xff, sizeof(tx));
+    tx[0u] = 0u;
+    tx[1u] = 0x10u;
+    tx[2u] = 0u;
+    tx[3u] = 0u;
+    tx[4u] = 0u;
+    tx[5u] = 1u;
+    crc = semu_crc32(0u, tx + 1u, 54u);
+    tx[55u] = (uint8_t)crc;
+    tx[56u] = (uint8_t)(crc >> 8u);
+    tx[57u] = (uint8_t)(crc >> 16u);
+    tx[58u] = (uint8_t)(crc >> 24u);
+    txn.address = 0x10u;
+    txn.tx = tx;
+    txn.tx_size = sizeof(tx);
+    txn.rx = NULL;
+    txn.rx_size = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    tx[0u] = SEMU_SAPPORO_OHR2_RESPONSE_SELECTOR;
+    txn.tx_size = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    memset(rx, 0xa5, sizeof(rx));
+    txn.tx = NULL;
+    txn.tx_size = 0u;
+    txn.rx = rx;
+    txn.rx_size = sizeof(rx);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0x10u, rx[0u]);
+    for (i = 4u; i < 54u; ++i) SEMU_TEST_EQ_U64(context, 0u, rx[i]);
+    SEMU_TEST_EQ_U64(context, semu_crc32(0u, rx, 54u),
+        (uint32_t)rx[54u] | (uint32_t)rx[55u] << 8u |
+        (uint32_t)rx[56u] << 16u | (uint32_t)rx[57u] << 24u);
     semu_sapporo_devices_destroy(devices);
     semu_scheduler_destroy(scheduler);
 }

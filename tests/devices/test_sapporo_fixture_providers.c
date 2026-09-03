@@ -219,6 +219,35 @@ static void test_ohr_echo_match(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, state.hits);
 }
 
+static void test_ohr_boot_mode_refused(semu_test_context *context)
+{
+    semu_layer_state state;
+    semu_logger logger;
+    semu_error error;
+    semu_sapporo_222_fixture_context ctx;
+    uint8_t request[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE];
+    uint8_t response[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE];
+    semu_transaction_result result;
+
+    memset(request, 0xff, sizeof(request));
+    request[0u] = 0x10u;
+    request[1u] = 0u;
+    request[2u] = 0u;
+    request[3u] = 0u;
+    request[4u] = 1u;
+    init_layer(&state, &logger, &error);
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.state = &state;
+    ctx.logger = &logger;
+    memset(response, 0xa5, sizeof(response));
+    result = semu_sapporo_222_ohr_body_provider(&ctx,
+        SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE, 0u, SEMU_SAPPORO_OHR2_BSL,
+        request, response, &error);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, result);
+    SEMU_TEST_EQ_U64(context, 0xa5u, response[0u]);
+    SEMU_TEST_EQ_U64(context, 0u, state.hits);
+}
+
 static void test_gps_running_status(semu_test_context *context)
 {
     semu_layer_state state;
@@ -285,7 +314,8 @@ int main(void)
         SEMU_TEST_CASE(test_gps_running_status_refuses_unarmed),
         SEMU_TEST_CASE(test_ohr_match),
         SEMU_TEST_CASE(test_ohr_unknown_command),
-        SEMU_TEST_CASE(test_ohr_echo_match)
+        SEMU_TEST_CASE(test_ohr_echo_match),
+        SEMU_TEST_CASE(test_ohr_boot_mode_refused)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

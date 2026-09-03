@@ -19,7 +19,8 @@ typedef enum semu_sapporo_ohr2_command {
     SEMU_SAPPORO_OHR2_COMMAND_REBOOT = 3u,
     SEMU_SAPPORO_OHR2_COMMAND_ECHO = 6u,
     SEMU_SAPPORO_OHR2_COMMAND_RESULT_13 = 13u,
-    SEMU_SAPPORO_OHR2_COMMAND_RESULT_14 = 14u
+    SEMU_SAPPORO_OHR2_COMMAND_RESULT_14 = 14u,
+    SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE = 16u
 } semu_sapporo_ohr2_command;
 
 typedef enum semu_sapporo_ohr2_state {

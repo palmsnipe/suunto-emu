@@ -425,8 +425,23 @@ SHA-256 `48c514ba4504a25122c60e71e2b3966fba9463edc9a3641b4ba3ab5854ff9e02`,
 snapshot `20febdf889a8d8baf7d146f6a1f1bcac6182d009b4ad3ed4b4ace4bd9f28d81a`)
 without reset or a new compatibility hit. The next instruction submits OHR2
 command `0x0010`, sequence zero, while the endpoint is in BSL state; its strict
-refusal enters the precise fault vector. That command remains unsupported
-pending independent protocol and response evidence.
+refusal enters the precise fault vector.
+
+Ticket 735 implements that command under E-SAP-OHR2-BOOT-239-001. The native
+2.39 trace defines data byte `0x01` plus forty-nine `0xff` bytes and a reply
+whose data is all zero; the same exchange occurs in both BSL and MAIN without
+changing state. The strict transport accepts only that exact payload, and the
+profile-selected 2.39 device provider supplies the observed reply without a
+compatibility layer or hit. OHR reset now also drives its evidenced low ready
+level onto GPIO62, so the first reply produces the required low-to-high edge
+and is consumed normally. Two exact runs and snapshots are byte-identical at
+PC `0x0014e8ea`, instruction 359,790,038, virtual time 1,881,138,282 ns (log
+SHA-256 `b8977bf8911cc5435e19afc109205c267e822249c17e19fba3809779d046664e`,
+snapshot `b7d1d84e2be435635cc6031b8424ece436b6557d3ba3883c59f92b7550916f86`),
+with ready high/request success/ready low/response success, no reset, and the
+same 118 compatibility operations. The next instruction submits the already
+known identity command zero, sequence one, in BSL; its 2.39 response body is
+not yet wired and therefore refuses into the precise fault vector.
 
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
@@ -449,11 +464,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover Sapporo OHR2 command `0x0010`. The exact 2.39 path submits sequence
-  zero in BSL state at guest PC `0x0014e8ea`, instruction 359,772,704 after
-  the WT1 pin-53 query. Preserve the current strict refusal until a hash-pinned
-  native/reference transcript defines the command identity, valid state,
-  response body, ready signaling, and resulting state transition.
+- Add the native 2.39 OHR2 startup bodies already visible in the hash-pinned
+  capture, beginning with BSL identity command zero, sequence one. Keep them
+  profile-selected and physical-path only: the legacy 2.22 compatibility
+  fixture must not become implicitly enabled. That will unlock command-3
+  reboot, the second command-`0x0010` exchange in MAIN, and the subsequent
+  result/echo transcript one independently evidenced command at a time.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

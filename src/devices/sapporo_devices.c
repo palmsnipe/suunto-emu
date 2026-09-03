@@ -119,8 +119,15 @@ static semu_transaction_result no_device_ohr_provider(
     uint8_t response_payload[SEMU_SAPPORO_OHR2_PAYLOAD_SIZE],
     semu_error *error)
 {
+    semu_sapporo_devices *devices = (semu_sapporo_devices *)context;
     semu_sapporo_222_fixture_context *fixture =
-        (semu_sapporo_222_fixture_context *)context;
+        devices != NULL ? &devices->fixture_context : NULL;
+    if (devices != NULL && devices->ohr2_boot_mode_239 &&
+        command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE) {
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        semu_error_clear(error);
+        return SEMU_TRANSACTION_OK;
+    }
     if (fixture == NULL || fixture->state == NULL ||
         fixture->logger == NULL || !fixture->state->enabled) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -204,7 +211,7 @@ semu_sapporo_devices *semu_sapporo_devices_create(
     if (devices->gps == NULL) goto fail;
     devices->ohr2 = semu_sapporo_ohr2_create(
         ohr_ready_signal, devices, no_device_ohr_provider,
-        &devices->fixture_context, error);
+        devices, error);
     if (devices->ohr2 == NULL) goto fail;
     if (flash_storage != NULL) {
         devices->flash = semu_sapporo_flash_create(
@@ -297,6 +304,7 @@ semu_status semu_sapporo_devices_select_profile(
         if (devices->lps22 == NULL) return error->code;
         endpoint = semu_sapporo_lps22_endpoint(devices->lps22);
         i2c_bus_attach(&devices->iom2_bus, 0x5cu, &endpoint);
+        devices->ohr2_boot_mode_239 = 1;
     }
     devices->profile_selected = 1;
     semu_error_clear(error);

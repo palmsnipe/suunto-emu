@@ -31,7 +31,8 @@ static semu_transaction_result body_provider(
     (void)context;
     (void)sequence;
     (void)error;
-    (void)memset(response, 0xa5, 54u);
+    (void)memset(response, command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE ?
+                           0u : 0xa5, 54u);
     if (command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY) {
         const char *name = state == SEMU_SAPPORO_OHR2_MAIN ? "MAIN" : "BSL";
         (void)memcpy(response + 9u, name, 4u);
@@ -42,6 +43,16 @@ static semu_transaction_result body_provider(
     return SEMU_TRANSACTION_OK;
 }
 
+static void finish_request_crc(uint8_t request[59])
+{
+    uint32_t crc = semu_sapporo_ohr2_crc32(request + 1u, 54u);
+
+    request[55u] = (uint8_t)crc;
+    request[56u] = (uint8_t)(crc >> 8u);
+    request[57u] = (uint8_t)(crc >> 16u);
+    request[58u] = (uint8_t)(crc >> 24u);
+}
+
 static void make_request(uint8_t request[59], uint16_t command,
                          uint16_t sequence)
 {
@@ -50,17 +61,17 @@ static void make_request(uint8_t request[59], uint16_t command,
     request[2u] = (uint8_t)(command >> 8u);
     request[3u] = (uint8_t)sequence;
     request[4u] = (uint8_t)(sequence >> 8u);
-    request[55u] = 0u;
-    request[56u] = 0u;
-    request[57u] = 0u;
-    request[58u] = 0u;
-    {
-        uint32_t crc = semu_sapporo_ohr2_crc32(request + 1u, 54u);
-        request[55u] = (uint8_t)crc;
-        request[56u] = (uint8_t)(crc >> 8u);
-        request[57u] = (uint8_t)(crc >> 16u);
-        request[58u] = (uint8_t)(crc >> 24u);
-    }
+    finish_request_crc(request);
+}
+
+static void make_boot_mode_request(uint8_t request[59], uint16_t sequence)
+{
+    size_t i;
+
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE, sequence);
+    request[5u] = 1u;
+    for (i = 6u; i < 55u; ++i) request[i] = 0xffu;
+    finish_request_crc(request);
 }
 
 static semu_transaction_result exchange(semu_serial_endpoint endpoint,
@@ -358,6 +369,68 @@ static void test_sequence_overflow_is_atomic(semu_test_context *context)
     semu_sapporo_ohr2_destroy(device);
 }
 
+static void test_reset_drives_ready_low(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_sapporo_ohr2 *device;
+
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    semu_sapporo_ohr2_reset(device);
+    SEMU_TEST_EQ_U64(context, 1u, fixture.ready_count);
+    SEMU_TEST_EQ_U64(context, SEMU_SAPPORO_OHR2_READY_SIGNAL,
+                     fixture.ready_signal[0u]);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.ready_level[0u]);
+    semu_sapporo_ohr2_destroy(device);
+}
+
+static void test_boot_mode_transcript_and_refusals(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    uint8_t request[59];
+    uint8_t response[58];
+    size_t i;
+
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    endpoint = semu_sapporo_ohr2_endpoint(device);
+    make_boot_mode_request(request, 0u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    for (i = 4u; i < 54u; ++i) SEMU_TEST_EQ_U64(context, 0u, response[i]);
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_REBOOT, 2u);
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    make_boot_mode_request(request, 2u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     exchange(endpoint, request, response, &error));
+    make_boot_mode_request(request, 3u);
+    request[5u] = 2u;
+    finish_request_crc(request);
+    transaction.tx = request;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    make_boot_mode_request(request, 3u);
+    request[54u] = 0u;
+    finish_request_crc(request);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 4u, fixture.ready_count);
+    semu_sapporo_ohr2_destroy(device);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -366,7 +439,9 @@ int main(void)
         SEMU_TEST_CASE(test_state_sequence_and_fire_forget),
         SEMU_TEST_CASE(test_refusals_reset_and_missing_body),
         SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset),
-        SEMU_TEST_CASE(test_sequence_overflow_is_atomic)
+        SEMU_TEST_CASE(test_sequence_overflow_is_atomic),
+        SEMU_TEST_CASE(test_reset_drives_ready_low),
+        SEMU_TEST_CASE(test_boot_mode_transcript_and_refusals)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
