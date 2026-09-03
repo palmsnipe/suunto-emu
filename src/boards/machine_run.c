@@ -1,5 +1,7 @@
 #include "machine_internal.h"
 
+#include "../compat/sapporo_239.h"
+
 static semu_status reset_after_request(semu_machine *machine,
                                        semu_error *error)
 {
@@ -72,15 +74,28 @@ static int apply_compat_hook(semu_machine *machine,
                              const semu_cpu_state *state,
                              semu_error *error)
 {
-    if (machine->layer_count == 0u ||
-        machine->layers[0].descriptor != &semu_sapporo_222_no_device_layer ||
-        !semu_sapporo_devices_compat_hook_pc(state->r[15])) {
-        return 1;
+    size_t i;
+
+    for (i = 0u; i < machine->layer_count; ++i) {
+        semu_layer_state *layer = &machine->layers[i];
+        if (layer->descriptor == &semu_sapporo_222_no_device_layer &&
+            semu_sapporo_devices_compat_hook_pc(state->r[15])) {
+            if (semu_sapporo_devices_apply_compat_hook(
+                    machine->devices, machine->bus,
+                    semu_cpu_get_state_mutable(machine->cpu), layer,
+                    machine->logger, error) != SEMU_OK) {
+                return 0;
+            }
+        } else if (layer->descriptor == &semu_sapporo_239_wbsto_layer &&
+                   semu_sapporo_239_compat_hook_pc(state->r[15])) {
+            if (semu_sapporo_239_apply_wbsto_hook(
+                    machine->bus, semu_cpu_get_state_mutable(machine->cpu),
+                    layer, machine->logger, error) != SEMU_OK) {
+                return 0;
+            }
+        }
     }
-    return semu_sapporo_devices_apply_compat_hook(
-        machine->devices, machine->bus,
-        semu_cpu_get_state_mutable(machine->cpu), &machine->layers[0],
-        machine->logger, error) == SEMU_OK;
+    return 1;
 }
 
 semu_stop_reason semu_machine_run(semu_machine *machine,

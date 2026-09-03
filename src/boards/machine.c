@@ -4,9 +4,11 @@
 #include "semu/bus.h"
 #include "semu/compat.h"
 #include "semu/cpu.h"
+#include "semu/hash.h"
 #include "semu/scheduler.h"
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
+#include "../compat/sapporo_239.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
@@ -176,18 +178,32 @@ static semu_status load_components(semu_machine *machine,
 static semu_status enable_layer(semu_machine *machine, const char *id,
                                 semu_error *error)
 {
+    const semu_layer_descriptor *descriptor;
+    char hash_text[SEMU_MAX_COMPONENTS][65];
+    const char *hashes[SEMU_MAX_COMPONENTS];
     semu_layer_state *state;
+    size_t i;
+
     if (machine->layer_count >= SEMU_MAX_LAYERS) {
         semu_error_set(error, SEMU_ERR_RANGE, "too many compatibility layers");
         return SEMU_ERR_RANGE;
     }
     state = &machine->layers[machine->layer_count];
-    if (strcmp(id, semu_sapporo_222_no_device_layer.id) != 0) {
+    if (strcmp(id, semu_sapporo_222_no_device_layer.id) == 0) {
+        descriptor = &semu_sapporo_222_no_device_layer;
+    } else if (strcmp(id, semu_sapporo_239_wbsto_layer.id) == 0) {
+        descriptor = &semu_sapporo_239_wbsto_layer;
+    } else {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unknown layer %s", id);
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (semu_layer_enable(state, &semu_sapporo_222_no_device_layer,
-                          machine->profile.id, error) != SEMU_OK) {
+    for (i = 0u; i < machine->firmware.component_count; ++i) {
+        semu_sha256_format(machine->firmware.components[i].sha256,
+                           hash_text[i]);
+        hashes[i] = hash_text[i];
+    }
+    if (semu_layer_enable_checked(state, descriptor, machine->profile.id,
+            hashes, machine->firmware.component_count, error) != SEMU_OK) {
         return error->code;
     }
     machine->layer_count++;

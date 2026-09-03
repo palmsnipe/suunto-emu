@@ -339,6 +339,22 @@ identifies `StartupClient.cpp` line 67, so the next boundary is application
 startup-state reverse engineering rather than another unsupported MMIO
 transaction (E-SAP-0029).
 
+Ticket 728 resolves that application boundary with the opt-in,
+exact-hash-pinned `sapporo-2.39-synthetic-wbsto` layer. Read-only firmware
+tracing identifies `WbStoPreload` command zero as the owner: four persisted
+WbStorage files omitted from the compact OTA fragment return native status 204,
+which the provider collapses to 500. The layer validates the exact empty native
+session-cache vectors, installs four explicitly synthetic values, and
+translates only that final command-zero preload result after revalidating the
+cache byte-for-byte. Layer-off behavior remains the E-SAP-0029 halt. Two
+layer-on runs are byte-identical (SHA-256
+`b1156669803cbd2c09e16599fa3719ff2adeecb493eb3749e20fcec34b8f37c0`)
+and advance without reset to the next fail-closed boundary: a native 32-byte
+FAT-cache write to unmapped `0x0f676e34` at PC `0x0007038c`, instruction
+78,496,951 and virtual time 526,979,533 ns
+(E-SAP-COMPAT-WBSTO-239-001). This confirms that the compact OTA fragment is
+not a coherent writable filesystem; the address must not be broadly mapped.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -360,12 +376,13 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Reverse engineer the Sapporo 2.39 `StartupClient.cpp:67` fatal path reached
-  after ticket 727 removes the reset loop. Identify the exact missing owner
-  state or response before changing a device, service, fixture, or
-  compatibility layer. Continue toward a bounded
-  frame-publication and interaction checkpoint without fabricating missing
-  owner events or relaxing compatibility budgets.
+- Implement an exact-build, session-local logical writable-file adapter for
+  Sapporo 2.39 after the ticket 728 WbStorage layer. The native `uiv2.txt`
+  creation now reaches a proven FAT-cache address underflow because the compact
+  public OTA fragment is not a coherent writable filesystem. Preserve native
+  file bytes and operations in memory, pass existing readable OTA files through,
+  and refuse unknown modes/handles/paths; do not map `0x0f676e34`, patch the
+  FAT arithmetic, or invent persisted file contents.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

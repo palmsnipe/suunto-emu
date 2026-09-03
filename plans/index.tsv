@@ -90,6 +90,7 @@ id	phase	title	status	dependencies	ticket
 725	7	One Ulsan Reset Profile	blocked	720	plans/tasks/725-ulsan-reset-profile.md
 726	7	Sapporo 2.39 CTIMER7 Interrupt Enable	done	310,724	plans/tasks/726-sapporo-239-ctimer7-inten.md
 727	7	Sapporo 2.39 Combined CTIMER Interrupt Enable	done	310,726	plans/tasks/727-sapporo-239-ctimer-combined-inten.md
+728	7	Sapporo 2.39 Synthetic WbStorage Session Cache	done	706,727	plans/tasks/728-sapporo-239-wbsto-session-cache.md
 730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
 740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md

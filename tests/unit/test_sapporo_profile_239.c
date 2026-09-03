@@ -28,7 +28,9 @@ static void test_profile_loads(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 240u, profile.display_width);
     SEMU_TEST_EQ_U64(context, 240u, profile.display_height);
     SEMU_TEST_EQ_U64(context, 3u, profile.required_count);
-    SEMU_TEST_EQ_U64(context, 0u, profile.layer_count);
+    SEMU_TEST_EQ_U64(context, 1u, profile.layer_count);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[0], "sapporo-2.39-synthetic-wbsto") == 0);
 }
 
 static void test_profile_components(semu_test_context *context)
