@@ -10,6 +10,7 @@
 #include "semu/scheduler.h"
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
+#include "../compat/sapporo_239_files.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_nema_gpu.h"
 
@@ -21,6 +22,7 @@ struct semu_machine {
     semu_sapporo_devices *devices;
     semu_storage *flash_storage;
     semu_nema_gpu *nema_gpu;
+    semu_sapporo_239_files *sapporo_239_files;
     semu_display_backend_submit_fn display_backend_submit;
     void *display_backend_context;
     semu_frame_callback frame_callback;

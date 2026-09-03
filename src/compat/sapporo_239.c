@@ -26,7 +26,10 @@ static semu_layer_intervention sapporo_239_interventions[] = {
       "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
     { "wbsto-preload-result",
       "translate exact WbStoPreload command-zero result from 500 to 200",
-      "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u }
+      "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
+    { "logical-file",
+      "retain one native public-file operation in session-local memory",
+      "E-SAP-COMPAT-FILES-239-001", 2671u, 0u }
 };
 
 const semu_layer_descriptor semu_sapporo_239_wbsto_layer = {
@@ -40,7 +43,7 @@ const semu_layer_descriptor semu_sapporo_239_wbsto_layer = {
     .interventions = sapporo_239_interventions,
     .intervention_count = sizeof(sapporo_239_interventions) /
                           sizeof(sapporo_239_interventions[0]),
-    .maximum_hits = 2u
+    .maximum_hits = 2673u
 };
 
 typedef struct cache_record {

@@ -2,6 +2,7 @@
 #include "semu/machine.h"
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
+#include "../../src/compat/sapporo_239.h"
 #include "../../src/core/scheduler_internal.h"
 #include "../../src/soc/apollo4/apollo4_internal.h"
 
@@ -110,6 +111,8 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
     semu_snapshot *loaded;
     semu_snapshot *missing;
     semu_error error;
+    semu_logger compat_logger;
+    semu_cpu_state compat_cpu;
     semu_run_limits limits = { 2u, UINT64_C(1000000) };
     uint8_t *buffer;
     size_t length;
@@ -142,11 +145,30 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
                      loaded != NULL && buffer != NULL);
     if (first != NULL && second != NULL && source != NULL &&
         loaded != NULL && buffer != NULL) {
-        first->layer_count = second->layer_count = 1u;
+        first->layer_count = second->layer_count = 2u;
         first->layers[0] = (semu_layer_state){
             &semu_sapporo_222_no_device_layer, 0u, 0
         };
         second->layers[0] = first->layers[0];
+        first->layers[1] = (semu_layer_state){
+            &semu_sapporo_239_wbsto_layer, 0u, 1
+        };
+        second->layers[1] = first->layers[1];
+        semu_log_init(&compat_logger, NULL, SEMU_LOG_ERROR);
+        memset(&compat_cpu, 0, sizeof(compat_cpu));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_load(first->bus, UINT32_C(0x10001000),
+                (const uint8_t *)"settings/general", 17u, &error));
+        compat_cpu.r[0] = UINT32_C(0x10001000);
+        compat_cpu.r[1] = 2u;
+        compat_cpu.r[14] = UINT32_C(0x101);
+        compat_cpu.r[15] = UINT32_C(0x000920b4);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_239_apply_file_hook(first->sapporo_239_files,
+                first->bus, &compat_cpu, &first->layers[1], &compat_logger,
+                &error));
+        SEMU_TEST_EQ_U64(context, 1u,
+            semu_sapporo_239_files_count(first->sapporo_239_files));
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_apollo4_uart_schedule_rx(
                              first->soc->uart, 100u, rx_bytes,
@@ -199,6 +221,9 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
                          semu_snapshot_deserialize(loaded, buffer, length, &error));
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_machine_snapshot_load(second, loaded, &error));
+        SEMU_TEST_EQ_U64(context, 0u,
+            semu_sapporo_239_file_size(second->sapporo_239_files,
+                                       "settings/general"));
         SEMU_TEST_EQ_U64(context, saved_instructions, semu_machine_instructions(second));
         SEMU_TEST_EQ_U64(context, saved_time, semu_machine_virtual_time(second));
         SEMU_TEST_EQ_U64(context, saved_pc, semu_machine_program_counter(second));

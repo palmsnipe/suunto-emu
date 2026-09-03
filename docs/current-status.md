@@ -355,6 +355,20 @@ FAT-cache write to unmapped `0x0f676e34` at PC `0x0007038c`, instruction
 (E-SAP-COMPAT-WBSTO-239-001). This confirms that the compact OTA fragment is
 not a coherent writable filesystem; the address must not be broadly mapped.
 
+Ticket 729 extends that same exact-build layer with an in-memory logical-file
+adapter at the firmware's public wrapper ABI. It retains only native bytes
+created for eleven observed writable paths, enforces the reference's exact
+per-path size ceilings, passes missing read/update opens through to native
+storage, and refuses unknown writable paths, modes, handles, ranges, or budget
+excess before mutation. Two exact runs and their snapshots are byte-identical;
+the firmware creates `settings/sync.txt` (0 bytes), `settings/uiv2.txt` (235),
+and `settings/general` (1505) in 118 operations, with no return of the FAT
+underflow. A saved checkpoint resumes exactly into the next reset one
+instruction later. Exception-frame recovery pins that reset to an IOM2 access
+at `0x40052120` from stacked PC `0x0014e8ee`, matching the reference's I2C
+probe of address `0x5c` (E-SAP-COMPAT-FILES-239-001). No generic IOM or sensor
+response is yet implemented.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -376,13 +390,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Implement an exact-build, session-local logical writable-file adapter for
-  Sapporo 2.39 after the ticket 728 WbStorage layer. The native `uiv2.txt`
-  creation now reaches a proven FAT-cache address underflow because the compact
-  public OTA fragment is not a coherent writable filesystem. Preserve native
-  file bytes and operations in memory, pass existing readable OTA files through,
-  and refuse unknown modes/handles/paths; do not map `0x0f676e34`, patch the
-  FAT arithmetic, or invent persisted file contents.
+- Reverse engineer and implement only the exact Sapporo 2.39 IOM2 transaction
+  needed for the observed I2C address-`0x5c` pressure-sensor probe. Begin from
+  the ticket-729 pre-reset checkpoint and recover the command/register transcript
+  from the hash-pinned reference before changing IOM or device behavior; do not
+  add a generic acknowledgement or guessed sensor identity.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

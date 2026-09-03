@@ -84,7 +84,7 @@ static void test_descriptor_and_hash_pins(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
         strcmp(semu_sapporo_239_wbsto_layer.id,
                "sapporo-2.39-synthetic-wbsto") == 0);
-    SEMU_TEST_EQ_U64(context, 2u,
+    SEMU_TEST_EQ_U64(context, 2673u,
                      semu_sapporo_239_wbsto_layer.maximum_hits);
     enable_layer(context, &state, &error);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_CONFLICT,

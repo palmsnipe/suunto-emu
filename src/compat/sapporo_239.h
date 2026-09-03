@@ -10,6 +10,7 @@ extern const semu_layer_descriptor semu_sapporo_239_wbsto_layer;
 enum {
     SEMU_SAPPORO_239_IV_WBSTO_SESSION_CACHE = 0u,
     SEMU_SAPPORO_239_IV_WBSTO_PRELOAD_RESULT,
+    SEMU_SAPPORO_239_IV_LOGICAL_FILE,
     SEMU_SAPPORO_239_IV_COUNT
 };
 

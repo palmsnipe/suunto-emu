@@ -29,4 +29,4 @@ sha256=49a3936f4c9d61dbceee12324f41412334c42aa98b900f6f2d3fc5633ae43aea
 [layer sapporo-2.39-synthetic-wbsto]
 kind=synthetic-state
 evidence=E-SAP-COMPAT-WBSTO-239-001
-max_hits=2
+max_hits=2673

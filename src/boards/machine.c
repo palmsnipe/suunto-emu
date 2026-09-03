@@ -246,9 +246,11 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->external_flash_path = options->external_flash_path;
     machine->input_poll = options->input_poll;
     machine->input_poll_context = options->input_poll_context;
+    machine->sapporo_239_files = semu_sapporo_239_files_create(error);
     machine->bus = semu_bus_create(error);
     machine->scheduler = semu_scheduler_create(error);
-    if (machine->bus == NULL || machine->scheduler == NULL ||
+    if (machine->sapporo_239_files == NULL || machine->bus == NULL ||
+        machine->scheduler == NULL ||
         map_sapporo(machine, error) != SEMU_OK) {
         semu_machine_destroy(machine);
         return NULL;
@@ -277,6 +279,7 @@ void semu_machine_destroy(semu_machine *machine)
         semu_apollo4_destroy(machine->soc);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
+        semu_sapporo_239_files_destroy(machine->sapporo_239_files);
         free(machine);
     }
 }
@@ -296,7 +299,10 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
         return error != NULL ? error->code : SEMU_ERR_CONFLICT;
     }
     semu_scheduler_reset(machine->scheduler);
-    if (!preserve_ram) semu_bus_reset(machine->bus);
+    if (!preserve_ram) {
+        semu_bus_reset(machine->bus);
+        semu_sapporo_239_files_reset(machine->sapporo_239_files);
+    }
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
     semu_nema_gpu_reset(machine->nema_gpu);

@@ -5,6 +5,7 @@
 #include "../core/snapshot_io.h"
 #include "../core/storage_internal.h"
 #include "../cpu/armv7m/armv7m_internal.h"
+#include "../compat/sapporo_239.h"
 #include "../devices/sapporo_devices_internal.h"
 #include "../soc/apollo4/apollo4_internal.h"
 #include "machine_snapshot_events.h"
@@ -70,6 +71,7 @@ static semu_status write_machine(const semu_machine *machine,
                                  semu_snapshot_writer *writer, semu_error *error)
 {
     size_t i, j;
+    int has_sapporo_239 = 0;
     if (semu_snapshot_writer_u64(writer, machine->instruction_epoch, error) != SEMU_OK ||
         semu_snapshot_writer_u64(writer, machine->virtual_time_epoch, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)machine->stop_reason, error) != SEMU_OK ||
@@ -92,15 +94,22 @@ static semu_status write_machine(const semu_machine *machine,
             if (semu_snapshot_writer_u64(writer,
                     layer->descriptor->interventions[j].hits, error) != SEMU_OK)
                 return error->code;
+        if (layer->descriptor == &semu_sapporo_239_wbsto_layer)
+            has_sapporo_239 = 1;
     }
+    if (has_sapporo_239)
+        return semu_sapporo_239_files_snapshot_write(
+            machine->sapporo_239_files, writer, error);
     return SEMU_OK;
 }
 
-static semu_status read_machine(semu_snapshot_reader *reader,
+static semu_status read_machine(semu_machine *machine,
+                                semu_snapshot_reader *reader,
                                 machine_image *image, semu_error *error)
 {
     uint32_t reason, count;
     size_t i, j;
+    int has_sapporo_239 = 0;
     memset(image, 0, sizeof(*image));
     if (semu_snapshot_reader_u64(reader, &image->instruction_epoch, error) != SEMU_OK ||
         semu_snapshot_reader_u64(reader, &image->virtual_time_epoch, error) != SEMU_OK ||
@@ -136,11 +145,17 @@ static semu_status read_machine(semu_snapshot_reader *reader,
         }
         layer->enabled = enabled;
         layer->intervention_count = intervention_count;
+        if (strcmp(layer->id, semu_sapporo_239_wbsto_layer.id) == 0)
+            has_sapporo_239 = 1;
         for (j = 0u; j < layer->intervention_count; ++j)
             if (semu_snapshot_reader_u64(reader,
                     &layer->intervention_hits[j], error) != SEMU_OK)
                 return error->code;
     }
+    if (has_sapporo_239 && !semu_snapshot_reader_done(reader))
+        return semu_sapporo_239_files_snapshot_read(
+            machine->sapporo_239_files, reader, error);
+    semu_sapporo_239_files_reset(machine->sapporo_239_files);
     return SEMU_OK;
 }
 
@@ -155,9 +170,13 @@ static semu_status apply_machine_image(semu_machine *machine,
     }
     for (i = 0u; i < image->layer_count; ++i) {
         semu_layer_state *layer = &machine->layers[i];
+        int old_sapporo_239 = layer->descriptor ==
+                &semu_sapporo_239_wbsto_layer &&
+            image->layers[i].intervention_count == 2u;
         if (layer->descriptor == NULL || strcmp(layer->descriptor->id,
                                                  image->layers[i].id) != 0 ||
-            layer->descriptor->intervention_count != image->layers[i].intervention_count) {
+            (layer->descriptor->intervention_count !=
+                 image->layers[i].intervention_count && !old_sapporo_239)) {
             semu_error_set(error, SEMU_ERR_CONFLICT, "snapshot layer identity differs from machine");
             return SEMU_ERR_CONFLICT;
         }
@@ -169,6 +188,8 @@ static semu_status apply_machine_image(semu_machine *machine,
         semu_layer_state *layer = &machine->layers[i];
         layer->enabled = image->layers[i].enabled;
         layer->hits = image->layers[i].hits;
+        for (j = 0u; j < layer->descriptor->intervention_count; ++j)
+            ((semu_layer_intervention *)&layer->descriptor->interventions[j])->hits = 0u;
         for (j = 0u; j < image->layers[i].intervention_count; ++j)
             ((semu_layer_intervention *)&layer->descriptor->interventions[j])->hits =
                 image->layers[i].intervention_hits[j];
@@ -225,7 +246,7 @@ static semu_status apply_sections(semu_machine *machine,
     semu_error_set(error, SEMU_ERR_FORMAT, "snapshot %s section has trailing data", (name)); \
     semu_machine_snapshot_free_scheduler_image(&scheduler_image); return SEMU_ERR_FORMAT; } } while (0)
     SECTION(SEMU_SNAPSHOT_SECTION_MACHINE);
-    status = read_machine(&reader, &machine_image, error);
+    status = read_machine(machine, &reader, &machine_image, error);
     if (status != SEMU_OK) return status;
     DONE("machine");
     SECTION(SEMU_SNAPSHOT_SECTION_SCHEDULER);

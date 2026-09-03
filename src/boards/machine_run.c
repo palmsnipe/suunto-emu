@@ -93,6 +93,14 @@ static int apply_compat_hook(semu_machine *machine,
                     layer, machine->logger, error) != SEMU_OK) {
                 return 0;
             }
+        } else if (layer->descriptor == &semu_sapporo_239_wbsto_layer &&
+                   semu_sapporo_239_file_hook_pc(state->r[15])) {
+            if (semu_sapporo_239_apply_file_hook(
+                    machine->sapporo_239_files, machine->bus,
+                    semu_cpu_get_state_mutable(machine->cpu), layer,
+                    machine->logger, error) != SEMU_OK) {
+                return 0;
+            }
         }
     }
     return 1;
