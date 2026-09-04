@@ -481,6 +481,18 @@ They complete command 13 without reset and preserve the same 118 logical-file
 operations. The next instruction submits result command `0x000e`, sequence
 five; it remains a strict refusal and enters the fault vector.
 
+Ticket 739 implements MAIN result command `0x000e` under
+E-SAP-OHR2-RESULT14-239-001. The dedicated 2.39 physical provider validates
+the all-`0xff` request in modeled MAIN state and returns the exact all-zero
+body; existing response bodies are unchanged. Two exact runs and snapshots
+are byte-identical at PC `0x0014e8ea`, instruction 369,026,992, virtual time
+1,890,375,236 ns (log SHA-256
+`8e1e68584a5d869f91c07216add9d6d1befbc36aac26718113359b76298fd1c4`,
+snapshot `d7c30abd8ff1744c1644b2730953d45012c547977b24c905873b37fa2533b8e0`).
+They complete command 14 without reset and preserve the same 118 logical-file
+operations. The next instruction submits echo command `0x0006`, sequence six;
+it remains a strict refusal and enters the fault vector.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -502,10 +514,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Add the native 2.39 result-command body for command `0x000e`, sequence five.
-  The hash-pinned trace shows all-`0xff` request data and an all-zero response
-  body. Keep exact fill/state validation in the dedicated physical provider;
-  echo and command `0x0002` remain separate gates.
+- Add the native 2.39 echo body for command `0x0006`, sequence six. The
+  hash-pinned trace shows an exact 50-byte request body that is returned
+  unchanged. Keep full-body/state validation in the dedicated physical
+  provider; command `0x0002` remains a separate gate.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

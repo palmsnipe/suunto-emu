@@ -82,6 +82,26 @@ static void test_result_13(semu_test_context *context)
     }
 }
 
+static void test_result_14(semu_test_context *context)
+{
+    semu_error error;
+    uint8_t request[54];
+    uint8_t response[54];
+    size_t index;
+
+    semu_error_clear(&error);
+    make_request_payload(request, SEMU_SAPPORO_OHR2_COMMAND_RESULT_14,
+                         5u, 0xffu);
+    memset(response, 0xa5, sizeof(response));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_sapporo_239_ohr_body_provider(
+            SEMU_SAPPORO_OHR2_COMMAND_RESULT_14, 5u,
+            SEMU_SAPPORO_OHR2_MAIN, request, response, &error));
+    for (index = 0u; index < sizeof(response); ++index) {
+        SEMU_TEST_EQ_U64(context, 0u, response[index]);
+    }
+}
+
 static void test_identity_refusals_are_atomic(semu_test_context *context)
 {
     static const semu_sapporo_ohr2_state states[] = {
@@ -108,7 +128,7 @@ static void test_identity_refusals_are_atomic(semu_test_context *context)
     }
 }
 
-static void test_result_13_refusals_are_atomic(semu_test_context *context)
+static void test_result_refusals_are_atomic(semu_test_context *context)
 {
     semu_error error;
     uint8_t request[54];
@@ -131,9 +151,23 @@ static void test_result_13_refusals_are_atomic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0xa5u, response[53u]);
     make_request_payload(request, SEMU_SAPPORO_OHR2_COMMAND_RESULT_14,
                          5u, 0xffu);
+    request[53u] = 0u;
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
         semu_sapporo_239_ohr_body_provider(
             SEMU_SAPPORO_OHR2_COMMAND_RESULT_14, 5u,
+            SEMU_SAPPORO_OHR2_MAIN, request, response, &error));
+    SEMU_TEST_EQ_U64(context, 0xa5u, response[0u]);
+    request[53u] = 0xffu;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_sapporo_239_ohr_body_provider(
+            SEMU_SAPPORO_OHR2_COMMAND_RESULT_14, 5u,
+            SEMU_SAPPORO_OHR2_BSL, request, response, &error));
+    SEMU_TEST_EQ_U64(context, 0xa5u, response[53u]);
+    make_request_payload(request, SEMU_SAPPORO_OHR2_COMMAND_ECHO,
+                         6u, 0xffu);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_sapporo_239_ohr_body_provider(
+            SEMU_SAPPORO_OHR2_COMMAND_ECHO, 6u,
             SEMU_SAPPORO_OHR2_MAIN, request, response, &error));
     SEMU_TEST_EQ_U64(context, 0xa5u, response[0u]);
 }
@@ -179,8 +213,9 @@ int main(void)
         SEMU_TEST_CASE(test_bsl_identity),
         SEMU_TEST_CASE(test_main_identity),
         SEMU_TEST_CASE(test_result_13),
+        SEMU_TEST_CASE(test_result_14),
         SEMU_TEST_CASE(test_identity_refusals_are_atomic),
-        SEMU_TEST_CASE(test_result_13_refusals_are_atomic),
+        SEMU_TEST_CASE(test_result_refusals_are_atomic),
         SEMU_TEST_CASE(test_boot_mode_body_is_retained)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
