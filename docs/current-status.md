@@ -469,6 +469,18 @@ They complete MAIN identity without reset and preserve the same 118 logical-
 file operations. The next instruction submits result command `0x000d`,
 sequence four; it remains a strict refusal and enters the fault vector.
 
+Ticket 738 implements MAIN result command `0x000d` under
+E-SAP-OHR2-RESULT13-239-001. The dedicated 2.39 physical provider validates
+the all-`0xff` request in modeled MAIN state and returns the exact all-zero
+body; existing response bodies are unchanged. Two exact runs and snapshots
+are byte-identical at PC `0x0014e8ea`, instruction 368,995,288, virtual time
+1,890,343,532 ns (log SHA-256
+`eb76c862ba97bd1b0f5ae569b62dcfd3544ecf39d06e3b791de22ce57c2f2331`,
+snapshot `5359e0cdf8f62514c88b6a90cb381e40c55811a748fcf5b510319268680100f4`).
+They complete command 13 without reset and preserve the same 118 logical-file
+operations. The next instruction submits result command `0x000e`, sequence
+five; it remains a strict refusal and enters the fault vector.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -490,10 +502,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Add the native 2.39 result-command body for command `0x000d`, sequence four.
+- Add the native 2.39 result-command body for command `0x000e`, sequence five.
   The hash-pinned trace shows all-`0xff` request data and an all-zero response
   body. Keep exact fill/state validation in the dedicated physical provider;
-  command `0x000e`, echo, and command `0x0002` remain separate gates.
+  echo and command `0x0002` remain separate gates.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
