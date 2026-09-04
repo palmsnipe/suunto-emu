@@ -269,6 +269,55 @@ static void test_iom2_ohr2_via_mux(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, semu_crc32(0u, rx, 54u),
         (uint32_t)rx[54u] | (uint32_t)rx[55u] << 8u |
         (uint32_t)rx[56u] << 16u | (uint32_t)rx[57u] << 24u);
+
+    memset(tx, 0xff, sizeof(tx));
+    tx[0u] = 0u;
+    tx[1u] = SEMU_SAPPORO_OHR2_COMMAND_IDENTITY;
+    tx[2u] = 0u;
+    tx[3u] = 1u;
+    tx[4u] = 0u;
+    crc = semu_crc32(0u, tx + 1u, 54u);
+    tx[55u] = (uint8_t)crc;
+    tx[56u] = (uint8_t)(crc >> 8u);
+    tx[57u] = (uint8_t)(crc >> 16u);
+    tx[58u] = (uint8_t)(crc >> 24u);
+    txn.tx = tx;
+    txn.tx_size = sizeof(tx);
+    txn.rx = NULL;
+    txn.rx_size = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    tx[0u] = SEMU_SAPPORO_OHR2_RESPONSE_SELECTOR;
+    txn.tx_size = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    memset(rx, 0xa5, sizeof(rx));
+    txn.tx = NULL;
+    txn.tx_size = 0u;
+    txn.rx = rx;
+    txn.rx_size = sizeof(rx);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     iom2->transfer(iom2->context, &txn, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 1u, rx[2u]);
+    SEMU_TEST_ASSERT(context, memcmp(rx + 9u, "BSL\0", 4u) == 0);
+    SEMU_TEST_EQ_U64(context, semu_crc32(0u, rx, 54u),
+        (uint32_t)rx[54u] | (uint32_t)rx[55u] << 8u |
+        (uint32_t)rx[56u] << 16u | (uint32_t)rx[57u] << 24u);
+
+    tx[0u] = 0u;
+    tx[54u] = 0u;
+    crc = semu_crc32(0u, tx + 1u, 54u);
+    tx[55u] = (uint8_t)crc;
+    tx[56u] = (uint8_t)(crc >> 8u);
+    tx[57u] = (uint8_t)(crc >> 16u);
+    tx[58u] = (uint8_t)(crc >> 24u);
+    txn.tx = tx;
+    txn.tx_size = sizeof(tx);
+    txn.rx = NULL;
+    txn.rx_size = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     iom2->transfer(iom2->context, &txn, &error));
     semu_sapporo_devices_destroy(devices);
     semu_scheduler_destroy(scheduler);
 }

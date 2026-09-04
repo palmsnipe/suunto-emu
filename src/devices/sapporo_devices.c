@@ -8,6 +8,7 @@
 #include "sapporo_devices_internal.h"
 
 #include "sapporo_gps_compat.h"
+#include "sapporo_ohr2_239.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -122,11 +123,10 @@ static semu_transaction_result no_device_ohr_provider(
     semu_sapporo_devices *devices = (semu_sapporo_devices *)context;
     semu_sapporo_222_fixture_context *fixture =
         devices != NULL ? &devices->fixture_context : NULL;
-    if (devices != NULL && devices->ohr2_boot_mode_239 &&
-        command == SEMU_SAPPORO_OHR2_COMMAND_BOOT_MODE) {
-        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
-        semu_error_clear(error);
-        return SEMU_TRANSACTION_OK;
+    if (devices != NULL && devices->ohr2_profile_239) {
+        return semu_sapporo_239_ohr_body_provider(
+            command, sequence, state, request_payload, response_payload,
+            error);
     }
     if (fixture == NULL || fixture->state == NULL ||
         fixture->logger == NULL || !fixture->state->enabled) {
@@ -304,7 +304,7 @@ semu_status semu_sapporo_devices_select_profile(
         if (devices->lps22 == NULL) return error->code;
         endpoint = semu_sapporo_lps22_endpoint(devices->lps22);
         i2c_bus_attach(&devices->iom2_bus, 0x5cu, &endpoint);
-        devices->ohr2_boot_mode_239 = 1;
+        devices->ohr2_profile_239 = 1;
     }
     devices->profile_selected = 1;
     semu_error_clear(error);

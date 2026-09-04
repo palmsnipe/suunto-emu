@@ -53,7 +53,7 @@ struct semu_sapporo_devices {
     semu_apollo4_uart_endpoint uart_ep;
     semu_sapporo_222_fixture_context fixture_context;
     int profile_selected;
-    int ohr2_boot_mode_239;
+    int ohr2_profile_239;
 };
 
 semu_status semu_sapporo_devices_snapshot_write(

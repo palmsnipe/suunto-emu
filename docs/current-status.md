@@ -443,6 +443,20 @@ same 118 compatibility operations. The next instruction submits the already
 known identity command zero, sequence one, in BSL; its 2.39 response body is
 not yet wired and therefore refuses into the precise fault vector.
 
+Ticket 736 implements that BSL identity body under
+E-SAP-OHR2-ID-BSL-239-001. A dedicated 2.39 physical provider requires all
+fifty request data bytes to be `0xff`, returns the otherwise-zero body with
+`BSL\0` at payload offsets 9..12, retains the ticket-735 boot-mode response,
+and refuses every unimplemented 2.39 body without falling through to the 2.22
+compatibility fixture. Two exact runs and snapshots are byte-identical at PC
+`0x0014e8ea`, instruction 368,947,987, virtual time 1,890,296,231 ns (log
+SHA-256 `c5599a2faf3016cdeb85bbb2cd6951f70fad49d6732639bbda861d7f5348c1ed`,
+snapshot `2a823cb69c1bdb7463233c553a2e55312c462bca99aa1715246cb1fd3866d690`).
+They complete BSL identity, fire-and-forget reboot, and the second boot-mode
+exchange in MAIN with no reset and the same 118 logical-file operations. The
+next instruction submits MAIN identity command zero, sequence three; that
+body remains a strict refusal and enters the precise fault vector.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -464,12 +478,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Add the native 2.39 OHR2 startup bodies already visible in the hash-pinned
-  capture, beginning with BSL identity command zero, sequence one. Keep them
-  profile-selected and physical-path only: the legacy 2.22 compatibility
-  fixture must not become implicitly enabled. That will unlock command-3
-  reboot, the second command-`0x0010` exchange in MAIN, and the subsequent
-  result/echo transcript one independently evidenced command at a time.
+- Add the native 2.39 MAIN identity body already visible in the hash-pinned
+  capture: command zero, sequence three, all-`0xff` request data, and the
+  otherwise-zero response containing `MAIN\0` at payload offsets 9..13.
+  Keep it inside the dedicated profile-selected physical provider. Subsequent
+  result and echo commands remain separate evidence gates.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
