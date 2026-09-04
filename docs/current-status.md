@@ -457,6 +457,18 @@ exchange in MAIN with no reset and the same 118 logical-file operations. The
 next instruction submits MAIN identity command zero, sequence three; that
 body remains a strict refusal and enters the precise fault vector.
 
+Ticket 737 implements MAIN identity under E-SAP-OHR2-ID-MAIN-239-001. The
+same dedicated 2.39 physical provider validates the all-`0xff` request and
+selects the exact otherwise-zero `MAIN\0` body from modeled MAIN state; BSL
+identity and boot-mode behavior are unchanged. Two exact runs and snapshots
+are byte-identical at PC `0x0014e8ea`, instruction 368,958,374, virtual time
+1,890,306,618 ns (log SHA-256
+`d82ebc5b061787b8cefad7f64f7b70168858bc8da29adb644cd486211a8bfc22`,
+snapshot `352cdedcec47360eb478c6eec3649534025c7373b19c9c35c90e3922549c8a81`).
+They complete MAIN identity without reset and preserve the same 118 logical-
+file operations. The next instruction submits result command `0x000d`,
+sequence four; it remains a strict refusal and enters the fault vector.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -478,11 +490,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Add the native 2.39 MAIN identity body already visible in the hash-pinned
-  capture: command zero, sequence three, all-`0xff` request data, and the
-  otherwise-zero response containing `MAIN\0` at payload offsets 9..13.
-  Keep it inside the dedicated profile-selected physical provider. Subsequent
-  result and echo commands remain separate evidence gates.
+- Add the native 2.39 result-command body for command `0x000d`, sequence four.
+  The hash-pinned trace shows all-`0xff` request data and an all-zero response
+  body. Keep exact fill/state validation in the dedicated physical provider;
+  command `0x000e`, echo, and command `0x0002` remain separate gates.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

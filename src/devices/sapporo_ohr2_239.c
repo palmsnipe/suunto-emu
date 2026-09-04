@@ -41,12 +41,17 @@ semu_transaction_result semu_sapporo_239_ohr_body_provider(
         return SEMU_TRANSACTION_OK;
     }
     if (command != SEMU_SAPPORO_OHR2_COMMAND_IDENTITY ||
-        state != SEMU_SAPPORO_OHR2_BSL ||
+        (state != SEMU_SAPPORO_OHR2_BSL &&
+         state != SEMU_SAPPORO_OHR2_MAIN) ||
         !payload_fill_matches(request_payload, 4u, 0xffu)) {
         return refuse(error, "unimplemented identity body");
     }
     memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
-    memcpy(response_payload + 9u, "BSL", 3u);
+    if (state == SEMU_SAPPORO_OHR2_MAIN) {
+        memcpy(response_payload + 9u, "MAIN", 4u);
+    } else {
+        memcpy(response_payload + 9u, "BSL", 3u);
+    }
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
 }
