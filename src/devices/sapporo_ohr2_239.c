@@ -13,6 +13,25 @@ static int payload_fill_matches(const uint8_t *payload, size_t first,
     return 1;
 }
 
+static int echo_body_matches(const uint8_t *payload)
+{
+    static const uint8_t native_prefix[] = {
+        0xfcu, 0x60u, 0xe8u, 0x83u, 0xd5u,
+        0x01u, 0x00u, 0x00u, 0x00u, 0x00u
+    };
+    static const uint8_t deterministic_prefix[] = {
+        0x00u, 0xf4u, 0x51u, 0xc2u, 0x8cu,
+        0x01u, 0x00u, 0x00u, 0x00u, 0x00u
+    };
+    int prefix_matches =
+        memcmp(payload + 4u, native_prefix, sizeof(native_prefix)) == 0 ||
+        memcmp(payload + 4u, deterministic_prefix,
+               sizeof(deterministic_prefix)) == 0;
+
+    return prefix_matches && payload_fill_matches(
+        payload, 4u + sizeof(native_prefix), 0xffu);
+}
+
 static semu_transaction_result refuse(semu_error *error, const char *reason)
 {
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -55,6 +74,17 @@ semu_transaction_result semu_sapporo_239_ohr_body_provider(
             return refuse(error, "result-14 body");
         }
         memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        semu_error_clear(error);
+        return SEMU_TRANSACTION_OK;
+    }
+    if (command == SEMU_SAPPORO_OHR2_COMMAND_ECHO) {
+        if (state != SEMU_SAPPORO_OHR2_MAIN ||
+            !echo_body_matches(request_payload)) {
+            return refuse(error, "echo body");
+        }
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        memcpy(response_payload + 4u, request_payload + 4u,
+               SEMU_SAPPORO_OHR2_PAYLOAD_SIZE - 4u);
         semu_error_clear(error);
         return SEMU_TRANSACTION_OK;
     }
