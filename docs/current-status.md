@@ -560,6 +560,27 @@ is `WbStoPreload`, command one, result 500; the existing synthetic cache layer
 handles command zero only. The command-one missing state still needs tracing,
 and the current milestone remains short of a normal frame.
 
+Ticket 746 traces that command-one failure to the same four unavailable
+persisted records (E-SAP-COMPAT-PRELOAD1-239-001). It adds a separate one-shot
+`wbsto-preload1-result` intervention, requiring both prior cache interventions
+and byte-exact revalidation of the unchanged synthetic cache. No new values or
+file bytes are supplied. Existing per-trigger limits remain unchanged; total
+layer capacity becomes 2,674. Older two-/three-counter snapshots restore with
+the appended counters at zero; unknown counts still refuse atomically.
+
+The advanced checkpoint is PC `0x000921dc`, instruction 435,333,559, virtual
+time 1,974,290,101 ns: log SHA-256
+`476cf8603492ff3cfc456a61babd1c0cc7c5347b4bc81a7e8a39594e595f9b71`,
+snapshot `27b6e51ee66569d9e68ef56c7608c280cfd4e48f6cfe5d4beb1aaaf68f4fa79f`.
+The preload translation fires once at 1,955,180,209 ns. Execution then reaches
+the unchanged 2,671-operation logical-file limit during a sleep-record scan,
+at cursor 11,480 of 17,888 bytes. The next attempted instruction refuses
+without advancing PC/time/count. A real three-counter snapshot from instruction
+405,860,000 resumes to the identical new snapshot. The next task is to trace
+the repeated scans and establish a justified finite file-operation budget or
+identify a native file-contract defect; no budget increase is included here.
+No normal frame is claimed. Historical checkpoint tests remain unchanged.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256

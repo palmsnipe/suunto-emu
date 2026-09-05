@@ -172,7 +172,8 @@ static semu_status apply_machine_image(semu_machine *machine,
         semu_layer_state *layer = &machine->layers[i];
         int old_sapporo_239 = layer->descriptor ==
                 &semu_sapporo_239_wbsto_layer &&
-            image->layers[i].intervention_count == 2u;
+            (image->layers[i].intervention_count == 2u ||
+             image->layers[i].intervention_count == 3u);
         if (layer->descriptor == NULL || strcmp(layer->descriptor->id,
                                                  image->layers[i].id) != 0 ||
             (layer->descriptor->intervention_count !=

@@ -13,6 +13,45 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-PRELOAD1-239-001
+
+2026-09-05; direct read-only C interpreter trace and pristine application
+disassembly, exact Sapporo 2.39 components E-SAP-0011 and full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+From instruction 405,860,000, bounded trace SHA-256
+`3c06f813eac80e86875570c82d8cd5ab6f4b2cfe69c2cba4007fae655815700c`
+records native reader `0x000c9d54` with descriptor addresses `0x00192f94`,
+`0x00192fb8`, `0x001930b4`, `0x001932d0`: the same four LIDs established
+by E-SAP-COMPAT-WBSTO-239-001. Each logs status 204 at `0x000c9da0`.
+The final callback is `0x00124844`, instruction 416,223,667, R0
+`0x10025634`, R3=500; descriptor provider `0x001c0ed8`, command one.
+Read-only inspection of ticket-744 snapshot SHA-256
+`92e7f05339ff218402f0b788a6263dc8173c81fba30d56d4cf8c66c1bab09a16`
+confirms all 40 context, 80 tree and 40 data bytes still match the installed
+synthetic cache. The missing record reads do not populate or alter that cache.
+
+The read-only reference `$FIRMWARE_ROOT/emulator/renode/sapporo-2.39-preload-compat.resc`,
+SHA-256 `72dd2d7f7fd2640004c55e9da058cdf8b82d96d2c5a8904a1a7f7896d0ca7dc2`,
+explicitly translates both preload commands; no other reference override is
+adopted. Persisted payload sectors are absent below the compact OTA fragment,
+as established by the cache-map research in E-SAP-COMPAT-WBSTO-239-001.
+Thus a faithful lower-level record representation remains unavailable.
+Ticket 746 authorizes only an additional, separately logged one-hit command-one
+translation, gated by both prior interventions and exact cache revalidation.
+Existing synthetic values remain disposable, not recovered defaults. Confidence
+is high for this exact boundary; no general preload semantics are inferred.
+Validation: `sapporo_239_preload1` unit/private tests and snapshot migration tests.
+
+Ticket 746 verification: two fresh logs/snapshots match at PC `0x000921dc`,
+instruction 435,333,559, virtual time 1,974,290,101 ns. Log SHA-256
+`476cf8603492ff3cfc456a61babd1c0cc7c5347b4bc81a7e8a39594e595f9b71`;
+snapshot `27b6e51ee66569d9e68ef56c7608c280cfd4e48f6cfe5d4beb1aaaf68f4fa79f`.
+The new intervention fires once. At the next attempted instruction the existing
+logical-file budget refuses without retiring the read; no budget was increased.
+Resuming a genuine older three-counter snapshot produces the identical new
+snapshot. Full check, 16 Sapporo 2.39 sanitizer cases, and the private dual-run
+checkpoint/refusal/immutable-flash runner pass. No normal frame is claimed.
+
 | ID | Source | Product/version | Observation | Confidence / validation |
 | --- | --- | --- | --- | --- |
 | E-SAP-COMPAT-SEEK-239-001 | 2026-09-05; read-only exact application disassembly at `0x00092182`, `0x000be0a4`, `0x000922d6`, `0x0016fab0`; bounded in-tree C trace from instruction 405,860,000 to ticket-743 BKPT | Sapporo `2.39.20.22297-P`, application SHA-256 `85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`; components E-SAP-0011 and full flash E-SAP-COMPAT-FILES-239-001 | At instruction 405,861,738 the public seek wrapper receives handle `0x1015fd00`, offset 32, origin zero. The adapter moves the cursor but returns zero; guest `0x0016fac2` compares R0 with requested 32 and returns false without a record read, ultimately yielding TrainingTss result 500. Native helper `0x000be0a4` preserves the input offset in R5 across the lower seek and returns that original value on success; wrapper epilogue preserves it into R0. Thus the public return is the requested offset bit pattern, not zero and not the computed absolute cursor, for all accepted origins. | Direct static and dynamic evidence authorizes only the successful seek return correction using existing checked cursor/hit/refusal logic. No TrainingTss status translation or record fabrication is needed for this comparison. Ticket 744 regression fails before and passes after, with unchanged atomic refusals; full check and 12 Sapporo 2.39 sanitizer tests pass. Native TrainingTss reads all 42 records and reports status 200 at instruction 405,884,883. Two authentic runs match at PC `0x00079e1c`, instruction 416,256,851, time 1,955,213,393 ns: log SHA-256 `4f8e749ebe80774b968a091dda8086aabeb85229e6dd08b916cb615e24e6497e`, snapshot `92e7f05339ff218402f0b788a6263dc8173c81fba30d56d4cf8c66c1bab09a16`. There are 595 logical-file hits, no reset/device refusal and immutable source flash. One-step resume halts at PC `0x00079e1e`, instruction 416,256,852, time 1,955,213,394 ns. The next failure is WbStoPreload command one: descriptor `0x10025634` stores provider pointer `0x001c0ed8` and command byte one; saved LR `0x001248b9` and result 500 at SP `0x10025340` identify the StartupClient failure path. Missing preload state remains unresolved; no normal frame or additional status translation is claimed. |

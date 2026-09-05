@@ -108,6 +108,7 @@ id	phase	title	status	dependencies	ticket
 743	7	Sapporo 2.39 Logical File Size Integration	in-progress	729	plans/tasks/743-sapporo-239-logical-file-size.md
 744	7	Sapporo 2.39 Logical Seek Return Contract	in-progress	729	plans/tasks/744-sapporo-239-logical-seek-return.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
+746	7	Sapporo 2.39 Second Preload Integration	in-progress	728,729,615	plans/tasks/746-sapporo-239-second-preload.md
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md

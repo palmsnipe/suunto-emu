@@ -29,7 +29,10 @@ static semu_layer_intervention sapporo_239_interventions[] = {
       "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
     { "logical-file",
       "retain one native public-file operation in session-local memory",
-      "E-SAP-COMPAT-FILES-239-001", 2671u, 0u }
+      "E-SAP-COMPAT-FILES-239-001", 2671u, 0u },
+    { "wbsto-preload1-result",
+      "translate exact WbStoPreload command-one result from 500 to 200",
+      "E-SAP-COMPAT-PRELOAD1-239-001", 1u, 0u }
 };
 
 const semu_layer_descriptor semu_sapporo_239_wbsto_layer = {
@@ -43,7 +46,7 @@ const semu_layer_descriptor semu_sapporo_239_wbsto_layer = {
     .interventions = sapporo_239_interventions,
     .intervention_count = sizeof(sapporo_239_interventions) /
                           sizeof(sapporo_239_interventions[0]),
-    .maximum_hits = 2673u
+    .maximum_hits = 2674u
 };
 
 typedef struct cache_record {
@@ -221,7 +224,10 @@ semu_status semu_sapporo_239_apply_wbsto_hook(
         return SEMU_ERR_STATE;
     }
     if (provider == WBSTO_PRELOAD_PROVIDER) {
-        if (command != 0u ||
+        size_t intervention = command == 0u ?
+            SEMU_SAPPORO_239_IV_WBSTO_PRELOAD_RESULT :
+            SEMU_SAPPORO_239_IV_WBSTO_PRELOAD1_RESULT;
+        if (command > 1u ||
             (cpu_state->r[3] & UINT32_C(0xffff)) != 500u) {
             return SEMU_OK;
         }
@@ -231,11 +237,17 @@ semu_status semu_sapporo_239_apply_wbsto_hook(
                            "Sapporo 2.39 WbStorage cache was not installed");
             return SEMU_ERR_STATE;
         }
+        if (command == 1u && state->descriptor->interventions[
+                SEMU_SAPPORO_239_IV_WBSTO_PRELOAD_RESULT].hits != 1u) {
+            semu_error_set(error, SEMU_ERR_STATE,
+                           "Sapporo 2.39 first preload was not translated");
+            return SEMU_ERR_STATE;
+        }
         if (validate_installed_cache(bus, error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
         if (semu_layer_intervention_hit(state, logger,
-                SEMU_SAPPORO_239_IV_WBSTO_PRELOAD_RESULT, error) != SEMU_OK) {
+                intervention, error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
         cpu_state->r[3] = 200u;
