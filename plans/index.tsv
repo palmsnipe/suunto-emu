@@ -115,6 +115,7 @@ id	phase	title	status	dependencies	ticket
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
 751	7	Sapporo 2.39 Native Quiet Read Routing	in-progress	729	plans/tasks/751-sapporo-239-native-quiet-read.md
 752	7	Sapporo 2.39 Combined Timer13 Interrupt Enable	in-progress	310,727,729,615	plans/tasks/752-sapporo-239-ctimer13-combined-inten.md
+753	7	Sapporo 2.39 Native Empty Widgets Cache Value	in-progress	728,729,615	plans/tasks/753-sapporo-239-native-widgets.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
 765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md

@@ -22,8 +22,8 @@ static const char *const sapporo_239_hashes[] = {
 
 static semu_layer_intervention sapporo_239_interventions[] = {
     { "wbsto-session-cache",
-      "install four synthetic values in the native WbStorage session cache",
-      "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
+      "install four synthetic cache values including native empty Widgets",
+      "E-SAP-COMPAT-WIDGETS-NATIVE-239-001", 1u, 0u },
     { "wbsto-preload-result",
       "translate exact WbStoPreload command-zero result from 500 to 200",
       "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
@@ -59,13 +59,15 @@ typedef struct cache_record {
 
 static const uint8_t watchface_id[] = "zwwatc01";
 static const uint8_t watchface_number[] = "0";
-static const uint8_t widgets[] = "{\"arrayData\":[]}";
+/* E-SAP-COMPAT-WIDGETS-NATIVE-239-001: 12-byte native object, empty
+ * array count at +4 and null source pointer at +8; not fallback JSON. */
+static const uint8_t widgets[12] = {0};
 static const uint8_t daily_theme[] = "yellow";
 
 static const cache_record records[] = {
     { UINT16_C(0xa431), 0u, watchface_id, 8u },
     { UINT16_C(0xa42a), 8u, watchface_number, 1u },
-    { UINT16_C(0xa432), 16u, widgets, 16u },
+    { UINT16_C(0xa432), 16u, widgets, 12u },
     { UINT16_C(0xa427), 32u, daily_theme, 6u }
 };
 

@@ -693,6 +693,37 @@ The bounds check correctly fails. The synthetic value's full native object/
 array ABI needs recovery; this is not permission to enlarge the buffer or
 bypass the assertion. No normal 2.39 frame is claimed.
 
+Ticket 753 corrects only that synthetic cache value under
+E-SAP-COMPAT-WIDGETS-NATIVE-239-001. Native schema/copy tracing establishes
+a twelve-byte empty object instead of JSON: zero scalar, zero array count and
+null source pointer. The firmware performs its own copy/pointer relocation
+and returns status 200. Entry lengths become twelve, while alignment, arena
+extent, other values and every compatibility budget remain unchanged. Both
+preload checks validate the complete corrected cache and reject legacy JSON
+or any altered payload/length without mutation. Installation logs the new
+evidence provenance. All 739 normal and sanitizer tests pass.
+
+The exact 2.39 firmware now publishes its first visible 240x240 Suunto boot
+logo (E-SAP-BOOT-LOGO-239-001): generation two, CRC32 `4979f432`, pixel
+SHA-256 `3eff811736aa1890e78095f31d88ad95a8a457d41caa0ccb3e527555c8ecf373`.
+Two fresh logs/snapshots match at `stop=user pc=0x00093be2
+instructions=609300000 virtual_time_ns=2148256583`: log SHA-256
+`63eb4997ff645958e70ed0586613762f88ee5e6e699434c1fbae48f0f435528b`,
+snapshot `30050924fa4986412226750eb422aaccfca934a485ad7813e349e6b1da8b01a3`.
+This satisfies the existing first-nonblack `normal-frame` gate, not settled
+setup or interactive operation. Source flash remains immutable, with no
+reset/refusal before the frame and unchanged 76,258 file operations.
+
+After the logo, update-open of `actitmln/247.bin` (mode three, LR `0x000b9e0d`)
+hits the existing file budget at PC `0x000920b4`, instruction 610,599,945,
+time 2,149,556,528 ns when resumed from the logo snapshot. The activity
+sequence needs a measured finite budget or a separately evidenced file-contract
+correction; no increase is included here. Old JSON-bearing snapshots are not
+migrated and must be
+regenerated from reset or a pre-install checkpoint. Layer-off and pre-install
+execution retain their hashes; historical defective-fixture hashes are not
+silently re-pinned.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -714,12 +745,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover the native object/array ABI for synthetic WbStorage LID `0xa432`.
-  Ticket 752 removes the combined Timer13 INTEN refusal; the next native
-  assertion is `ChunkSerializer.cpp:38`, after JSON bytes are interpreted as
-  a 24,946-element array. Validate the complete replacement representation
-  and cache/snapshot contracts before changing the opt-in fixture. Keep the
-  serializer bounds check and fatal path intact.
+- Trace the post-logo Activity Timeline sequence beginning with update-open
+  of `actitmln/247.bin` at instruction 610,599,945 from the logo snapshot.
+  The corrected native Widgets value permits the first 2.39 boot-logo frame,
+  but the existing file budget refuses this next operation. Establish measured finite
+  requirements or an evidenced ABI defect before changing any budget.
+  Regenerate old JSON-bearing snapshots; no implicit migration is performed.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

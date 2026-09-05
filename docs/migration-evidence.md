@@ -13,6 +13,114 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-WIDGETS-NATIVE-239-001
+
+2026-09-05; exact components E-SAP-0011, immutable full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`,
+ticket-751 snapshot `15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19`.
+Read-only application inspection confirms that `0x000ca258` is fallback JSON
+used by `0x000ca194`, not the raw type-15 cache representation. The earlier
+synthetic-runtime research explicitly left the Widgets consumer unvalidated;
+E-SAP-SERIALIZER-ARRAY-239-001 now proves its JSON fixture was incompatible.
+
+The native cache reader at `0x000c9b58..0x000c9b7e` binds the arena bytes to
+named type `0xa412`, then calls `0x000e3c7c`. Its type-15 branch dispatches
+to `0x001b22e2`; schema resolution yields internal type `0x045f`, schema
+`0x0004ddde`. The recursive walker `0x001a03e4` and copy `0x001b2818`
+allocate/copy the 12-byte, four-byte-aligned object. Member descriptors at
+`0x0004a85e` and `0x0004a864` place the leading four-byte scalar at offset
+zero and array at offset four. Array schema `0x0004ddd8` resolves element
+size eight. `0x001b21a4` reads the array's 16-bit count at object+4 and pointer
+at object+8; object+6 is padding. The synthetic empty object uses a zero
+leading scalar, zero count/padding and null input pointer. It contains no
+elements, ownership allocation or copied firmware bytes.
+
+A separately labeled disposable diagnostic changes only the emulator-owned
+Widgets arena slot to twelve zero bytes (plus four zero alignment bytes),
+and entry logical/bounded lengths to twelve. It starts from the pinned
+checkpoint, edits no source image or CPU instruction, and leaves every
+compatibility budget unchanged. At instruction 608,139,972 the native array
+allocation requests zero bytes with cursor/capacity both twelve. Native
+copy returns destination `0x10033e50` at PC `0x000c9b7e`, instruction
+608,140,162. Its output words are zero, zero and `0x10033e5c`: firmware
+relocates the empty array pointer to the end of its destination allocation.
+The source remains the cache-owned null-pointer representation. At PC
+`0x000c9bb2`, instruction 608,140,325, native status is 200 for LID `0xa432`.
+Execution continues beyond the former assertion, eventually exhausting the
+unchanged logical-file budget. This diagnostic is not a production golden.
+
+Confidence is high for this empty native cache value, synchronous copy and
+successful consumer result. Ticket 753 may replace only that installation
+payload/length and its complete validators, without a new hook or budget.
+Affected module: `sapporo_239.c`; regression `sapporo_239_compat`/`widgets`
+and exact private `sapporo_239_widgets` runs. Nonempty arrays, provisioned
+32-byte files and generic JSON/storage serialization remain unproven.
+Old post-install JSON checkpoints must be regenerated, not silently migrated;
+pre-install and layer-off execution must remain unchanged.
+
+The diagnostic layout trace SHA-256 is
+`795966231270d8c65bea08e0bae1177b1d3fc61df409e4baae4b7bd272afaad6`,
+log `14830646dbcd9e7593bc1a2dec3f1880c7e44a26a3537f093a150bd4d6ebbce2`.
+After correcting installation, a new cold-prefix-derived snapshot at
+instruction 607,105,617 has hash
+`b17a3b485f89779a3dc8191f1417c6d225a65fdcc41f0681d1cb068c1ad24d90`.
+Unmodified production execution from it reproduces the entire same trace,
+including native copy output and status 200, with no diagnostic writes.
+Its log hash is
+`b38a60f1f5a64430ce074d63c601e85eb278cdad92dd0631f18a202595738328`.
+
+### E-SAP-BOOT-LOGO-239-001
+
+2026-09-05; ticket 753 exact production runs using components E-SAP-0011,
+the explicit `sapporo-2.39-synthetic-wbsto` layer and full flash pinned above.
+After native Widgets copy succeeds, the unmodified renderer publishes a
+240x240 RGB565-LE Suunto boot logo, stride 480, size 115,200, generation two.
+Pixel SHA-256 is
+`3eff811736aa1890e78095f31d88ad95a8a457d41caa0ccb3e527555c8ecf373`,
+CRC32 `4979f432`. A private local rendering was visually inspected; the logo
+is white on black. No frame pixels or firmware bytes enter Git. This is a
+visible boot frame, not settled setup, button interaction or physical-panel
+completion. The CLI's existing `normal-frame` gate means first nonblack frame.
+
+Fresh production logs/snapshots match at
+`stop=user pc=0x00093be2 instructions=609300000 virtual_time_ns=2148256583`:
+log SHA-256 `63eb4997ff645958e70ed0586613762f88ee5e6e699434c1fbae48f0f435528b`,
+snapshot `30050924fa4986412226750eb422aaccfca934a485ad7813e349e6b1da8b01a3`.
+There is no reset/refusal before the logo and file hits remain exactly 76,258.
+The 40-million-instruction pre-install prefix stays exact: log
+`253ffdd99ca7b8fb972518ad7e50701f37306436d67a5114085d94bda01ae11b`, snapshot
+`d2ae7cd38834b3488f9a5785235bd69005e773b129497bf0fa68ac6fa0b47fce`.
+The private runner compares two fresh runs, pre-install and corrected-cache
+resumes, exact pixel hash through a read-only CLI callback, and source flash
+immutability. Its preframe checkpoint is aligned to the CLI's existing
+100,000-instruction polling grid so resumed frame stops use the same boundary.
+No frontend or execution semantics are changed.
+
+Resuming the captured logo without the frame stop reaches the unchanged
+file-budget refusal: PC `0x000920b4`, instruction 610,599,945, time
+2,149,556,528 ns. The attempted operation is update-open mode three for
+`actitmln/247.bin`, LR `0x000b9e0d`. No synthetic operation is performed and
+the budget is not increased. Recover this post-logo activity sequence and its
+bounded requirements before authorizing more logical-file operations.
+The independent preframe single-step diagnostic without a frame observer
+reaches the same request at instruction 609,821,432 / 2,148,778,015 ns;
+that diagnostic bound is not interchangeable with the rendered-logo snapshot
+continuation. The latter is the production private gate and next work baseline.
+Its read-only trace SHA-256 is
+`955c2d0c237dfdc442559a1fec8404606762febec6c8ccb110a09b80cdcbc8dd`, log
+`b2c682699eb527144e55807d3d7e6d90094a1ee042e858cc4b06a22b103b9a6e`.
+
+Confidence is high for native empty Widgets decoding and the deterministic
+logo frame. The corrected fixture is still explicitly synthetic, not recovered
+watch state. Layer-off execution retains the E-SAP-0029 log hash
+`db1ba19b3e47306cf304b52f32b86db8dd4aa97f6afc6c64d962f7fdf24e43d8`.
+An old JSON-bearing ticket-751 snapshot still reaches its native serializer
+halt at instruction 608,140,267 when resumed; no silent repair takes place.
+Both preload validators refuse such stale JSON/lengths atomically. Historical
+JSON-bearing checkpoint hashes remain recorded unchanged, but must not be
+used as current corrected-fixture goldens. Generate new snapshots from reset
+or from the validated pre-install prefix.
+
 ### E-SAP-CTIMER13-INTEN-239-001
 
 2026-09-05; exact components E-SAP-0011 and immutable full flash SHA-256

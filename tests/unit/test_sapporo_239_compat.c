@@ -107,11 +107,12 @@ static void test_exact_native_cache_layout(semu_test_context *context)
         UINT16_C(0xa432), UINT16_C(0xa427)
     };
     static const uint16_t offsets[] = { 0u, 8u, 16u, 32u };
-    static const uint16_t sizes[] = { 8u, 1u, 16u, 6u };
+    static const uint16_t sizes[] = { 8u, 1u, 12u, 6u };
     static const uint8_t expected_data[40] = {
         'z','w','w','a','t','c','0','1',
         '0',0,0,0,0,0,0,0,
-        '{','"','a','r','r','a','y','D','a','t','a','"',':','[',']','}',
+        /* Native empty object and alignment padding, not fallback JSON. */
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         'y','e','l','l','o','w',0,0
     };
     semu_cpu_state cpu;
