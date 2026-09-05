@@ -315,7 +315,7 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
     } else if (offset == TIMER_GLOBAL_INTEN) {
         if (value != 0u && value != 1u && value != 2u && value != 0x4000u &&
             value != 0x4001u && value != 0x8000000u &&
-            value != 0x8000001u)
+            value != 0x8000001u && value != 0x8004001u)
             return refuse(offset, error);
         timer->status_value = value;
         timer->status_written = 1u;

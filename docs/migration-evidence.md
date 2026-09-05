@@ -13,6 +13,84 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-CTIMER13-INTEN-239-001
+
+2026-09-05; exact components E-SAP-0011 and immutable full flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+The E-SAP-COMPAT-QUIET-READ-239-001 pre-fault snapshot hash is
+`15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19`.
+Pristine PC `0x000cb84c..0x000cb852` reads CTIMER INTEN into R1,
+ORs R4, then stores R4 at R0=`0x40008060`. At instruction 607,105,617,
+time 2,146,062,159 ns, R1=`0x00004001` and R4=`0x08004001`.
+The next instruction takes the precise HardFault vector, not an invalid opcode.
+
+The independently rehashed Apollo4 Plus PAC 1.0.0 `timer.rs` SHA-256
+`5027c11d25536ffe30caae4991460351f45f3e3a70e635c3df56618521bc1393`
+places INTEN at offset `0x60`. Its `timer/inten.rs` SHA-256
+`52bd21a8c63b7b638032953f471000c7d1ca1bb76ed57b5c8e39c6fd658d3747`
+defines bit 27 as `TMR131INT`, Timer13 CMP1, with read/write access and reset
+zero. Bits zero and 14 remain Timer0 CMP0 and Timer7 CMP0 (E-SAP-0029).
+The existing model already accepts `0x08000000` and `0x08000001`; the new
+observation authorizes only the additional whole-register value `0x08004001`.
+Keep the trace-derived compare scheduling, IRQ gates/clear and reset behavior.
+This is not evidence for general hardware-complete interrupt-mask semantics.
+
+Confidence is high for the exact retained value and bit identity. Affected
+modules: `timer.c` and `timer_snapshot.c`; ticket 752 validation uses
+`apollo4_timer_inten13` and the fixture-gated `sapporo_239_ctimer13_inten`.
+Neighboring values, widths, offsets and malformed snapshots must refuse
+atomically. No additional timer or compatibility behavior is authorized.
+
+Both narrow regressions fail before the change (MMIO acceptance and independent
+snapshot import) and pass afterward. The combined value retains readback while
+the existing channel-13 compare deadline and clear remain exact. Rejected
+neighboring values, widths, offsets, malformed/truncated snapshots preserve
+complete serialized state. Reset cancels the event and restores INTEN zero.
+All 737 normal and ASan/UBSan cases pass. Two fresh authentic runs match at
+`stop=budget pc=0x00079e1c instructions=608140266 virtual_time_ns=2147096849`:
+log SHA-256 `2223de22981528b7cd2df049be68ea2e4022627763da13aab9293ef1fbbf7e16`,
+snapshot `74e45df965216d809cf41e090ee0fc56b740affbc6d32aec35413dd65db1aa0c`.
+The ticket-751 prefix retains both hashes and resumes to the identical new
+snapshot. There are no resets/device refusals or additional compatibility hits;
+logical-file operations stay 76,258 and source flash is unchanged. One more
+instruction executes native BKPT, halting at PC `0x00079e1e`, instruction
+608,140,267, time 2,147,096,850 ns. No normal frame has been reached.
+
+### E-SAP-SERIALIZER-ARRAY-239-001
+
+2026-09-05; exact components E-SAP-0011 and full flash/prefix hashes from
+E-SAP-CTIMER13-INTEN-239-001. Read-only in-tree single-step tracing from the
+ticket-751 checkpoint, bounded by 610,000,000 instructions / 30,000,000,000
+ns with no guest-state or budget edits, reaches a native serializer assertion.
+Trace SHA-256 `efbd4d7e3fb23af4a1c9c769b90ecc32d3fca942e031aeaa9f52ad6de2d73ecd`;
+log `d503f9effc5be7778ed5b593e82b244a49fb799db145a42948987e33469d9828`.
+Pristine PC `0x001957b2..0x001957b6` passes line 38 and the string
+`ChunkSerializer.cpp` at `0x001957d4` to the normal fatal path `0x00079e56`.
+
+The allocator `0x00195778` checks an aligned allocation against its context's
+capacity. Context `0x10033c60` has buffer `0x10033e50`, capacity 16, cursor
+12. At instruction 608,139,972, caller `0x001b21ca` requests 199,568 bytes
+(`0x00030b90`), alignment four. The allocator returns `0xffffffff` when the
+new cursor becomes 199,580, triggering the assertion. The earlier 12-byte
+allocation succeeded. The preceding serialization path carries LID `0xa432`
+and synthetic value pointer `0x100002b0`.
+
+At instruction 608,139,955, `0x001b21a4` receives R1=`0x0004ddda`,
+R2=`0x100002b4`. It loads a 16-bit count from R2 and multiplies by the
+schema element size derived from `[R1+2] >> 6` (eight). The retained synthetic
+JSON value starts at `0x100002b0`; its bytes at `0x100002b4` represent `ra`,
+little-endian `0x6172` (24,946), giving exactly 199,568. This is direct evidence
+of an incompatible synthetic representation at this native array consumer,
+not evidence that the serializer needs a larger buffer or a success override.
+
+Confidence is high for assertion identity, bounds failure, pointer/count/size
+provenance and deterministic halt. Affected future scope: the exact synthetic
+WbStorage value ABI for LID `0xa432`; recover its complete native object,
+array and lifetime contract before changing the cache or its validators.
+Validation here is ticket 752's private pre-halt/one-step halt gate. The
+required replacement layout is unresolved; no cache repair, assertion bypass,
+snapshot change or new compatibility hit is authorized by this observation.
+
 ### E-SAP-COMPAT-QUIET-READ-239-001
 
 2026-09-05; read-only pristine application disassembly at

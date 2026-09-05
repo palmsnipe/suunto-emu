@@ -111,7 +111,8 @@ semu_status semu_apollo4_timer_snapshot_read(
          candidate.status_value != UINT32_C(0x4000) &&
          candidate.status_value != UINT32_C(0x4001) &&
          candidate.status_value != UINT32_C(0x8000000) &&
-         candidate.status_value != UINT32_C(0x8000001)) ||
+         candidate.status_value != UINT32_C(0x8000001) &&
+         candidate.status_value != UINT32_C(0x8004001)) ||
         candidate.status_written > 1u ||
         (candidate.output_control != 0u && candidate.output_control != 1u &&
          candidate.output_control != UINT32_C(0x4000) &&

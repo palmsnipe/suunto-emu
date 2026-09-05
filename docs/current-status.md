@@ -669,6 +669,30 @@ time 2,146,062,160 ns. A longer diagnostic observes the firmware-owned reset
 this task. There is no normal 2.39 frame yet; UI resource reads now proceed
 natively, and the next independent gap is the timer contract.
 
+Ticket 752 identifies bit 27 as the already-modeled Timer13 CMP1 enable
+(E-SAP-CTIMER13-INTEN-239-001) and accepts only the new combined value
+`0x08004001`. Snapshot validation accepts the same value without a format
+change. IRQ gates, compare deadlines, reset values and compatibility state
+are unchanged. Both new regressions fail before and pass after the correction;
+all 737 normal and sanitizer cases pass.
+
+Two fresh runs stop identically at `stop=budget pc=0x00079e1c
+instructions=608140266 virtual_time_ns=2147096849`, with log SHA-256
+`2223de22981528b7cd2df049be68ea2e4022627763da13aab9293ef1fbbf7e16` and
+snapshot `74e45df965216d809cf41e090ee0fc56b740affbc6d32aec35413dd65db1aa0c`.
+The ticket-751 prefix retains both hashes and resumes to the identical state;
+there are no resets/device refusals, file hits stay 76,258 and source flash
+is unchanged. The next instruction executes native BKPT and halts at
+PC `0x00079e1e`, instruction 608,140,267, time 2,147,096,850 ns.
+
+E-SAP-SERIALIZER-ARRAY-239-001 traces this new failure to
+`ChunkSerializer.cpp:38`. Native serialization of the synthetic LID `0xa432`
+value reads the JSON bytes at `0x100002b4` as an array count (24,946), then
+requests 199,568 bytes from a 16-byte buffer whose cursor is already 12.
+The bounds check correctly fails. The synthetic value's full native object/
+array ABI needs recovery; this is not permission to enlarge the buffer or
+bypass the assertion. No normal 2.39 frame is claimed.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -690,11 +714,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover the new CTIMER INTEN bit requested at ticket 751's boundary:
-  PC `0x000cb852`, address `0x40008060`, value `0x08004001` after reading
-  `0x00004001`. Confirm the channel/compare interrupt contract and required
-  state/snapshot behavior before accepting the new bit. Native UI resource
-  quiet reads now proceed without per-filename exceptions or synthetic data.
+- Recover the native object/array ABI for synthetic WbStorage LID `0xa432`.
+  Ticket 752 removes the combined Timer13 INTEN refusal; the next native
+  assertion is `ChunkSerializer.cpp:38`, after JSON bytes are interpreted as
+  a 24,946-element array. Validate the complete replacement representation
+  and cache/snapshot contracts before changing the opt-in fixture. Keep the
+  serializer bounds check and fatal path intact.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
