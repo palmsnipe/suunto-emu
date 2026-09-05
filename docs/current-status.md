@@ -543,6 +543,23 @@ failure belongs to `TrainingTss`, command zero, result 500; its file-size
 check now succeeds, but the subsequent failure's cause remains unresolved.
 No normal frame is claimed (E-SAP-COMPAT-FILE-SIZE-239-001).
 
+Ticket 744 corrects the seek wrapper's success return under
+E-SAP-COMPAT-SEEK-239-001. The native ABI returns the requested offset bit
+pattern, not a zero status or the computed absolute cursor. The adapter's
+existing signed cursor calculation, range checks, state, and hit budget stay
+unchanged. TrainingTss now reads all 42 native 56-byte records and returns
+startup status 200 without a callback override. Two fresh runs and snapshots
+match at PC `0x00079e1c`, instruction 416,256,851, virtual time
+1,955,213,393 ns (log SHA-256
+`4f8e749ebe80774b968a091dda8086aabeb85229e6dd08b916cb615e24e6497e`,
+snapshot `92e7f05339ff218402f0b788a6263dc8173c81fba30d56d4cf8c66c1bab09a16`).
+There are 595 logical-file operations, with no reset/device refusal or source
+flash change. One-step resume executes BKPT and halts at PC `0x00079e1e`,
+instruction 416,256,852, time 1,955,213,394 ns. The new StartupClient failure
+is `WbStoPreload`, command one, result 500; the existing synthetic cache layer
+handles command zero only. The command-one missing state still needs tracing,
+and the current milestone remains short of a normal frame.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -564,10 +581,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Trace the 2.39 `TrainingTss` command-zero result 500 after ticket 743's
-  logical-file size correction. Sleep startup now succeeds naturally; the
-  training header/size check passes before the later failure. Preserve BKPT
-  and recover its cause rather than importing the reference's result bypass.
+- Trace 2.39 `WbStoPreload` command-one result 500 after ticket 744's seek
+  return correction. Sleep and TrainingTss now succeed naturally. Recover
+  the missing preload state without broadening the existing command-zero
+  compatibility translation or bypassing BKPT.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

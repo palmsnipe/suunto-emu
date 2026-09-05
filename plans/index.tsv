@@ -106,6 +106,7 @@ id	phase	title	status	dependencies	ticket
 741	7	Sapporo 2.39 OHR2 Exact Echo	in-progress	417,418,729	plans/tasks/741-sapporo-239-ohr2-echo.md
 742	7	Sapporo 2.39 OHR2 Command 2 Integration	in-progress	417,418,729	plans/tasks/742-sapporo-239-ohr2-command-2.md
 743	7	Sapporo 2.39 Logical File Size Integration	in-progress	729	plans/tasks/743-sapporo-239-logical-file-size.md
+744	7	Sapporo 2.39 Logical Seek Return Contract	in-progress	729	plans/tasks/744-sapporo-239-logical-seek-return.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md

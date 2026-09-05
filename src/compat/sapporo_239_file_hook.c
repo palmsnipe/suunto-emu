@@ -219,6 +219,7 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
         operation = "seek";
         status = seek_cursor(handle, file->size, capacity, cpu, &new_cursor,
                              error);
+        if (status == SEMU_OK) result = cpu->r[1]; /* Native wrapper ABI. */
     } else if (cpu->r[15] == FILE_WRITE) {
         operation = "write"; result = cpu->r[2];
         status = stage_write(capacity, handle, bus, cpu, &chunk, error);
