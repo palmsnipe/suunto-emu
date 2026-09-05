@@ -601,6 +601,30 @@ next reverse-engineering task. No new provider-status translation, persisted
 payload, or normal frame is claimed. The ticket-746 pre-refusal log/snapshot
 hashes remain exact; its subsequent budget refusal is historical.
 
+Ticket 748 supersedes the ongoing-file refusal using direct native layout
+evidence E-SAP-COMPAT-ONGOING-239-001. Only `actitmln/ongoing.bin` is appended,
+with the exact 152-byte capacity: 24-byte header, eight padding bytes and
+three 40-byte records. Firmware creates every byte, reopens and validates the
+header and size, and reads the records without an activity-state repair.
+There are 20 ongoing-file operations plus 408 `settings/personal` and 66
+`zapp/storage.sbm` operations on already-supported paths. The measured file
+ceiling is now 76,258, aggregate 76,261; no diagnostic headroom is retained.
+S29F version one accepts only eleven/twelve slots and still emits the old
+eleven-slot encoding until the appended file exists. Historical checkpoint
+bytes remain unchanged.
+
+The new checkpoint is `stop=budget pc=0x000920b4 instructions=451511675
+virtual_time_ns=1990468217`, log SHA-256
+`33f75a3051a8487405a4f5221d9db36a806fc54b2cf26fee8ebff5082bf62a7e`,
+snapshot `42de6549afe8bef32603a4acd497f2aee0bb41a92a77f59022064c23e194998b`.
+Two fresh runs match exactly; the ticket-747 prefix keeps both original
+hashes and resumes to the identical new snapshot. The next attempted
+instruction refuses open mode nine for `zapp/zwspee01.zip`, LR `0x000843e9`,
+without advancing PC/time/count. Native mode semantics and the ZIP
+resource path need separate recovery; neither is enabled here. The exact
+private test reports no reset/device refusal before this boundary and verifies
+immutable source flash. No normal 2.39 frame is claimed.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -622,9 +646,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover the native `actitmln/ongoing.bin` schema/capacity and lifecycle at
-  ticket 747's unknown-create boundary. The sleep-history scans now complete;
-  keep the new path refused until its bounded contract is evidenced.
+- Recover file-open mode nine and `zapp/zwspee01.zip` at ticket 748's
+  wrapper boundary (PC `0x000920b4`, LR `0x000843e9`). The ongoing Activity
+  Timeline file now initializes and validates natively. Keep the new mode
+  refused until its flags, storage route and failure semantics are evidenced.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

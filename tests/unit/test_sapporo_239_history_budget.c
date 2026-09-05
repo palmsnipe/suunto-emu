@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define RAM UINT32_C(0x10000000)
-#define LIMIT UINT64_C(75764)
+#define LIMIT UINT64_C(76258)
 
 typedef struct fixture {
     semu_bus *bus;
@@ -53,7 +53,7 @@ static void test_history_scan_budget_and_atomic_refusal(semu_test_context *conte
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         call(&f, 0x921a8u, handle, RAM + 256u, 17888u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-        semu_bus_load(f.bus, RAM, (const uint8_t *)"actitmln/ongoing.bin", 20u, &f.error));
+        semu_bus_load(f.bus, RAM, (const uint8_t *)"actitmln/unknown.bin", 20u, &f.error));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, call(&f, 0x920b4u, RAM, 2u, 0u));
     SEMU_TEST_EQ_U64(context, 2u, f.layer.hits);
     SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_files_count(f.files));
@@ -104,7 +104,7 @@ static void test_history_scan_budget_and_atomic_refusal(semu_test_context *conte
     SEMU_TEST_ASSERT(context, memcmp(before.data, after.data, before.size) == 0);
     rewind(log);
     while (fgets(line, sizeof(line), log) != NULL)
-        if (strstr(line, "trigger=logical-file ordinal=75764") != NULL) ++events;
+        if (strstr(line, "trigger=logical-file ordinal=76258") != NULL) ++events;
     SEMU_TEST_EQ_U64(context, 1u, events);
     semu_snapshot_writer_destroy(&before); semu_snapshot_writer_destroy(&after);
     semu_sapporo_239_files_destroy(f.files); semu_bus_destroy(f.bus);

@@ -110,6 +110,7 @@ id	phase	title	status	dependencies	ticket
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
 746	7	Sapporo 2.39 Second Preload Integration	in-progress	728,729,615	plans/tasks/746-sapporo-239-second-preload.md
 747	7	Sapporo 2.39 Native History Scan Budget	in-progress	729	plans/tasks/747-sapporo-239-history-scan-budget.md
+748	7	Sapporo 2.39 Ongoing Activity File Integration	in-progress	729,615	plans/tasks/748-sapporo-239-ongoing-file.md
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md

@@ -6,6 +6,7 @@
 #define S239_FILE_HANDLE_BASE UINT32_C(0x1015f000)
 #define S239_FILE_HANDLE_STRIDE UINT32_C(0x100)
 #define S239_FILE_MAX_HANDLES 64u
+#define S239_FILE_COUNT 12u
 
 typedef struct s239_file_slot {
     uint8_t *data;
@@ -22,13 +23,13 @@ typedef struct s239_handle_slot {
 } s239_handle_slot;
 
 struct semu_sapporo_239_files {
-    s239_file_slot files[11];
+    s239_file_slot files[S239_FILE_COUNT];
     s239_handle_slot handles[S239_FILE_MAX_HANDLES];
     uint32_t next_handle;
 };
 
-extern const char *const semu_s239_file_paths[11];
-extern const size_t semu_s239_file_capacities[11];
+extern const char *const semu_s239_file_paths[S239_FILE_COUNT];
+extern const size_t semu_s239_file_capacities[S239_FILE_COUNT];
 
 int semu_s239_file_index(const char *path);
 s239_handle_slot *semu_s239_find_handle(semu_sapporo_239_files *files,

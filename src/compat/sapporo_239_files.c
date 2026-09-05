@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FILE_COUNT 11u
+#define FILE_COUNT S239_FILE_COUNT
+#define LEGACY_FILE_COUNT 11u
 #define SNAPSHOT_TAG UINT32_C(0x46393253) /* "S29F" */
 #define SNAPSHOT_VERSION 1u
 
@@ -11,12 +12,12 @@ const char *const semu_s239_file_paths[FILE_COUNT] = {
     "settings/sync.txt", "settings/uiv2.txt", "settings/general",
     "logs/entries.bin", "message/history.bin", "sleepln/sleep.bin",
     "tssln/tss.bin", "pois/poi.bin", "actitmln/247.bin",
-    "settings/personal", "zapp/storage.sbm"
+    "settings/personal", "zapp/storage.sbm", "actitmln/ongoing.bin"
 };
 
 const size_t semu_s239_file_capacities[FILE_COUNT] = {
     0u, 235u, 1505u, 12u, 10800u, 17888u,
-    2384u, 68272u, 46112u, 1727u, 64u
+    2384u, 68272u, 46112u, 1727u, 64u, 152u /* E-SAP-COMPAT-ONGOING-239-001. */
 };
 
 int semu_s239_file_index(const char *path)
@@ -84,10 +85,11 @@ size_t semu_sapporo_239_file_size(const semu_sapporo_239_files *files,
 
 static semu_status write_files(const semu_sapporo_239_files *files,
                                semu_snapshot_writer *writer,
+                               size_t count,
                                semu_error *error)
 {
     size_t i;
-    for (i = 0u; i < FILE_COUNT; ++i) {
+    for (i = 0u; i < count; ++i) {
         const s239_file_slot *slot = &files->files[i];
         if (semu_snapshot_writer_u8(writer, (uint8_t)(slot->present != 0),
                 error) != SEMU_OK) return error->code;
@@ -105,17 +107,19 @@ semu_status semu_sapporo_239_files_snapshot_write(
     const semu_sapporo_239_files *files, semu_snapshot_writer *writer,
     semu_error *error)
 {
-    size_t i;
+    size_t i, count;
     if (files == NULL || writer == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "invalid Sapporo 2.39 file snapshot writer");
         return SEMU_ERR_ARGUMENT;
     }
+    /* Preserve historical bytes until the appended path is actually created. */
+    count = files->files[LEGACY_FILE_COUNT].present ? FILE_COUNT : LEGACY_FILE_COUNT;
     if (semu_snapshot_writer_u32(writer, SNAPSHOT_TAG, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, SNAPSHOT_VERSION, error) != SEMU_OK ||
-        semu_snapshot_writer_u32(writer, FILE_COUNT, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, (uint32_t)count, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, files->next_handle, error) != SEMU_OK ||
-        write_files(files, writer, error) != SEMU_OK)
+        write_files(files, writer, count, error) != SEMU_OK)
         return error->code;
     for (i = 0u; i < S239_FILE_MAX_HANDLES; ++i) {
         const s239_handle_slot *slot = &files->handles[i];
@@ -133,10 +137,11 @@ semu_status semu_sapporo_239_files_snapshot_write(
 
 static semu_status read_files(semu_sapporo_239_files *temp,
                               semu_snapshot_reader *reader,
+                              size_t count,
                               semu_error *error)
 {
     size_t i;
-    for (i = 0u; i < FILE_COUNT; ++i) {
+    for (i = 0u; i < count; ++i) {
         uint8_t present;
         uint32_t size;
         if (semu_snapshot_reader_u8(reader, &present, error) != SEMU_OK)
@@ -217,12 +222,13 @@ semu_status semu_sapporo_239_files_snapshot_read(
     if (status == SEMU_OK) status = semu_snapshot_reader_u32(reader, &count, error);
     if (status == SEMU_OK) status = semu_snapshot_reader_u32(reader, &temp.next_handle, error);
     if (status == SEMU_OK && (tag != SNAPSHOT_TAG || version != SNAPSHOT_VERSION ||
-        count != FILE_COUNT || temp.next_handle > S239_FILE_MAX_HANDLES)) {
+        (count != FILE_COUNT && count != LEGACY_FILE_COUNT) ||
+        temp.next_handle > S239_FILE_MAX_HANDLES)) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid Sapporo 2.39 file snapshot header");
         status = SEMU_ERR_FORMAT;
     }
-    if (status == SEMU_OK) status = read_files(&temp, reader, error);
+    if (status == SEMU_OK) status = read_files(&temp, reader, count, error);
     if (status == SEMU_OK) status = read_handles(&temp, reader, error);
     if (status == SEMU_OK) {
         semu_sapporo_239_files_reset(files);

@@ -13,6 +13,59 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-ONGOING-239-001
+
+2026-09-05; read-only pristine application disassembly, exact Sapporo 2.39
+components E-SAP-0011; immutable ticket-747 snapshot SHA-256
+`3c56bfb5f3f7b541433ca05a3de999c941df3151484a5e080ad09a89b3672ae1` and
+full-flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+At PC `0x000920b4`, LR `0x000b944d`, R1=2, R5=`0x1003e070`, the path
+at store+64 is `actitmln/ongoing.bin` and the little-endian word at store+36
+is three. Creation `0x000b943c..0x000b94d6` opens enum two, writes a 24-byte
+header, eight zero padding bytes, and loops exactly store+36 times writing
+40-byte native empty records, then closes. The header includes 16-bit value
+195 at +4, record width 40 at +6, record capacity at +8, zero at +12 and a
+native time value at +16. Validation `0x000b93b8..0x000b93f2` checks the
+header and requires file size minus 32 to equal capacity times 40.
+
+Confidence is high for exact path and maximum native creation size
+`32 + 3 * 40 = 152`. Ticket 748 may append only that path/capacity and
+retain native-written bytes; no initial data or cursor repair is authorized.
+Affected modules: exact-build file table/snapshot codec and bounded layer
+descriptor. Validation: `sapporo_239_ongoing` unit/private tests, historical
+snapshot compatibility and atomic parser/capacity refusals. Later lifecycle
+is bounded by the following native execution; no later mode is authorized.
+
+An isolated interpreter executable with only a process-local diagnostic file
+ceiling of 200,000 resumes that snapshot with 600,000,000-instruction and
+30,000,000,000-ns limits. The appended path is the only new behavior; there
+are no guest-state edits. Diagnostic trace SHA-256
+`55a30554caabebc4c3ed1485bdca8a9bc2bbb44e61561b59276069b55c2dfc93`,
+log `8f9ff2ce056409b4484550782fa0a66b663af87168224a86d4a8e9e1f65adf98`.
+Twenty operations create, reopen, validate and read the ongoing file; five
+writes are exactly 24, 8, 40, 40, 40 bytes. The native size check returns 152.
+The rest are 408 operations on the already-evidenced `settings/personal` and
+66 on `zapp/storage.sbm`, without capacity or ABI changes. Exactly 494 new
+operations yield a total ceiling of 76,258 (aggregate 76,261). The next
+wrapper call refuses mode nine for `zapp/zwspee01.zip`, PC `0x000920b4`,
+LR `0x000843e9`, instruction 451,511,675, virtual time 1,990,468,217 ns.
+Production may use only that measured ceiling, not diagnostic headroom.
+The ZIP path and mode-nine semantics require separate evidence/ticket.
+
+Production verification: two exact fresh runs match at `stop=budget`, PC
+`0x000920b4`, instruction 451,511,675, time 1,990,468,217 ns; log SHA-256
+`33f75a3051a8487405a4f5221d9db36a806fc54b2cf26fee8ebff5082bf62a7e`,
+snapshot `42de6549afe8bef32603a4acd497f2aee0bb41a92a77f59022064c23e194998b`.
+Ticket 747's eleven-slot snapshot/log retain their exact hashes and resume
+to the same new snapshot. Its next-step unknown-path refusal is historical;
+the current next step refuses mode nine without advancing instruction/time.
+The unit regression fails before path support and passes after, including
+synthetic byte-preserving lifecycle, exact-capacity excess refusal, unknown
+mode/path, old/new snapshot round trips and atomic malformed-state refusal.
+Private source flash is unchanged; no reset, device refusal or normal frame
+is reported before the new boundary.
+
 ### E-SAP-COMPAT-HISTORY-239-001
 
 2026-09-05; exact application E-SAP-0011, read-only disassembly at
