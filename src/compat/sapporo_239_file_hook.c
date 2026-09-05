@@ -76,6 +76,9 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
     uint8_t *allocation = NULL;
     int index;
     if (read_path(bus, cpu->r[0], path, error) != SEMU_OK) return error->code;
+    /* E-SAP-COMPAT-ZIP-READ-239-001: native read with quiet open failure. */
+    if (mode == 9u && strcmp(path, "zapp/zwspee01.zip") == 0)
+        return SEMU_OK;
     if (mode < 1u || mode > 3u)
         return refuse(error, "unknown Sapporo 2.39 file open mode");
     index = semu_s239_file_index(path);

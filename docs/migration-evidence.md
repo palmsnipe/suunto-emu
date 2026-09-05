@@ -13,6 +13,63 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-ZIP-READ-239-001
+
+2026-09-05; read-only pristine application disassembly, exact components
+E-SAP-0011; ticket-748 snapshot SHA-256
+`42de6549afe8bef32603a4acd497f2aee0bb41a92a77f59022064c23e194998b`, full
+flash `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+The native caller `0x000843da..0x000843e8` selects mode nine for a clear
+object flag and ten for a set flag. Public open forwards unchanged mode/path
+through `0x000920b4 -> 0x000bdfd0`. The latter validates `(mode & 7)` in
+1..4, initializes the mode string to `r` from `0x000be22c`, changes it for
+write/update/append, and calls `0x000cd1ae`. Mode nine keeps `r` unchanged.
+Bit eight is tested only after an unsuccessful open at `0x000be036`; when
+set, it skips the failure logging branch. This is read plus quiet failure,
+not a request for synthesized archive contents or an alternate volume.
+
+Read-only `$FIRMWARE_ROOT/docs/research/sapporo-2.39-zapp-installer.md`,
+SHA-256 `a49b393d1c9a91d2cc525aaf47588fdb53d6ce94192c4bfba2cf7633c823ab6b`,
+independently records the native directory scanner discovering
+`zapp/zwspee01.zip` and opening it in mode nine. This reference is supporting
+evidence, not authorization to import its separate Editor WFA overlay.
+The in-tree request is independently observed at instruction 451,511,675,
+time 1,990,468,217 ns, PC `0x000920b4`, LR `0x000843e9`.
+
+Confidence is high for this exact request's native read semantics. Ticket
+749 may let only normalized `zapp/zwspee01.zip` / mode nine fall through the
+existing logical-file adapter. It must not mutate guest/file/counter state or
+supply a return value. All native filesystem checks still execute; all other
+unknown modes remain refused. Affected module: `sapporo_239_file_hook.c`.
+Validation: `sapporo_239_zip_read` unit/private tests, unchanged historical
+checkpoint and dual-run/resume checks. Native ZIP result and next boundary
+are measured below; no archive completeness or installation is claimed.
+
+Bounded, read-only instruction tracing from the old snapshot (600,000,000
+instructions / 30,000,000,000 ns; no diagnostic budget or guest-state change)
+reaches native open `0x000e74c4` at instruction 451,512,009. The HCC wrapper
+returns real handle `0x30` at `0x000be01e`, instruction 451,622,396; the public
+call returns that handle to `0x000843e8` at instruction 451,622,704. Native
+close later receives the same handle at instruction 451,773,751. No logical
+ZIP slot, host file or synthetic return value was involved. Trace SHA-256
+`721ca166681243b1cf0ca941d6c22fe84022f4755c5694b30dba5a7d57385321`,
+diagnostic log `b513c2ccbde63696cd74b93efd1b385abe767a32fb849c6144394affe6c6cc74`.
+The next refusal is mode nine for `ui/js/config.js`, PC `0x000920b4`, LR
+`0x000843e9`, instruction 459,796,107, virtual time 1,998,752,649 ns. File
+hits remain 76,258. That distinct path is outside this bounded exception.
+
+Verification: the new regression fails before the change on the first exact
+ZIP read and passes afterward. Full check and ASan/UBSan each pass 734 cases.
+The exact private runner compares two fresh complete logs/snapshots, verifies
+76,258 file hits, no reset/device refusal, immutable full flash and unchanged
+ticket-748 prefix hashes. Resuming that prefix produces the same new snapshot.
+New checkpoint log SHA-256
+`ea04ac89a277fc58cc1c653e59e595f2a40f25d7202afd16b5adc309e6bf2732`,
+snapshot `13e104c98a6fdf5a741a15615bf1b77ea53ebe05db39e7bf224cf0818560b5ee`.
+One attempted instruction from the new snapshot preserves the mode refusal at
+the same PC/instruction/time. Only the historical next-step ZIP refusal is
+superseded; no earlier golden or expected stop is weakened.
+
 ### E-SAP-COMPAT-ONGOING-239-001
 
 2026-09-05; read-only pristine application disassembly, exact Sapporo 2.39

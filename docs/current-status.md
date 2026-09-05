@@ -625,6 +625,25 @@ resource path need separate recovery; neither is enabled here. The exact
 private test reports no reset/device refusal before this boundary and verifies
 immutable source flash. No normal 2.39 frame is claimed.
 
+Ticket 749 lets the exact normalized `zapp/zwspee01.zip` / mode-nine request
+execute in firmware (E-SAP-COMPAT-ZIP-READ-239-001). Native disassembly shows
+read mode plus quiet open-failure logging; the adapter now leaves CPU, RAM,
+files and counters untouched for that pair. The real filesystem returns
+handle `0x30`, which firmware later closes. No ZIP slot, fabricated archive,
+host overlay, mode translation, hit-budget increase or snapshot change is
+introduced. Other unsupported modes and mode-nine paths remain refused.
+
+Two fresh exact runs stop at `stop=budget pc=0x000920b4
+instructions=459796107 virtual_time_ns=1998752649`: log SHA-256
+`ea04ac89a277fc58cc1c653e59e595f2a40f25d7202afd16b5adc309e6bf2732`,
+snapshot `13e104c98a6fdf5a741a15615bf1b77ea53ebe05db39e7bf224cf0818560b5ee`.
+The old ticket-748 prefix retains both hashes and resumes to the identical new
+snapshot. Logical-file hits remain 76,258. The next attempted instruction
+refuses mode nine for `ui/js/config.js`, LR `0x000843e9`, without advancing
+PC/time/count. Source flash remains unchanged and no reset/device refusal
+occurs before the new boundary. This proves native ZIP open/close and later
+startup progress, not archive completeness, installation or a normal frame.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -646,10 +665,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Recover file-open mode nine and `zapp/zwspee01.zip` at ticket 748's
-  wrapper boundary (PC `0x000920b4`, LR `0x000843e9`). The ongoing Activity
-  Timeline file now initializes and validates natively. Keep the new mode
-  refused until its flags, storage route and failure semantics are evidenced.
+- Trace the native mode-nine read of `ui/js/config.js` at ticket 749's
+  boundary (PC `0x000920b4`, LR `0x000843e9`). Quiet-read semantics are
+  recovered and the ZIP open now succeeds natively. Establish the UI resource
+  route and consider whether native-read routing can replace per-path
+  exceptions without binding existing synthetic writable handles incorrectly.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
