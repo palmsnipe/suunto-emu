@@ -524,6 +524,25 @@ result 500. The underlying cause is not yet established. This is an evidenced
 reference startup response, not a claim of physical OHR measurement support;
 ticket status remains integrator-owned.
 
+Ticket 743 traces that sleep failure to a missing logical-file size query,
+not bad header data. Native header validation succeeds; public wrapper
+`0x00092244` then falls through with a synthetic handle and reports zero
+instead of the retained 17,888 bytes. The adapter now returns the actual
+length through its existing hash-pinned, opt-in, hit-bounded file operation.
+It leaves cursor/data/snapshot format unchanged and refuses stale synthetic
+handles and exhausted budgets. No startup-status translation was added.
+The firmware's own `sleepln` callback now returns 200. Two fresh runs and
+snapshots match at PC `0x00079e1c`, instruction 405,895,301, virtual time
+1,927,243,545 ns (log SHA-256
+`8139068b549a4e2be4baf57c94bc3b8eff385cb2bbb8efca506a8b30469de0d8`,
+snapshot `0fa411dde053a15ef42d1b4ce2bf7282ad1990f88532b059dcf1c14ca9824193`).
+The run contains 512 logical-file operations, including sleep size 17,888 and
+training size 2,384, without a reset or device refusal. One more instruction
+halts at PC `0x00079e1e`, time 1,927,243,546 ns. This distinct StartupClient
+failure belongs to `TrainingTss`, command zero, result 500; its file-size
+check now succeeds, but the subsequent failure's cause remains unresolved.
+No normal frame is claimed (E-SAP-COMPAT-FILE-SIZE-239-001).
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -545,10 +564,10 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Add native 2.39 command `0x0002`, sequence seven. This requires an explicit
-  generic command-registry/interface expansion plus the profile-specific
-  all-`0xff` request and zero response body; do not bypass the registry in the
-  provider. The hash-pinned native trace records response CRC `0xf0ffccf3`.
+- Trace the 2.39 `TrainingTss` command-zero result 500 after ticket 743's
+  logical-file size correction. Sleep startup now succeeds naturally; the
+  training header/size check passes before the later failure. Preserve BKPT
+  and recover its cause rather than importing the reference's result bypass.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

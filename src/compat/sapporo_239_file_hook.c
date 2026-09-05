@@ -12,12 +12,13 @@
 #define FILE_WRITE UINT32_C(0x000921a8)
 #define FILE_READ UINT32_C(0x000921dc)
 #define FILE_FLUSH UINT32_C(0x0009221a)
+#define FILE_SIZE UINT32_C(0x00092244)
 
 int semu_sapporo_239_file_hook_pc(uint32_t pc)
 {
     return pc == FILE_OPEN || pc == FILE_CLOSE || pc == FILE_TELL ||
            pc == FILE_TRUNCATE || pc == FILE_SEEK || pc == FILE_WRITE ||
-           pc == FILE_READ || pc == FILE_FLUSH;
+           pc == FILE_READ || pc == FILE_FLUSH || pc == FILE_SIZE;
 }
 
 static semu_status refuse(semu_error *error, const char *message)
@@ -207,6 +208,9 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
     if (cpu->r[15] == FILE_CLOSE) { operation = "close"; result = 1u; }
     else if (cpu->r[15] == FILE_TELL) { operation = "tell"; result = handle->cursor; }
     else if (cpu->r[15] == FILE_FLUSH) { operation = "flush"; }
+    else if (cpu->r[15] == FILE_SIZE) {
+        operation = "size"; result = (uint32_t)file->size;
+    }
     else if (cpu->r[15] == FILE_TRUNCATE) {
         operation = "truncate";
         if (handle->cursor > file->size)
