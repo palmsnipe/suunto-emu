@@ -68,6 +68,15 @@ semu_transaction_result semu_sapporo_239_ohr_body_provider(
         semu_error_clear(error);
         return SEMU_TRANSACTION_OK;
     }
+    if (command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_2) {
+        if (state != SEMU_SAPPORO_OHR2_MAIN ||
+            !payload_fill_matches(request_payload, 4u, 0xffu)) {
+            return refuse(error, "result-2 body");
+        }
+        memset(response_payload, 0, SEMU_SAPPORO_OHR2_PAYLOAD_SIZE);
+        semu_error_clear(error);
+        return SEMU_TRANSACTION_OK;
+    }
     if (command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_14) {
         if (state != SEMU_SAPPORO_OHR2_MAIN ||
             !payload_fill_matches(request_payload, 4u, 0xffu)) {

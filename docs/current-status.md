@@ -503,7 +503,26 @@ byte-identical at PC `0x0014e8ea`, instruction 369,037,329, virtual time
 snapshot `5168ba1e48997e23553370705d49f4ea0f83c407337576bb3c7a56cacb308686`).
 They complete echo without reset and preserve the same 118 logical-file
 operations. The next instruction submits command `0x0002`, sequence seven; it
-remains a strict generic-command refusal and enters the fault vector.
+was a strict generic-command refusal at that ticket's boundary.
+
+Ticket 742 integrates command `0x0002` into the shared OHR2 enum/MAIN-state
+registry and exact 2.39 provider under E-SAP-OHR2-CMD2-239-001. The complete
+all-`ff` request produces the observed all-zero body; BSL, malformed bodies,
+and absent/legacy providers still refuse atomically. Packet framing, ready
+edges, sequence rules, and snapshot format are unchanged. Two fresh authentic
+runs and snapshots match at PC `0x00079e1c`, instruction 393,235,868, virtual
+time 1,914,584,112 ns (log SHA-256
+`9161895c12da70077ec78fb76bae6062196194a80f1df5b8c9609876fa20b17a`,
+snapshot `c36512287d4bf7d5a06762334ba261d984d0259a1466ec83076e73ebb253dcb0`).
+Command 2 completes without reset/refusal and execution performs 449 existing
+logical-file operations without increasing the compatibility budget. A
+one-instruction resume executes the real firmware BKPT and stops at
+`pc=0x00079e1e`, instruction 393,235,869, time 1,914,584,113 ns. No normal
+frame has been reached. E-SAP-STARTUP-SLEEP-239-001 identifies the next
+investigation: `StartupClient.cpp`'s failure path for `sleepln`, command zero,
+result 500. The underlying cause is not yet established. This is an evidenced
+reference startup response, not a claim of physical OHR measurement support;
+ticket status remains integrator-owned.
 
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
