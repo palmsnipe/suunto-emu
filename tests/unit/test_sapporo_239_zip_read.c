@@ -21,11 +21,12 @@ static void test_zip_read_exact_passthrough_and_refusals(semu_test_context *cont
         {"zapp/zwspee01.zip", 0u, SEMU_ERR_STATE},
         {"zapp/zwspee01.zip", 4u, SEMU_ERR_STATE},
         {"zapp/zwspee01.zip", 2u, SEMU_ERR_STATE},
-        {"zapp/zwwatc01.wfa", 9u, SEMU_ERR_STATE},
-        {"ui/js/config.js", 9u, SEMU_ERR_STATE},
+        /* Ticket 751: native reads are no longer ZIP-filename-specific. */
+        {"zapp/zwwatc01.wfa", 9u, SEMU_OK},
+        {"ui/js/config.js", 9u, SEMU_OK},
         {"actitmln/ongoing.bin", 9u, SEMU_ERR_STATE},
-        {"zapp/zwspee01.zip/extra", 9u, SEMU_ERR_STATE},
-        {"zapp/../zapp/zwspee01.zip", 9u, SEMU_ERR_STATE},
+        {"zapp/zwspee01.zip/extra", 9u, SEMU_OK},
+        {"zapp/../zapp/zwspee01.zip", 9u, SEMU_OK},
         {"zapp/zwspee01.zip!", 9u, SEMU_ERR_STATE}
     };
     semu_error error = {0};

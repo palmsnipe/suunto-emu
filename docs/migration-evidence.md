@@ -13,6 +13,74 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-QUIET-READ-239-001
+
+2026-09-05; read-only pristine application disassembly at
+`0x000bdfd0..0x000be062`, exact components E-SAP-0011 and full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`;
+ticket-749 snapshot SHA-256
+`13e104c98a6fdf5a741a15615bf1b77ea53ebe05db39e7bf224cf0818560b5ee`.
+The mode-string construction depends only on R1's mode bits, not the path in
+R0. Exact mode nine always passes `r` to native open `0x000cd1ae`; bit mask
+`0x08` only suppresses the later failed-open diagnostic. The filename is
+forwarded unchanged to the native filesystem. E-SAP-COMPAT-ZIP-READ-239-001
+already demonstrates native ZIP handle `0x30`; the next identical mode request
+is `ui/js/config.js`, PC `0x000920b4`, LR `0x000843e9`, instruction
+459,796,107, time 1,998,752,649 ns. The ZIP-only adapter guard is narrower
+than the recovered native read ABI.
+
+Confidence is high for filename-independent native quiet reads. Ticket 751
+may generalize not-handled routing to exact mode nine for validated paths
+outside the twelve-entry synthetic file table, using its existing case-folded
+lookup. This follows existing non-table mode-one native routing: path/volume
+resolution, content validation and missing-file return remain firmware-owned.
+This is not a wildcard synthetic file, host-file adapter or successful-open
+override. Table-owned paths still refuse mode nine even when absent, avoiding
+an inconsistent native view of retained logical data. Modes 10/11, extra
+flags and malformed path syntax remain refused; mode 1/2/3 is unchanged.
+Affected module: `sapporo_239_file_hook.c`; validation:
+`sapporo_239_quiet_read` unit/private tests and retained ZIP regression.
+No budget, descriptor, handle or snapshot change is authorized. The native
+UI result and next independent blocker remain to be traced.
+
+Read-only in-tree tracing from that snapshot, bounded at 610,000,000
+instructions / 30,000,000,000 ns with no guest-state or budget edits, reaches
+native open `0x000e74c4` for `ui/js/config.js` at instruction 459,796,462.
+The public return to `0x000843e8` at instruction 459,848,032 carries native
+handle `0x40`; firmware closes it at instruction 459,866,463. It next opens
+`ui/js/fonts.js`, then many UI scripts/styles. The first 600-million-
+instruction segment records 134 opens over 105 unique paths; its trace hash
+is `2c70bf261784dc54a959b143801a1bb84fd5b3fb2646e8a6629dc729bc53e4fe`.
+The full pre-fault trace hash is
+`1bf92ecee2ef656ffad8916a1c81299657967195ba11e02c51d9047d05aec29c`;
+its log hash `db09b5ae5c799d3fda8a727460ed0cca518004d37c84b982c336dffaf8903495`
+reports unchanged total file hits 76,258. No synthetic content is supplied.
+
+The next independent boundary is a native `STR r4,[r0]` at `0x000cb852`:
+R0=`0x40008060` (CTIMER INTEN), R1=`0x00004001`, R4=`0x08004001` after
+the preceding OR. The one-instruction continuation takes precise fault vector
+`0x001c0db4` at instruction 607,105,618, time 2,146,062,160 ns, with fault
+address `0x40008060` and PSP `0x10034720`. Native fault handling later requests
+reset at instruction 607,105,697, time 2,146,062,239 ns. This evidence does
+not authorize the newly requested interrupt-enable bit; recover its timer
+contract in a separate ticket. No normal frame is reached before the fault.
+
+Verification: the native-read routing regression fails before the correction
+and passes afterward, including absent/present protection of all twelve
+logical paths, retained contents/handles, and normal mode-one rereads. The
+existing ZIP regression preserves register/RAM/file/counter/log atomicity,
+unknown-mode/flag/syntax/disabled-layer refusals and exhausted-budget native
+execution; its non-table mode-nine cases now follow the recovered native ABI.
+Two fresh exact logs/snapshots match before the timer fault: log SHA-256
+`740750cbc6460fe8b9c3b420a5509d992dc0757e50de9102da316df7d21be1ec`,
+snapshot `15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19`.
+The ticket-749 prefix stays byte-identical and resumes to this same new state;
+one-step continuation reaches the precise fault vector. The private runner
+validates all components, unchanged 76,258 file hits, no earlier reset/device
+refusal, and immutable source flash. Full normal and ASan/UBSan suites each
+pass 735 cases. Historical private runners and goldens are untouched; only
+their later non-table quiet-read refusal is superseded by native execution.
+
 ### E-SAP-COMPAT-ZIP-READ-239-001
 
 2026-09-05; read-only pristine application disassembly, exact components
@@ -24,7 +92,7 @@ object flag and ten for a set flag. Public open forwards unchanged mode/path
 through `0x000920b4 -> 0x000bdfd0`. The latter validates `(mode & 7)` in
 1..4, initializes the mode string to `r` from `0x000be22c`, changes it for
 write/update/append, and calls `0x000cd1ae`. Mode nine keeps `r` unchanged.
-Bit eight is tested only after an unsuccessful open at `0x000be036`; when
+Mask `0x08` is tested only after an unsuccessful open at `0x000be036`; when
 set, it skips the failure logging branch. This is read plus quiet failure,
 not a request for synthesized archive contents or an alternate volume.
 

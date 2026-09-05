@@ -644,6 +644,31 @@ PC/time/count. Source flash remains unchanged and no reset/device refusal
 occurs before the new boundary. This proves native ZIP open/close and later
 startup progress, not archive completeness, installation or a normal frame.
 
+Ticket 751 replaces the ZIP-specific exception with native quiet-read routing
+under E-SAP-COMPAT-QUIET-READ-239-001. Exact mode nine passes through only for
+validated paths outside the synthetic file table. The twelve table-owned paths
+still refuse that mode, absent or present; normal synthetic modes and retained
+contents are unchanged. Native firmware owns path resolution, missing-file
+errors, content and return values. There is no file substitution, new handle
+format, compatibility hit or budget increase.
+
+The firmware opens `ui/js/config.js` with native handle `0x40`, then loads
+scripts and styles including `ui/js/fonts.js`. The first traced segment to
+600 million instructions records 134 opens over 105 distinct paths. Two fresh
+runs match at `stop=budget pc=0x000cb852 instructions=607105617
+virtual_time_ns=2146062159`: log SHA-256
+`740750cbc6460fe8b9c3b420a5509d992dc0757e50de9102da316df7d21be1ec`,
+snapshot `15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19`.
+The ticket-749 prefix retains both hashes and resumes to that identical state;
+file hits remain 76,258 and source flash is unchanged.
+
+The next instruction writes `0x08004001` to CTIMER INTEN `0x40008060` and
+takes the precise fault vector at PC `0x001c0db4`, instruction 607,105,618,
+time 2,146,062,160 ns. A longer diagnostic observes the firmware-owned reset
+79 instructions later. The added interrupt-enable bit is not supported by
+this task. There is no normal 2.39 frame yet; UI resource reads now proceed
+natively, and the next independent gap is the timer contract.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -665,11 +690,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Trace the native mode-nine read of `ui/js/config.js` at ticket 749's
-  boundary (PC `0x000920b4`, LR `0x000843e9`). Quiet-read semantics are
-  recovered and the ZIP open now succeeds natively. Establish the UI resource
-  route and consider whether native-read routing can replace per-path
-  exceptions without binding existing synthetic writable handles incorrectly.
+- Recover the new CTIMER INTEN bit requested at ticket 751's boundary:
+  PC `0x000cb852`, address `0x40008060`, value `0x08004001` after reading
+  `0x00004001`. Confirm the channel/compare interrupt contract and required
+  state/snapshot behavior before accepting the new bit. Native UI resource
+  quiet reads now proceed without per-filename exceptions or synthetic data.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
