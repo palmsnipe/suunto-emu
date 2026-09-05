@@ -141,7 +141,8 @@ static void test_file_size_restore_and_refusals(semu_test_context *context)
     query(context, &f, handle, SEMU_ERR_STATE, 0u, 0);
     f.layer.enabled = 1;
     ((semu_layer_intervention *)&f.layer.descriptor->interventions[
-        SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits = 2671u;
+        SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits =
+        f.layer.descriptor->interventions[SEMU_SAPPORO_239_IV_LOGICAL_FILE].max_hits;
     query(context, &f, handle, SEMU_ERR_STATE, 0u, 0);
     semu_snapshot_writer_destroy(&writer);
     destroy(&f);

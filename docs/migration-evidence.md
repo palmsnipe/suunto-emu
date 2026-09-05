@@ -13,6 +13,59 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-HISTORY-239-001
+
+2026-09-05; exact application E-SAP-0011, read-only disassembly at
+`0x000ba180`, `0x000ba22a`, `0x000ba266`, `0x000ba2d8`, `0x00134386`,
+`0x001344bc`, `0x00134ef6`, and bounded C interpreter diagnostics using full
+flash `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Ticket 746's 2,671-operation stop occurs inside record reader `0x000ba22a`,
+returning to `0x000ba2ac`. Seek compares the requested `32 + index * 72`
+against its success return, then a 72-byte read succeeds. Search `0x000ba266`
+iterates at most the store's 248 records. Empty records cause no match and
+the outer query returns 416 normally at `0x000ba324`; there is no file retry.
+
+The caller at `0x00134386` initializes a day counter to 59 and decrements
+through zero at `0x001344bc`; the other caller at `0x00134ef6` starts at 41.
+The dynamic order is 42, 60, 42 days, with successive query timestamps
+differing by 86,400,000 milliseconds. All 144 queries read all 248 records:
+35,712 reads and 35,712 seeks. Each returns 416 without translation. The
+historical reference's 2,671 total in E-SAP-COMPAT-FILES-239-001 predates the
+corrected size/seek ABI and does not cover these now-reachable native scans.
+
+An isolated executable linked to the unchanged interpreter raises only its
+process-local file counter ceiling to 200,000 (explicit diagnostic log), with
+600,000,000-instruction / 30,000,000,000-ns bounds, no guest-state edits and no
+path/operation relaxations. It starts from instruction 405,860,000 snapshot
+`2414e607e40dc665d6a0615d3d38c92580e1499365f51e6b0bfbf5af40f02116`.
+Trace SHA-256 `59661304ee0c1e736f679dfd8b6d22cb6cc6839192bb1facbff35754488fa32c`;
+log `4d4f8efa2fbc74ee9908dabfc5dc6985d9d32108b8352a961baf9a2967cc8359`.
+It completes the scans, creates and reads the existing allowlisted Activity
+Timeline database, and refuses `actitmln/ongoing.bin` enum-create at
+PC `0x000920b4`, LR `0x000b944d`, instruction 439,081,594, time
+1,978,038,136 ns, after exactly 75,764 logical operations. No record content,
+return ABI, filesystem path, or provider status was changed by the probe.
+
+Confidence is high for the finite loop and measured count. Ticket 747 may
+raise the existing logical-file ceiling to exactly 75,764 (aggregate 75,767),
+not the diagnostic ceiling. All other guards remain unchanged. The unknown
+ongoing-file layout/capacity requires separate evidence and remains refused.
+Validation: `sapporo_239_history_budget` unit/private tests; exact old-prefix
+and dual-run snapshot checks. Diagnostic sources and outputs remain outside Git.
+
+Ticket 747 verification passes the failing-before/passing-after narrow test,
+full check, 17 Sapporo 2.39 sanitizer cases and the exact private runner.
+Two fresh runs match at PC `0x000920b4`, instruction 439,081,594, time
+1,978,038,136 ns: log SHA-256
+`6f47fad1eeb3b6032955b463e2c4ba26310dbf5ddc453ae3f0f350acf15a9348`,
+snapshot `3c56bfb5f3f7b541433ca05a3de999c941df3151484a5e080ad09a89b3672ae1`.
+The old ticket-746 prefix retains both original hashes and resumes to that
+identical new snapshot. The next attempted instruction refuses the unknown
+write path without advancing PC/time/count; source flash remains immutable.
+There are 35,714 total sleep seeks including two earlier header rewinds.
+All normal operations retain their original result/state semantics. No normal
+frame or additional file schema is claimed.
+
 ### E-SAP-COMPAT-PRELOAD1-239-001
 
 2026-09-05; direct read-only C interpreter trace and pristine application

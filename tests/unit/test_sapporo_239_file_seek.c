@@ -168,7 +168,8 @@ static void test_seek_atomic_refusals(semu_test_context *context)
     unchanged(context, &f, handle, 32u, 0u, SEMU_ERR_STATE);
     setup_file(context, &f, &handle);
     ((semu_layer_intervention *)&f.layer.descriptor->interventions[
-        SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits = 2671u;
+        SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits =
+        f.layer.descriptor->interventions[SEMU_SAPPORO_239_IV_LOGICAL_FILE].max_hits;
     unchanged(context, &f, handle, 32u, 0u, SEMU_ERR_STATE);
     destroy(&f);
 }

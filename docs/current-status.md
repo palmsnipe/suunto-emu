@@ -581,6 +581,26 @@ the repeated scans and establish a justified finite file-operation budget or
 identify a native file-contract defect; no budget increase is included here.
 No normal frame is claimed. Historical checkpoint tests remain unchanged.
 
+Ticket 747 establishes that the repeated sleep reads are finite native history
+queries, not a retry or an adapter ABI defect (E-SAP-COMPAT-HISTORY-239-001).
+The firmware performs 42-, 60-, and 42-day windows over 248 records: 35,712
+successful 72-byte reads and matching record seeks. Empty histories return
+416 normally. The existing file limit is now exactly the measured 75,764
+operations to the next independent boundary; the three other one-hit limits,
+all paths/capacities and file semantics are unchanged.
+
+The new checkpoint is `stop=budget pc=0x000920b4 instructions=439081594
+virtual_time_ns=1978038136`, log SHA-256
+`6f47fad1eeb3b6032955b463e2c4ba26310dbf5ddc453ae3f0f350acf15a9348`,
+snapshot `3c56bfb5f3f7b541433ca05a3de999c941df3151484a5e080ad09a89b3672ae1`.
+The guest has created and read the allowlisted Activity Timeline database.
+The next operation is enum-create of `actitmln/ongoing.bin` at wrapper
+`0x000920b4`, LR `0x000b944d`; that path remains unknown and is refused
+before mutation. Its native schema and bounded storage requirements are the
+next reverse-engineering task. No new provider-status translation, persisted
+payload, or normal frame is claimed. The ticket-746 pre-refusal log/snapshot
+hashes remain exact; its subsequent budget refusal is historical.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -602,10 +622,9 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Trace 2.39 `WbStoPreload` command-one result 500 after ticket 744's seek
-  return correction. Sleep and TrainingTss now succeed naturally. Recover
-  the missing preload state without broadening the existing command-zero
-  compatibility translation or bypassing BKPT.
+- Recover the native `actitmln/ongoing.bin` schema/capacity and lifecycle at
+  ticket 747's unknown-create boundary. The sleep-history scans now complete;
+  keep the new path refused until its bounded contract is evidenced.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

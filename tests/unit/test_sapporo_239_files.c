@@ -122,7 +122,8 @@ static void test_fallthrough_and_capacity_refusal(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, f.layer.hits);
     ((semu_layer_intervention *)
         &f.layer.descriptor->interventions[
-            SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits = 2671u;
+            SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits =
+        f.layer.descriptor->interventions[SEMU_SAPPORO_239_IV_LOGICAL_FILE].max_hits;
     f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 1u;
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
         hook(&f, UINT32_C(0x000921a8)));
