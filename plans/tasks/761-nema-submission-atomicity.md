@@ -345,3 +345,53 @@ refusal 1, NEMA 86, transcript 91, machine snapshot 4. `make check` and
 130 tickets; `make check-lines` has no hard-limit violations. `make sdl`
 and both private gate commands pass. Observer/probe commands and unchanged
 hashes are recorded in E-EMU-NEMA-GPU-001; no acceptance pin was weakened.
+
+### Partial Implementation — Control Validation and Allocation Coverage
+
+2026-09-06. The prior GPU integration is committed as `1733bb8`. This
+continuation remains uncommitted; ticket status/index are not changed.
+Changed files: `src/display/nema_framing.c`, `.h`, `nema_backend.h` (stale
+contract comment), `src/devices/sapporo_nema_gpu.c`,
+`tests/devices/test_nema_gpu_atomic.c`, `tests/integration/test_nema_refusal.c`,
+execution model, current status, evidence ledger and this handoff.
+
+Corrected wrap-distance arithmetic for non-power-of-two capacities and checked
+complete ring byte ranges. Complete held-control/marker fields now validate
+before any callback; malformed targets/opcodes/sizes/truncation refuse.
+Unsupported GPU byte/halfword accesses refuse without changing output/state.
+Three framing regressions and the access-width regression fail before their
+fixes. Framing cases were initially added to the already-large framing unit
+test, then moved to the integration test to keep new handwritten growth below
+300 lines; the original unit test remains unchanged.
+
+A draft allowing only base-wrap targets failed both private gates. Read-only
+2.22/2.39 disassembly proves a second native held-control form targeting the
+immediate next word; the first-refusal probe confirms it dynamically. Added
+that success regression before correcting the draft. Evidence
+E-EMU-NEMA-CONTROL-001 records the exact PCs, component/source hashes and
+commands. E-NEMA-RING-001 still supplies the bootstrap/wrap form; no generic
+jump acceptance or new register/timing behavior is inferred.
+
+The integration test compiles production framing, backend-transaction and
+scheduler-batch sources with only their allocators replaced. It forces each
+of the three allocation sites to fail through the real MMIO path while 15
+events already exist and two children/two markers are pending. Full GPU codec,
+queue bytes/counters, pixels/generation and inherited-color checks pass.
+Corrected same-stop retries publish both children and deliver both marker
+IDs/IRQs in order; repeated stops do nothing. No production fault hook, private
+backend API, Makefile, CPU/bus policy or persistent-format edit.
+
+Remaining: strict inline-ring/padding and odd-tail interpretation, plus final
+malformed-input/lifecycle acceptance review. The native tail interpretation
+still needs evidence reconciliation with existing success pins; this slice
+does not read beyond a declared child list or silently invent a missing value.
+No extra integration authority is requested. Do not mark ticket 761 done.
+
+Final control-slice verification is recorded in E-EMU-NEMA-CONTROL-001:
+backend atomic 7, GPU atomic 8, completion atomic 5, scheduler batch 4,
+refusal integration 5, framing selection 15, NEMA 92, transcript 91, machine
+snapshot 4; every focused command selects tests and passes. `make check` and
+`make sanitize` pass 809 tests; task contracts validate 130 tickets and line
+checks pass. `make sdl`, both exact private gates, two cold middle probes and
+the prefix resume pass with all historical hashes unchanged. The original
+atomicity probe reports zero failures twice normally and once under sanitizers.

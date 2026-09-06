@@ -1152,6 +1152,34 @@ Ticket 761 remains incomplete: strict ring/wrap/odd-tail validation, composed
 allocation-failure coverage and the final acceptance audit remain. No ticket
 status, golden, budget, firmware data or CPU/bus policy changes.
 
+## NEMA Control Validation and Allocation Coverage (Ticket 761, Partial)
+
+Commit `1733bb8` records the GPU transaction integration. The continuation
+corrects non-power-of-two ring wrap arithmetic, checks complete ring-address
+arithmetic, validates held-control/marker fields and refuses unsupported GPU
+access widths. A malformed control after a valid child changes no GPU snapshot,
+frame or event; correcting the same stop executes once.
+
+The firmware gates caught an overstrict draft that accepted only base-wrap
+targets. Read-only reverse engineering established that both native 2.22 and
+2.39 marker builders also emit a held jump to the immediate continuation word.
+E-EMU-NEMA-CONTROL-001 records the exact instruction ranges and first-refusal
+trace. The validator now preserves that form without accepting arbitrary jumps.
+
+Deterministic allocator replacement in test-only compilations of production
+sources exercises the full MMIO/parser/backend/completion/scheduler path. Every
+allocation refusal preserves the existing queue, identities, inherited color,
+pixels, generation and GPU snapshot; retries publish both children and complete
+both markers in order. No runtime hook or build dependency is introduced.
+Ticket 761 remains incomplete pending strict inline/padding/unmatched-tail
+validation and final acceptance review; its status/index and goldens are unchanged.
+
+All 809 normal and sanitizer tests pass, along with 130 task contracts and
+line checks. Both exact private firmware gates pass after the evidence-backed
+control correction. Two cold language runs and the prefix resume preserve
+every prior trace/pixel/snapshot hash and the exact endpoint. No newly exposed
+refusal was hidden and no acceptance checkpoint was weakened.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1163,7 +1191,7 @@ without manufacturing a roadmap row. The practical work queue is:
 - Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
   under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
   ownership now covers the migrated whole-ring GPU/machine transaction. Finish
-  strict framing/tail validation and composed fault-injection coverage; do not
+  strict inline-ring/padding/tail validation and final acceptance review; do not
   work around the opaque backend with a private API. Sampling clipping is
   already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
   historical checkpoints; do not hide changes by re-pinning.

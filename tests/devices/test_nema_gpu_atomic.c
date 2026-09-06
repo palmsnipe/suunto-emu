@@ -210,6 +210,48 @@ static void test_missing_scheduler_and_partial_backend(semu_test_context *contex
     SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT, e.code);
     semu_snapshot_writer_destroy(&before); finish(&f);
 }
+static void test_bad_wrap_preserves_submission(semu_test_context *context)
+{
+    fixture f; semu_error e; semu_snapshot_writer before; unsigned mode;
+    SEMU_TEST_ASSERT(context, init(&f)); children(&f);
+    pair(&f, 16u, NEMA_HOLDCMD | NEMA_REG_CMDADDR, RING);
+    pair(&f, 24u, NEMA_HOLDCMD | NEMA_REG_CMDSIZE, 256u);
+    semu_snapshot_writer_init(&before);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_snapshot_write(f.gpu, &before, &e));
+    for (mode = 0u; mode < 3u; ++mode) {
+        uint32_t address = RING + 20u + mode * 4u, value;
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(f.bus, address, 4u, &value, &e));
+        put(&f, address, value ^ 4u);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_write(f.bus, STOP, 4u, RING + 32u, &e));
+        unchanged(context, &f, &before);
+        SEMU_TEST_EQ_U64(context, 0u, f.frames); SEMU_TEST_EQ_U64(context, 0u, f.irqs);
+        SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(f.scheduler));
+        put(&f, address, value);
+    }
+    /* Native marker builders also emit a held jump to the next ring word,
+     * not just the bootstrap trailer's jump back to the base. */
+    put(&f, RING + 20u, RING + 32u);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus, STOP, 4u, RING + 32u, &e));
+    SEMU_TEST_EQ_U64(context, 1u, f.frames);
+    semu_snapshot_writer_destroy(&before); finish(&f);
+}
+static void test_unsupported_access_widths(semu_test_context *context)
+{
+    fixture f; semu_error e; semu_snapshot_writer before; unsigned width;
+    SEMU_TEST_ASSERT(context, init(&f)); children(&f);
+    semu_snapshot_writer_init(&before);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_snapshot_write(f.gpu, &before, &e));
+    for (width = 1u; width <= 2u; ++width) {
+        uint32_t value = 0x12345678u;
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_bus_read(f.bus, STOP, width, &value, &e));
+        SEMU_TEST_EQ_U64(context, 0x12345678u, value);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, semu_bus_write(f.bus, STOP, width, 0u, NULL));
+        unchanged(context, &f, &before);
+    }
+    SEMU_TEST_EQ_U64(context, 0u, f.frames); SEMU_TEST_EQ_U64(context, 0u, f.irqs);
+    semu_snapshot_writer_destroy(&before); finish(&f);
+}
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -218,7 +260,9 @@ int main(void)
         SEMU_TEST_CASE(test_two_markers_retry_and_reset),
         SEMU_TEST_CASE(test_callback_results_and_missing_backend),
         SEMU_TEST_CASE(test_reentrant_callbacks),
-        SEMU_TEST_CASE(test_missing_scheduler_and_partial_backend)
+        SEMU_TEST_CASE(test_missing_scheduler_and_partial_backend),
+        SEMU_TEST_CASE(test_bad_wrap_preserves_submission),
+        SEMU_TEST_CASE(test_unsupported_access_widths)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

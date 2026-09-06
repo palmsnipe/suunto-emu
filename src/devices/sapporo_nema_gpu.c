@@ -65,13 +65,12 @@ static semu_status nema_gpu_read(void *context, uint32_t offset,
     unsigned width, uint32_t *value, semu_error *error)
 {
     semu_nema_gpu *gpu = (semu_nema_gpu *)context;
-    (void)error;
     if (gpu == NULL || value == NULL) {
         return SEMU_ERR_ARGUMENT;
     }
-    if (width != 4u || offset >= NEMA_GPU_SIZE) {
-        *value = 0u;
-        return SEMU_OK;
+    if (width != 4u || offset >= NEMA_GPU_SIZE || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: unsupported register read shape");
+        return SEMU_ERR_UNSUPPORTED;
     }
     if (offset == NEMA_REG_MODULE_ID) {
         *value = NEMA_MODULE_ID;
@@ -89,12 +88,12 @@ static semu_status nema_gpu_write(void *context, uint32_t offset,
     unsigned width, uint32_t value, semu_error *error)
 {
     semu_nema_gpu *gpu = (semu_nema_gpu *)context;
-    (void)error;
     if (gpu == NULL) {
         return SEMU_ERR_ARGUMENT;
     }
-    if (width != 4u || offset >= NEMA_GPU_SIZE) {
-        return SEMU_OK;
+    if (width != 4u || offset >= NEMA_GPU_SIZE || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: unsupported register write shape");
+        return SEMU_ERR_UNSUPPORTED;
     }
     if (gpu->submitting) {
         semu_error_set(error, SEMU_ERR_CONFLICT, "nema: submission already active");

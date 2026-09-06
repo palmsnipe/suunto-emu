@@ -93,9 +93,18 @@ Reentrant GPU writes/reset/snapshot and machine reset refuse before mutation.
 Guest execution, bus mutation, owner destruction and scheduler dispatch/reset
 from a frame callback remain unsupported, as required by display.h.
 
-This is ticket 761's transaction-integration checkpoint, not complete strict
-input validation. Legacy ring padding/wrap and unmatched-tail acceptance still
-need evidence-backed audit; no new ring syntax or hardware behavior is inferred.
+Control framing checks the complete ring address span before reading, computes
+wrap distances without unsigned underflow, and validates all marker/held-control
+fields before callbacks. Held CMDADDR/CMDSIZE records require the configured
+capacity and either the ring base or the immediate continuation target; both
+forms are evidenced by native builders (E-EMU-NEMA-CONTROL-001). Byte/halfword
+GPU accesses refuse without changing registers or read outputs. Production-path
+allocation tests cover parser records, staged frames and scheduler growth,
+including inherited-state preservation and corrected same-stop retry.
+
+Ticket 761 still needs the remaining strict inline-ring/padding and unmatched-
+tail audit. Arbitrary held jumps are not supported; no physical timing or
+unobserved command behavior is inferred from the transaction tests.
 
 ## Reset and Run
 

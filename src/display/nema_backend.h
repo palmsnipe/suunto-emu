@@ -32,8 +32,8 @@ void semu_nema_backend_destroy(semu_nema_backend *backend);
  * aborts a prepared transaction; destruction from callbacks is unsupported. */
 semu_status semu_nema_backend_reset(semu_nema_backend *backend);
 
-/* Public transactional contract; the single-list convenience uses these same
- * operations. GPU/machine migration to this contract is ticket 761's next part. */
+/* Public transactional contract; GPU/machine and the single-list convenience
+ * all use these same operations. */
 extern const semu_display_backend_ops semu_nema_backend_ops;
 
 /*

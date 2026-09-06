@@ -34,8 +34,8 @@ static semu_status scan_and_stage(semu_bus *bus,
         *child_count = 0u;
         return SEMU_OK;
     }
-    submitted = (new_word - old_word) % ring_words;
-    if (submitted == 0u) submitted = ring_words;
+    submitted = new_word >= old_word ? new_word - old_word :
+        ring_words - old_word + new_word;
 
     for (i = 0u; i < submitted; ++i) {
         uint32_t idx = (old_word + i) % ring_words;
@@ -46,37 +46,33 @@ static semu_status scan_and_stage(semu_bus *bus,
         st = read_word(bus, ring_base + idx * 4u, &w0, error);
         if (st != SEMU_OK) return st;
 
-        /* A completion marker is a four-word transaction.  Consume it
-         * before interpreting the marker payload as a ring command: a
-         * list ID may equal CMDADDR (0xf0), which is a valid observed
-         * value in the onboarding ring. */
-        if (w0 == NEMA_REG_CLID && i + 3u < submitted) {
-            uint32_t marker_interrupt;
-            uint32_t marker_value;
-            st = read_word(bus,
-                ring_base + ((old_word + i + 2u) % ring_words) * 4u,
-                &marker_interrupt, error);
-            if (st != SEMU_OK) return st;
-            st = read_word(bus,
-                ring_base + ((old_word + i + 3u) % ring_words) * 4u,
-                &marker_value, error);
-            if (st != SEMU_OK) return st;
-            if (marker_interrupt == NEMA_REG_INTERRUPT && marker_value == 1u) {
-                i += 3u;
-                continue;
+        /* Payload words cannot be interpreted as opcodes. Validate the whole
+         * control record before skipping it (E-NEMA-RING-001). */
+        if (w0 == NEMA_REG_CLID || w0 == (NEMA_HOLDCMD | NEMA_REG_CMDADDR)) {
+            uint32_t control[3], k;
+            if (submitted - i < 4u) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: truncated ring control");
+                return SEMU_ERR_UNSUPPORTED;
             }
-        }
-
-        if ((w0 & 0xFFFFFF00u) == NEMA_CL_NOP) {
-            continue;
-        }
-        if (w0 == (NEMA_HOLDCMD | NEMA_REG_CMDADDR)) {
-            if (i + 3u >= submitted) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                               "nema: truncated wrap trailer");
+            for (k = 0u; k < 3u; ++k) {
+                st = read_word(bus, ring_base + ((old_word + i + k + 1u) % ring_words) * 4u,
+                    &control[k], error);
+                if (st != SEMU_OK) return st;
+            }
+            if (w0 == NEMA_REG_CLID ?
+                (control[1] != NEMA_REG_INTERRUPT || control[2] != 1u) :
+                ((control[0] != ring_base && control[0] != ring_base +
+                  ((old_word + i + 4u) % ring_words) * 4u) ||
+                 control[1] != (NEMA_HOLDCMD | NEMA_REG_CMDSIZE) ||
+                 control[2] != ring_words * 4u)) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: invalid ring control fields");
                 return SEMU_ERR_UNSUPPORTED;
             }
             i += 3u;
+            continue;
+        }
+
+        if ((w0 & 0xFFFFFF00u) == NEMA_CL_NOP) {
             continue;
         }
         if ((w0 & 0xFF000000u) == NEMA_HOLDCMD) {
@@ -197,6 +193,8 @@ semu_status nema_framing_parse(
         return SEMU_ERR_ARGUMENT;
     }
     if ((ring_base & 3u) != 0u || ring_words == 0u ||
+        ring_words > UINT32_MAX / 4u ||
+        (uint64_t)ring_base + (uint64_t)ring_words * 4u > UINT64_C(0x100000000) ||
         old_word >= ring_words || new_word >= ring_words) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "nema: invalid ring arguments");

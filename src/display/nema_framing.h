@@ -40,11 +40,15 @@ typedef void (*nema_child_fn)(void *context, uint32_t child_address,
  * Parses the ring between old_word and new_word (wrapping), finds
  * child-list submissions, and decodes register/value pairs from each
  * child list.  CL_PUSH|CMDSIZE is a 32-bit entry count.  All records are
- * staged before any callback is invoked; on malformed input, returns
- * SEMU_ERR_UNSUPPORTED without callbacks.
+ * staged before any callback is invoked. Held controls must target the ring
+ * base or immediate continuation with the exact capacity (E-EMU-NEMA-CONTROL-001);
+ * completion markers require INTERRUPT=1. Bad
+ * control fields/truncation return SEMU_ERR_UNSUPPORTED without callbacks.
+ * Unrecognized inline-ring/odd-tail syntax remains a separate strictness gap.
  *
  * ring_base:   SRAM address of ring start (must be 4-byte aligned).
- * ring_words:  ring capacity in 32-bit words (must be > 0).
+ * ring_words:  ring capacity in words (> 0); byte size must fit uint32_t and
+ *              the complete range must fit the 32-bit address space.
  * old_word:    previous write index (word offset from ring_base).
  * new_word:    current write index (word offset from ring_base).
  */

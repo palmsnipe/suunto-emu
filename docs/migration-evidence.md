@@ -13,6 +13,132 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-CONTROL-001
+
+2026-09-06; ticket 761 control-framing follow-up on commit `1733bb8`.
+Sources: E-NEMA-RING-001's pinned bootstrap/wrap capture and read-only
+disassembly of the exact Sapporo 2.22 application, plus a first-refusal probe
+of the validated Sapporo 2.39 application (manifest/component pins unchanged).
+The bootstrap's held CMDADDR targets the ring base, but it is not the only
+native held-control form. 2.22 builder `0x000bb4e8` writes CLID/INTERRUPT,
+pads the write index to a multiple of four, and at `0x000bb5e2..0x000bb624`
+writes held CMDADDR with `ring_base + 4 * (index + 4)`, held CMDSIZE and the
+configured byte capacity. It then advances the index and writes CMDRINGSTOP.
+Thus an inline held continuation targets the word immediately after itself.
+The exact 2.39 image has the matching stores at `0x000cbc62..0x000cbca4`.
+Application SHA-256 values: 2.22
+`c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc`,
+2.39 `85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`.
+
+The exact 2.39 diagnostic observes base `10143678`, capacity `400`, previous
+stop `10143768`, raw stop `1014378c`: a completion marker followed by a held
+control at `10143778` targeting `10143788`, with held CMDSIZE and capacity
+`400`. A draft validator that allowed only the bootstrap base target refused
+this valid native continuation and broke both firmware gates. That draft is
+not accepted; no golden is changed. Confidence is high for the two evidenced
+forms (base wrap and immediate linear continuation), not arbitrary held jumps.
+Affected modules: framing parser, GPU strict access checks and synthetic
+framing/GPU/allocator regressions. Unknown inline syntax and unmatched tails
+remain a separate audit. Validation results and hashes follow below.
+
+Four narrow regressions fail before their fixes: incorrect non-power-of-two
+wrap span, unvalidated control fields, overflowing ring ranges, and successful
+unsupported GPU access widths. Final production changes check whole-ring
+address arithmetic, use subtraction without unsigned-wrap dependence, validate
+all held/marker fields before callbacks, preserve both evidenced held targets,
+and refuse byte/halfword GPU access without changing read output or state.
+A corrected same-stop retry after malformed control executes exactly once.
+
+The integration test directly compiles the production framing,
+backend-transaction and scheduler-batch translation units with only allocation
+calls replaced. There is no runtime allocator hook or alternate backend API.
+Three deterministic runs fail allocation of parser records, per-child frames,
+and scheduler growth respectively, through the real MMIO path. Fifteen existing
+events, queue bytes/IDs/sequences/time, the complete GPU codec, pixels/generation
+and inherited blue color remain unchanged. Retrying two children/two markers
+publishes both frames, preserves generations and completes IDs 7/8 in order;
+repeated stops are no-ops. ASan/UBSan runs cover these same tests.
+
+Exact final commands all pass, with actual test selection:
+
+```sh
+make test TEST_FILTER=nema_backend_atomic       # 7
+make test TEST_FILTER=nema_gpu_atomic           # 8
+make test TEST_FILTER=nema_completion_atomic    # 5
+make test TEST_FILTER=scheduler_batch           # 4
+make test TEST_FILTER=nema_refusal              # 5
+make test TEST_FILTER=nema_framing              # 15 (includes integration cases)
+make test TEST_FILTER=nema                      # 92
+make test TEST_FILTER=transcript                # 91
+make test TEST_FILTER=machine_snapshot          # 4
+make check-task-contracts                      # 130 tickets
+make check-lines                              # no hard-limit violations
+make check                                    # 809 tests
+make sanitize                                 # 809 tests
+make sdl
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_awake
+```
+
+External logs/artifacts are in `/tmp/semu-761-framing.owN7uU`. The first-refusal
+observer `diagnostic.c` has SHA-256
+`cf8b4f998ecf0701ea72435fa011021c8ab7749916ba2ef4deeaf00b70ecbb35`.
+It instruments GPU refusal only, stops at the first failed submission and
+writes no guest/firmware state. With the rejected base-only draft, compiling
+and running it as below exits 3 at the held continuation described above.
+The final renderer observer and included UI observer are unchanged from
+E-EMU-NEMA-GPU-001, with SHA-256 respectively
+`b59e73c8220beaade48cee629a1da3b5f8b93b8b47a1cc6cd0be1a2e4ee32ab7` and
+`6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`.
+
+```sh
+probe_dir=/tmp/semu-761-framing.owN7uU
+arm-none-eabi-objdump -D -b binary -m arm -M force-thumb --adjust-vma=0x40000 --start-address=0xbb4e8 --stop-address=0xbb678 tests/private/sapporo-2.22.60/application.raw
+arm-none-eabi-objdump -D -b binary -m arm -M force-thumb --adjust-vma=0x40000 --start-address=0xcbc62 --stop-address=0xcbcf0 tests/private/sapporo-2.39.20.22297/application.raw
+# The diagnostic compilation/run was performed with the rejected draft.
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices "$probe_dir/diagnostic.c" build/libsemu.a -o "$probe_dir/diagnostic"
+"$probe_dir/diagnostic" cold 1 "$probe_dir/diagnostic" > "$probe_dir/diagnostic.trace" 2> "$probe_dir/diagnostic.log"
+# Final implementation; all three bounded renderer runs succeed.
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-gpu.aQow5X/render-probe.c build/libsemu.a -o "$probe_dir/render-probe-final"
+"$probe_dir/render-probe-final" cold 1 "$probe_dir/final-middle-a" > "$probe_dir/final-middle-a.trace" 2> "$probe_dir/final-middle-a.log"
+"$probe_dir/render-probe-final" cold 1 "$probe_dir/final-middle-b" > "$probe_dir/final-middle-b.trace" 2> "$probe_dir/final-middle-b.log"
+"$probe_dir/render-probe-final" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/final-middle-resume" > "$probe_dir/final-middle-resume.trace" 2> "$probe_dir/final-middle-resume.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc /tmp/semu-761-gpu.aQow5X/atomic-probe.c build/libsemu.a -o "$probe_dir/atomic-probe"
+"$probe_dir/atomic-probe" > "$probe_dir/atomic-probe.log"
+"$probe_dir/atomic-probe" > "$probe_dir/atomic-probe-repeat.log"
+cmp "$probe_dir/atomic-probe.log" "$probe_dir/atomic-probe-repeat.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc /tmp/semu-761-gpu.aQow5X/atomic-probe.c build/sanitize/libsemu.a -o "$probe_dir/atomic-probe-san"
+"$probe_dir/atomic-probe-san" > "$probe_dir/atomic-probe-san.log"
+cmp "$probe_dir/atomic-probe.log" "$probe_dir/atomic-probe-san.log"
+```
+
+All private components are validated before execution; full-flash SHA-256
+remains `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Both private gates retain their exact previous pins. The short 2.22 gate stops
+at `user / 000bacf4 / 774081920 instructions / 6520939902 ns`; all four frame
+CRCs/generations and cold-log hash in E-SAP-ONBOARD-EMU-012 pass. The 2.39 gate
+retains all four native pulse/snapshot phases and fifth-hit refusal:
+`compat-refused / 001291cc / 1272353867 instructions / 32770943068 ns`,
+log SHA-256 `06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot SHA-256 `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+
+The corrected middle runs retain all E-EMU-SAMPLING-CLIP-001 values:
+
+- Both cold traces: `a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+- All final RGB565 images: `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`.
+- All final snapshots: `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+- Last changed cold frame: generation 79, CRC `6b6aa2dc`, instruction
+  1088274630 at 12335112985 ns.
+- Endpoint: 1300000000 instructions, 22286110403 ns, PC `000a7abc`,
+  GPS hits `2,2,3`; cold frames/changes 79/62, resume 76/60.
+
+The original five-scenario probe remains byte-identical over two normal and
+one sanitizer runs, reporting zero atomicity failures. New code/tests stay
+below 300 lines; no firmware bytes, generated pixels, goldens, profiles,
+registry, CPU/bus policy or persistent format changes. Remaining gaps are
+strict inline/padding and unmatched-tail interpretation plus final acceptance
+review. No extra integration authority is requested; ticket 761 is incomplete.
+
 ### E-EMU-NEMA-GPU-001
 
 2026-09-06; partial ticket 761 integration on backend commit `0e8900d`.
