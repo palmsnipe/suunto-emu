@@ -61,7 +61,7 @@ semu_status semu_layer_hit(semu_layer_state *state, semu_logger *logger,
  * Records a hit on the named intervention.  Emits a structured event
  * with layer/trigger/ordinal/effect fields.  Returns SEMU_ERR_STATE
  * when the layer is disabled, the intervention index is out of range,
- * or the intervention's per-trigger budget is exhausted.
+ * or the intervention's per-trigger or aggregate layer budget is exhausted.
  */
 semu_status semu_layer_intervention_hit(semu_layer_state *state,
     semu_logger *logger, size_t intervention_index, semu_error *error);

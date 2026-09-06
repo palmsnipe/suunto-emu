@@ -32,6 +32,13 @@ already exist.
   Save and restore reject unsupported scheduler kinds, unowned scheduler
   entries, detached device-owned events, and mismatched event identities
   before the scheduler queue is committed.
+- Compatibility snapshot restore now rejects excessive aggregate/per-trigger
+  counters, inconsistent totals and sum overflow. Runtime intervention commits
+  enforce the aggregate bound. Stale 2.22 aggregate metadata is corrected to
+  twenty, matching its unchanged individual allowances. GPS final-fragment
+  refusal/WAIT, delayed-RX scheduling errors and the legacy startup response
+  retain transport/counter/log state (E-EMU-COMPAT-ATOMIC-001). Valid 2.22
+  snapshots and 2.39 logo/halt checkpoints remain byte-identical.
 
 All normal tests use synthetic inputs. The checked-in repository contains no
 firmware bytes or frame pixels.
@@ -773,6 +780,8 @@ another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
 - Implement ready integration ticket 756 for the initial 2.39 GPS lifecycle.
+  Its transport/snapshot safety prerequisites are now fixed and verified under
+  E-EMU-COMPAT-ATOMIC-001; the new opt-in layer is not yet implemented.
   E-SAP-COMPAT-GPS-STARTUP-239-001 now proves that the native retry failure
   starts with missing unsolicited status, before any command. In two identical
   isolated diagnostics, one delayed synthetic `$PSS0000\r\n` startup line

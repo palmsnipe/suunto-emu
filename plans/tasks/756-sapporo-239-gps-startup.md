@@ -50,10 +50,15 @@ prove startup status, exact `@VER` reply, and native states 14/15 only.
 - `src/devices/sapporo_cxd5610.c`, `src/devices/sapporo_cxd5610.h`
 - `src/devices/sapporo_cxd5610_rx.c`
 - `src/boards/machine.c`, `src/boards/machine_run.c`
+- `src/boards/machine_snapshot.c`
+- `src/compat/layer.c`, `include/semu/compat.h`
+- `src/compat/sapporo_222.c`, `profiles/sapporo/2.22.60/profile.semu`
 - `profiles/sapporo/2.39.20/profile.semu`
 - `tests/unit/test_sapporo_239_gps.c`, `tests/unit/test_sapporo_239_gps_snapshot.c`
 - `tests/unit/test_sapporo_profile_239.c`
 - `tests/devices/test_sapporo_cxd5610.c`
+- `tests/devices/test_sapporo_cxd5610_atomic.c`
+- `tests/unit/test_machine_snapshot_layers.c`
 - `tests/integration/test_firmware_sapporo_239_gps_startup.sh`
 - `docs/current-status.md`, `docs/migration-evidence.md`
 - `plans/index.tsv`, `plans/tasks/756-sapporo-239-gps-startup.md`
@@ -63,7 +68,7 @@ prove startup status, exact `@VER` reply, and native states 14/15 only.
 This is the integration owner for the named layer registry, profile metadata,
 and version-scoped device compatibility binding through the existing device
 API. It may extend those headers, not invent a parallel machine API. Preserve
-snapshot wire format, CPU/scheduler semantics, UART MMIO, 2.22 behavior,
+snapshot wire format, CPU/scheduler semantics, UART MMIO, successful 2.22 behavior,
 existing WbSto descriptor/counters/files, all historical goldens and Makefile.
 Split binding/RX responsibilities into the named files before any file exceeds
 500 lines; do not expand the nearly-full device files mechanically.
@@ -98,6 +103,17 @@ Validate full operation and scheduling capacity/time before mutation. Audit
 scheduler insertion. A scheduler failure must not alter device bytes, queue,
 counters or logs. Correct only this bounded atomicity problem if the new
 regression proves it, preserving successful timing and existing transports.
+The user-approved scope extension also covers final-command refusal before
+transport buffer/trace mutation and machine snapshot counter validation.
+Reject excessive aggregate/per-intervention hits and checked sums greater than
+the aggregate; retain valid legacy counters and the wire format. The new GPS
+layer must additionally validate its own startup-before-reply lifecycle on
+snapshot load. Do not infer ordered lifecycle semantics for unrelated layers.
+The prerequisite maintenance also enforces the aggregate bound at intervention
+commit and corrects stale 2.22 aggregate metadata to twenty (nine existing
+one-shot interventions plus eleven existing awake pulses), without increasing
+any per-trigger allowance. Invalid counts now refuse; valid legacy checkpoints
+must retain their bytes and successful timing.
 
 ## Tests and Commands
 
@@ -144,7 +160,7 @@ Do not claim full GPS, settled 2.39 setup or a functional release from states
 
 ## Handoff
 
-Planning only; implementation has not started. Dependencies 416, 615 and 729
+The new GPS layer is not implemented. Dependencies 416, 615 and 729
 are done in the index. The initial integration contract is grounded in the
 new GPS evidence; later pending-seven behavior remains a separate gap.
 Maintenance evidence capture changes no production code, layer or checkpoint.
@@ -163,3 +179,56 @@ for this documentation/planning-only change; integration acceptance remains
 entirely outstanding. Changed files: this ticket, `plans/index.tsv`,
 `docs/current-status.md` and `docs/migration-evidence.md`. No firmware,
 pixels, snapshots, traces or probe source entered Git.
+
+## Prerequisite Maintenance Handoff — 2026-09-06
+
+The user authorized necessary integration changes, including breaking changes.
+E-EMU-COMPAT-ATOMIC-001 records the completed bounded prerequisite fixes:
+atomic final-fragment refusal/WAIT and delayed RX scheduling, legacy startup
+provider hit/log ordering, runtime aggregate-budget enforcement, checked
+snapshot counter validation, and correction of stale 2.22 aggregate metadata
+to the sum of its unchanged per-trigger limits. No new GPS layer, hardware
+response or firmware-state intervention is enabled. This maintenance does not
+complete ticket 756; its new-layer acceptance conditions remain outstanding.
+
+Changed implementation/contracts: `src/devices/sapporo_cxd5610.c` and `.h`,
+`src/compat/sapporo_222.c`, `src/compat/layer.c`, `include/semu/compat.h`,
+`src/boards/machine_snapshot.c`, `profiles/sapporo/2.22.60/profile.semu`.
+New tests: `tests/devices/test_sapporo_cxd5610_atomic.c`,
+`tests/unit/test_machine_snapshot_layers.c`. Documentation: this ticket,
+`docs/current-status.md` and `docs/migration-evidence.md`. Index/status is
+unchanged. The allowed-file extension above records the approved integration
+ownership; no private parallel API or snapshot format was added.
+
+Commands/results:
+
+- `make test TEST_FILTER=sapporo_cxd5610_atomic`: original two cases fail
+  before transport fixes; added legacy-provider case fails before its fix;
+  all three pass afterward.
+- `make test TEST_FILTER=machine_snapshot_layers`: all three cases fail
+  before snapshot/budget corrections and pass afterward.
+- `make test TEST_FILTER=sapporo_cxd5610` and
+  `make test TEST_FILTER=machine_snapshot`: all selected cases pass.
+- `make check` and `make sanitize`: each passes all 746 cases.
+- `make check-task-contracts`: 126 indexed tickets validate;
+  `make check-lines` and `git diff --check` pass.
+- The exact private activity-budget command in Tests and Commands passes,
+  preserving both historical logo hashes and the pre-BKPT snapshot
+  `8d9b262474b00c6c0a2b5423ce4100363eb4582a96205eae8d045b70c8ae50a7`.
+- Independently compiled `cb875c4` and current CLI: validate exact 2.22
+  manifest, then `run --profile sapporo-2.22.60 --firmware
+  tests/private/sapporo-2.22.60/firmware.semu --layer sapporo-2.22-no-device
+  --max-instructions 450900000 --max-time 30000000000 --snapshot-save PATH`.
+  Both return budget (exit three), with byte-identical logs/snapshots. Both
+  resume the old snapshot using `--snapshot-load PATH --max-instructions
+  450910000 --max-time 30000000000 --snapshot-save NEXT_PATH`, again matching.
+  Exact checkpoints/hashes are in E-EMU-COMPAT-ATOMIC-001; this is not a new
+  release golden. Full flash retains its pinned hash.
+
+Deliberate compatibility change: malformed counter snapshots and aggregate
+excess now refuse, and rejected final TX fragments are no longer traced or
+discarded. Valid tested snapshots and successful guest timing are preserved.
+No private firmware/pixels/snapshots enter Git. Layer-specific lifecycle order,
+new fixture binding, two-layer snapshots and the later pending-seven gap are
+still the next implementation work. No remaining scope authorization is
+needed for the currently identified 756 integration changes.

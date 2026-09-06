@@ -61,7 +61,8 @@ const semu_layer_descriptor semu_sapporo_222_no_device_layer = {
     .interventions = sapporo_interventions,
     .intervention_count = sizeof(sapporo_interventions) /
                            sizeof(sapporo_interventions[0]),
-    .maximum_hits = 7u
+    /* Nine one-shot interventions plus eleven bounded awake pulses. */
+    .maximum_hits = 20u
 };
 
 static uint32_t firmware_checksum(const uint8_t *data, size_t size,
@@ -367,13 +368,16 @@ semu_status semu_sapporo_222_arm_gps_startup(
     if (!intervention_is_unused(state, SEMU_SAPPORO_222_IV_GPS_STARTUP)) {
         return SEMU_OK;
     }
-    if (semu_layer_intervention_hit(state, logger,
-            SEMU_SAPPORO_222_IV_GPS_STARTUP, error) != SEMU_OK) {
-        return error != NULL ? error->code : SEMU_ERR_STATE;
+    if (!state->enabled || state->hits >= state->descriptor->maximum_hits ||
+        state->descriptor->interventions[SEMU_SAPPORO_222_IV_GPS_STARTUP].max_hits == 0u) {
+        semu_error_set(error, SEMU_ERR_STATE, "GPS startup fixture is disabled or exhausted");
+        return SEMU_ERR_STATE;
     }
-    return semu_sapporo_cxd5610_inject_rx_after(transport, response,
-                                                 sizeof(response),
-                                                 UINT64_C(10000000), error);
+    semu_status status = semu_sapporo_cxd5610_inject_rx_after(transport, response,
+        sizeof(response), UINT64_C(10000000), error);
+    if (status != SEMU_OK) return status;
+    return semu_layer_intervention_hit(state, logger,
+        SEMU_SAPPORO_222_IV_GPS_STARTUP, error);
 }
 
 semu_status semu_sapporo_222_arm_gps_running_status(

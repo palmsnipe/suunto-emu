@@ -29,5 +29,4 @@ sha256=ec2a4b1c472844ac6ff9cc575cb9383c29a74302107af3619f9a08fdf6abcaf1
 [layer sapporo-2.22-no-device]
 kind=synthetic-state
 evidence=suunto-firmware/docs/research/factory-calibration-records.md
-max_hits=1
-
+max_hits=20

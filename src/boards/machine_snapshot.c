@@ -170,6 +170,7 @@ static semu_status apply_machine_image(semu_machine *machine,
     }
     for (i = 0u; i < image->layer_count; ++i) {
         semu_layer_state *layer = &machine->layers[i];
+        uint64_t total = 0u;
         int old_sapporo_239 = layer->descriptor ==
                 &semu_sapporo_239_wbsto_layer &&
             (image->layers[i].intervention_count == 2u ||
@@ -180,6 +181,25 @@ static semu_status apply_machine_image(semu_machine *machine,
                  image->layers[i].intervention_count && !old_sapporo_239)) {
             semu_error_set(error, SEMU_ERR_CONFLICT, "snapshot layer identity differs from machine");
             return SEMU_ERR_CONFLICT;
+        }
+        if (image->layers[i].hits > layer->descriptor->maximum_hits) {
+            semu_error_set(error, SEMU_ERR_FORMAT, "snapshot layer hit budget exceeded");
+            return SEMU_ERR_FORMAT;
+        }
+        for (j = 0u; j < image->layers[i].intervention_count; ++j) {
+            uint64_t hits = image->layers[i].intervention_hits[j];
+            if (layer->descriptor->interventions == NULL ||
+                hits > layer->descriptor->interventions[j].max_hits ||
+                UINT64_MAX - total < hits) {
+                semu_error_set(error, SEMU_ERR_FORMAT, "invalid snapshot intervention hits");
+                return SEMU_ERR_FORMAT;
+            }
+            total += hits;
+        }
+        /* semu_layer_hit can also record hits without an intervention. */
+        if (total > image->layers[i].hits) {
+            semu_error_set(error, SEMU_ERR_FORMAT, "snapshot intervention hits exceed total");
+            return SEMU_ERR_FORMAT;
         }
     }
     machine->instruction_epoch = image->instruction_epoch;

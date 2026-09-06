@@ -13,6 +13,70 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-COMPAT-ATOMIC-001
+
+2026-09-06; synthetic C regressions against `cb875c4`, in-tree interpreter,
+no firmware bytes required. `tests/devices/test_sapporo_cxd5610_atomic.c`
+demonstrates that a refusing exchange previously cleared a buffered five-byte
+`@VER\r` prefix and traced the rejected final newline. WAIT had the same
+problem. Delayed-RX time/ID/sequence exhaustion changed serialized event
+context even though insertion failed and the scheduler retained no event.
+The 2.22 startup response provider also consumed its one-hit counter and log
+before discovering that the RX deadline overflowed.
+
+`tests/unit/test_machine_snapshot_layers.c` demonstrates that machine snapshot
+load accepted excessive aggregate/intervention counts, a sum larger than the
+aggregate, and a wrapping sum. Intervention commit also ignored the aggregate
+limit and could wrap its unsigned total. These are emulator bookkeeping and
+transaction-boundary defects, not observations about physical GPS hardware.
+The unchanged 2.22 table has nine one-shot interventions and eleven awake
+pulses: aggregate twenty, while stale runtime/profile metadata said seven/one.
+The fix aligns metadata with those existing limits; no individual allowance,
+fixture body, firmware hook or event delay is expanded.
+
+Transport now calls the exchange before committing/tracing the final fragment;
+non-success retains the prefix for a retry. Exchange callbacks own their side
+effects and must schedule responses, not deliver synchronous RX. Delayed RX
+commits its bytes/context only after successful scheduler insertion, which
+does not invoke callbacks inline. The legacy startup provider preflights its
+budget and records its hit only after scheduling succeeds. Snapshot restore
+checks budgets and sums without changing the wire format; direct layer hits
+remain allowed, so intervention sum may be less than aggregate. The future
+2.39 GPS layer still needs its own startup-before-reply lifecycle validator.
+
+All six new cases fail on the corresponding old behavior and pass after the
+corrections. `make check` and `make sanitize` each pass 746 tests; task
+contracts validate 126 tickets, and line checks pass with existing review
+warnings. Full-machine section comparisons verify rejected loads leave CPU,
+RAM, time, events, devices, storage, compatibility and renderer state intact.
+Transport tests cover refusal/WAIT retry, time/ID/sequence exhaustion, busy RX,
+successful delayed delivery, and legacy-provider counter/log atomicity.
+Allocator failure itself is not fault-injected; the same scheduling-error
+return precedes RX mutation for that failure as well.
+
+An independently built `cb875c4` CLI and the changed CLI, using validated
+Sapporo 2.22 components and `--layer sapporo-2.22-no-device`, produce identical
+logs/snapshots with `--max-instructions 450900000 --max-time 30000000000`:
+PC `0x000bf0ee`, time 3,760,805,450 ns, log SHA-256
+`fb1019a0bdcd1bf03d38fb562e5193cb0d2eddb6d0c929713d967f95e11de1d9`,
+snapshot `66bf69fbde073741659ea277cc67f6ef54156f6920a0a9980facef14d98f940b`.
+Both binaries load that old snapshot and continue identically to instruction
+450,910,000, PC `0x0009aaa4`, time 3,760,815,450 ns. Continuation log/snapshot
+SHA-256 are `bc67d51cc5923cf7a1767071391c5d24ba031b75d0f8b6da811862f781bde382`
+and `90f1e00e7a37ecf2ad0c06ee1dbcce0a98f197564d147815e3a89e9d5fd76345`.
+These are current-build equality probes, not replacement release goldens.
+Local logs, snapshots and the comparison checkout stay outside Git.
+
+The exact private `sapporo_239_activity_budget` runner also passes: both cold
+starts, boot-logo and continuation hashes, intermediate snapshot resume, and
+native GPS halt retain E-SAP-COMPAT-ACTIVITY-239-001. All three components are
+validated before execution; full flash remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Confidence is high for these synthetic refusals and retained private
+checkpoints. Unsupported commands, later GPS lifecycle behavior and physical
+receiver fidelity remain unchanged; this maintenance does not implement 756's
+new GPS layer or authorize a new startup-state response.
+
 ### E-SAP-COMPAT-GPS-STARTUP-239-001
 
 2026-09-06; read-only disassembly of Sapporo `2.39.20.22297-P` application

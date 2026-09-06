@@ -139,18 +139,20 @@ static semu_transaction_result transfer(void *context,
                                "CXD5610 request has no response fixture");
                 return SEMU_TRANSACTION_REFUSE;
             }
-            memcpy(transport->pending, candidate, candidate_count);
-            transport->pending_count = 0u;
+            uint64_t generation = transport->generation;
+            result = transport->exchange(transport->exchange_context,
+                                          candidate, candidate_count,
+                                          transport, error);
+            if (result != SEMU_TRANSACTION_OK) return result;
+            if (generation == transport->generation) {
+                memcpy(transport->pending, candidate, candidate_count);
+                transport->pending_count = 0u;
+            }
             for (size_t byte = 0u; byte < transaction->tx_size; ++byte) {
                 trace_byte(transport, SEMU_SAPPORO_CXD5610_TX,
                            transaction->tx[byte]);
             }
-            result = transport->exchange(transport->exchange_context,
-                                          candidate, candidate_count,
-                                          transport, error);
-            if (result == SEMU_TRANSACTION_OK) {
-                semu_error_clear(error);
-            }
+            semu_error_clear(error);
             return result;
         }
     }
@@ -279,17 +281,17 @@ semu_status semu_sapporo_cxd5610_inject_rx_after(
         return SEMU_ERR_ARGUMENT;
     }
     semu_cxd_event *event = &transport->rx_event_context;
-    event->kind = 1u;
-    event->generation = transport->generation;
-    memcpy(transport->rx, bytes, count);
-    transport->rx_count = count;
+    /* Scheduling never invokes the callback inline. Commit RX only on success. */
     if (semu_scheduler_schedule_tagged(transport->scheduler, delay_ns,
                                  SEMU_SCHED_EVENT_CXD_RX, 0u,
                                  scheduled_event, event,
                                  &transport->rx_event, error) != SEMU_OK) {
-        transport->rx_count = 0u;
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
+    event->kind = 1u;
+    event->generation = transport->generation;
+    memcpy(transport->rx, bytes, count);
+    transport->rx_count = count;
     semu_error_clear(error);
     return SEMU_OK;
 }

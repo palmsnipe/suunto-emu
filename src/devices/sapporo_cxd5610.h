@@ -25,6 +25,9 @@ typedef void (*semu_sapporo_cxd5610_byte_fn)(
 typedef void (*semu_sapporo_cxd5610_trace_fn)(
     void *context, semu_sapporo_cxd5610_trace_direction direction,
     uint8_t value, uint64_t virtual_time_ns);
+/* Exchange callbacks must leave their state unchanged on WAIT/REFUSE and
+ * schedule responses rather than delivering RX synchronously. The transport
+ * commits the final TX fragment and traces it only after acceptance. */
 typedef semu_transaction_result (*semu_sapporo_cxd5610_exchange_fn)(
     void *context, const uint8_t *request, size_t count,
     semu_sapporo_cxd5610 *transport, semu_error *error);

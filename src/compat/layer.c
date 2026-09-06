@@ -115,7 +115,7 @@ semu_status semu_layer_intervention_hit(semu_layer_state *state,
         return SEMU_ERR_RANGE;
     }
     iv = (semu_layer_intervention *)&desc->interventions[intervention_index];
-    if (iv->hits >= iv->max_hits) {
+    if (iv->hits >= iv->max_hits || state->hits >= desc->maximum_hits) {
         semu_error_set(error, SEMU_ERR_STATE,
                        "layer %s trigger %s exceeded budget",
                        desc->id, iv->trigger_id);
