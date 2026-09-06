@@ -292,3 +292,56 @@ machine/frontend/mock callback migration. `nema_gpu_atomic` and `nema_refusal`
 are not implemented or claimed run. The original whole-GPU probe still exits
 1, now with two failures (later-child frame and partial completion admission).
 No extra integration authority is requested. Do not mark ticket 761 done.
+
+### Partial Implementation — GPU/Machine Transaction Integration
+
+2026-09-06. Committed the prior backend slice as `0e8900d`; this continuation
+remains uncommitted and ticket status/index are unchanged. Whole-ring GPU
+submission now collects children/markers, prepares all children through the
+public backend operations and atomically admits completion events before any
+frame/register/stop/generation commit. Refusal propagates the first diagnostic
+and preserves retry state. Missing configuration, WAIT/invalid results and
+reentrant GPU writes/reset/snapshot refuse; machine reset checks the same guard
+before changing epochs. Bootstrap, success callback order, marker-only timing,
+repeated stops and snapshot encoding retain their prior behavior.
+
+Changed files: `include/semu/machine.h`, `src/boards/machine.c`,
+`src/boards/machine_internal.h`, `src/frontends/cli.c`,
+`src/devices/sapporo_nema_gpu.c`, `.h`, `_internal.h`, new `_submission.c`
+and `_snapshot.c`; `tests/devices/test_nema_gpu.c`, `_snapshot.c`, new
+`_atomic.c`; `tests/unit/test_transcript.c`,
+`tests/unit/test_sapporo_239_gps_awake_snapshot.c`, new
+`tests/integration/test_nema_refusal.c`; execution model, status, evidence
+ledger and this handoff. No CPU/bus, Makefile, profile or registry edits.
+
+Evidence: E-EMU-NEMA-ATOMIC-001, E-NEMA-RING-001, E-NEMA-LISTS-001,
+architecture/execution contracts; results and observer adaptation are recorded
+in E-EMU-NEMA-GPU-001. Two GPU regressions fail before migration (MMIO falsely
+succeeds and consumes partially published/admitted work). Six final GPU cases
+cover later-child refusal/retry/repeat, completion ID/deadline/sequence failure,
+marker payloads resembling opcodes, event order/reset, NULL error, callback
+diagnostics/results, reentrancy and missing scheduler/backend operations.
+The bounded CPU test executes exactly two steps: valid submission continues;
+refusal takes the existing precise BusFault/HardFault path, with CFSR `8200`
+and BFAR `400900ec`, without modifying CPU fault policy.
+
+The original five-scenario probe, adapted only to the public constructor,
+reports zero failures on two normal runs and one sanitizer run. Both exact
+private gates above pass. The adapted read-only observer runs two cold middle
+probes and the 700M-prefix resume with identical historical trace/pixel/snapshot
+pins and endpoint; exact source hashes and commands are in the evidence entry.
+
+Remaining acceptance: strict framing/wrap/odd-tail audit (including direct
+fallback and non-power-of-two wrap arithmetic), whole-operation allocation
+fault injection beyond the existing component allocator tests, and final
+malformed-input/lifecycle acceptance review. Legacy permissive width handling
+is not corrected or endorsed by this slice. No additional integration-owned
+change or authority is requested. Do not mark ticket 761 done.
+
+Commands/results: all exact ticket commands above pass with actual selection:
+backend atomic 7, GPU atomic 6, completion atomic 5, scheduler batch 4, CPU
+refusal 1, NEMA 86, transcript 91, machine snapshot 4. `make check` and
+`make sanitize` each pass 803 tests; `make check-task-contracts` validates
+130 tickets; `make check-lines` has no hard-limit violations. `make sdl`
+and both private gate commands pass. Observer/probe commands and unchanged
+hashes are recorded in E-EMU-NEMA-GPU-001; no acceptance pin was weakened.

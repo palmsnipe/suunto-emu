@@ -26,7 +26,10 @@ typedef struct semu_machine_options {
     semu_logger *logger;
     semu_frame_callback frame_callback;
     void *frame_context;
-    semu_display_backend_submit_fn display_backend_submit;
+    /* Operations are copied at creation. Backend/frame contexts remain
+     * caller-owned and must outlive the machine; see display.h for callback
+     * restrictions. NULL permits configuration but refuses active rendering. */
+    const semu_display_backend_ops *display_backend;
     void *display_backend_context;
     /* Optional validated private 32-MiB Sapporo flash image. */
     const char *external_flash_path;

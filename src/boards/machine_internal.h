@@ -23,7 +23,7 @@ struct semu_machine {
     semu_storage *flash_storage;
     semu_nema_gpu *nema_gpu;
     semu_sapporo_239_files *sapporo_239_files;
-    semu_display_backend_submit_fn display_backend_submit;
+    const semu_display_backend_ops *display_backend;
     void *display_backend_context;
     semu_frame_callback frame_callback;
     void *frame_context;

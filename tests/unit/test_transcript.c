@@ -48,22 +48,24 @@ static semu_transaction_result request_sink(
 }
 
 static semu_transaction_result display_backend(
-    void *context, semu_bus *bus, uint32_t command_ring_address,
-    uint32_t command_word_count, uint64_t virtual_time_ns,
+    void *context, semu_bus *bus, const semu_display_list *lists,
+    size_t count, uint64_t virtual_time_ns,
     semu_frame_callback frame_callback, void *frame_context,
     semu_error *error)
 {
     unsigned *calls = (unsigned *)context;
     (void)bus;
-    (void)command_ring_address;
-    (void)command_word_count;
+    (void)lists;
+    (void)count;
     (void)virtual_time_ns;
     (void)frame_callback;
     (void)frame_context;
     (void)error;
     ++*calls;
-    return SEMU_TRANSACTION_WAIT;
+    return SEMU_TRANSACTION_OK;
 }
+
+static void display_finish(void *context) { (void)context; }
 
 static void test_frozen_callbacks_and_options(semu_test_context *context)
 {
@@ -86,17 +88,19 @@ static void test_frozen_callbacks_and_options(semu_test_context *context)
         semu_peripheral_reset_fn reset = reset_callback;
         semu_peripheral_signal_fn signal = signal_callback;
         semu_dma_request_sink_fn sink = request_sink;
-        semu_display_backend_submit_fn backend = display_backend;
+        const semu_display_backend_ops backend = {display_backend, display_finish, display_finish};
+        const semu_display_list list = {0x2000u, 8u};
         reset(&reset_calls);
         signal(&signal_value, 3u, 1);
         SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
                          sink(&sink_calls, &request, &error));
-        options.display_backend_submit = backend;
+        options.display_backend = &backend;
         options.display_backend_context = &backend_calls;
-        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_WAIT,
-                         options.display_backend_submit(
-                             options.display_backend_context, NULL, 0x2000u,
-                             8u, 9u, NULL, NULL, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         options.display_backend->prepare(
+                             options.display_backend_context, NULL, &list,
+                             1u, 9u, NULL, NULL, &error));
+        options.display_backend->commit(options.display_backend_context);
     }
     request.completion(request.completion_context, SEMU_TRANSACTION_OK);
     SEMU_TEST_EQ_U64(context, 1u, reset_calls);
@@ -105,7 +109,7 @@ static void test_frozen_callbacks_and_options(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, backend_calls);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, completion);
     memset(&options, 0, sizeof(options));
-    SEMU_TEST_ASSERT(context, options.display_backend_submit == NULL &&
+    SEMU_TEST_ASSERT(context, options.display_backend == NULL &&
                      options.display_backend_context == NULL);
 }
 

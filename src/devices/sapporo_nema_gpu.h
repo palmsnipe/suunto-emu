@@ -24,7 +24,7 @@
 typedef struct semu_nema_gpu semu_nema_gpu;
 
 semu_nema_gpu *semu_nema_gpu_create(semu_bus *bus,
-    semu_display_backend_submit_fn backend_submit,
+    const semu_display_backend_ops *backend,
     void *backend_context,
     semu_frame_callback frame_callback,
     void *frame_context,
@@ -34,7 +34,11 @@ semu_nema_gpu *semu_nema_gpu_create(semu_bus *bus,
     semu_error *error);
 
 void semu_nema_gpu_destroy(semu_nema_gpu *gpu);
-void semu_nema_gpu_reset(semu_nema_gpu *gpu);
+/* Constructor copies the complete ops table; context/callback owners must
+ * outlive the GPU. NULL backend permits configuration, not active rendering.
+ * Reentrant reset/submission/snapshot refuses before mutation. */
+semu_status semu_nema_gpu_reset(semu_nema_gpu *gpu);
+int semu_nema_gpu_busy(const semu_nema_gpu *gpu);
 
 semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error);
 semu_status semu_nema_gpu_snapshot_write(

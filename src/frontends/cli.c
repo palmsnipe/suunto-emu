@@ -387,7 +387,7 @@ static int command_run(const run_arguments *arguments,
             options.frame_context = &frame_gate;
         }
     }
-    options.display_backend_submit = semu_nema_backend_submit;
+    options.display_backend = &semu_nema_backend_ops;
     options.display_backend_context = backend;
     options.external_flash_path = arguments->full_flash;
     options.input_poll = input_poll;

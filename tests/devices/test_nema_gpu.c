@@ -172,7 +172,7 @@ static void test_render_trigger(semu_test_context *context)
     SEMU_TEST_ASSERT(context, bus != NULL);
     backend = semu_nema_backend_create(&err);
     SEMU_TEST_ASSERT(context, backend != NULL);
-    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+    gpu = semu_nema_gpu_create(bus, &semu_nema_backend_ops, backend,
                                 test_frame_cb, NULL,
                                 test_irq_sink, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
@@ -235,7 +235,7 @@ static void test_bootstrap_skipped(semu_test_context *context)
     SEMU_TEST_ASSERT(context, bus != NULL);
     backend = semu_nema_backend_create(&err);
     SEMU_TEST_ASSERT(context, backend != NULL);
-    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+    gpu = semu_nema_gpu_create(bus, &semu_nema_backend_ops, backend,
                                 test_frame_cb, NULL,
                                 test_irq_sink, NULL, NULL, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
@@ -303,7 +303,7 @@ static void test_ring_completion_marker(semu_test_context *context)
     backend = semu_nema_backend_create(&err);
     SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
                      backend != NULL);
-    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+    gpu = semu_nema_gpu_create(bus, &semu_nema_backend_ops, backend,
                                 test_frame_cb, NULL, test_irq_sink, NULL,
                                 scheduler, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
@@ -360,7 +360,7 @@ static void test_ring_completion_refuses_marker_mismatch(
     backend = semu_nema_backend_create(&err);
     SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
                      backend != NULL);
-    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+    gpu = semu_nema_gpu_create(bus, &semu_nema_backend_ops, backend,
                                 test_frame_cb, NULL, test_irq_sink, NULL,
                                 scheduler, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);
@@ -405,7 +405,7 @@ static void test_ring_completion_refuses_bad_size(semu_test_context *context)
     backend = semu_nema_backend_create(&err);
     SEMU_TEST_ASSERT(context, bus != NULL && scheduler != NULL &&
                      backend != NULL);
-    gpu = semu_nema_gpu_create(bus, semu_nema_backend_submit, backend,
+    gpu = semu_nema_gpu_create(bus, &semu_nema_backend_ops, backend,
                                 test_frame_cb, NULL, test_irq_sink, NULL,
                                 scheduler, &err);
     SEMU_TEST_ASSERT(context, gpu != NULL);

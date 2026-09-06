@@ -97,7 +97,7 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
         return error->code;
     }
     machine->nema_gpu = semu_nema_gpu_create(machine->bus,
-        machine->display_backend_submit, machine->display_backend_context,
+        machine->display_backend, machine->display_backend_context,
         machine->frame_callback, machine->frame_context,
         irq_sink, machine, machine->scheduler, error);
     if (machine->nema_gpu == NULL) {
@@ -252,7 +252,7 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->profile = *options->profile;
     machine->firmware = *options->firmware;
     machine->logger = options->logger;
-    machine->display_backend_submit = options->display_backend_submit;
+    machine->display_backend = options->display_backend;
     machine->display_backend_context = options->display_backend_context;
     machine->frame_callback = options->frame_callback;
     machine->frame_context = options->frame_context;
@@ -305,6 +305,10 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
     if (machine == NULL || machine->cpu == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "cannot reset null machine");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_nema_gpu_busy(machine->nema_gpu)) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "machine: reset during GPU submission");
+        return SEMU_ERR_CONFLICT;
     }
     if (semu_manifest_validate(&machine->profile, &machine->firmware,
                                error) != SEMU_OK) {
@@ -362,6 +366,10 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
     if (machine == NULL || machine->cpu == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "cannot reset null machine");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_nema_gpu_busy(machine->nema_gpu)) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "machine: reset during GPU submission");
+        return SEMU_ERR_CONFLICT;
     }
     machine->instruction_epoch = 0u;
     machine->virtual_time_epoch = 0u;

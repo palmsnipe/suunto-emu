@@ -56,9 +56,8 @@ events whose ID, callback and context still belong to that completion owner;
 scheduler-reset ID reuse cannot cancel an unrelated event. The scheduler
 must outlive its active completion owner. Restored completion state is rebound
 to the target scheduler before its events are restored; this borrowed binding
-is transient and is not serialized. These are ticket 761's scheduler/completion
-foundations, not yet whole-ring GPU atomicity: GPU marker scanning still uses
-single admissions and whole-ring transaction/error propagation remains pending.
+is transient and is not serialized. GPU submissions use one batch for all
+completion markers, after all child lists prepare and before publication.
 
 The display contract now also has bounded prepare/commit/abort operations.
 The NEMA backend prepares up to 32 ordered lists in instance-owned staging:
@@ -77,9 +76,26 @@ immutable and borrowed for that call. Reentrant prepare and reset refuse;
 callbacks must not execute/reset the guest, destroy owners, mutate the bus,
 or recursively commit/abort. Backend reset returns CONFLICT while a transaction
 is active; destruction outside callbacks releases any pending staging.
-Transient staging is not encoded in machine snapshots. GPU/machine caller
-migration, strict whole-ring framing and marker admission remain ticket 761's
-next integration slice; the existing GPU still uses the single-list callback.
+Transient staging is not encoded in machine snapshots. Machine options and
+GPU construction use the public operations table, copied at creation; the
+single-list callback remains only a backend convenience entry point.
+
+An active CMDRINGSTOP write collects the child lists and completion markers,
+prepares all children in one backend transaction, then atomically admits all
+markers. Only after successful admission does it commit frames and consume
+the stop pointer/generation. Refusal preserves those values and the queue,
+publishes no frame/IRQ and returns the original error through MMIO. Unexpected
+WAIT/invalid callback results and missing backend configuration refuse with
+a bounded fallback diagnostic; corrected retries of the same stop execute.
+Successful repeated stops remain no-ops. Marker-only work retains its delayed
+completion; direct-list work retains its immediate IRQ and bootstrap has none.
+Reentrant GPU writes/reset/snapshot and machine reset refuse before mutation.
+Guest execution, bus mutation, owner destruction and scheduler dispatch/reset
+from a frame callback remain unsupported, as required by display.h.
+
+This is ticket 761's transaction-integration checkpoint, not complete strict
+input validation. Legacy ring padding/wrap and unmatched-tail acceptance still
+need evidence-backed audit; no new ring syntax or hardware behavior is inferred.
 
 ## Reset and Run
 

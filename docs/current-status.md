@@ -1131,6 +1131,27 @@ GPU/machine callers have not yet migrated. Ticket 761 is not complete and its
 status remains unchanged. No budget, fixture, physical-panel claim or golden
 is extended.
 
+## NEMA GPU Transaction Integration (Ticket 761, Partial)
+
+Commit `0e8900d` records the backend foundation. The continuation migrates
+GPU/machine/CLI callers to the public transaction operations: prepare all
+children, admit all markers, then commit frames/registers/stop/generation.
+Later-child and completion-admission refusals now preserve the GPU snapshot,
+emit no frames and allow a corrected same-stop retry. Original errors reach
+MMIO; missing backend/scheduler and unexpected callback results refuse.
+Reentrant GPU reset/write/snapshot and machine reset are guarded. GPU lifecycle,
+submission and snapshot responsibilities are split with unchanged codec bytes.
+
+E-EMU-NEMA-GPU-001 records the two failing pre-migration regressions, six final
+GPU cases and the two-instruction synthetic CPU success/fault test. The original
+five-scenario probe now reports zero failures on repeated normal and sanitizer
+runs. All 803 normal and sanitizer tests pass. Both private firmware gates and two cold/prefix-resumed language-screen
+probes preserve the exact earlier pins, including CRC `6b6aa2dc`.
+
+Ticket 761 remains incomplete: strict ring/wrap/odd-tail validation, composed
+allocation-failure coverage and the final acceptance audit remain. No ticket
+status, golden, budget, firmware data or CPU/bus policy changes.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1141,7 +1162,8 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
   under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
-  ownership covers the remaining whole-ring GPU/machine migration; do not
+  ownership now covers the migrated whole-ring GPU/machine transaction. Finish
+  strict framing/tail validation and composed fault-injection coverage; do not
   work around the opaque backend with a private API. Sampling clipping is
   already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
   historical checkpoints; do not hide changes by re-pinning.

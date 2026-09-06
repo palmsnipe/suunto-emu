@@ -13,6 +13,123 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-GPU-001
+
+2026-09-06; partial ticket 761 integration on backend commit `0e8900d`.
+Sources: E-EMU-NEMA-ATOMIC-001's original synthetic probe, architecture/
+execution contracts and the in-tree GPU/backend/completion implementation.
+E-NEMA-RING-001 and E-NEMA-LISTS-001 remain the native interpretation evidence.
+No new register, command, physical timing or panel behavior is inferred.
+
+Two narrow GPU tests fail before migration: later-child refusal and second
+completion admission both return successful MMIO with partial effects.
+GPU/machine/CLI now use the public prepare/commit/abort operations. A submission
+collects children and markers, prepares all child output, admits all completion
+events in one batch and only then commits frames/registers/stop/generation.
+Refusal preserves retry state and returns the original diagnostic. Empty-error
+REFUSE, unexpected WAIT/invalid results and missing backend refuse explicitly.
+Missing completion scheduling configuration refuses before backend preparation.
+NULL error sinks work; reentrant GPU write/reset/snapshot and machine reset
+conflict before mutation. GPU snapshot bytes and native success paths remain.
+
+Six GPU cases pass, covering those failures plus corrected same-stop retry,
+repeated-stop no-op, marker payload/opcode separation, ID/sequence/deadline
+exhaustion, event order/reset, original/fallback callback errors, reentrancy and
+missing configuration. A synthetic STR/BKPT guest tests the unchanged CPU/bus
+path in exactly two steps: success continues at PC 0x102; refusal enters the
+installed HardFault handler at 0x180, with CFSR 0x8200 and BFAR 0x400900ec.
+The refused GPU snapshot is unchanged; no CPU/bus policy was edited.
+Confidence is high for these tested transaction invariants, not all malformed
+ring inputs. The ticket handoff lists every changed file.
+
+Validation (every focused group selects tests; all pass):
+
+```sh
+make test TEST_FILTER=nema_backend_atomic       # 7
+make test TEST_FILTER=nema_gpu_atomic           # 6
+make test TEST_FILTER=nema_completion_atomic    # 5
+make test TEST_FILTER=scheduler_batch           # 4
+make test TEST_FILTER=nema_refusal              # 1
+make test TEST_FILTER=nema                      # 86
+make test TEST_FILTER=transcript                # 91
+make test TEST_FILTER=machine_snapshot          # 4
+make check-task-contracts                      # 130 tickets
+make check-lines                              # no hard-limit violations
+make check                                    # 803 tests
+make sanitize                                 # 803 tests
+make sdl
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_awake
+```
+
+The original five-scenario probe is copied externally and changes only its GPU
+constructor argument from the convenience callback to the public ops table.
+Its new SHA-256 is
+`f171b64a7f67e1c7e00ba0e1fbc43ab75007f0bba05f4d46891a4fd02ca7ee59`.
+Two normal runs and one ASan/UBSan run report identical results:
+
+```text
+refused-list result=2 error=6 pixel=001f frames=1
+inherited-after-refusal pixel=001f expected=001f
+children refuse=0 status=0 error=0 frames=2 pixel=001f
+children refuse=1 status=6 error=6 frames=0 pixel=0000
+markers exhaust=0 status=0 error=0 pending=2 next_id=3
+markers exhaust=1 status=4 error=4 pending=0 next_id=18446744073709551614
+atomicity-failures=0
+```
+
+The read-only observer is adapted to prepare/commit/abort without changing
+guest input, timing or state. Its renderer wrapper records draws during prepare
+and successful submission records after commit; the authentic single-child
+submissions retain their exact historical trace ordering. Revised source pins:
+
+- `render-probe.c`: `b59e73c8220beaade48cee629a1da3b5f8b93b8b47a1cc6cd0be1a2e4ee32ab7`.
+- Included `ui-probe.c`: `6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`.
+
+Exact external commands (sources/artifacts stay outside Git):
+
+```sh
+probe_dir=/tmp/semu-761-gpu.aQow5X
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc /tmp/semu-761-gpu.aQow5X/atomic-probe.c build/libsemu.a -o "$probe_dir/atomic-probe"
+"$probe_dir/atomic-probe"
+"$probe_dir/atomic-probe"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc /tmp/semu-761-gpu.aQow5X/atomic-probe.c build/sanitize/libsemu.a -o "$probe_dir/atomic-probe-san"
+"$probe_dir/atomic-probe-san"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-gpu.aQow5X/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+Private components are validated before execution; firmware identities remain
+the existing manifest pins. Full-flash SHA-256 remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+The 2.22 gate retains stop `user`, PC `000bacf4`, 774081920 instructions,
+6520939902 ns and all E-SAP-ONBOARD-EMU-012 frame/log pins. The 2.39 awake
+gate retains all four pulse/snapshot phases and the intentional fifth-hit
+refusal: PC `001291cc`, 1272353867 instructions, 32770943068 ns,
+log SHA-256 `06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot SHA-256 `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+
+All 79 cold and 76 resumed language submissions succeed. Both cold traces and
+all three final pixel/snapshot artifacts retain E-EMU-SAMPLING-CLIP-001 pins:
+
+- Cold trace: `a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+- RGB565: `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`.
+- Snapshot: `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+
+Last changed cold frame: generation 79, CRC `6b6aa2dc`, instruction
+1088274630 at 12335112985 ns. Endpoint: 1300000000 instructions,
+22286110403 ns, PC `000a7abc`, GPS hits `2,2,3`. Cold frames/changes
+remain 79/62; resume 76/60. No private bytes or new goldens enter Git.
+
+Remaining: strict ring/wrap/unmatched-tail validation, non-power-of-two wrap
+arithmetic and direct fallback review; composed whole-operation deterministic
+allocation-failure coverage beyond the component tests; malformed-input and
+lifecycle acceptance audit. Legacy unsupported-width handling is unchanged,
+not endorsed. Callback guest execution/destruction/bus mutation is unsupported.
+No extra integration authority is requested. Ticket 761 is not complete.
+
 ### E-EMU-NEMA-BACKEND-001
 
 2026-09-06; partial ticket 761 implementation on foundation commit `ce0e529`.

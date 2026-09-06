@@ -25,21 +25,26 @@ typedef struct snapshot_fixture {
 } snapshot_fixture;
 
 static semu_transaction_result accept_submission(
-    void *context, semu_bus *bus, uint32_t command_ring_address,
-    uint32_t command_word_count, uint64_t virtual_time_ns,
+    void *context, semu_bus *bus, const semu_display_list *lists,
+    size_t count, uint64_t virtual_time_ns,
     semu_frame_callback frame_callback, void *frame_context,
     semu_error *error)
 {
     (void)context;
     (void)bus;
-    (void)command_ring_address;
-    (void)command_word_count;
+    (void)lists;
+    (void)count;
     (void)virtual_time_ns;
     (void)frame_callback;
     (void)frame_context;
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
 }
+
+static void finish_submission(void *context) { (void)context; }
+static const semu_display_backend_ops accept_ops = {
+    accept_submission, finish_submission, finish_submission
+};
 
 static void irq_sink(void *context, unsigned irq, int level)
 {
@@ -60,7 +65,7 @@ static int fixture_init(snapshot_fixture *fixture)
         return 0;
     }
     fixture->gpu = semu_nema_gpu_create(
-        fixture->bus, accept_submission, NULL, NULL, NULL,
+        fixture->bus, &accept_ops, NULL, NULL, NULL,
         irq_sink, fixture, fixture->scheduler, &fixture->error);
     if (fixture->gpu == NULL ||
         semu_nema_gpu_attach(fixture->gpu, &fixture->error) != SEMU_OK) {
