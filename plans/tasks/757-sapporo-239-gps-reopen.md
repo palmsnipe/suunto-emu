@@ -1,6 +1,6 @@
 # 757 — Sapporo 2.39 GPS Reopen and Restart Integration
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 7
 **Dependencies:** 756,615,729
 
@@ -33,8 +33,8 @@ the reopen evidence entry.
 
 ## Current Baseline
 
-Ticket 756 is implemented and locally verified but awaits integrator review;
-do not implement this ticket until its dependencies are marked done.
+Ticket 756's `fa56b33` implementation has passed integrator review; all three
+dependencies are done. This ticket is ready for its bounded integration.
 The two-layer production baseline reaches the later pending-seven timeout
 and refuses the consumed startup hook at instruction 908,321,039 /
 14,978,258,084 ns. External experiments prove one later status and exact
@@ -54,6 +54,7 @@ refusal. No corresponding production response exists yet.
 - `tests/unit/test_sapporo_239_gps_reopen.c`
 - `tests/unit/test_sapporo_239_gps_reopen_snapshot.c`
 - `tests/unit/test_sapporo_profile_239.c`
+- `tests/unit/test_sapporo_239_gps.c` (profile enumeration assertion only)
 - `tests/integration/test_firmware_sapporo_239_gps_reopen.sh`
 - `docs/current-status.md`, `docs/migration-evidence.md`
 - `plans/tasks/757-sapporo-239-gps-reopen.md`
@@ -157,6 +158,11 @@ renderer changes, implicit activation or snapshot migration. No proprietary
 bytes, pixels or private artifacts in Git. Do not claim full GPS or settled UI.
 
 ## Handoff
+
+Integrator planning update, 2026-09-06: 756 is accepted and this ticket is
+ready. Updating the existing startup test's profile enumeration assertion is
+explicitly in scope when the third optional layer is added; no startup
+behavior or historical golden may change.
 
 Planning/evidence only; no new production behavior. Ticket 756's implementation
 and uncommitted changes are preserved. This ticket remains blocked until the

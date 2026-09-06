@@ -793,7 +793,7 @@ log suffix. Completed exchanges also resume deterministically to the later
 retry. One-layer images are rejected by two-layer configurations; historical
 one-layer logo/activity/halt goldens remain unchanged. All 752 normal and
 sanitizer tests and both private GPS/activity gates pass. The ticket index
-remains unchanged pending integrator review.
+now marks ticket 756 done after review of implementation commit `fa56b33`.
 
 This is initial GPS lifecycle progress, not full GPS or settled 2.39 UI.
 The distinct later reopen sets pending state seven at instruction 672,044,891;
@@ -810,8 +810,8 @@ and wrong-prefix controls still time out. The later liveness-recovery command
 `@GSTP\r\n` is the next precise UART refusal, at instruction 940,963,736 /
 16,349,008,531 ns. These are external experiments, not an enabled emulator
 feature or physical receiver transcript. Ticket 757 records the integration
-contract and waits on ticket 756's integrator review; existing production
-checkpoints and uncommitted implementation changes are preserved.
+contract and is ready following ticket 756's integrator review; existing
+production checkpoints and the committed startup implementation are preserved.
 
 ## Next Actionable Work
 
@@ -821,7 +821,7 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Integrator review of ticket 756, then ticket 757's separate, two-response
+- Implement ticket 757's separate, two-response
   GPS reopen/GSR layer using E-SAP-COMPAT-GPS-REOPEN-239-001. Do not reuse the
   exhausted startup fixture, add later GSTP/liveness behavior or transplant
   2.22 hooks. Keep the normal NEMA backend attached and preserve historical

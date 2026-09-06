@@ -1,6 +1,6 @@
 # 756 — Sapporo 2.39 GPS Startup Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 416,615,729
 
@@ -159,6 +159,14 @@ Do not claim full GPS, settled 2.39 setup or a functional release from states
 14/15 alone. Existing ticket statuses remain integrator-owned.
 
 ## Handoff
+
+Integrator review, 2026-09-06: accepted implementation commit `fa56b33` against
+the exact predicates, instance ownership, reset/restore binding, atomic counter
+validation, synthetic refusal tests and private startup/activity acceptance.
+The recorded 752-case normal/sanitizer runs and both no-skip private gates
+cover the ticket; no outstanding acceptance item or firmware artifact remains.
+This planning-only review marks 756 done and makes dependent 757 ready.
+Later pending-seven/GSR/GSTP behavior is not part of this acceptance.
 
 At ticket creation the new GPS layer was not implemented. Dependencies 416, 615 and 729
 are done in the index. The initial integration contract is grounded in the
