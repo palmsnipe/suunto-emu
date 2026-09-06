@@ -724,6 +724,33 @@ regenerated from reset or a pre-install checkpoint. Layer-off and pre-install
 execution retain their hashes; historical defective-fixture hashes are not
 silently re-pinned.
 
+Ticket 754 measures and enables exactly 21 post-logo activity operations
+(E-SAP-COMPAT-ACTIVITY-239-001): nine on `actitmln/247.bin`, twelve on
+`actitmln/ongoing.bin`. The firmware updates records and headers, then closes
+both files, retaining sizes 46,112 and 152. Only the file ceiling changes to
+76,279 (aggregate 76,282); no paths, modes, bytes, status translations,
+snapshot format or other budgets change. The new regression fails at the old
+ceiling and passes at the new one, including atomic excess refusal. All 740
+normal and sanitizer tests pass.
+
+The rendering-backed production continuation reaches
+`stop=budget pc=0x00079e1c instructions=932397949 virtual_time_ns=11388431926`:
+log SHA-256 `3a625809c79c1fdb8937ac36cd6e912b026ffcdc8fbc80c7ed888680d8bb11a7`,
+snapshot `8d9b262474b00c6c0a2b5423ce4100363eb4582a96205eae8d045b70c8ae50a7`.
+The next instruction executes native BKPT, halting at PC `0x00079e1e`,
+instruction 932,397,950 / 11,388,431,927 ns. A read-only trace with the normal
+NEMA backend identifies `CXD5610GF-driver.cpp:910`, LR `0x00128f55`;
+the native branch increments a retry byte and asserts at three. The missing
+GPS exchange/state transition still needs recovery. No reset or extra file
+operation occurs after the 21 updates; no settled or interactive 2.39 UI is
+claimed. Existing boot-logo hashes remain the required prefix.
+
+An initial backend-less diagnostic instead reaches mode ten for `wui_dump.bin`
+at 639,161,545 instructions. This is not the production CLI boundary: attaching
+the CLI's NEMA backend reproduces the GPS halt exactly. Earlier backend-less
+diagnostics and rendering-backed checkpoints must not be mixed. The unknown
+dump mode/path remains refused; this task does not implement it.
+
 A fresh current-build snapshot/frame-loop baseline was measured on 2026-08-20
 with the external Sapporo 2.22 manifest (SHA-256 `ac9b381b...`) and a
 450,800,000-instruction checkpoint (snapshot SHA-256
@@ -745,11 +772,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Trace the post-logo Activity Timeline sequence beginning with update-open
-  of `actitmln/247.bin` at instruction 610,599,945 from the logo snapshot.
-  The corrected native Widgets value permits the first 2.39 boot-logo frame,
-  but the existing file budget refuses this next operation. Establish measured finite
-  requirements or an evidenced ABI defect before changing any budget.
+- Trace the 2.39 GPS-driver retry failure at `CXD5610GF-driver.cpp:910`,
+  LR `0x00128f55`, after the now-completed 21 post-logo activity operations.
+  The rendering-backed CLI reaches native BKPT at instruction 932,397,950 /
+  11,388,431,927 ns. Recover the missing GPS exchange/state transition before
+  changing device behavior or introducing compatibility. Keep the normal NEMA
+  backend attached in diagnostics; backend-less runs take a different path.
   Regenerate old JSON-bearing snapshots; no implicit migration is performed.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator

@@ -29,8 +29,8 @@ static semu_layer_intervention sapporo_239_interventions[] = {
       "E-SAP-COMPAT-WBSTO-239-001", 1u, 0u },
     { "logical-file",
       "retain one native public-file operation in session-local memory",
-      /* Native scan/file ceiling: E-SAP-COMPAT-ONGOING-239-001. */
-      "E-SAP-COMPAT-FILES-239-001", 76258u, 0u },
+      /* Native post-logo ceiling: E-SAP-COMPAT-ACTIVITY-239-001. */
+      "E-SAP-COMPAT-FILES-239-001", 76279u, 0u },
     { "wbsto-preload1-result",
       "translate exact WbStoPreload command-one result from 500 to 200",
       "E-SAP-COMPAT-PRELOAD1-239-001", 1u, 0u }
@@ -47,7 +47,7 @@ const semu_layer_descriptor semu_sapporo_239_wbsto_layer = {
     .interventions = sapporo_239_interventions,
     .intervention_count = sizeof(sapporo_239_interventions) /
                           sizeof(sapporo_239_interventions[0]),
-    .maximum_hits = 76261u
+    .maximum_hits = 76282u
 };
 
 typedef struct cache_record {

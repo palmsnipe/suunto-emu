@@ -69,6 +69,79 @@ including native copy output and status 200, with no diagnostic writes.
 Its log hash is
 `b38a60f1f5a64430ce074d63c601e85eb278cdad92dd0631f18a202595738328`.
 
+### E-SAP-COMPAT-ACTIVITY-239-001
+
+2026-09-06; exact application E-SAP-0011, pristine disassembly and bounded
+in-tree interpreter trace from rendered-logo snapshot SHA-256
+`30050924fa4986412226750eb422aaccfca934a485ad7813e349e6b1da8b01a3`.
+All three components validate and full flash retains SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+An external diagnostic executable raises only its process-local logical-file
+ceiling to 200,000, with absolute limits of one billion instructions and
+30 billion virtual nanoseconds; no guest RAM/CPU, mode, path or ABI edits.
+This initial diagnostic did not attach the CLI's NEMA rendering backend;
+its later dump request is not the production-renderer checkpoint.
+Trace SHA-256 `625a0d344fd50260f946d26b221384be85210732fe912dd89783ff47d4a241f8`,
+log `353df500ddaedd28c4f042db3273c8ad3ee4bdc9cd6d75c1177564b6cd75729f`.
+
+The suffix begins at instruction 610,599,945 / 2,149,556,528 ns. Database
+`actitmln/247.bin` performs nine operations: update-open, seek 32, two
+40-byte writes, seek zero, read 24, seek zero, write 24, close.
+`actitmln/ongoing.bin` performs twelve: the same sequence with an additional
+seek 72 and two 40-byte writes before the header read/update. Neither file
+grows: sizes remain 46,112 and 152. Both handles close, the last at instruction
+610,601,105 / 2,149,557,688 ns. Exactly 21 operations yield 76,279 file hits
+and 76,282 aggregate hits. No additional handled file operation occurs before
+the distinct refusal at instruction 639,161,545 / 3,146,465,889 ns:
+PC `0x000920b4`, LR `0x000843e9`, R0 `0x00079df4`, R1=10, `wui_dump.bin`.
+
+Pristine `0x000b9df8..0x000b9e30` opens the store path at +64 and closes
+after header synchronization. Record writer `0x000b9518..0x000b9584` checks
+capacity, seeks `32 + index * 40` via `0x000b94e0`, verifies each 40-byte
+write and advances the ring index before writing the next empty record.
+Header reader `0x000b938e..0x000b93b6` requires seek-zero success and 24
+bytes read; `0x000b932a..0x000b9356` validates and rewrites 24 bytes. The
+trace follows these success branches, not retries or an adapter ABI failure.
+
+Confidence is high for this finite update suffix and its measured ceiling.
+Ticket 754 may add exactly 21 hits, not diagnostic headroom. Preserve all
+native-created bytes, paths/capacities, ABIs, other budgets and frame/snapshot
+contracts. The dump request remains unsupported; its owner and native mode
+semantics need separate recovery. This establishes activity-update progress,
+not settled UI, provisioning or physical-panel behavior. Diagnostic source,
+trace and private snapshots stay outside Git. Validation uses synthetic
+activity-budget success/refusal tests and an exact private continuation gate.
+
+With the normal NEMA backend attached, a read-only single-step continuation
+from the production 639,161,545-instruction snapshot reproduces the CLI halt
+at instruction 932,397,950 / 11,388,431,927 ns, PC `0x00079e1e`.
+Trace SHA-256 `aa84252ae748aacf46edd677fc619b586e48420405b85d43f10d6f37c04ba21a`,
+log `8e1e8b051f5b7db1a111954e40c168bd7c52f6557618dd08d0bef7c07f07ccf8`.
+At instruction 932,397,654, assertion entry `0x00079e56` receives R0
+`0x00129d98` (native `CXD5610GF-driver.cpp`), R1=910, LR `0x00128f55`.
+Pristine `0x00128f30..0x00128f54` handles state/event value five, increments
+a byte counter at R4+2 and asserts when it reaches three. This independently
+identifies a GPS-driver failure, not a file-budget or dump-path refusal.
+The exact missing exchange/retry cause remains unproven; no GPS behavior is
+changed here. The missing backend also explains why earlier diagnostic-only
+paths must not be interchanged with rendering-backed CLI evidence.
+
+Production pre-BKPT checkpoint:
+`stop=budget pc=0x00079e1c instructions=932397949 virtual_time_ns=11388431926`.
+Log SHA-256 `3a625809c79c1fdb8937ac36cd6e912b026ffcdc8fbc80c7ed888680d8bb11a7`,
+snapshot `8d9b262474b00c6c0a2b5423ce4100363eb4582a96205eae8d045b70c8ae50a7`.
+All 21 activity operations have identical times/results in the diagnostic
+and production paths; no later logical-file operation or reset is observed.
+
+Ticket 754 verification: all 740 normal and sanitizer cases pass, including
+the failing-before/passing-after 21-operation synthetic regression and atomic
+budget refusal. The private runner validates all components before execution;
+two independently cold-started logo snapshots retain the exact historical
+hashes, both continuations match the new log/snapshot above, and a checkpoint
+after both updates resumes identically. One-step resume executes the real
+BKPT; source flash stays immutable. There are no new interventions or formats,
+and historical private goldens remain unchanged. No GPS fix is included.
+
 ### E-SAP-BOOT-LOGO-239-001
 
 2026-09-05; ticket 753 exact production runs using components E-SAP-0011,
