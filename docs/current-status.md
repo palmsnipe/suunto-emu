@@ -772,13 +772,18 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Trace the 2.39 GPS-driver retry failure at `CXD5610GF-driver.cpp:910`,
-  LR `0x00128f55`, after the now-completed 21 post-logo activity operations.
-  The rendering-backed CLI reaches native BKPT at instruction 932,397,950 /
-  11,388,431,927 ns. Recover the missing GPS exchange/state transition before
-  changing device behavior or introducing compatibility. Keep the normal NEMA
-  backend attached in diagnostics; backend-less runs take a different path.
-  Regenerate old JSON-bearing snapshots; no implicit migration is performed.
+- Implement ready integration ticket 756 for the initial 2.39 GPS lifecycle.
+  E-SAP-COMPAT-GPS-STARTUP-239-001 now proves that the native retry failure
+  starts with missing unsolicited status, before any command. In two identical
+  isolated diagnostics, one delayed synthetic `$PSS0000\r\n` startup line
+  triggers native `@VER\r\n`; one exact reply advances states 14 and 15 with
+  zero retries. A wrong-prefix control still asserts. This is evidence only:
+  production still halts at instruction 932,397,950 / 11,388,431,927 ns.
+  Ticket 756 owns explicit opt-in layer activation, version-scoped device
+  binding and snapshot tests; do not reuse 2.22 hooks. A later UART reopen
+  waits for state seven and remains unsupported. Keep the normal NEMA backend
+  attached and preserve historical one-layer checkpoints. Regenerate old
+  JSON-bearing snapshots; no implicit migration is performed.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

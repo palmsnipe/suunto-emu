@@ -13,6 +13,111 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-SAP-COMPAT-GPS-STARTUP-239-001
+
+2026-09-06; read-only disassembly of Sapporo `2.39.20.22297-P` application
+SHA-256 `85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`,
+all three validated components E-SAP-0011, immutable synthetic full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Local diagnostic artifacts below live in `$GPS_PROBE_ROOT` (external to Git).
+The read-only research `$FIRMWARE_ROOT/docs/research/cxd5610-gps-boundary.md`
+(`17f9f1e38ba16a38d43f945b0240b72046802fa063afcc8bed00b1ac5ea46eba`)
+and `cxd5610-live-epoch-cross-build.md`
+(`8b22fb8d660364668c929e174e742c3fb649d16db81da4b5b99b1bd0b5c846e4`)
+supplied hypotheses only; the following observations use the exact 2.39 guest.
+
+The production GPS failure is a missing unsolicited startup status, not a
+failed transmitted command. With the normal NEMA backend attached, the first
+UART open returns through `0x00128bf4` at instruction 357,025,317 /
+1,878,373,561 ns. Driver base is `0x100366d8`; its +0x220 UART object is
+`0x100472e8`, with callback `0x0012890f`. Startup helper `0x00128c8a`
+sets pending state two (+0x273) and arms timeout state four for 3,000 ms via
+`0x0012a764`. At `0x00128d14`, instruction 357,031,764 / 1,878,380,008 ns,
+R4 is the driver, +0x272 callback state is four, +0x273 pending state is two,
+and byte retry counter `0x100588a4` is zero. R0 is **zero**, not the helper's
+eventual success value: `0x00128d14` itself sets R0 to one. Do not predicate
+this boundary on R0 already being one.
+
+Without RX, timeout/close/reopen repeats without any GPS TX. The retry branch
+at `0x00128f30..0x00128f54` increments the counter and asserts at three:
+`0x00079e56`, LR `0x00128f55`, R0 points to `CXD5610GF-driver.cpp`, R1 is
+910. Ticket 754's unmodified production BKPT remains instruction 932,397,950 /
+11,388,431,927 ns, PC `0x00079e1e`.
+
+The exact native line consumer `0x0012a0c4..0x0012a12c` requires length >5,
+`$` at byte zero and compares the next three bytes with the `PSS` literal at
+`0x0012a348`. It reads byte seven for logging. In the observed normal-mode
+branch, `0x0012a128` calls `0x0012a728`, which loads the pending byte and
+schedules that state after ten ms via `0x0012a764`. Other mode branches exist;
+this is not evidence for a general GPS status parser or physical payload.
+
+An external in-tree-interpreter diagnostic supplies exactly ten synthetic
+ASCII bytes `$PSS0000\r\n`, delayed 10,000,000 ns through the existing CXD RX
+queue/IRQ path at the first startup boundary. The four zero characters are a
+synthetic fixture, **not captured physical status bytes**. Native execution
+schedules state two at instruction 367,054,580 / 1,888,402,824 ns (LR
+`0x0012a12d`), enters it at 376,256,001 / 1,897,604,245 ns, then calls TX helper
+`0x00128c34` at 376,256,008 / 1,897,604,252 ns with exactly `@VER\r\n`.
+Status-only execution refuses at the existing no-response UART transport:
+HardFault entry `0x001c0db4`, instruction 376,273,275 / 1,897,621,519 ns,
+BFAR `0x4001d000`, stacked PC `0x00171798`. This is not an unknown UART map.
+
+A second experiment adds only a one-use, exact-six-byte `@VER\r\n` exchanger
+returning the same synthetic line after ten ms. Unknown/repeated commands
+refuse. The unmodified consumer schedules pending state 14 at 381,814,268 /
+2,495,305,973 ns, enters 14 at 390,944,539 / 2,504,436,244 ns, closes UART,
+and enters state 15 at 393,785,844 / 2,564,070,073 ns; retry remains zero.
+There is no observed `@SLP` command in this branch. This demonstrates initial
+startup/version lifecycle progress without CPU, SRAM, file or budget edits.
+
+The next independent gap is a later UART reopen through `0x00128e7c`, not the
+initial startup helper. At instruction 672,044,891 / 4,758,944,170 ns,
+`0x0012a764` (LR `0x00128e8d`) arms a 10,000 ms timeout with pending state
+seven. No fixture covers that event. It times out at 902,701,905 /
+14,711,349,514 ns and retries. The diagnostic ends at its explicit one-billion
+instruction limit, PC `0x000a7b50`, time 19,479,370,023 ns, with one startup
+injection and one reply; it does not demonstrate full GPS or settled UI.
+
+Reproduction/provenance: build the external `gps-probe.c` against
+`build/libsemu.a` with `cc -std=c99 -Wall -Wextra -Werror -pedantic -O2
+-Iinclude -Isrc -Isrc/devices -Isrc/compat`; source SHA-256
+`9a6e8d4dcf0b62f0cb20e238b70fca3d4275e7b795db61e809d25855deba4ada`.
+It validates the manifest, attaches the normal NEMA backend, enables only
+`sapporo-2.39-synthetic-wbsto`, loads the pre-arm snapshot, then runs one
+instruction at a time with absolute caps of one billion instructions and
+30 billion ns. Its second argument is the literal CRLF-terminated candidate;
+third argument `version` enables the strict single reply. No argument supplies
+an additional compatibility layer or alters native CPU/RAM state.
+The production CLI generated `gps-prearm.sems` by resuming the clean 40M
+prefix `d2ae7cd38834b3488f9a5785235bd69005e773b129497bf0fa68ac6fa0b47fce`
+to absolute instruction 357,031,764. Pre-arm snapshot SHA-256
+`2e78d1d551fddec22297d023e336c156d4d9f48d55319dca00b1e061fc3189c3`;
+creation log `36f71116521599508022535497b349e2f3c70266b32501627580b0e1c0f2b56b`.
+
+Two independently loaded pre-arm runs (`gps-proof-a` / `gps-proof-b`) have
+byte-identical traces and logs: SHA-256 respectively
+`d8f05419e9fb73575efb94cb91749144d8e41ad6e28ae510d75e1b4396b48e15` and
+`15e04c2e34c648384e02952ae5077381ba848efc14e414eb0f1e8db4be0daad6`.
+The negative candidate `$BAD0000\r\n` produces no TX and no version reply;
+native retry assertion still halts at instruction 932,397,861 /
+11,388,431,861 ns, PC `0x00079e1e`. Its trace/log SHA-256 are
+`79ae01c911c20016936071f02392fb7f9ea6413f1cdbc58905a8f9c4cde57092` /
+`77b0d55758c52b9775594a0eec533e9a3d123065f61c731ae76b40ced8f96730`.
+Status-only trace/log (`gps-first-status`, from the earlier clean prefix) are
+`c2fd74140444806f0331a4522aa3294e36077b68d9d317aeff1b789c82611571` /
+`0c3a3ac0fa1fa87f61f44bb8e231c40753fbd36f64c3e0c107e6bcba7b50b5e3`.
+
+Confidence is high for these exact native branches and synthetic experiments,
+not for physical receiver fidelity. Affected modules for future integration:
+2.39 compatibility descriptor, device fixture binding, CXD delayed RX, machine
+dispatch/reset, and snapshot restoration. Ticket 756 requires separate opt-in,
+three-hash-pinned, two-hit compatibility with success/refusal and snapshot
+tests. The current factory/binding exposes only 2.22 GPS fixtures; no 2.22 hook
+may be transplanted or silently enabled for 2.39. Delayed-RX schedule failure
+must also be tested for full pre-mutation refusal. No production implementation
+or new golden is authorized by the external probe alone; later state seven,
+physical status fields, further commands, fix/time data and final UI remain gaps.
+
 ### E-SAP-COMPAT-WIDGETS-NATIVE-239-001
 
 2026-09-05; exact components E-SAP-0011, immutable full flash
