@@ -166,6 +166,38 @@ is high for these exact native transitions and synthetic acceptance only.
 Ticket 757 specifies separate opt-in integration; no production behavior or
 existing golden changes in this maintenance step.
 
+Production integration, ticket 757 (2026-09-06): the separate hash-pinned
+`sapporo-2.39-gps-reopen` layer now owns exactly one post-arm status and one
+exact-GSR reply, each delayed 10,000,000 ns. Initial startup/VER keep their
+original provider, two counters, logs and timing. Reopen progress requires
+both initial hits; wrong state, missing dependency, duplicate ownership,
+busy RX, overflow/exhaustion and malformed snapshot lifecycles refuse.
+The snapshots retain their existing wire format and require the exact layer
+set/order. No diagnostic queue ID becomes a register predicate.
+
+Two fresh production runs reach native state 12 at instruction 825,147,087 /
+10,875,951,888 ns, PC `0x00128ed8`, callback 12, pending ten, retry zero,
+R2=12, initial counts `(2,1,1)`, reopen counts `(2,1,1)`, no CXD RX event.
+Both complete logs and images compare byte-identically: log SHA-256
+`f63cab509a2da82a867580bf9eac35b3e764df53d08155bb11c47c6dfa328007`, snapshot
+`0d3b67903adff5826de946b56738ce443dffa784410392363e1a7ddc0623c27d`.
+The checked-in private gate reproduces these cold runs and resumes from
+672,045,164 (before reopen), 672,045,165 (status pending), 676,735,188
+(GSR reply pending), and 688,672,231 (native state ten, retry zero). Every
+resume matches the final image and full event-log suffix. Initial two-layer
+and historical one-layer private gates pass without re-pinning.
+
+The production gate separately reads exact `@GSTP\r\n` at the native TX
+helper at 940,946,122, then pins the precise fault at 940,963,736 /
+16,349,008,531 ns, PC `0x001c0db4`, BFAR `0x4001d000`, stacked PC
+`0x00171798`; both GPS layers retain two hits. A direct state-12 resume to
+that fault has snapshot SHA-256
+`fa8436d239c147fe152b9e00e8db410efdd29d4e062a735e742c197181efdc96`
+and log `e8f69f75c2f9669ce963e0af559d658f8e2e047c6c7f97ea735074b8aeb63fca`.
+This is a preserved unsupported-command boundary, not receiver liveness.
+No physical status semantics, awake signal, NMEA/time/fix, extra commands,
+firmware bytes or frame pixels are added. Artifacts remain outside Git.
+
 ### E-SAP-COMPAT-GPS-STARTUP-239-001
 
 2026-09-06; read-only disassembly of Sapporo `2.39.20.22297-P` application

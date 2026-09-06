@@ -14,6 +14,7 @@
 #include "sapporo_tli493d.h"
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_239_gps.h"
+#include "../compat/sapporo_239_gps_reopen.h"
 #include "../soc/apollo4/apollo4_internal.h"
 
 #define SEMU_SAPPORO_MAX_I2C_CHILDREN 4u
@@ -54,6 +55,7 @@ struct semu_sapporo_devices {
     semu_apollo4_uart_endpoint uart_ep;
     semu_sapporo_222_fixture_context fixture_context;
     semu_sapporo_239_gps_context gps_239_context;
+    semu_sapporo_239_gps_reopen_context gps_reopen_context;
     int profile_selected;
     int ohr2_profile_239;
 };

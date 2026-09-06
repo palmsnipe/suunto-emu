@@ -159,14 +159,82 @@ bytes, pixels or private artifacts in Git. Do not claim full GPS or settled UI.
 
 ## Handoff
 
+### Implementation verification, 2026-09-06
+
+The bounded integration is implemented and acceptance-tested. Status remains
+`ready` pending a separate integrator review; implementation does not update
+the index. No additional integration-owned interface change is requested.
+
+Changed files: `src/compat/sapporo_239_gps_reopen.{c,h}`;
+`src/devices/sapporo_device_compat.c`, `sapporo_devices.c`,
+`sapporo_devices.h`, `sapporo_devices_internal.h`;
+`src/boards/machine.c`, `machine_run.c`, `machine_snapshot.c`;
+`profiles/sapporo/2.39.20/profile.semu`;
+`tests/unit/test_sapporo_239_gps_reopen.c`,
+`test_sapporo_239_gps_reopen_snapshot.c`, `test_sapporo_profile_239.c`,
+and `test_sapporo_239_gps.c` (enumeration only);
+`tests/integration/test_firmware_sapporo_239_gps_reopen.sh`;
+`docs/current-status.md`, `docs/migration-evidence.md`, and this ticket.
+The initial GPS implementation, CPU/UART/CXD/scheduler implementations,
+snapshot codec, Makefile and historical private gates are unchanged.
+
+References used: E-SAP-0011, E-EMU-COMPAT-ATOMIC-001,
+E-SAP-COMPAT-GPS-STARTUP-239-001, E-SAP-COMPAT-GPS-REOPEN-239-001 and the
+existing compatibility, execution and snapshot contracts. Responses are
+synthetic parser fixtures, not captured hardware fields. The new layer owns
+two one-use counters; both old startup counters must be complete before new
+progress. Whole driver/UART spans and every specified state predicate are
+checked. R0/R1 scheduling return values are not predicates. No guest patch,
+GPIO pulse, implicit activation or old-snapshot migration is introduced.
+
+Verification: every command in Tests and Commands ran successfully, without
+private-evidence skips. The reopen filter selects seven cases; the broader GPS
+filter selects thirteen, CXD nine, profile five, and machine-snapshot four.
+`make check` and `make sanitize` each pass 759 cases; `make check-lines`
+passes the hard limit; `make check-task-contracts` validates 127 tickets.
+`git diff --check` passes. Before implementation the new activation regression
+failed (one selected case, expected third layer absent). During integration,
+the existing `test_machine` cases detected an overly broad null-logger check;
+scoping it to selected GPS layers restores all cases and a new empty-layer
+binding assertion preserves that behavior.
+
+Coverage includes activation hash/profile rejection, missing dependency,
+both duplicate owners, reverse explicit selection order, disabled and malformed
+bindings, instance isolation, wrong driver/UART state and pointers, dependency
+progress, unknown/repeated commands, per-trigger/aggregate limits, busy RX,
+time/ID/sequence exhaustion and mutation-free refusals. Both response phases
+round-trip with reset/rebind, including delayed UART bytes/IRQ. Malformed
+snapshot lifecycle/dependency and identity are rejected atomically; existing
+event-link refusal tests remain active.
+
+Fresh production cold runs and four-phase resumes reach state twelve at
+825,147,087 / 10,875,951,888 ns, PC `0x00128ed8`, retry zero, callback 12,
+pending ten and four total GPS hits. Log SHA-256
+`f63cab509a2da82a867580bf9eac35b3e764df53d08155bb11c47c6dfa328007`,
+snapshot `0d3b67903adff5826de946b56738ce443dffa784410392363e1a7ddc0623c27d`.
+Complete logs/images compare byte-for-byte, not just final state. Native state
+ten is checked at 688,672,231 with retry zero. All original two-layer startup
+and one-layer activity goldens pass without re-pinning. Full flash retains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+
+Remaining gap: native `@GSTP\r\n` at 940,946,122 still faults precisely at
+940,963,736 / 16,349,008,531 ns, BFAR `0x4001d000`, stacked PC `0x00171798`.
+The new private gate checks the command and fault separately, with no extra
+hit. Receiver liveness/awake, later commands, NMEA/time/fix and full GPS/UI
+remain outside the evidence and implementation. Firmware/pixels/private
+snapshots remain outside Git. Next action: integrator review, then separate
+evidence recovery for that boundary, not an assumed GSTP reply.
+
+### Historical planning and external evidence
+
 Integrator planning update, 2026-09-06: 756 is accepted and this ticket is
 ready. Updating the existing startup test's profile enumeration assertion is
 explicitly in scope when the third optional layer is added; no startup
 behavior or historical golden may change.
 
-Planning/evidence only; no new production behavior. Ticket 756's implementation
-and uncommitted changes are preserved. This ticket remains blocked until the
-integrator reviews 756 and updates its status separately. Evidence and exact
+The original planning/evidence step made no new production behavior. It
+preserved ticket 756's then-uncommitted changes and initially blocked 757
+pending 756 review (subsequently accepted above). Evidence and exact
 external source/trace/checkpoint hashes are in E-SAP-COMPAT-GPS-REOPEN-239-001.
 
 2026-09-06 evidence-maintenance verification: `make check` passes all 752
@@ -192,5 +260,5 @@ retains `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
 Changed repository files in this evidence step: `docs/migration-evidence.md`,
 `docs/current-status.md`, `plans/index.tsv`, and this new ticket. All earlier
 uncommitted files are preserved; existing ticket statuses are unchanged.
-Requested integrator action: review 756, then unblock 757. No permission to
+The original requested action was review 756, then unblock 757. No permission to
 implement the later GSTP/liveness behavior is inferred from this evidence.

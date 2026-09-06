@@ -7,6 +7,7 @@
 #include "../cpu/armv7m/armv7m_internal.h"
 #include "../compat/sapporo_239.h"
 #include "../compat/sapporo_239_gps.h"
+#include "../compat/sapporo_239_gps_reopen.h"
 #include "../devices/sapporo_devices_internal.h"
 #include "../soc/apollo4/apollo4_internal.h"
 #include "machine_snapshot_events.h"
@@ -198,7 +199,8 @@ static semu_status apply_machine_image(semu_machine *machine,
             total += hits;
         }
         /* semu_layer_hit can also record hits without an intervention. */
-        if (semu_sapporo_239_gps_is_layer(layer->descriptor) &&
+        if ((semu_sapporo_239_gps_is_layer(layer->descriptor) ||
+             semu_sapporo_239_gps_reopen_is_layer(layer->descriptor)) &&
             (!image->layers[i].enabled ||
              !semu_sapporo_239_gps_counts_valid(image->layers[i].hits,
                 image->layers[i].intervention_hits[0],
@@ -356,12 +358,9 @@ static semu_status apply_sections(semu_machine *machine,
     status = apply_machine_image(machine, &machine_image, error);
     semu_machine_snapshot_free_scheduler_image(&scheduler_image);
     if (status != SEMU_OK) return status;
-    for (index = 0u; index < machine->layer_count; ++index) {
-        if (semu_sapporo_239_gps_is_layer(machine->layers[index].descriptor) &&
-            semu_sapporo_devices_bind_gps_startup_fixture(machine->devices,
-                &machine->layers[index], machine->logger, error) != SEMU_OK)
-            return error->code;
-    }
+    if (semu_sapporo_devices_bind_gps_layers(machine->devices, machine->layers,
+            machine->layer_count, machine->logger, error) != SEMU_OK)
+        return error->code;
     semu_log_set_time(machine->logger, semu_scheduler_now(machine->scheduler));
 #undef SECTION
 #undef DONE

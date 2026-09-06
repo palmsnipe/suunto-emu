@@ -795,12 +795,12 @@ one-layer logo/activity/halt goldens remain unchanged. All 752 normal and
 sanitizer tests and both private GPS/activity gates pass. The ticket index
 now marks ticket 756 done after review of implementation commit `fa56b33`.
 
-This is initial GPS lifecycle progress, not full GPS or settled 2.39 UI.
+With only the initial layer selected, this remains initial GPS lifecycle
+progress, not full GPS or settled 2.39 UI.
 The distinct later reopen sets pending state seven at instruction 672,044,891;
 its missing response still times out. The subsequent retry reaches
 `0x00128d14` at instruction 908,321,039 / 14,978,258,084 ns and is refused
-without another status or hit. Its response/protocol must be recovered under
-separate evidence and integration scope.
+without another status or hit. This two-layer behavior is preserved.
 
 Read-only follow-up E-SAP-COMPAT-GPS-REOPEN-239-001 now recovers that bounded
 exchange. One external delayed status at the post-arm `0x00128e8c` boundary
@@ -808,10 +808,36 @@ advances native states 7/8/9 to exact `@GSR\r\n`; one delayed synthetic reply
 advances states 10 and 12 with retry zero. Two diagnostic runs are identical,
 and wrong-prefix controls still time out. The later liveness-recovery command
 `@GSTP\r\n` is the next precise UART refusal, at instruction 940,963,736 /
-16,349,008,531 ns. These are external experiments, not an enabled emulator
-feature or physical receiver transcript. Ticket 757 records the integration
-contract and is ready following ticket 756's integrator review; existing
-production checkpoints and the committed startup implementation are preserved.
+16,349,008,531 ns. These experiments establish synthetic parser acceptance,
+not a physical receiver transcript.
+
+## Sapporo 2.39 Bounded GPS Reopen (Ticket 757)
+
+The explicit `sapporo-2.39-gps-reopen` layer now implements the two evidenced
+responses separately from startup. It requires the separately selected initial
+GPS layer and all three exact component hashes. At post-arm `0x00128e8c`,
+it validates the complete driver/UART spans, state, flags, cached GNS and
+completed initial exchange before queuing one status after ten ms. The exact
+six-byte `@GSR\r\n` then receives one status after ten ms. No CPU/RAM/native
+event/GPIO patch is made. Instance-owned counters, reset and restore binding,
+dependency validation and atomic refusals use the unchanged snapshot format.
+
+Two fresh three-layer runs compare byte-identically at native state 12,
+retry zero, with exactly two initial and two reopen interventions:
+`stop=budget pc=0x00128ed8 instructions=825147087 virtual_time_ns=10875951888`.
+Log SHA-256 `f63cab509a2da82a867580bf9eac35b3e764df53d08155bb11c47c6dfa328007`,
+snapshot `0d3b67903adff5826de946b56738ce443dffa784410392363e1a7ddc0623c27d`.
+Snapshots before reopen, with either response pending and at native state ten
+resume to that identical image and full log suffix. Wrong lifecycle, ownership,
+layer sets and order refuse; one-/two-layer images do not migrate implicitly.
+The historical private startup/activity gates retain their existing hashes.
+
+Ticket 757 remains ready in the index pending integrator acceptance; the
+implementation and exact verification record are in its handoff. The next
+unsupported operation is still `@GSTP\r\n`: at instruction 940,963,736 /
+16,349,008,531 ns the native precise UART fault has BFAR `0x4001d000` and
+stacked PC `0x00171798`, with no extra compatibility hit. Receiver awake/liveness,
+GPS time/fix, later commands and a settled 2.39 UI remain unimplemented.
 
 ## Next Actionable Work
 
@@ -821,11 +847,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Implement ticket 757's separate, two-response
-  GPS reopen/GSR layer using E-SAP-COMPAT-GPS-REOPEN-239-001. Do not reuse the
-  exhausted startup fixture, add later GSTP/liveness behavior or transplant
-  2.22 hooks. Keep the normal NEMA backend attached and preserve historical
-  one- and two-layer checkpoints. No implicit snapshot migration is allowed.
+- Review ticket 757's bounded integration and exact private gates, then
+  recover evidence for the separate later GSTP/receiver-liveness boundary.
+  Do not reuse exhausted fixtures, transplant 2.22 hooks or add awake pulses
+  without observations. Keep the normal NEMA backend and preserve all
+  historical checkpoints; no implicit snapshot migration is allowed.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

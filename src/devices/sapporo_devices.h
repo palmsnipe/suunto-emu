@@ -30,6 +30,7 @@ static inline int semu_sapporo_devices_compat_hook_pc(uint32_t pc)
     case UINT32_C(0x0010f7c2): case UINT32_C(0x0010f7b8):
     case UINT32_C(0x0009aaec): case UINT32_C(0x0009a3b8):
     case UINT32_C(0x0010fbde): case UINT32_C(0x00128d14):
+    case UINT32_C(0x00128e8c):
         return 1;
     default:
         return 0;
@@ -62,6 +63,11 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
 /* Explicit 2.39 binding; lifecycle is held in instance-owned layer counters. */
 semu_status semu_sapporo_devices_bind_gps_startup_fixture(
     semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error);
+
+/* Bind the complete explicit set, validating dependency and unique ownership. */
+semu_status semu_sapporo_devices_bind_gps_layers(
+    semu_sapporo_devices *devices, semu_layer_state *layers, size_t count,
     semu_logger *logger, semu_error *error);
 
 semu_status semu_sapporo_devices_apply_compat_hook(

@@ -35,3 +35,8 @@ max_hits=2673
 kind=device-fixture
 evidence=E-SAP-COMPAT-GPS-STARTUP-239-001
 max_hits=2
+
+[layer sapporo-2.39-gps-reopen]
+kind=device-fixture
+evidence=E-SAP-COMPAT-GPS-REOPEN-239-001
+max_hits=2
