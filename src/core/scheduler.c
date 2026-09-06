@@ -88,43 +88,8 @@ semu_status semu_scheduler_schedule_tagged(semu_scheduler *scheduler,
                                            semu_event_id *event_id,
                                            semu_error *error)
 {
-    semu_scheduled_event event;
-    size_t position;
-    semu_status status;
-
-    if (scheduler == NULL || callback == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT, "scheduler and callback required");
-        return SEMU_ERR_ARGUMENT;
-    }
-    if (UINT64_MAX - scheduler->now_ns < delay_ns ||
-        scheduler->next_id == 0u || scheduler->next_id == UINT64_MAX ||
-        scheduler->next_sequence == UINT64_MAX) {
-        semu_error_set(error, SEMU_ERR_RANGE, "scheduler time or id overflow");
-        return SEMU_ERR_RANGE;
-    }
-    status = reserve_event(scheduler, error);
-    if (status != SEMU_OK) {
-        return status;
-    }
-    event.state.due_ns = scheduler->now_ns + delay_ns;
-    event.state.sequence = scheduler->next_sequence++;
-    event.state.id = scheduler->next_id++;
-    event.state.kind = kind;
-    event.state.subject = subject;
-    event.callback = callback;
-    event.context = context;
-    position = scheduler->count;
-    while (position > 0u && event_before(&event, &scheduler->events[position - 1u])) {
-        scheduler->events[position] = scheduler->events[position - 1u];
-        --position;
-    }
-    scheduler->events[position] = event;
-    ++scheduler->count;
-    if (event_id != NULL) {
-        *event_id = event.state.id;
-    }
-    semu_error_clear(error);
-    return SEMU_OK;
+    const semu_event_request request = {delay_ns, kind, subject, callback, context};
+    return semu_scheduler_schedule_batch(scheduler, &request, 1u, event_id, error);
 }
 
 int semu_scheduler_cancel(semu_scheduler *scheduler, semu_event_id event_id)
@@ -146,6 +111,21 @@ int semu_scheduler_cancel(semu_scheduler *scheduler, semu_event_id event_id)
             }
             --scheduler->count;
             return 1;
+        }
+    }
+    return 0;
+}
+
+int semu_scheduler_cancel_owned(semu_scheduler *scheduler, semu_event_id event_id,
+    semu_event_callback callback, void *context)
+{
+    size_t index;
+    if (scheduler == NULL || event_id == 0u || callback == NULL) return 0;
+    for (index = 0u; index < scheduler->count; ++index) {
+        const semu_scheduled_event *event = &scheduler->events[index];
+        if (event->state.id == event_id) {
+            if (event->callback != callback || event->context != context) return 0;
+            return semu_scheduler_cancel(scheduler, event_id);
         }
     }
     return 0;

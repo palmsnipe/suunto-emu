@@ -34,6 +34,11 @@ semu_status nema_completion_create(nema_completion **out,
 void nema_completion_destroy(nema_completion *comp);
 void nema_completion_reset(nema_completion *comp);
 
+/* The bound scheduler must outlive active completions. Cancel/reset/destroy
+ * removes their owned queued callbacks. Rebind a restored image to the target
+ * scheduler before restoring its events or scheduling further completions.
+ * An unbound snapshot-only object owns no queued events and may be destroyed. */
+
 /*
  * Schedule a completion for the given list ID.  Only one completion
  * per list ID; calling twice for the same ID is a no-op.  When the
@@ -48,7 +53,15 @@ semu_status nema_completion_schedule(nema_completion *comp,
                                      void *irq_context,
                                      semu_error *error);
 
-/* Cancel all pending completions. */
+/* Atomically admit a bounded group. Pending/repeated IDs remain no-ops;
+ * failure preserves all entries, counters, scheduler IDs and queued events.
+ * An active completion group belongs to one scheduler until reset/drained. */
+semu_status nema_completion_schedule_batch(nema_completion *comp,
+    semu_scheduler *scheduler, const uint32_t *list_ids, size_t count,
+    nema_reg_write_fn on_reg_write, void *reg_context, nema_irq_fn on_irq,
+    void *irq_context, semu_error *error);
+
+/* Cancel all pending completions and their scheduler callbacks. */
 void nema_completion_cancel(nema_completion *comp);
 
 /* Total completions emitted since creation or last reset. */
@@ -58,7 +71,7 @@ size_t nema_completion_count(const nema_completion *comp);
 int nema_completion_pending(const nema_completion *comp,
                             uint32_t list_id);
 void nema_completion_rebind_active(
-    nema_completion *comp, nema_reg_write_fn on_reg_write,
+    nema_completion *comp, semu_scheduler *scheduler, nema_reg_write_fn on_reg_write,
     void *reg_context, nema_irq_fn on_irq, void *irq_context);
 semu_status nema_completion_snapshot_write(
     const nema_completion *comp, semu_snapshot_writer *writer,

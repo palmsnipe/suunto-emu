@@ -40,6 +40,26 @@ still cancels the pending event; resetting during accepted low reports that
 interruption, and resetting during high cancels the already-arranged fall.
 Successful pulse width remains 1 ms (E-EMU-CXD-AWAKE-FAILURE-001).
 
+`semu_scheduler_schedule_batch` admits up to 64 event requests atomically.
+All callbacks, deadlines, count arithmetic, IDs/sequences and required storage
+are validated/reserved before insertion. Failure preserves queue contents,
+clock, identity counters and caller output IDs. Success assigns IDs and
+sequences in input order and preserves deadline/FIFO ordering, exactly like
+consecutive single-event scheduling; no callback runs during admission.
+Single-event scheduling delegates to this path. Empty batches are no-ops.
+The existing tagged event identity and persistent encoding are unchanged.
+
+NEMA completion batch admission stages the complete entry group, removes
+duplicate/already-pending list IDs, and calls the scheduler once before
+committing device entries/counters. Reset/cancel/destruction remove only
+events whose ID, callback and context still belong to that completion owner;
+scheduler-reset ID reuse cannot cancel an unrelated event. The scheduler
+must outlive its active completion owner. Restored completion state is rebound
+to the target scheduler before its events are restored; this borrowed binding
+is transient and is not serialized. These are ticket 761's scheduler/completion
+foundations, not yet whole-ring GPU atomicity: GPU marker scanning still uses
+single admissions and backend transaction/error propagation remains pending.
+
 ## Reset and Run
 
 Reset is deterministic and proceeds in this order:

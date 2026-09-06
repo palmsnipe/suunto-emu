@@ -460,7 +460,7 @@ semu_status semu_nema_gpu_snapshot_read(
     }
     if (nema_completion_snapshot_read(candidate.completion, reader, error) != SEMU_OK)
         return error->code;
-    nema_completion_rebind_active(candidate.completion, completion_reg_write,
+    nema_completion_rebind_active(candidate.completion, gpu->scheduler, completion_reg_write,
                                   gpu, completion_irq, gpu);
     candidate.initialization_complete = initialized;
     *gpu = candidate;

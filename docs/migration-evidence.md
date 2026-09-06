@@ -13,6 +13,173 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-BATCH-001
+
+2026-09-06; partial ticket 761 implementation, following
+E-EMU-NEMA-ATOMIC-001 and the architecture/execution atomicity contracts.
+Sources: in-tree scheduler/completion implementations, new synthetic unit
+regressions and existing private firmware gates. No physical timing or new
+hardware behavior is inferred; E-NEMA-RING-001 / E-NEMA-LISTS-001 remain the
+framing evidence. Affected modules: scheduler admission/cancellation, NEMA
+completion lifetime/codec and GPU snapshot scheduler rebinding only.
+
+The narrow single-completion regression fails before the fix: a refused
+deadline admission changes encoded completion state. Atomic batch reservation
+now stages all completion entries before one scheduler call. Four scheduler
+and five completion regressions cover success order/identities, duplicate
+markers, deadline/ID/sequence/slot limits, allocation failure, unchanged
+output IDs/queues/snapshots and cancellation/reset/destruction. A second
+regression failed during development when scheduler reset reused event ID one:
+checked cancellation now requires the callback and context as well as the ID.
+Transient scheduler ownership is not encoded; successful snapshot bytes and
+single-event ordering are unchanged. Confidence is high for these bounded
+synthetic invariants, not for the still-unimplemented whole-ring transaction.
+
+Exact verification commands (repository root), all successful:
+
+```sh
+make test TEST_FILTER=nema_completion_atomic
+make test TEST_FILTER=scheduler_batch
+make test TEST_FILTER=nema
+make test TEST_FILTER=transcript
+make test TEST_FILTER=machine_snapshot
+make check-task-contracts
+make check-lines
+make check
+make sanitize
+make sdl
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_awake
+```
+
+Normal and sanitizer totals: 789 tests, zero failures. Task contracts: 130.
+The authentic gates validate every component before execution, using unchanged
+manifest/profile hashes; the full-flash hash remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+The short 2.22 SDL stop remains PC `000bacf4`, 774081920 instructions,
+6520939902 ns with all E-SAP-ONBOARD-EMU-012 frame pins. The 2.39 awake gate
+passes all four pulse/IRQ and snapshot phases and its fifth-hit refusal;
+ticket 759's log/snapshot pins are unchanged.
+
+The external read-only E-EMU-SAMPLING-CLIP-001 renderer observer is rebuilt
+against this library; source hash remains
+`d96fbfbbae59a1696794a291ff5d6e8ddb81ea9358044fbf2c7fb5b789f57190`.
+Reproduction and outputs:
+
+```sh
+probe_dir=/tmp/semu-761-foundation.xSooSd
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-239-ui.690H4Q/render-probe.c build/libsemu.a -o "$probe_dir/render-probe-final"
+"$probe_dir/render-probe-final" cold 1 "$probe_dir/final-middle-a" > "$probe_dir/final-middle-a.trace" 2> "$probe_dir/final-middle-a.log"
+"$probe_dir/render-probe-final" cold 1 "$probe_dir/final-middle-b" > "$probe_dir/final-middle-b.trace" 2> "$probe_dir/final-middle-b.log"
+"$probe_dir/render-probe-final" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/final-middle-resume" > "$probe_dir/final-middle-resume.trace" 2> "$probe_dir/final-middle-resume.log"
+```
+
+Both cold runs accept 79 submissions; the 700-million-instruction prefix
+resume accepts the remaining 76. No renderer refuses. Cold traces match each
+other and the corrected baseline byte-for-byte; all final pixels/snapshots
+match each other and that baseline. SHA-256 pins:
+
+- Cold trace: `a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+- Final RGB565: `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`.
+- Final snapshot: `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+
+Last changed cold frame remains generation 79, CRC `6b6aa2dc`, instruction
+1088274630 at 12335112985 ns. Final endpoint remains 1300000000 instructions,
+22286110403 ns, PC `000a7abc`, GPS hits `2,2,3`. No private bytes enter Git.
+
+Unresolved: backend inherited-state/pixel/shadow staging, multi-child
+prepare/commit/abort, GPU whole-ring marker admission, original-error
+propagation, retry state, caller migration and bounded CPU refusal proof.
+The original three-failure whole-ring probe is not fixed by this slice.
+The `nema_backend_atomic`, `nema_gpu_atomic` and `nema_refusal` groups are not
+implemented or claimed run. Ticket 761 remains incomplete; no additional
+integration permission or persistent-format change is requested.
+
+### E-EMU-NEMA-ATOMIC-001
+
+2026-09-06; synthetic diagnostic and integration-planning maintenance on
+unchanged runtime commit `c7800be`. No firmware is used by this probe; no
+physical GPU behavior is inferred. Source: existing display backend, framing,
+NEMA state/completion and scheduler interfaces, plus an external C99 probe at
+`/tmp/semu-nema-atomic.3Ec7wr/probe.c`, SHA-256
+`05443c3a7325e04a30016102710b150dca24856f35dc05dccf06398565e48979`.
+Architecture/execution require complete validation before rendering mutation
+and an outward diagnostic on refusal. E-SAP-UI-239-001 already demonstrates
+the GPU swallowing a single-child backend refusal and consuming its stop.
+
+The real in-tree backend exposes three further atomicity failures:
+
+- A successful one-pixel blue draw establishes inherited state. A second list
+  sets red draw color then contains an invalid prefix. It returns REFUSE with
+  outward error code zero and preserves blue pixels and publication count.
+  However, a subsequent draw-only list paints red (`f800`), not the committed
+  blue (`001f`): rollback restores pixels, but not inherited register state.
+- One ring contains two syntactically valid child lists. The first paints
+  blue and publishes; the second has unsupported DRAW_CMD `deadbeef`. MMIO
+  returns OK with empty error while one frame/pixel change has escaped. The
+  all-valid control publishes twice and succeeds. Merely returning REFUSE
+  from the second child cannot retract the first callback.
+- One ring contains two completion markers. With next event ID restored to
+  `UINT64_MAX - 1`, the first schedules successfully and consumes that ID;
+  the second exhausts the ID space. MMIO still returns OK with empty error,
+  one event remains pending and next ID becomes `UINT64_MAX`. The ordinary
+  control admits both events with next ID three. Cancelling the first event
+  alone would not restore the consumed ID/sequence or completion bookkeeping.
+
+The bounded five-scenario probe uses SRAM-only synthetic command lists,
+normal GPU/backend callbacks and the scheduler's existing restore interface
+to create ID exhaustion. It exits 1 for the three violated expectations;
+exit 2 is a setup/control failure. Two normal runs and one ASan/UBSan run
+produce identical output, SHA-256
+`c8abd72aef450df5d89b9f706c5d1b24c5e825961070116590e044fb811b1b5f`.
+Both success controls pass; sanitizer stderr is empty. Exact output:
+
+```text
+refused-list result=2 error=0 pixel=001f frames=1
+inherited-after-refusal pixel=f800 expected=001f
+children refuse=0 status=0 error=0 frames=2 pixel=001f
+children refuse=1 status=0 error=0 frames=1 pixel=001f
+markers exhaust=0 status=0 error=0 pending=2 next_id=3
+markers exhaust=1 status=0 error=0 pending=1 next_id=18446744073709551615
+atomicity-failures=3
+```
+
+Reproduction commands from the repository root:
+
+```sh
+probe_dir=/tmp/semu-nema-atomic.3Ec7wr
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc "$probe_dir/probe.c" build/libsemu.a -o "$probe_dir/probe"
+"$probe_dir/probe" > "$probe_dir/normal-a.log"; test $? -eq 1
+"$probe_dir/probe" > "$probe_dir/normal-b.log"; test $? -eq 1
+cmp "$probe_dir/normal-a.log" "$probe_dir/normal-b.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc "$probe_dir/probe.c" build/sanitize/libsemu.a -o "$probe_dir/probe-sanitize"
+"$probe_dir/probe-sanitize" > "$probe_dir/sanitize.log" 2> "$probe_dir/sanitize.err"; test $? -eq 1
+cmp "$probe_dir/normal-a.log" "$probe_dir/sanitize.log"
+test ! -s "$probe_dir/sanitize.err"
+make check-task-contracts
+make check
+git diff --check
+```
+
+The existing suite still passes 780 tests, line checks and now 130 task
+contracts; it does not yet contain these failing regressions. Full sanitizers
+and authentic firmware are not rerun for this documentation/planning-only
+step. Prior `c7800be` results remain applicable to unchanged runtime bytes;
+the new probe itself was run under sanitizers as specified above.
+
+Confidence is high for these synthetic failures and the interface gap.
+The current opaque single-list backend can commit and invoke callbacks, but
+cannot prepare/abort a multi-child batch. The scheduler/completion path admits
+one event at a time. AGENTS.md therefore stops the proposed narrow GPU fix:
+the smallest required integration is a transactional extension of the existing
+display contract plus atomic completion admission, with staged inherited
+register/pixel/shadow state and publication only after all checks succeed.
+Ticket 761 is ready and explicitly owns those public interfaces, caller
+migration, focused regressions and exact historical checkpoints. No runtime
+fix or private parallel API is introduced by this entry. Planning changes only
+the ticket/index, status and this ledger. File-budget/UI continuation remains
+behind the failure-correctness gate; no firmware or physical-panel claim changes.
+
 ### E-EMU-SAMPLING-CLIP-001
 
 2026-09-06; bounded maintenance implementation and synthetic/private replay

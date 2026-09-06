@@ -3,30 +3,13 @@
  * Schedules evidenced command-list completion with 100 µs delay.
  */
 
-#include "nema_completion.h"
+#include "nema_completion_internal.h"
 #include "../core/scheduler_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    struct nema_completion *owner;
-    uint32_t list_id;
-    semu_event_id event_id;
-    nema_reg_write_fn on_reg_write;
-    void *reg_context;
-    nema_irq_fn on_irq;
-    void *irq_context;
-    int active;
-} completion_entry;
-
-struct nema_completion {
-    completion_entry entries[NEMA_COMPLETION_MAX_EVENTS];
-    size_t count;
-    size_t active_count;
-};
-
-static void completion_callback(void *context, uint64_t now_ns)
+void nema_completion_callback(void *context, uint64_t now_ns)
 {
     completion_entry *e = (completion_entry *)context;
     nema_completion *comp;
@@ -65,14 +48,14 @@ semu_status nema_completion_create(nema_completion **out,
 void nema_completion_destroy(nema_completion *comp)
 {
     if (comp == NULL) return;
-    /* Active entries have dangling scheduler references; callers
-     * must cancel or reset before destroy. */
+    nema_completion_cancel(comp);
     free(comp);
 }
 
 void nema_completion_reset(nema_completion *comp)
 {
     if (comp == NULL) return;
+    nema_completion_cancel(comp);
     memset(comp->entries, 0, sizeof(comp->entries));
     comp->count = 0u;
     comp->active_count = 0u;
@@ -84,6 +67,8 @@ void nema_completion_cancel(nema_completion *comp)
     if (comp == NULL) return;
     for (i = 0u; i < NEMA_COMPLETION_MAX_EVENTS; ++i) {
         if (comp->entries[i].active) {
+            (void)semu_scheduler_cancel_owned(comp->scheduler, comp->entries[i].event_id,
+                nema_completion_callback, &comp->entries[i]);
             comp->entries[i].active = 0;
         }
     }
@@ -103,11 +88,12 @@ int nema_completion_pending(const nema_completion *comp, uint32_t list_id)
 }
 
 void nema_completion_rebind_active(
-    nema_completion *comp, nema_reg_write_fn on_reg_write,
+    nema_completion *comp, semu_scheduler *scheduler, nema_reg_write_fn on_reg_write,
     void *reg_context, nema_irq_fn on_irq, void *irq_context)
 {
     size_t index;
     if (comp == NULL) return;
+    comp->scheduler = scheduler;
     for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
         if (comp->entries[index].active != 0) {
             comp->entries[index].on_reg_write = on_reg_write;
@@ -119,224 +105,70 @@ void nema_completion_rebind_active(
 }
 
 semu_status nema_completion_schedule(nema_completion *comp,
-                                     semu_scheduler *scheduler,
-                                     uint32_t list_id,
-                                     nema_reg_write_fn on_reg_write,
-                                     void *reg_context,
-                                     nema_irq_fn on_irq,
-                                     void *irq_context,
-                                     semu_error *error)
+    semu_scheduler *scheduler, uint32_t list_id, nema_reg_write_fn on_reg_write,
+    void *reg_context, nema_irq_fn on_irq, void *irq_context, semu_error *error)
 {
-    size_t i, free_slot;
-    semu_status st;
+    return nema_completion_schedule_batch(comp, scheduler, &list_id, 1u,
+        on_reg_write, reg_context, on_irq, irq_context, error);
+}
 
-    if (comp == NULL || scheduler == NULL) {
+semu_status nema_completion_schedule_batch(nema_completion *comp,
+    semu_scheduler *scheduler, const uint32_t *list_ids, size_t count,
+    nema_reg_write_fn on_reg_write, void *reg_context, nema_irq_fn on_irq,
+    void *irq_context, semu_error *error)
+{
+    completion_entry staged[NEMA_COMPLETION_MAX_EVENTS];
+    semu_event_request requests[NEMA_COMPLETION_MAX_EVENTS];
+    semu_event_id ids[NEMA_COMPLETION_MAX_EVENTS];
+    size_t slots[NEMA_COMPLETION_MAX_EVENTS], n = 0u, i, j, free_slot = 0u;
+    semu_status status;
+    if (comp == NULL || scheduler == NULL || (count != 0u && list_ids == NULL)) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "completion: null");
         return SEMU_ERR_ARGUMENT;
     }
-    /* No-op if already pending for this list ID */
-    if (nema_completion_pending(comp, list_id)) {
-        return SEMU_OK;
-    }
-    if (comp->active_count >= NEMA_COMPLETION_MAX_EVENTS) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "completion: event budget exhausted");
-        return SEMU_ERR_UNSUPPORTED;
-    }
-    if (comp->count == SIZE_MAX) {
-        semu_error_set(error, SEMU_ERR_RANGE,
-                       "completion: total count overflow");
+    if (count > NEMA_COMPLETION_MAX_EVENTS) {
+        semu_error_set(error, SEMU_ERR_RANGE, "completion: batch exceeds bound");
         return SEMU_ERR_RANGE;
     }
-
-    free_slot = NEMA_COMPLETION_MAX_EVENTS;
-    for (i = 0u; i < NEMA_COMPLETION_MAX_EVENTS; ++i) {
-        if (!comp->entries[i].active) {
-            free_slot = i;
-            break;
+    if (comp->active_count != 0u && comp->scheduler != scheduler) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "completion: scheduler ownership mismatch");
+        return SEMU_ERR_CONFLICT;
+    }
+    for (i = 0u; i < count; ++i) {
+        if (nema_completion_pending(comp, list_ids[i])) continue;
+        for (j = 0u; j < n && staged[j].list_id != list_ids[i]; ++j) {}
+        if (j < n) continue;
+        while (free_slot < NEMA_COMPLETION_MAX_EVENTS && comp->entries[free_slot].active)
+            ++free_slot;
+        if (free_slot == NEMA_COMPLETION_MAX_EVENTS) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED, "completion: event budget exhausted");
+            return SEMU_ERR_UNSUPPORTED;
         }
+        slots[n] = free_slot++;
+        staged[n] = (completion_entry){comp, list_ids[i], 0u,
+            on_reg_write, reg_context, on_irq, irq_context, 1};
+        requests[n] = (semu_event_request){NEMA_COMPLETION_DELAY_NS,
+            SEMU_SCHED_EVENT_NEMA_COMPLETION, (uint32_t)slots[n],
+            nema_completion_callback, &comp->entries[slots[n]]};
+        ++n;
     }
-    if (free_slot >= NEMA_COMPLETION_MAX_EVENTS) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "completion: event budget exhausted");
-        return SEMU_ERR_UNSUPPORTED;
+    if (n > SIZE_MAX - comp->count) {
+        semu_error_set(error, SEMU_ERR_RANGE, "completion: total count overflow");
+        return SEMU_ERR_RANGE;
     }
-
-    comp->entries[free_slot].owner = comp;
-    comp->entries[free_slot].list_id = list_id;
-    comp->entries[free_slot].on_reg_write = on_reg_write;
-    comp->entries[free_slot].reg_context = reg_context;
-    comp->entries[free_slot].on_irq = on_irq;
-    comp->entries[free_slot].irq_context = irq_context;
-    comp->entries[free_slot].active = 1;
-
-    st = semu_scheduler_schedule_tagged(scheduler,
-                                NEMA_COMPLETION_DELAY_NS,
-                                SEMU_SCHED_EVENT_NEMA_COMPLETION,
-                                (uint32_t)free_slot, completion_callback,
-                                &comp->entries[free_slot],
-                                &comp->entries[free_slot].event_id, error);
-    if (st != SEMU_OK) {
-        comp->entries[free_slot].active = 0;
-        return st;
+    status = semu_scheduler_schedule_batch(scheduler, requests, n, ids, error);
+    if (status != SEMU_OK) return status;
+    for (i = 0u; i < n; ++i) {
+        staged[i].event_id = ids[i];
+        comp->entries[slots[i]] = staged[i];
     }
-
-    ++comp->count;
-    ++comp->active_count;
+    if (n != 0u) comp->scheduler = scheduler;
+    comp->count += n;
+    comp->active_count += n;
     return SEMU_OK;
 }
 
 size_t nema_completion_count(const nema_completion *comp)
 {
     return (comp != NULL) ? comp->count : 0u;
-}
-
-semu_status nema_completion_snapshot_write(
-    const nema_completion *comp, semu_snapshot_writer *writer,
-    semu_error *error)
-{
-    size_t index;
-    if (comp == NULL || writer == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "completion snapshot arguments are invalid");
-        return SEMU_ERR_ARGUMENT;
-    }
-    if (comp->count > UINT32_MAX ||
-        comp->active_count > NEMA_COMPLETION_MAX_EVENTS) {
-        semu_error_set(error, SEMU_ERR_RANGE, "invalid completion counters");
-        return SEMU_ERR_RANGE;
-    }
-    if (semu_snapshot_writer_u32(writer, (uint32_t)comp->count, error) != SEMU_OK)
-        return error->code;
-    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
-        const completion_entry *entry = &comp->entries[index];
-        if (semu_snapshot_writer_u32(writer, entry->list_id, error) != SEMU_OK ||
-            semu_snapshot_writer_u64(writer, entry->event_id, error) != SEMU_OK ||
-            semu_snapshot_writer_u8(writer, (uint8_t)(entry->active != 0), error) != SEMU_OK)
-            return error->code;
-    }
-    return SEMU_OK;
-}
-
-semu_status nema_completion_snapshot_read(
-    nema_completion *comp, semu_snapshot_reader *reader, semu_error *error)
-{
-    nema_completion candidate;
-    uint32_t count;
-    size_t active_count = 0u;
-    size_t index;
-    if (comp == NULL || reader == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "completion snapshot arguments are invalid");
-        return SEMU_ERR_ARGUMENT;
-    }
-    candidate = *comp;
-    if (semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK) {
-        return error->code;
-    }
-    candidate.count = count;
-    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
-        uint8_t active;
-        completion_entry *entry = &candidate.entries[index];
-        if (semu_snapshot_reader_u32(reader, &entry->list_id, error) != SEMU_OK ||
-            semu_snapshot_reader_u64(reader, &entry->event_id, error) != SEMU_OK ||
-            semu_snapshot_reader_u8(reader, &active, error) != SEMU_OK)
-            return error->code;
-        if (active > 1u) {
-            semu_error_set(error, SEMU_ERR_FORMAT, "invalid completion active flag");
-            return SEMU_ERR_FORMAT;
-        }
-        entry->active = active;
-        if (active == 0u) {
-            continue;
-        }
-        if (entry->event_id == 0u) {
-            semu_error_set(error, SEMU_ERR_FORMAT,
-                           "active completion has no event id");
-            return SEMU_ERR_FORMAT;
-        }
-        ++active_count;
-        if (active_count > count) {
-            semu_error_set(error, SEMU_ERR_FORMAT,
-                           "active completions exceed count");
-            return SEMU_ERR_FORMAT;
-        }
-        {
-            size_t prior;
-            for (prior = 0u; prior < index; ++prior) {
-                const completion_entry *previous = &candidate.entries[prior];
-                if (previous->active != 0 &&
-                    (previous->list_id == entry->list_id ||
-                     previous->event_id == entry->event_id)) {
-                    semu_error_set(error, SEMU_ERR_FORMAT,
-                                   "duplicate active completion identity");
-                    return SEMU_ERR_FORMAT;
-                }
-            }
-        }
-    }
-    candidate.active_count = active_count;
-    *comp = candidate;
-    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
-        comp->entries[index].owner = comp;
-    }
-    return SEMU_OK;
-}
-
-semu_status nema_completion_snapshot_resolve_event(
-    nema_completion *comp, uint32_t subject, semu_event_callback *callback,
-    void **context, semu_error *error)
-{
-    if (comp == NULL || callback == NULL || context == NULL ||
-        subject >= NEMA_COMPLETION_MAX_EVENTS ||
-        comp->entries[subject].active == 0) {
-        semu_error_set(error, SEMU_ERR_CONFLICT,
-                       "completion snapshot event is not present");
-        return SEMU_ERR_CONFLICT;
-    }
-    *callback = completion_callback;
-    *context = &comp->entries[subject];
-    return SEMU_OK;
-}
-
-semu_status nema_completion_snapshot_event_id_matches(
-    const nema_completion *comp, uint32_t subject, semu_event_id event_id,
-    semu_error *error)
-{
-    if (comp != NULL && subject < NEMA_COMPLETION_MAX_EVENTS &&
-        comp->entries[subject].active != 0 &&
-        comp->entries[subject].event_id == event_id)
-        return SEMU_OK;
-    semu_error_set(error, SEMU_ERR_FORMAT,
-                   "NEMA snapshot event identity does not match completion");
-    return SEMU_ERR_FORMAT;
-}
-
-semu_status nema_completion_snapshot_event_links_match(
-    const nema_completion *comp, const semu_scheduled_event_state *events,
-    size_t count, semu_error *error)
-{
-    size_t index;
-    size_t event_index;
-    if (comp == NULL || (events == NULL && count != 0u)) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "NEMA snapshot event linkage arguments are invalid");
-        return SEMU_ERR_ARGUMENT;
-    }
-    for (index = 0u; index < NEMA_COMPLETION_MAX_EVENTS; ++index) {
-        const completion_entry *entry = &comp->entries[index];
-        if (entry->active == 0) continue;
-        for (event_index = 0u; event_index < count; ++event_index) {
-            if (events[event_index].kind == SEMU_SCHED_EVENT_NEMA_COMPLETION &&
-                events[event_index].subject == index &&
-                events[event_index].id == entry->event_id)
-                break;
-        }
-        if (event_index == count) {
-            semu_error_set(error, SEMU_ERR_FORMAT,
-                           "NEMA completion state has no scheduler event");
-            return SEMU_ERR_FORMAT;
-        }
-    }
-    return SEMU_OK;
 }

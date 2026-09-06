@@ -185,8 +185,8 @@ static void test_completion_once(semu_test_context *context)
     SEMU_TEST_ASSERT(context, !nema_completion_pending(comp, 42u));
     SEMU_TEST_EQ_U64(context, 1u, nema_completion_count(comp));
 
-    semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);
+    semu_scheduler_destroy(sched);
 }
 
 static void test_no_completion_on_refusal(semu_test_context *context)
@@ -207,8 +207,8 @@ static void test_no_completion_on_refusal(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, cap.count);
     SEMU_TEST_EQ_U64(context, 0u, nema_completion_count(comp));
 
-    semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);
+    semu_scheduler_destroy(sched);
 }
 
 static void test_reset_cancellation(semu_test_context *context)
@@ -238,8 +238,8 @@ static void test_reset_cancellation(semu_test_context *context)
     }
     SEMU_TEST_EQ_U64(context, 0u, cap.count);
 
-    semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);
+    semu_scheduler_destroy(sched);
 }
 
 static void test_irq_order(semu_test_context *context)
@@ -264,8 +264,8 @@ static void test_irq_order(semu_test_context *context)
     SEMU_TEST_ASSERT(context, cap.irq_asserted);
     SEMU_TEST_ASSERT(context, cap.irq_line == NEMA_COMPLETION_IRQ_LINE);
 
-    semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);
+    semu_scheduler_destroy(sched);
 }
 
 static void test_completion_budget_refusal(semu_test_context *context)
@@ -302,8 +302,8 @@ static void test_completion_budget_refusal(semu_test_context *context)
                                  on_reg_write, &cap, on_irq, &cap, &err));
     SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_MAX_EVENTS + 1u,
                      nema_completion_count(comp));
-    semu_scheduler_destroy(sched);
     nema_completion_destroy(comp);
+    semu_scheduler_destroy(sched);
 }
 
 int main(void)

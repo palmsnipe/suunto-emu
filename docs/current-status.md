@@ -1065,6 +1065,50 @@ hashes and exact reproduction commands. This is an emulator observation,
 not a physical-panel golden. Backend-refusal propagation is still unfixed;
 neither file nor GPS budgets are extended, and no integrator change is needed.
 
+## NEMA Atomicity Integration Prerequisite (Ticket 761)
+
+Commit `c7800be` records the accepted GPS-awake work and sampling correction.
+The subsequent bounded GPU investigation changes no runtime code.
+E-EMU-NEMA-ATOMIC-001 extends the swallowed-refusal reproducer with three
+failures using the real backend: refused commands leak inherited register
+state; a failed second child leaves the first child's frame published; a
+failed second completion admission leaves the first event and consumed ID.
+Two normal and one sanitizer run match exactly; success controls pass and
+there are no sanitizer findings. The existing 780-case suite still passes
+but does not cover these failures yet.
+
+Returning an error alone cannot undo those mutations. The existing public
+backend has no prepare/abort boundary, and completion admission is one event
+at a time. Following the repository's insufficient-interface rule, runtime
+work stops pending the explicit integration in ticket 761. It is ready, with
+all dependencies done, and owns the minimal display/scheduler contract,
+caller migration and rollback/refusal regressions. It must preserve successful
+frame/event order and snapshot bytes; a partial-output error is not sufficient.
+This planning step changes only ticket 761, `plans/index.tsv`, this status and
+the evidence ledger. `make check` passes 780 cases, line checks and 130 task
+contracts. No new firmware execution, full sanitizer rerun or budget change
+is claimed; prior runtime checkpoints remain unchanged.
+
+## NEMA Atomic Admission Foundation (Ticket 761, Partial)
+
+E-EMU-NEMA-BATCH-001 records the first implementation slice: scheduler batch
+admission validates and reserves all events before consuming any identity;
+NEMA completion batches stage entries and preserve complete snapshots on
+refusal. Cancel/reset/destroy remove owned callbacks, including protection
+against cancelling another owner's reused event ID after scheduler reset.
+The completion codec is split without changing its bytes. Existing single
+admissions use the same path and preserve successful event ordering.
+
+All 789 normal and sanitizer tests pass. The short 2.22 SDL gate, 2.39 awake
+gate, two cold middle-button runs and a 700-million-instruction prefix resume
+preserve their exact prior checkpoints. The corrected language frame remains
+CRC `6b6aa2dc`; cold traces and final pixels/snapshots are byte-identical.
+
+This is not whole-ring atomicity: the GPU still admits markers individually,
+and the backend still lacks staged multi-child publication/inherited-state
+rollback. Refusal propagation remains unfinished. Ticket 761 stays incomplete
+and its index status is unchanged; no firmware budget or golden is extended.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1073,11 +1117,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Promote E-SAP-UI-239-001's remaining backend-refusal reproducer and make
-  NEMA backend failures visible at the GPU/run boundary rather than consuming
-  them as successful MMIO. Sampling clipping is corrected by
-  E-EMU-SAMPLING-CLIP-001. Recheck native rendering and historical checkpoints;
-  do not hide changes by re-pinning.
+- Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
+  under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
+  ownership covers the remaining backend transaction and GPU migration; do not
+  work around the opaque backend with a private API. Sampling clipping is
+  already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
+  historical checkpoints; do not hide changes by re-pinning.
 - Only after renderer/refusal correctness is established, trace the native
   `settings/general` sequence after language selection and justify any finite
   logical-file budget or ABI correction. Preserve the four-pulse GPS bound,
