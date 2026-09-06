@@ -28,7 +28,10 @@ typedef struct {
 
 /* Shared clip-region helper used by draw_texture and draw_mask.
  * Computes intersection of dst rect with clip and target bounds.
- * Returns adjusted source offsets in *dx, *dy. */
+ * Returns nonnegative source offsets in *dx, *dy. Empty intersections are
+ * canonical all-zero bounds/offsets, including valid offscreen rectangles.
+ * Invalid layouts, reversed clips, endpoint overflow and unrepresentable
+ * offsets refuse without changing outputs. Coordinates remain unsigned. */
 semu_status sampling_compute_clip(raster_target *target,
                                    const raster_bounds *clip,
                                    uint32_t dst_x, uint32_t dst_y,

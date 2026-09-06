@@ -3,6 +3,7 @@
 #include "../compat/sapporo_239.h"
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
+#include "../compat/sapporo_239_gps_awake.h"
 
 static semu_status reset_after_request(semu_machine *machine,
                                        semu_error *error)
@@ -85,7 +86,9 @@ static int apply_compat_hook(semu_machine *machine,
             (state->r[15] == SEMU_SAPPORO_239_GPS_PC &&
              semu_sapporo_239_gps_is_layer(layer->descriptor)) ||
             (state->r[15] == SEMU_SAPPORO_239_GPS_REOPEN_PC &&
-             semu_sapporo_239_gps_reopen_is_layer(layer->descriptor))) {
+             semu_sapporo_239_gps_reopen_is_layer(layer->descriptor)) ||
+            (state->r[15] == SEMU_SAPPORO_239_GPS_AWAKE_PC &&
+             semu_sapporo_239_gps_awake_is_layer(layer->descriptor))) {
             if (semu_sapporo_devices_apply_compat_hook(
                     machine->devices, machine->bus,
                     semu_cpu_get_state_mutable(machine->cpu), layer,

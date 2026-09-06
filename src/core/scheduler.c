@@ -156,6 +156,34 @@ int semu_scheduler_has_events(const semu_scheduler *scheduler)
     return scheduler != NULL && scheduler->count != 0u;
 }
 
+semu_status semu_scheduler_callback_fail(semu_scheduler *scheduler,
+                                         const semu_error *failure)
+{
+    if (scheduler == NULL) return SEMU_ERR_ARGUMENT;
+    if (!scheduler->dispatching) return SEMU_ERR_STATE;
+    if (scheduler->callback_error.code == SEMU_OK) {
+        if (failure == NULL || failure->code <= SEMU_OK ||
+            failure->code > SEMU_ERR_NOMEM) {
+            semu_error_set(&scheduler->callback_error, SEMU_ERR_ARGUMENT,
+                           "scheduler callback failure requires an error");
+        } else {
+            scheduler->callback_error = *failure;
+            scheduler->callback_error.text[sizeof(failure->text) - 1u] = '\0';
+        }
+    }
+    return scheduler->callback_error.code;
+}
+
+static semu_status refuse_recursive_dispatch(semu_scheduler *scheduler,
+                                             semu_error *error)
+{
+    semu_error failure;
+    semu_error_set(&failure, SEMU_ERR_STATE, "recursive scheduler dispatch");
+    (void)semu_scheduler_callback_fail(scheduler, &failure);
+    if (error != NULL) *error = failure;
+    return SEMU_ERR_STATE;
+}
+
 semu_status semu_scheduler_run_next(semu_scheduler *scheduler, semu_error *error)
 {
     semu_scheduled_event event;
@@ -165,6 +193,7 @@ semu_status semu_scheduler_run_next(semu_scheduler *scheduler, semu_error *error
         semu_error_set(error, SEMU_ERR_ARGUMENT, "scheduler required");
         return SEMU_ERR_ARGUMENT;
     }
+    if (scheduler->dispatching) return refuse_recursive_dispatch(scheduler, error);
     if (scheduler->count == 0u) {
         semu_error_set(error, SEMU_ERR_STATE, "scheduler has no events");
         return SEMU_ERR_STATE;
@@ -175,9 +204,14 @@ semu_status semu_scheduler_run_next(semu_scheduler *scheduler, semu_error *error
     }
     --scheduler->count;
     scheduler->now_ns = event.state.due_ns;
+    semu_error_clear(&scheduler->callback_error);
+    scheduler->dispatching = 1;
     event.callback(event.context, scheduler->now_ns);
-    semu_error_clear(error);
-    return SEMU_OK;
+    scheduler->dispatching = 0;
+    semu_status status = scheduler->callback_error.code;
+    if (error != NULL) *error = scheduler->callback_error;
+    semu_error_clear(&scheduler->callback_error);
+    return status;
 }
 
 semu_status semu_scheduler_advance(semu_scheduler *scheduler, uint64_t delta_ns,
@@ -189,6 +223,7 @@ semu_status semu_scheduler_advance(semu_scheduler *scheduler, uint64_t delta_ns,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "scheduler required");
         return SEMU_ERR_ARGUMENT;
     }
+    if (scheduler->dispatching) return refuse_recursive_dispatch(scheduler, error);
     if (UINT64_MAX - scheduler->now_ns < delta_ns) {
         semu_error_set(error, SEMU_ERR_RANGE, "scheduler time overflow");
         return SEMU_ERR_RANGE;

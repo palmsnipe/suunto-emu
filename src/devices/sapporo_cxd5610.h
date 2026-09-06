@@ -57,6 +57,10 @@ semu_status semu_sapporo_cxd5610_inject_rx(
 semu_status semu_sapporo_cxd5610_inject_rx_after(
     semu_sapporo_cxd5610 *transport, const uint8_t *bytes, size_t count,
     uint64_t delay_ns, semu_error *error);
+/* Admission failures preserve device, scheduler and signal state. A complete
+ * pulse must fit virtual time. Falling-edge scheduling is checked at rise;
+ * failure reports through scheduler dispatch without emitting high. Accepted
+ * signals may explicitly reset the transport, canceling the pending event. */
 semu_status semu_sapporo_cxd5610_pulse_awake_after(
     semu_sapporo_cxd5610 *transport, uint64_t delay_ns, semu_error *error);
 semu_status semu_sapporo_cxd5610_snapshot_write(

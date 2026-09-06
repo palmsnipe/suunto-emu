@@ -245,6 +245,45 @@ static void test_reset_reentrancy_cancels_current_event(
     fixture_destroy(&fixture);
 }
 
+static void observe_high(void *context, uint64_t now)
+{
+    gps_fixture *f = context;
+    (void)now;
+    f->rx_count = (size_t)f->awake_level;
+}
+
+static void test_awake_full_width_and_same_deadline_order(semu_test_context *context)
+{
+    gps_fixture f;
+    SEMU_TEST_ASSERT(context, fixture_init(&f));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_cxd5610_pulse_awake_after(f.transport, 100u, &f.error));
+    SEMU_TEST_EQ_U64(context, 2u, f.awake_count);
+    SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_event_count(f.scheduler));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_schedule(f.scheduler, 100u, observe_high, &f, NULL, &f.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(f.scheduler, 100u, &f.error));
+    SEMU_TEST_EQ_U64(context, 1u, f.rx_count);
+    SEMU_TEST_EQ_U64(context, 3u, f.awake_count);
+    SEMU_TEST_EQ_U64(context, 100u, f.awake_time);
+    const semu_scheduled_event_state *fall = semu_scheduler_event_get(f.scheduler, 0u);
+    SEMU_TEST_ASSERT(context, fall != NULL);
+    SEMU_TEST_EQ_U64(context, 3u, fall->id);
+    SEMU_TEST_EQ_U64(context, 2u, fall->sequence);
+    SEMU_TEST_EQ_U64(context, 100u + SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS, fall->due_ns);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(f.scheduler,
+        SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS - 1u, &f.error));
+    SEMU_TEST_EQ_U64(context, 1u, f.awake_level);
+    SEMU_TEST_EQ_U64(context, 3u, f.awake_count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(f.scheduler, 1u, &f.error));
+    SEMU_TEST_EQ_U64(context, 0u, f.awake_level);
+    SEMU_TEST_EQ_U64(context, 4u, f.awake_count);
+    SEMU_TEST_EQ_U64(context, 100u + SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS, f.awake_time);
+    SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(f.scheduler));
+    fixture_destroy(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -252,7 +291,8 @@ int main(void)
         SEMU_TEST_CASE(test_refusals_are_bounded),
         SEMU_TEST_CASE(test_missing_fixture_refusal_is_atomic),
         SEMU_TEST_CASE(test_awake_pulse_and_reset),
-        SEMU_TEST_CASE(test_reset_reentrancy_cancels_current_event)
+        SEMU_TEST_CASE(test_reset_reentrancy_cancels_current_event),
+        SEMU_TEST_CASE(test_awake_full_width_and_same_deadline_order)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

@@ -108,8 +108,11 @@ The optional authentic `check-sdl` flow now queues one SDL Return key-down/up
 pair and two successive middle-screen mouse clicks. From the initial validated
 frame CRC32 `2a01c517`, it verifies settled setup checkpoints `4979f432`,
 `629da47e`, and `d4ed66c7`, then exits through an SDL quit event at the
-repeatable checkpoint `pc=0x080000a2`, `instructions=804398304`,
-`virtual_time_ns=9504428769` (E-SAP-ONBOARD-EMU-011). The neutral
+repeatable checkpoint `pc=0x000bacf4`, `instructions=774081920`,
+`virtual_time_ns=6520939902` (E-SAP-ONBOARD-EMU-012). The former 011
+checkpoint included a nonfatal haptic timeout from an incorrect register
+selector; the existing haptic corrections remove it. Cold live-input checks
+also require the complete transcript SHA-256. The neutral
 `setup-next` checkpoint is also available for a snapshot-loaded, middle-button
 replay continuation; it reports the first visible post-input frame without
 naming an unverified screen. Invalid automation configuration is always
@@ -832,12 +835,235 @@ resume to that identical image and full log suffix. Wrong lifecycle, ownership,
 layer sets and order refuse; one-/two-layer images do not migrate implicitly.
 The historical private startup/activity gates retain their existing hashes.
 
-Ticket 757 remains ready in the index pending integrator acceptance; the
+Ticket 757 is accepted by separate integrator review of `9f8c121`; the
 implementation and exact verification record are in its handoff. The next
 unsupported operation is still `@GSTP\r\n`: at instruction 940,963,736 /
 16,349,008,531 ns the native precise UART fault has BFAR `0x4001d000` and
 stacked PC `0x00171798`, with no extra compatibility hit. Receiver awake/liveness,
 GPS time/fix, later commands and a settled 2.39 UI remain unimplemented.
+
+## Sapporo 2.39 Awake Evidence and Integration Prerequisite
+
+Read-only firmware recovery now identifies the cause of that later recovery:
+GPIO24's native callback `0x00128926` sets awake byte `0x100588a2`; state twelve
+consumes it between polls. E-SAP-COMPAT-GPS-AWAKE-239-001 independently pins
+the 2.39 IRQ table, registration, callback and branch rather than transplanting
+the 2.22 hook. External pulses through the existing transport/GPIO path, each
+100 ms after a successful poll and high for 1 ms, produce the native IRQ and
+avoid GSTP. One pulse postpones recovery by one poll; a late pulse does not
+avoid the original fault. Four pulses produce four callbacks and five native
+state-twelve successes, retry zero, without another UART command.
+
+Two four-pulse diagnostic runs compare byte-identically through the 35-second
+guard: instruction 1,315,882,442 / 35,000,617,152 ns, PC `0x000e955e`, both
+existing GPS layers still at two hits. Trace SHA-256
+`ca3527d679f889242849f6bfe52ed726cc0c817cb329b45630c6bc2a5ad72010`,
+log `5bdb32dc4a6a417d5b16d78d4348681c5ee1cedd47e170ca8dd7bc825171a212`.
+These are external synthetic-input experiments, not enabled production
+behavior, physical receiver cadence, NMEA/time/fix or a settled UI milestone.
+
+Before integration, E-EMU-CXD-AWAKE-FAILURE-001 exposes a transport prerequisite:
+failed pulse admission changes bookkeeping and emits a low callback; a failed
+falling-edge schedule emits a zero-duration pulse and reports success. A
+six-case host-only reproducer covers time/ID/sequence exhaustion at both
+stages. The current void scheduler callback interface cannot report that
+second-stage failure. Ticket 758 is ready and explicitly owns the minimal
+scheduler/device failure contract; ticket 759's four-hit awake fixture is
+blocked until 758 is accepted. No production C, profile, counter, snapshot
+encoding or runtime dependency changes in this evidence/planning step.
+
+Verification on unchanged `9f8c121`: `make check` passes 759 cases, and the
+exact ticket-757 private reopen command passes without skips or re-pinning.
+The prior 759-case sanitizer result remains applicable to unchanged C;
+sanitizers were not rerun for this documentation/planning-only step.
+The ledger records external source/trace hashes and negative controls; the
+new ticket contracts specify the remaining implementation gates.
+`make check-task-contracts` validates 129 tickets and `git diff --check`
+passes. Changed repository files are this status, `docs/migration-evidence.md`,
+`plans/index.tsv`, and tickets 757/758/759 only. No private artifact is added.
+
+## Ticket 758 Implementation — Acceptance Pending
+
+The pulse failure integration now validates complete time bounds and schedules
+before changing admission state/signals. Falling-edge failure reports through
+the new public copied-first-error scheduler contract without emitting high;
+CPU tick and WFI/WFE paths stop with the original device-refusal diagnostic.
+Reset/reentrancy behavior is documented in `docs/execution-model.md`. The CXD
+snapshot codec is split out without changing encoded bytes. No new 2.39 awake
+fixture, UART response, profile or layer is enabled.
+
+Nine new cases raise normal and sanitizer coverage to 768 passing cases.
+All focused ticket commands, line checks and 129 task contracts pass. The
+unchanged private 2.39 reopen gate passes without re-pinning. Clean baseline
+and changed 2.22 headless runs through the first awake pulse have identical
+logs and snapshots: stop `budget`, PC `0x000d4a8c`, 599774578 instructions /
+12027701702 ns; snapshot SHA-256
+`9db6fe24e0b5a6509333aff140ec7a635a031ef68bbac74f87d7ca2c5992e2eb`.
+
+The authentic SDL live-input gate fails its historical stop tuple on both
+the clean starting commit `9f8c121` and the changed build, with byte-identical
+logs and all expected CRCs. Both stop at PC `0x000bacf4`, 774081920 instructions /
+6520939902 ns rather than the E-SAP-ONBOARD-EMU-011 tuple. No golden is changed.
+E-EMU-CXD-AWAKE-FAILURE-001 and ticket 758 record the exact commands and hashes.
+That was the implementation handoff's unresolved gate. The separate maintenance
+investigation below resolves its cause and passes the corrected strict check.
+The subsequent integrator review below accepts 758 and makes 759 ready.
+
+## SDL Live-Input Checkpoint Maintenance
+
+E-SAP-ONBOARD-EMU-012 isolates the old checkpoint's extra startup delay to the
+shared haptic fixes already committed in `d6b4235` and `df93397`. Clean builds
+before those fixes reproduce the old log hash exactly. Observational traces
+show command `0x22000112` incorrectly selecting status register `0x08` from
+adjacent SRAM, returning zero for 32 reads and exhausting the firmware's
+nonfatal autotune timeout. With the correct command selector, autotune returns
+complete (`0x03`) and the two calibration reads succeed. Applying only those
+two existing corrections to the historical source reproduces the current
+complete SDL log byte-for-byte; ticket 758 is not the cause.
+
+Bounded maintenance changes only `tools/test_sdl_live_input.sh`, this status
+and the evidence ledger. The gate now pins PC `0x000bacf4`, 774081920
+instructions / 6520939902 ns and, for cold boots, log SHA-256
+`9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`.
+All initial/settled CRCs and generations, stop reason, exit code and invalid
+configuration checks remain required. There is no runtime, timing, profile,
+compatibility, snapshot or release-frame golden change in this maintenance.
+
+Two fresh exact-firmware runs compare byte-identically. The existing authentic
+regression fails before the smoke expectation correction and passes afterward:
+
+```sh
+build/suunto-emu validate --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+make check-sdl
+make check
+git diff --check
+```
+
+Validation and the focused authentic gate exit 0. `make check` passes 768
+cases, line checks and 129 task contracts; `git diff --check` is clean.
+An external negative harness
+appends one entry to an otherwise exact transcript; all existing checks match
+but the new cold hash check exits 1. `make check-sdl` without a manifest passes
+five SDL cases and configuration refusals, explicitly skipping its firmware
+walks; the short authentic walk was run separately above. The longer manual
+time-entry/onboarding gate was not revalidated or re-pinned. No new firmware
+fixture or GPS command is enabled. Sanitizers are not rerun for this shell/
+documentation-only change; the prior 768-case result applies to unchanged C.
+
+## Ticket 758 Integrator Acceptance
+
+Separate review/planning maintenance accepts 758 and makes 759 ready. Only
+the index, those two tickets, this status and the evidence ledger change in
+this review. No runtime behavior or private fixture is added. Source review
+confirms atomic admission, copied first callback failure, CPU tick/sleep
+propagation, reset/reentrancy refusal and unchanged successful serialization.
+
+All ticket commands were rerun: focused scheduler/CXD/sleep/snapshot groups
+pass 4/13/4/4 cases; `make check-task-contracts` validates 129 tickets;
+`make check-lines`, `make check` (768 cases), and `make sanitize` (768 cases)
+pass. The exact private 2.39 reopen gate passes without skips and retains its
+state-12 snapshot `0d3b67903adff5826de946b56738ce443dffa784410392363e1a7ddc0623c27d`
+and precise later GSTP refusal. `make sdl`, 2.22 component validation and the
+authentic short live-input gate all pass under E-SAP-ONBOARD-EMU-012.
+
+A fresh bounded 2.22 headless run through its first awake intervention has
+the expected budget exit 3 and byte-identical log/snapshot to clean `9f8c121`,
+including snapshot `9db6fe24e0b5a6509333aff140ec7a635a031ef68bbac74f87d7ca2c5992e2eb`.
+An external deterministic allocator-fault probe passes three additional
+cases normally and under ASan/UBSan; E-EMU-CXD-AWAKE-FAILURE-001 records the
+source hash and commands. Ticket 758 records the complete acceptance handoff.
+The longer manual-entry SDL gate remains a separate audit; no GPS fix/time,
+physical receiver cadence or new production awake layer is claimed.
+
+## Ticket 759 — Accepted Bounded GPS Awake Integration
+
+The explicitly selected `sapporo-2.39-gps-awake` layer now supplies exactly
+four synthetic GPIO24 pulses through the accepted transport. It requires the
+separately selected startup/reopen layers, all exact firmware hashes and both
+completed two-hit lifecycles. Each evidenced successful state-twelve poll
+admits one pulse after 100 ms, high for 1 ms. Only native GPIO IRQ handling
+sets the firmware's awake byte; the hook changes neither CPU nor guest RAM.
+R1 scheduling returns are not predicates. VER/GSR providers remain unchanged.
+
+Instance-owned counters, explicit reset/restore binding, atomic refusals and
+strict snapshot lifecycle/event validation are covered. The layer codec was
+split into `machine_snapshot_layers.c` with unchanged bytes for earlier layer
+sets. No implicit snapshot migration or new scheduler/device behavior is added.
+
+Two fresh four-layer runs and all four snapshot-phase resumes match exactly:
+`stop=compat-refused pc=0x001291cc instructions=1272353867 virtual_time_ns=32770943068`.
+GPS hits are `2,2,4`, retry zero, GPIO24 low and no pending pulse. Log SHA-256
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`;
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+The private observer verifies four native awake callbacks/STRB results and
+the same final image. A repeated fifth-hook attempt changes no snapshot byte
+and emits no further hit. This is an intentional evidence-bound refusal.
+
+All 775 normal and sanitizer cases pass, along with 129 task contracts and
+line checks. The unchanged private startup/reopen/activity gates preserve
+their hashes; the 2.22 headless first-awake log and snapshot remain byte-identical
+to baseline. The ticket handoff records exact commands, files and evidence.
+Separate integration review on 2026-09-06 found no blocking issues and reran
+every ticket command: 775 normal and 775 sanitizer cases, all six focused
+groups, 129 task contracts, line checks and all four private gates pass.
+The private runs preserve the exact hashes above and the historical gates'
+pins. Ticket 759 is now done; only planning/status records changed during
+acceptance. Full GPS, fix/time data, physical cadence and a settled 2.39 UI
+are still not established.
+
+## Sapporo 2.39 UI Investigation — Renderer Gaps
+
+E-SAP-UI-239-001 measures progress within the accepted four-pulse interval.
+Two cold idle runs reach the native `Select language` tile at 5,805,310,840 ns,
+CRC `3bd12ac8`, then retain ticket 759's exact final snapshot hash. A normal
+middle-button press advances to a language menu; upper/lower controls do not
+leave that tile. Cold and resumed middle runs converge to identical final
+pixels and machine state. Read-only native tracing confirms button events
+2/5/1 and view-open calls without invoking firmware callbacks directly.
+
+The language image is incomplete, not a new correct-frame milestone: 52 of
+79 backend submissions refuse during the cold middle-button run. The first
+is a fully clipped-out animated A2LE glyph. The shared sampling helper
+rejects its offscreen origin; a second synthetic case returns an inverted
+intersection. Separately, the GPU drops backend REFUSE and its error, reports
+successful MMIO and consumes the ring submission. Small external failing
+reproducers now isolate both bugs, including a successful-backend control
+and an ASan/UBSan run of the swallowed-refusal case. No runtime fix is made
+by this investigation; the passing 775-case suite does not cover them yet.
+
+Two properly held middle clicks advance native view selection and then hit
+the existing logical-file ceiling at `settings/general`, mode two,
+PC `0x000920b4`, 1,376,488,437 instructions / 14,401,737,146 ns. Two probes
+match exactly, GPS hits `2,2,1`. This later boundary follows silently refused
+renderer work; it is not authority to raise the file budget. Only this status
+and the evidence ledger change; all probes, snapshots and pixels remain
+external. `make check` passes 775 tests, line checks and 129 task contracts.
+Full sanitizer and SDL suites were not rerun for these documentation changes.
+
+## Shared Sampling Clip Correction
+
+Bounded maintenance under E-SAP-UI-239-001 / E-EMU-SAMPLING-CLIP-001 fixes
+the offscreen and inverted-intersection bugs identified above. The shared
+helper returns canonical empty bounds for valid disjoint rectangles, checks
+layout/endpoint/offset arithmetic, and leaves outputs unchanged on refusal.
+Unsigned geometry remains the contract. Changed files for this follow-up:
+`src/display/sampling.c`, `src/display/sampling.h`,
+`tests/unit/test_sampling_clip.c`, this status and the evidence ledger.
+
+The two original synthetic regressions fail before the fix. Five new cases
+now cover them, 1,728 pixel-oracle combinations, malformed-input atomicity,
+and all three sampling consumers. All 780 normal and sanitizer tests pass;
+27 focused sampling tests, line checks and 129 task contracts pass. The
+private 2.39 awake gate and 2.22 short SDL gate preserve their exact pins.
+
+Two corrected cold middle-button runs accept all 79 submissions; a prefix
+resume accepts all 76 remaining submissions. They converge to byte-identical
+final pixels and machine snapshots. The language list is visually clear,
+CRC `6b6aa2dc`; no stale green icon remains. The evidence entry records full
+hashes and exact reproduction commands. This is an emulator observation,
+not a physical-panel golden. Backend-refusal propagation is still unfixed;
+neither file nor GPS budgets are extended, and no integrator change is needed.
 
 ## Next Actionable Work
 
@@ -847,11 +1073,16 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Review ticket 757's bounded integration and exact private gates, then
-  recover evidence for the separate later GSTP/receiver-liveness boundary.
-  Do not reuse exhausted fixtures, transplant 2.22 hooks or add awake pulses
-  without observations. Keep the normal NEMA backend and preserve all
-  historical checkpoints; no implicit snapshot migration is allowed.
+- Promote E-SAP-UI-239-001's remaining backend-refusal reproducer and make
+  NEMA backend failures visible at the GPU/run boundary rather than consuming
+  them as successful MMIO. Sampling clipping is corrected by
+  E-EMU-SAMPLING-CLIP-001. Recheck native rendering and historical checkpoints;
+  do not hide changes by re-pinning.
+- Only after renderer/refusal correctness is established, trace the native
+  `settings/general` sequence after language selection and justify any finite
+  logical-file budget or ABI correction. Preserve the four-pulse GPS bound,
+  normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
+  indefinite heartbeat or assertion bypass is authorized by this observation.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL
@@ -870,15 +1101,11 @@ without manufacturing a roadmap row. The practical work queue is:
   under ticket 670 with a regression (`tools/test_sdl_onboarding_completion.sh`,
    wired into `make check-sdl`); the canonical sequence writes a post-gate time
    (2023-01-01), so the next boot routes to `main` instead of `n-sync-rec`.
-- The firmware-gated `check-sdl` live-input check (`tools/test_sdl_live_input.sh`)
-  is re-pinned to the current 2.22.60.3383-P cold-boot sequence under
-  E-SAP-ONBOARD-EMU-011. Two complete logs were byte-identical (SHA-256
-  `55d96468b4b41a938f98ab9db500dabc99ad491d7cc1e5595b933119a7b1f72b`):
-  initial frame `2a01c517`, settled checkpoints `4979f432` / `629da47e` /
-  `d4ed66c7`, and `stop=user` at `pc=0x080000a2`, 804398304 instructions,
-  9504428769 ns. This maintenance correction changes no renderer or guest
-  behavior and makes the authentic `check-sdl` path enforce the observed
-  current checkpoint again.
+- The short firmware-gated SDL live-input check now enforces the corrected
+  haptic startup sequence under E-SAP-ONBOARD-EMU-012. Preserve its exact
+  frames, stop and cold-log hash. Audit the longer manual-entry onboarding
+  gate separately against the same haptic correction; do not assume its
+  historical time/generation assertions remain valid or weaken them blindly.
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.

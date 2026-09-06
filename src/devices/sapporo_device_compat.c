@@ -18,7 +18,7 @@ semu_status semu_sapporo_devices_bind_gps_layers(
     semu_sapporo_devices *d, semu_layer_state *layers, size_t count,
     semu_logger *logger, semu_error *error)
 {
-    semu_layer_state *startup = NULL, *reopen = NULL;
+    semu_layer_state *startup = NULL, *reopen = NULL, *awake = NULL;
     size_t i;
     if (layers == NULL && count != 0u) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "incomplete GPS layer set");
@@ -28,11 +28,16 @@ semu_status semu_sapporo_devices_bind_gps_layers(
         semu_layer_state **slot = NULL;
         if (semu_sapporo_239_gps_is_layer(layers[i].descriptor)) slot = &startup;
         if (semu_sapporo_239_gps_reopen_is_layer(layers[i].descriptor)) slot = &reopen;
+        if (semu_sapporo_239_gps_awake_is_layer(layers[i].descriptor)) slot = &awake;
         if (slot == NULL) continue;
         if (*slot != NULL) goto conflict;
         *slot = &layers[i];
     }
     if (reopen != NULL && startup == NULL) goto conflict;
+    if (awake != NULL && (startup == NULL || reopen == NULL)) goto conflict;
+    if (d != NULL && ((d->gps_239_context.state != NULL && startup == NULL) ||
+        (d->gps_reopen_context.state != NULL && reopen == NULL) ||
+        (d->gps_awake_context.state != NULL && awake == NULL))) goto conflict;
     if (startup == NULL) return SEMU_OK;
     if (d == NULL || logger == NULL || !d->ohr2_profile_239 || !startup->enabled ||
         (startup->descriptor != &semu_sapporo_239_gps_layer &&
@@ -44,7 +49,14 @@ semu_status semu_sapporo_devices_bind_gps_layers(
          reopen->descriptor != &d->gps_reopen_context.descriptor) ||
         (d->gps_reopen_context.state != NULL && d->gps_reopen_context.state != reopen)))
         goto conflict;
-    /* Rebinding must validate both owners before changing either callback. */
+    if (awake != NULL && (!awake->enabled ||
+        (awake->descriptor != &semu_sapporo_239_gps_awake_layer &&
+         awake->descriptor != &d->gps_awake_context.descriptor) ||
+        (awake->descriptor == &d->gps_awake_context.descriptor &&
+         awake->descriptor->interventions != &d->gps_awake_context.intervention) ||
+        (d->gps_awake_context.state != NULL && d->gps_awake_context.state != awake)))
+        goto conflict;
+    /* Validate every owner/lifecycle before changing any descriptor/callback. */
     if (startup->descriptor->intervention_count != 2u ||
         (startup->descriptor == &d->gps_239_context.descriptor &&
          startup->descriptor->interventions != d->gps_239_context.interventions) ||
@@ -62,6 +74,15 @@ semu_status semu_sapporo_devices_bind_gps_layers(
         semu_error_set(error, SEMU_ERR_FORMAT, "2.39 GPS reopen dependency lifecycle invalid");
         return SEMU_ERR_FORMAT;
     }
+    if (awake != NULL) {
+        semu_status status = semu_sapporo_239_gps_awake_validate(awake, startup, reopen, error);
+        if (status != SEMU_OK) return status;
+    }
+    for (i = 0u; i < semu_scheduler_event_count(d->scheduler); ++i) {
+        const semu_scheduled_event_state *event = semu_scheduler_event_get(d->scheduler, i);
+        if (event->kind == SEMU_SCHED_EVENT_CXD_AWAKE &&
+            (awake == NULL || awake->hits == 0u)) goto conflict;
+    }
     if (semu_sapporo_devices_bind_gps_startup_fixture(d, startup, logger, error) != SEMU_OK)
         return error->code;
     if (reopen != NULL) {
@@ -69,6 +90,9 @@ semu_status semu_sapporo_devices_bind_gps_layers(
                 &d->gps_239_context, logger, error) != SEMU_OK) return error->code;
         semu_sapporo_cxd5610_set_exchange(d->gps, gps_exchange, d);
     }
+    if (awake != NULL)
+        return semu_sapporo_239_gps_awake_bind(&d->gps_awake_context, awake,
+            startup, reopen, logger, error);
     return SEMU_OK;
 conflict:
     semu_error_set(error, SEMU_ERR_CONFLICT, "GPS layer dependency or ownership conflict");
@@ -142,6 +166,15 @@ semu_status semu_sapporo_devices_apply_compat_hook(
             return SEMU_ERR_STATE;
         }
         return semu_sapporo_239_gps_reopen_start(&devices->gps_reopen_context,
+            devices->gps, bus, cpu_state, error);
+    }
+    if (semu_sapporo_239_gps_awake_is_layer(state->descriptor)) {
+        if (devices->gps_awake_context.state != state ||
+            devices->gps_awake_context.logger != logger || devices->soc == NULL) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.39 GPS awake fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        return semu_sapporo_239_gps_awake_poll(&devices->gps_awake_context,
             devices->gps, bus, cpu_state, error);
     }
     state_hook_hits = state->descriptor != NULL &&

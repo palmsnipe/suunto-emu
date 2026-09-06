@@ -11,6 +11,7 @@
 #include "../compat/sapporo_239.h"
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
+#include "../compat/sapporo_239_gps_awake.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
@@ -203,6 +204,8 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         descriptor = &semu_sapporo_239_gps_layer;
     } else if (strcmp(id, semu_sapporo_239_gps_reopen_layer.id) == 0) {
         descriptor = &semu_sapporo_239_gps_reopen_layer;
+    } else if (strcmp(id, semu_sapporo_239_gps_awake_layer.id) == 0) {
+        descriptor = &semu_sapporo_239_gps_awake_layer;
     } else {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unknown layer %s", id);
         return SEMU_ERR_UNSUPPORTED;

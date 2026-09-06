@@ -1,6 +1,6 @@
 # 757 — Sapporo 2.39 GPS Reopen and Restart Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 756,615,729
 
@@ -34,7 +34,8 @@ the reopen evidence entry.
 ## Current Baseline
 
 Ticket 756's `fa56b33` implementation has passed integrator review; all three
-dependencies are done. This ticket is ready for its bounded integration.
+dependencies are done. Implementation `9f8c121` is now accepted by the
+separate planning review below. The following describes the original baseline.
 The two-layer production baseline reaches the later pending-seven timeout
 and refuses the consumed startup hook at instruction 908,321,039 /
 14,978,258,084 ns. External experiments prove one later status and exact
@@ -159,11 +160,23 @@ bytes, pixels or private artifacts in Git. Do not claim full GPS or settled UI.
 
 ## Handoff
 
+Integrator review, 2026-09-06: accept implementation `9f8c121`. The isolated
+providers/counters, strict predicates, reset/restore ownership and atomic
+refusals match this ticket's contract. Its seven focused tests and retained
+759-case normal/sanitizer verification cover the required synthetic cases.
+A fresh `make check` again passes 759 cases, and the exact private reopen
+command above passes without skips, including both cold goldens, four resumes,
+layer-set/order refusal and precise GSTP fault. The previous implementation
+handoff retains the successful unchanged startup/activity gates. Dependencies
+756/615/729 are done. This planning-only review changes the index to done;
+it authorizes no additional firmware behavior. Follow-up work is split into
+758 (pulse failure integration) and 759 (bounded awake fixture, blocked on 758).
+
 ### Implementation verification, 2026-09-06
 
-The bounded integration is implemented and acceptance-tested. Status remains
-`ready` pending a separate integrator review; implementation does not update
-the index. No additional integration-owned interface change is requested.
+The bounded integration was implemented and acceptance-tested with status
+left `ready` for separate review; implementation did not update the index.
+The later planning review above accepts it.
 
 Changed files: `src/compat/sapporo_239_gps_reopen.{c,h}`;
 `src/devices/sapporo_device_compat.c`, `sapporo_devices.c`,

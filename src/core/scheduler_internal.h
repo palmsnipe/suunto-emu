@@ -24,6 +24,8 @@ struct semu_scheduler {
     uint64_t now_ns;
     uint64_t next_sequence;
     semu_event_id next_id;
+    int dispatching;
+    semu_error callback_error;
 };
 
 /* CPU instructions advance by exactly one tick. Keep the common no-event
@@ -32,7 +34,8 @@ struct semu_scheduler {
 static inline semu_status semu_scheduler_advance_one(
     semu_scheduler *scheduler, semu_error *error)
 {
-    if (scheduler != NULL && scheduler->now_ns != UINT64_MAX) {
+    if (scheduler != NULL && !scheduler->dispatching &&
+        scheduler->now_ns != UINT64_MAX) {
         uint64_t target = scheduler->now_ns + 1u;
         if (scheduler->count == 0u ||
             scheduler->events[0].state.due_ns > target) {

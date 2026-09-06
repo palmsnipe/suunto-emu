@@ -8,7 +8,10 @@ expected_first='SDL first-frame width=240 height=240 generation=1 crc32=2a01c517
 expected_step_one='SDL live test settled step=1 generation=3 crc32=4979f432'
 expected_step_two='SDL live test settled step=2 generation=5 crc32=629da47e'
 expected_step_three='SDL live test settled step=3 generation=63 crc32=d4ed66c7'
-expected_stop='stop=user pc=0x080000a2 instructions=804398304 virtual_time_ns=9504428769'
+# E-SAP-ONBOARD-EMU-012: correct haptic selection removes the old nonfatal
+# autotune timeout. Keep exact frames, stop tuple and cold-start transcript.
+expected_stop='stop=user pc=0x000bacf4 instructions=774081920 virtual_time_ns=6520939902'
+expected_cold_hash=9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-live.XXXXXX")
 
@@ -90,6 +93,13 @@ if [ "$status" -ne 0 ] ||
    ! grep -qx "$expected_stop" "$log"; then
     cat "$log" >&2
     echo "error: SDL live input firmware check failed" >&2
+    exit 1
+fi
+
+if [ -z "$snapshot" ] &&
+   [ "$(shasum -a 256 "$log" | awk '{print $1}')" != "$expected_cold_hash" ]; then
+    cat "$log" >&2
+    echo "error: SDL live input cold-start transcript mismatch" >&2
     exit 1
 fi
 

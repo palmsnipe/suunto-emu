@@ -337,6 +337,9 @@ void semu_sapporo_devices_reset(semu_sapporo_devices *devices)
     devices->gps_reopen_context.state = NULL;
     devices->gps_reopen_context.startup = NULL;
     devices->gps_reopen_context.logger = NULL;
+    devices->gps_awake_context.state = NULL;
+    devices->gps_awake_context.startup = devices->gps_awake_context.reopen = NULL;
+    devices->gps_awake_context.logger = NULL;
     semu_sapporo_cxd5610_set_exchange(devices->gps, NULL, NULL);
     devices->fixture_context.gps_running_status_armed = 0;
     semu_sapporo_lps22_reset(devices->lps22);

@@ -5,7 +5,7 @@
 
 #include "sampling.h"
 
-#include <stdlib.h>
+#include <limits.h>
 
 /*
  * Compute the intersection of the destination rectangle with clip
@@ -21,26 +21,32 @@ static semu_status compute_clip_region(raster_target *target,
                                         int32_t *dy_adjust,
                                         semu_error *error)
 {
-    raster_bounds effective_clip;
+    raster_bounds effective_clip, result = {0u, 0u, 0u, 0u};
     uint32_t rx0, ry0, rx1, ry1;
+    int32_t dx = 0, dy = 0;
 
-    if (target == NULL || target->pixels == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT, "sampling: null target");
+    if (target == NULL || target->pixels == NULL || out_clip == NULL ||
+        dx_adjust == NULL || dy_adjust == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "sampling: null argument");
         return SEMU_ERR_ARGUMENT;
     }
-    if (target->stride < target->width * 2u) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "sampling: bad stride");
+    if (target->width == 0u || target->height == 0u ||
+        target->width > UINT32_MAX / 2u ||
+        target->stride < target->width * 2u ||
+        (uint64_t)target->stride * target->height > SIZE_MAX) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "sampling: invalid target layout");
         return SEMU_ERR_UNSUPPORTED;
+    }
+    if (w > UINT32_MAX - dst_x || h > UINT32_MAX - dst_y ||
+        (clip != NULL && (clip->min_x > clip->max_x || clip->min_y > clip->max_y))) {
+        semu_error_set(error, SEMU_ERR_RANGE, "sampling: invalid rectangle bounds");
+        return SEMU_ERR_RANGE;
     }
 
     if (clip != NULL) {
         if (!raster_clip_intersect(clip, target->width, target->height,
                                      &effective_clip)) {
-            out_clip->min_x = 0u; out_clip->min_y = 0u;
-            out_clip->max_x = 0u; out_clip->max_y = 0u;
-            *dx_adjust = 0;
-            *dy_adjust = 0;
-            return SEMU_OK;
+            goto commit;
         }
     } else {
         effective_clip.min_x = 0u;
@@ -49,28 +55,32 @@ static semu_status compute_clip_region(raster_target *target,
         effective_clip.max_y = target->height;
     }
 
-    if (dst_x > target->width || dst_y > target->height) {
-        semu_error_set(error, SEMU_ERR_RANGE,
-                       "sampling: dst origin out of bounds");
-        return SEMU_ERR_RANGE;
-    }
-
     rx0 = dst_x;
     ry0 = dst_y;
-    rx1 = (w > target->width - dst_x) ? target->width : dst_x + w;
-    ry1 = (h > target->height - dst_y) ? target->height : dst_y + h;
+    rx1 = dst_x + w;
+    ry1 = dst_y + h;
 
     if (rx0 < effective_clip.min_x) rx0 = effective_clip.min_x;
     if (ry0 < effective_clip.min_y) ry0 = effective_clip.min_y;
     if (rx1 > effective_clip.max_x) rx1 = effective_clip.max_x;
     if (ry1 > effective_clip.max_y) ry1 = effective_clip.max_y;
 
-    out_clip->min_x = rx0;
-    out_clip->min_y = ry0;
-    out_clip->max_x = rx1;
-    out_clip->max_y = ry1;
-    *dx_adjust = (int32_t)rx0 - (int32_t)dst_x;
-    *dy_adjust = (int32_t)ry0 - (int32_t)dst_y;
+    /* A valid offscreen draw has no coverage, not an inverted region.
+     * E-SAP-UI-239-001: native language-transition glyphs cross the viewport. */
+    if (rx0 >= rx1 || ry0 >= ry1) goto commit;
+    if (rx0 - dst_x > INT32_MAX || ry0 - dst_y > INT32_MAX) {
+        semu_error_set(error, SEMU_ERR_RANGE, "sampling: source adjustment out of range");
+        return SEMU_ERR_RANGE;
+    }
+    result.min_x = rx0; result.min_y = ry0;
+    result.max_x = rx1; result.max_y = ry1;
+    dx = (int32_t)(rx0 - dst_x);
+    dy = (int32_t)(ry0 - dst_y);
+commit:
+    *out_clip = result;
+    *dx_adjust = dx;
+    *dy_adjust = dy;
+    semu_error_clear(error);
     return SEMU_OK;
 }
 

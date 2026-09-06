@@ -68,8 +68,14 @@ semu_status armv7m_sleep_step(semu_cpu *cpu, semu_error *error)
         clear_sleep(cpu, SLEEP_WAKE_PENDING);
         return SEMU_OK;
     }
-    if (cpu->scheduler != NULL && semu_scheduler_has_events(cpu->scheduler))
-        return semu_scheduler_run_next(cpu->scheduler, error);
+    if (cpu->scheduler != NULL && semu_scheduler_has_events(cpu->scheduler)) {
+        semu_status status = semu_scheduler_run_next(cpu->scheduler, error);
+        if (status != SEMU_OK) {
+            cpu->state.halted = 1;
+            cpu->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+        }
+        return status;
+    }
     cpu->state.halted = 1;
     cpu->stop_reason = SEMU_STOP_WFI_DEADLOCK;
     return SEMU_OK;

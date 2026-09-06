@@ -48,4 +48,27 @@ semu_status semu_machine_snapshot_manifest_hash(
 semu_status semu_machine_reset_state_internal(semu_machine *machine,
     uint32_t vector_table, int preserve_ram, semu_error *error);
 
+typedef struct semu_machine_layer_image {
+    char id[SEMU_ID_MAX];
+    uint8_t enabled;
+    uint64_t hits;
+    uint64_t intervention_hits[SEMU_SAPPORO_222_IV_COUNT];
+    size_t intervention_count;
+} semu_machine_layer_image;
+
+typedef struct semu_machine_image {
+    uint64_t instruction_epoch;
+    uint64_t virtual_time_epoch;
+    semu_stop_reason stop_reason;
+    semu_machine_layer_image layers[SEMU_MAX_LAYERS];
+    size_t layer_count;
+} semu_machine_image;
+
+semu_status semu_machine_snapshot_write_layers(const semu_machine *machine,
+    semu_snapshot_writer *writer, semu_error *error);
+semu_status semu_machine_snapshot_read_layers(semu_machine *machine,
+    semu_snapshot_reader *reader, semu_machine_image *image, semu_error *error);
+semu_status semu_machine_snapshot_apply_layers(semu_machine *machine,
+    const semu_machine_image *image, semu_error *error);
+
 #endif

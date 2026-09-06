@@ -30,7 +30,7 @@ static inline int semu_sapporo_devices_compat_hook_pc(uint32_t pc)
     case UINT32_C(0x0010f7c2): case UINT32_C(0x0010f7b8):
     case UINT32_C(0x0009aaec): case UINT32_C(0x0009a3b8):
     case UINT32_C(0x0010fbde): case UINT32_C(0x00128d14):
-    case UINT32_C(0x00128e8c):
+    case UINT32_C(0x00128e8c): case UINT32_C(0x001291cc):
         return 1;
     default:
         return 0;

@@ -15,7 +15,7 @@ static void test_sapporo_239_gps_reopen_activation(semu_test_context *context)
     unsigned i;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_profile_load("profiles/sapporo/2.39.20/profile.semu", &profile, &error));
-    SEMU_TEST_EQ_U64(context, 3u, profile.layer_count);
+    SEMU_TEST_EQ_U64(context, 4u, profile.layer_count);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[2], d->id) == 0);
     SEMU_TEST_EQ_U64(context, 2u, d->maximum_hits);
     SEMU_TEST_EQ_U64(context, 2u, d->intervention_count);

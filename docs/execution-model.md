@@ -6,6 +6,40 @@ Virtual time is an unsigned integer count of functional ticks. Normal instructio
 
 Execution is always bounded by an instruction limit, a virtual-time limit, or both. Budget exhaustion is a normal stop reason, not an error. Host wall time, threads, locale, random sources, and filesystem timestamps must not affect guest-visible state.
 
+Callbacks retain their void ABI. A callback that cannot complete a device
+operation calls `semu_scheduler_callback_fail` with its diagnostic. The
+scheduler owns a copy of the first error until that dispatch returns; later
+reports or successful scheduling calls cannot replace it. Invalid reports
+(NULL, OK, or an unsupported status code) report `SEMU_ERR_ARGUMENT`.
+Reporting outside a callback refuses with `SEMU_ERR_STATE` (a NULL scheduler
+returns `SEMU_ERR_ARGUMENT`) without affecting future dispatch.
+
+`run_next` and `advance`, including the one-tick CPU path, return that first
+failure without draining remaining due events or advancing to the requested
+target. The failed event has been consumed and time remains at its deadline,
+unless the callback explicitly reset the scheduler. There is no generic
+rollback of callback side effects. CPU tick and sleeping WFI/WFE dispatch
+failures halt with `device-refused`, preserving the original diagnostic and
+without fabricating an architectural exception. A retired instruction still
+costs one instruction; a sleeping dispatch retires none.
+
+Recursive dispatch or time advancement on the same scheduler refuses before
+queue/time mutation and reports `SEMU_ERR_STATE` to the outer dispatch.
+Scheduling, cancellation and reset from callbacks remain permitted; reset
+clears the queue, clock and counters but cannot erase an active first error
+or the recursion guard. Destruction during a callback is unsupported. The
+failure is cleared after dispatch so explicit subsequent dispatch/reset/reuse
+does not inherit it; the guard and diagnostic are transient, not serialized.
+
+CXD awake admission validates that both deadlines fit and queues the rise
+before committing transport state or delivering low. At rise, the falling
+event receives its fresh ID/sequence at that same historical deadline, before
+high is emitted. Failure to schedule it reports the scheduler diagnostic and
+emits no high or artificial zero-width pulse. A signal sink's explicit reset
+still cancels the pending event; resetting during accepted low reports that
+interruption, and resetting during high cancels the already-arranged fall.
+Successful pulse width remains 1 ms (E-EMU-CXD-AWAKE-FAILURE-001).
+
 ## Reset and Run
 
 Reset is deterministic and proceeds in this order:

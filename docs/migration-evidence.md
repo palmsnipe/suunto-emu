@@ -13,6 +13,306 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-SAMPLING-CLIP-001
+
+2026-09-06; bounded maintenance implementation and synthetic/private replay
+follow-up to E-SAP-UI-239-001. Sources: the shared helper's intersection
+contract, that entry's exact native glyph and external hash-pinned observer,
+and `tests/unit/test_sampling_clip.c`. Private inputs are the same exact
+E-SAP-0011 firmware components and full flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`;
+each probe validates all components before execution. Firmware stays read-only.
+Working-tree library SHA-256 after correction:
+`69a59afe14b167d0ec1769a524165485ef8a0f8a269154ba872b1237602c193b`.
+
+The initial two committed regression cases both fail against the old helper.
+Correction stages outputs, validates layout and endpoint arithmetic, computes
+the intersection, and returns all-zero bounds/offsets for empty coverage.
+Nonempty offsets must fit `int32_t`; malformed inputs refuse before changing
+outputs. No signed geometry, texture format, command or compatibility hook
+is introduced. Five final test cases cover the observed offscreen glyph,
+disjoint/zero-size rectangles, 1,728 independent pixel-membership comparisons,
+14 atomic refusal cases, and RGB565/A2LE/affine draw consumers with visible
+success and no-pixel-change controls. Affine format/matrix refusals remain.
+
+Two cold middle-button observer runs now accept all 79 submissions (zero
+REFUSE), instead of 27 accepted / 52 refused. Their traces, final snapshots
+and RGB565 pixels are byte-identical. A resume from the unchanged 700-million
+instruction prefix accepts all 76 remaining submissions and converges to the
+same final snapshot/pixels; its frontend publication counter starts afresh.
+Last changed frame: 1,088,274,630 instructions / 12,335,112,985 ns, cold
+generation 79, CRC32 `6b6aa2dc`, RGB565 SHA-256
+`f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`.
+Visual inspection shows the language list with English selected, without the
+stale green icon. The bounded endpoint remains 1,300,000,000 instructions /
+22,286,110,403 ns / PC `0x000a7abc`, GPS hits `2,2,3`.
+Cold trace SHA-256:
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`;
+corrected final snapshot:
+`4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+The prior incomplete-render snapshot is historical, not re-pinned as a
+release golden. The 700-million prefix remains `7650d82f...a904d2` as recorded
+in E-SAP-UI-239-001. All pixels and probe artifacts remain outside Git.
+
+Exact verification commands (all pass after correction):
+
+```sh
+make test TEST_FILTER=sampling_clip
+make test TEST_FILTER=sampling
+make check
+make sanitize
+make check-lines
+make sdl
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_awake
+probe_dir=/tmp/semu-239-ui.690H4Q
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices "$probe_dir/render-probe.c" build/libsemu.a -o "$probe_dir/render-probe-clip"
+"$probe_dir/render-probe-clip" cold 1 "$probe_dir/clip-middle-a" > "$probe_dir/clip-middle-a.trace" 2> "$probe_dir/clip-middle-a.log"
+"$probe_dir/render-probe-clip" cold 1 "$probe_dir/clip-middle-b" > "$probe_dir/clip-middle-b.trace" 2> "$probe_dir/clip-middle-b.log"
+"$probe_dir/render-probe-clip" "$probe_dir/cold-a.prefix.sems" 1 "$probe_dir/clip-middle-resume" > "$probe_dir/clip-middle-resume.trace" 2> "$probe_dir/clip-middle-resume.log"
+cmp "$probe_dir/clip-middle-a.trace" "$probe_dir/clip-middle-b.trace"
+for other in clip-middle-b clip-middle-resume; do
+  cmp "$probe_dir/clip-middle-a.final.sems" "$probe_dir/$other.final.sems"
+  cmp "$probe_dir/clip-middle-a.rgb565" "$probe_dir/$other.rgb565"
+done
+git diff --check
+```
+
+Results: five new cases; 27 focused sampling cases; 780 normal and 780
+ASan/UBSan cases across 141 suites; 129 task contracts and line checks pass.
+Private 2.39 four-awake/two-cold/four-resume gate preserves the ticket 759
+log/snapshot pins, native IRQ checks and fifth-hit refusal. The short 2.22
+SDL gate preserves all E-SAP-ONBOARD-EMU-012 frame/stop/log pins. Full long
+onboarding is not rerun. Logs: `/tmp/semu-clip-fix.hdaNVI/`.
+Confidence is high for clipping and repeatability, not physical-panel fidelity.
+Affected files: sampling implementation/header, the new unit test, status and
+this ledger. No profile, budget, persistent format or integrator-owned change
+is needed. Swallowed backend errors remain a separate demonstrated bug;
+logical-file investigation must wait for that fail-closed boundary correction.
+
+### E-SAP-UI-239-001
+
+2026-09-06; bounded observational maintenance after ticket 759 acceptance.
+The in-tree interpreter uses all four explicit 2.39 layers, the normal NEMA
+backend, exact E-SAP-0011 components and full flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Every private probe validates the components and full flash before loading or
+executing. Firmware inputs remain read-only. No runtime, budget, profile,
+snapshot format, native callback, guest RAM or register patch is made.
+The observed working-tree library SHA-256 is
+`9e1bba2db9c6b42c3836a19f2931732ed39549cf54ecf960057b13a988a3e056`.
+
+Two cold idle runs publish six frames, five with distinct consecutive CRCs.
+The final change, instruction 712,863,377 / 5,805,310,840 ns / generation six,
+visually reads `Select language`; CRC32 `3bd12ac8`, RGB565 SHA-256
+`07944160817f67bb02efd0fdcebe6e0e38353d1950adb112f34a912d1a40396f`.
+There is no later publication before the accepted fifth-awake refusal.
+Both final machine images are byte-identical to ticket 759's production
+`da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+The idle frame trace SHA-256 is
+`70c25cbe75473a7ca3b364d9675a8240eb1f84ea3a6361422c150209e79e6d38`.
+A four-layer prefix at 700,000,000 instructions / 5,792,348,681 ns /
+PC `0x000be50a` has snapshot SHA-256
+`7650d82fe72e58d544dc0043df99ab756ece41092d39e94d7c0b2b7460a904d2`.
+
+A middle press at instruction 847,389,017 / 12,010,884,552 ns and release at
+850,221,528 / 12,096,961,147 ns advances to a language menu. Requested
+12.000/12.070-second deadlines are exceeded by bounded WFI event jumps;
+the actual times above, not a claimed exact 70-ms hold, define the experiment.
+Upper/lower controls from the same prefix produce no new frame after the
+initial tile and retain the four-hit GPS bound. Cold and resumed middle runs
+have identical final pixels and machine snapshot: budget stop at
+1,300,000,000 instructions / 22,286,110,403 ns / PC `0x000a7abc`, GPS hits
+`2,2,3`; image SHA-256
+`a890e7bab7203ac3b22891f49e9bd575e44dd749d8d85ca1d4bab76a6c0cfeb5`.
+Last menu pixel SHA-256 is
+`ff97cac3de4ae996e06d9417c18e62b2f655e0d831c09e6f22c4a6d6ee9c41c1`
+(CRC `64e76882`). The centre retains the prior green icon. This incomplete
+image is diagnostic, not a correct language-menu golden. Snapshot restore
+does not restore the frontend backend surface: early partial pixels and frame
+generations differ, although these runs converge to the same final pixels.
+
+The read-only draw observer identifies **52 refused backend submissions out
+of 79** in the cold middle run; only 27 publish. First failure: list 11,
+DRAW_CMD five at `0x100d0b1c`, target `0x10121d40`, A2LE source `0x10063d38`,
+code `0x941e8000`, white tint, rectangle `[298,307) x [15,27)` and clip
+`[239,240) x [0,42)`. This is a fully clipped-out animated glyph.
+`draw_mask_affine` reaches `sampling_compute_clip`, which rejects an origin
+beyond the 240-pixel target instead of returning an empty intersection.
+A synthetic clip probe reproduces that range refusal; another disjoint case
+(x=150, width=9, clip x=0..100) returns inverted bounds `150,15,100,27` with
+success. A partly visible x=239 control succeeds with `239,15,240,27`.
+These contradict the helper's documented intersection contract. Signed
+geometry and malformed/overflow cases still need a bounded correction; no
+new texture format or guessed command is needed to reproduce these bugs.
+
+Separately, the backend retains an unsupported-draw diagnostic but loses its
+detailed local draw error. `submit_child` receives REFUSE;
+`trigger_rendering` discards it and advances `previous_ring_stop`, while the
+MMIO writer returns OK. An independent synthetic backend returning REFUSE
+with `synthetic backend refusal` reproduces successful MMIO, empty outward
+error and a consumed submission: repeating the same stop pointer does not
+invoke the backend again. A successful-backend control also runs once.
+Normal and ASan/UBSan reproducers exit 1 on this violated fail-closed
+expectation, with no sanitizer finding. Correcting clipping alone must not
+be represented as fixing this distinct failure-propagation contract.
+
+Read-only resident disassembly at `0x0001dd5a..0x0001dd78` confirms active-low
+reads through `0x0001e020`: pins 57/58/59. The native-navigation reference
+`$FIRMWARE_ROOT/emulator/display/sdl/s239/navigation-trace.resc` identifies
+publication `0x0010ace2` and view-open `0x00073898`; pristine application
+disassembly confirms these call boundaries. A separate single-step observer
+records native middle-button events 2, 5 and 1 for each of two properly held
+presses. It observes view token `0x8a7f9b55` before input and `0x9cdbd4e2`
+after the second click, without calling the view opener itself.
+
+Two repeated navigation probes stop identically at the existing logical-file
+ceiling: 1,376,488,437 instructions / 14,401,737,146 ns /
+PC `0x000920b4`, LR `0x000ad079`, path `settings/general`, mode two.
+GPS hits remain `2,2,1`. No budget was enlarged. Trace SHA-256
+`e4008fb8e24c6abb63f199f4136b9a9d496b276bb045d8bb1cb8ff94c231e296`,
+final snapshot `1e5e2c8aa9e22925ada70558bf7dd072046522238cc9198ad19c9c000059c734`.
+This later diagnostic boundary follows swallowed renderer failures, not
+correct intervening frames. Measure the native file sequence only after the
+renderer/refusal issues are addressed; do not raise its bound from this
+observation alone.
+
+External artifacts are in `/tmp/semu-239-ui.690H4Q/`. Source SHA-256 pins:
+
+| Source | SHA-256 |
+| --- | --- |
+| `ui-probe.c` | `6d920dfd7b44f47b3aee1f1b50f23711792a8cabf45f303602a5c1144481fc9f` |
+| `render-probe.c` | `d96fbfbbae59a1696794a291ff5d6e8ddb81ea9358044fbf2c7fb5b789f57190` |
+| `nav-probe.c` | `508c684cc26eb1781d2c5618488b4636d3343a955aa14fb6013f8d68c5cb3233` |
+| `refusal-probe.c` | `65ad0fbdc804006855109d18cd74ea7765852e8089b813631116eba2226bb81e` |
+| `clip-probe.c` | `53cbec1e1798966569caeb6510297e08820b1d54f9c83123533e136b3a590d5b` |
+
+Reproduction commands (run from the emulator root):
+
+```sh
+probe_dir=/tmp/semu-239-ui.690H4Q
+for name in ui render nav refusal clip; do
+  cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices "$probe_dir/$name-probe.c" build/libsemu.a -o "$probe_dir/$name-probe"
+done
+"$probe_dir/ui-probe" cold - "$probe_dir/cold-a" > "$probe_dir/cold-a.trace" 2> "$probe_dir/cold-a.log"
+"$probe_dir/ui-probe" cold - "$probe_dir/cold-b" > "$probe_dir/cold-b.trace" 2> "$probe_dir/cold-b.log"
+"$probe_dir/ui-probe" cold 1 "$probe_dir/middle-cold" > "$probe_dir/middle-cold.trace" 2> "$probe_dir/middle-cold.log"
+"$probe_dir/ui-probe" "$probe_dir/cold-a.prefix.sems" 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/render-detail" > "$probe_dir/render-detail.trace" 2> "$probe_dir/render-detail.log"
+"$probe_dir/nav-probe" "$probe_dir/nav-b" > "$probe_dir/nav-b.trace" 2> "$probe_dir/nav-b.log"
+"$probe_dir/nav-probe" "$probe_dir/nav-c" > "$probe_dir/nav-c.trace" 2> "$probe_dir/nav-c.log"
+"$probe_dir/nav-probe" inspect "$probe_dir/nav-b.final.sems"
+"$probe_dir/clip-probe"
+"$probe_dir/refusal-probe"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc "$probe_dir/refusal-probe.c" build/sanitize/libsemu.a -o "$probe_dir/refusal-sanitize"
+"$probe_dir/refusal-sanitize"
+make check
+git diff --check
+```
+
+Builds/private probes exit 0; clip/refusal reproducers intentionally exit 1.
+The draw observer preserves the cold-middle final image/pixels byte-for-byte;
+its detailed trace SHA-256 is
+`e2ba4216396b0c6fa8afa1d3b59ba1143f1d270cf62eb0f86f46a40a011c0224`.
+Existing `make check` passes 775 cases, line checks and 129 task contracts;
+it does not yet contain these external failing regressions. Full sanitizers
+and SDL walks were not rerun for documentation-only maintenance. Confidence
+is high for native input/events, exact refusal and the two synthetic bugs;
+complete UI, physical display fidelity, GPS fix/time and a justified extra
+file budget remain unproven. Affected components: sampling/affine draw, NEMA
+backend/device error propagation and the separate logical-file workflow.
+Next work must promote these reproducers into regressions and resolve the
+renderer failures before extending that workflow.
+
+### E-SAP-ONBOARD-EMU-012
+
+2026-09-06; bounded maintenance investigation of the 2.22 SDL gate mismatch
+reported during ticket 758. Exact `2.22.60.3383-P` components are independently
+validated in every clean build (E-SAP-0005..0007). All runs use the in-tree
+interpreter, normal NEMA backend, dummy SDL, and `sapporo-2.22-no-device`.
+No firmware, CPU, device, renderer, input timing or release frame golden is
+changed by this maintenance correction.
+
+Clean `git archive` builds of `50f7697` and `fbe8d48` reproduce the complete
+E-SAP-ONBOARD-EMU-011 log SHA-256
+`55d96468b4b41a938f98ab9db500dabc99ad491d7cc1e5595b933119a7b1f72b`,
+including its 804398304-instruction / 9504428769-ns stop. Thus that historical
+measurement was valid, not a host-time artifact or fabricated checkpoint.
+
+External, observational IOM instrumentation in the `fbe8d48` build records
+32 one-byte haptic reads with command `0x22000112` but selector `0x08` from
+the obsolete `dma_target - 8` lookup. Each returns zero. The first two occur
+at 1213352815 and 1213355468 ns; the last is at 4193067310 ns. This reads
+the status register instead of the requested autotune register `0x22`, forcing
+the firmware's nonfatal timeout. The read-only research
+`$FIRMWARE_ROOT/docs/research/feedback-startup-haptic.md`, SHA-256
+`64858799bdfe96e56b918051e05051ea52cc7c4729f11e0c11a9f70219d6a13e`,
+independently identifies 2.22's native poll, 31 tries separated by 100 ms,
+and nonfatal timeout. Immediate completion followed by calibration reads is
+the documented successful path (E-SAP-HAPTIC-001).
+
+Commit `d6b4235` corrects the shared address-`0x50` selector under
+E-SAP-IOM4-HAPTIC-239-001; `df93397` supplies the separate zero calibration
+reads under E-SAP-HAPTIC-CAL-239-001. A clean `d6b4235` build alone reaches
+the missing calibration read and later resets/halts; it is not a valid UI
+checkpoint. Applying only `df93397`'s haptic source to that external build
+and observing the IOM shows five successful reads: `0x22` returns `0x00`,
+then `0x03`, then `0x03`; `0x23` and `0x24` each return `0x00`, finishing
+at 1213359491 ns. Removing only the diagnostic lines gives a log byte-equal
+to the current build. On the old build, removing the same diagnostics gives
+the exact old log. This isolates the timing correction to those two already
+implemented changes, not scheduler ticket 758 or SDL event pacing.
+
+The diagnostic artifacts are external under `$SDL_DRIFT_ROOT` (local run:
+`/tmp/semu-sdl-drift.RmgaNg`). Instrumented old/new IOM source SHA-256:
+`e562c6c55fdf3070e609209acdd2bf5c8ad98278dc3d8566eaa6cfd077d566ac` /
+`8ee2a8765c230ecbdb8864c204079a1a1d64cf4f39786e8b8e7398b54a1553c2`.
+Complete diagnostic log SHA-256:
+`a5e9b7deaf127bed02870a5175c46119779aec17c34af9f1b73f8a17937adc00` /
+`ee4c32b353f6d75485bb001c4189067da14c418f089ecf5806d74345c83b1624`.
+Instrumentation only prints command, selected register, response, status and
+virtual time; it changes no request or result. No private bytes enter Git.
+
+Two fresh uninstrumented current runs compare byte-identically, SHA-256
+`9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`.
+Their unchanged initial/settled frames are generation 1 CRC `2a01c517`,
+generation 3 `4979f432`, generation 5 `629da47e`, generation 63 `d4ed66c7`.
+They stop through synthetic SDL quit at `stop=user pc=0x000bacf4
+instructions=774081920 virtual_time_ns=6520939902`. Current SDL binary hash
+`a9ce82fc29e07201bd0266066d07dc06aab2d9354fdff7e8b649a2b8fddadf14`;
+library `a5bda58c8065faf59e9fb85107ceb39593296f3408114c65e7b8dbd71b0b56ee`.
+
+The existing authentic `tools/test_sdl_live_input.sh` regression first fails
+its old stop check on this corrected runtime. Maintenance updates that exact
+tuple and adds full-log SHA-256 verification for cold boots, retaining all
+existing frame, configuration-refusal and exit-status checks. Snapshot runs
+retain the frame/stop checks; their startup log is a suffix, not the cold log.
+Confidence is high for the isolated cause and repeatability. This supersedes
+011 only as the current SDL smoke expectation, not as historical evidence.
+No broad release-frame re-pin or physical calibration claim is authorized.
+The longer manual-entry onboarding gate is a separate, unrevalidated contract.
+
+Verification: the original focused authentic gate exits 1 before this smoke
+correction and 0 afterward. An external harness replays the exact current log
+with one additional line: frame and stop checks still pass, but the cold hash
+check exits 1 with `SDL live input cold-start transcript mismatch`. Thus the
+new expectation is not an allowlist of both behaviors or a relaxed tolerance.
+`make check-sdl` without a manifest passes five synthetic SDL cases and its
+configuration refusals (firmware walks explicitly skip); the short authentic
+gate is run separately with all three validated components. `make check`
+passes 768 cases, line checks and 129 task contracts; `git diff --check`
+and `sh -n tools/test_sdl_live_input.sh` pass. No C changed,
+so the preceding 768-case sanitizer result remains applicable.
+
+Reproduction from each clean archive/current tree (`FW` is the same absolute
+validated private manifest, `LOG` is an external output path):
+
+```sh
+make -j4 all sdl
+build/suunto-emu validate --profile sapporo-2.22.60 --firmware "$FW"
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=middle-language build/suunto-emu-sdl run --profile sapporo-2.22.60 --firmware "$FW" --layer sapporo-2.22-no-device --until middle-language --max-instructions 14000000000 --max-time 22000000000 >"$LOG" 2>&1
+```
+
 ### E-EMU-COMPAT-ATOMIC-001
 
 2026-09-06; synthetic C regressions against `cb875c4`, in-tree interpreter,
@@ -76,6 +376,250 @@ Confidence is high for these synthetic refusals and retained private
 checkpoints. Unsupported commands, later GPS lifecycle behavior and physical
 receiver fidelity remain unchanged; this maintenance does not implement 756's
 new GPS layer or authorize a new startup-state response.
+
+### E-SAP-COMPAT-GPS-AWAKE-239-001
+
+2026-09-06; pristine Sapporo 2.39 application disassembly and bounded external
+experiments against emulator `9f8c121`. All three E-SAP-0011 component hashes
+are validated; application SHA-256 is
+`85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`.
+Full flash remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+The normal NEMA backend and all three ticket-757 layers remain attached.
+No source firmware, CPU/RAM state, compatibility counter, UART response,
+native event or production code is modified. External candidate pulses use
+only the existing CXD awake-output API and normal GPIO IRQ path.
+
+The external-IRQ table at `0x001b25dc` has entry two at `0x001b25ec`:
+pin 24 and Thumb callback `0x00128927`. State ten registers entry two with
+mode zero at `0x001290ac..0x001290b0`. Registration `0x000a5e88` maps that
+mode through `0x000a6040` to configuration bits [7:6]=2; the live GPIO24
+configuration at `0x40010060` is `0x93`. Callback `0x00128926..0x0012892e`
+sets byte `0x100588a2` to one through the literal at `0x00129540`.
+State ten bootstraps the same byte at `0x0012909e`. State twelve reads it
+at `0x001291c8`, branches to missing-awake recovery when zero, and clears it
+at `0x00129250` after rearming. Therefore `@GSTP` is a consequence of absent
+awake input, not evidence that another PSS acknowledgement is required.
+
+The successful state-twelve boundary is `0x001291cc`: R0=1, R2=12,
+R4=`0x100588a2`, R8=driver=`0x100366d8`, R5=driver+0x26c,
+R6=driver+0x314, R7=driver+0x75, callback 12, pending ten, retry zero.
+Both GPS layers have exactly two hits. R1 is a scheduling return value and
+varies across polls; it must not become a fixture predicate. The first
+boundary is instruction 825,147,127 / 10,875,951,928 ns, reached from the
+production state-twelve image
+`0d3b67903adff5826de946b56738ce443dffa784410392363e1a7ddc0623c27d`.
+
+One external pulse queued there for +100,000,000 ns, with the existing
+1,000,000-ns high duration, invokes the native callback at instruction
+827,008,206 / 10,975,952,369 ns. The byte is zero on entry and one after
+the native STRB at 827,008,209 / 10,975,952,372 ns. No RAM write is made by
+the probe. The second poll succeeds rather than sending GSTP. With no further
+pulse, the third poll correctly recovers and faults at 1,051,151,991 /
+21,823,117,037 ns, BFAR `0x4001d000`, stacked PC `0x00171798`.
+
+Four pulses at successive successful polls produce four real callback entries
+and five successful state-twelve checks, all retry zero. Their queue times
+are 10,875,951,928; 16,348,760,381; 21,822,867,048; 27,296,867,731 ns.
+The fifth success, with four pulses consumed, is 1,272,353,867 /
+32,770,943,068 ns at `0x001291cc`. A four-hit production fixture must refuse
+there if execution attempts a fifth pulse, not silently extend its budget.
+The diagnostic stops injecting after four and reaches ordinary RTOS idle:
+1,315,882,442 / 35,000,617,152 ns, PC `0x000e955e`, both GPS counts still two,
+no new UART command or recovery. This is the first instruction step crossing
+its 35-billion-ns guard (WFI can advance to the next event), not a new golden.
+The probe also caps instructions at two billion and trace records at 200.
+
+Controls: zero pulses retains the precise 940,963,736 /
+16,349,008,531-ns GSTP fault. Delaying the single pulse by six billion ns
+instead of 100 million produces the same fault, with zero native awake IRQs.
+The two four-pulse runs have byte-identical traces and logs. External source
+`$AWAKE_PROBE_ROOT/awake-probe.c` SHA-256
+`463479cea885123e4fb81dddd9ec5d8712c3e399b283c22e76608c6a0d466062`;
+positive trace/log
+`ca3527d679f889242849f6bfe52ed726cc0c817cb329b45630c6bc2a5ad72010` /
+`5bdb32dc4a6a417d5b16d78d4348681c5ee1cedd47e170ca8dd7bc825171a212`;
+zero-pulse trace/log
+`941cd82481f4865b1f7cfca32ed2873e1cc1a84c56b7efd44584d8290fedd998` /
+`b9f5090948d2bfec71690c0c60a2f369cc9ad53875771e23ff456771ff95a9af`;
+single-pulse trace/log
+`b91ffcd898e566d4bb574b68dbaeceed6fe6886d8b481c0bc29aa7f9dcc41465` /
+`9571cc4016bff919160ca45d8bbbaf394736a3988a0264010c69b207274f0f21`;
+late-pulse trace/log
+`d8264deafd53e0b2a36e11c86dd9735c9a8123932087c97b3f9dc8a7dbab1c50` /
+`4b9eb60fbb53f7f01b61d331dacee58d1548d031ffc1032469efbbd7b83f2a4f`.
+
+Cross-build research files are hypotheses only: `$FIRMWARE_ROOT/docs/research/`
+`cxd5610-gps-boundary.md` hash
+`17f9f1e38ba16a38d43f945b0240b72046802fa063afcc8bed00b1ac5ea46eba`
+and `cxd5610-live-epoch-cross-build.md` hash
+`8b22fb8d660364668c929e174e742c3fb649d16db81da4b5b99b1bd0b5c846e4`.
+The exact 2.39 table, callback and dynamic controls above establish this
+build's wiring independently. Confidence is high for synthetic pulse
+acceptance and native liveness checks, not physical receiver cadence, a
+fix/time source, NMEA acceptance, settled UI or indefinite operation.
+Affected modules: CXD awake scheduling, device compatibility, machine binding
+and snapshots; validation is assigned to tickets 758/759. Four pulse timings
+are explicitly synthetic and must remain named, hash-pinned and opt-in.
+
+External reproduction (set `AWAKE_PROBE_ROOT` to the local evidence directory
+and `STATE12_IMAGE` to the exact hash-pinned ticket-757 image above):
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices -Isrc/compat "$AWAKE_PROBE_ROOT/awake-probe.c" build/libsemu.a -o "$AWAKE_PROBE_ROOT/awake-probe"
+"$AWAKE_PROBE_ROOT/awake-probe" "$STATE12_IMAGE" 4 normal >"$AWAKE_PROBE_ROOT/positive-a.trace" 2>"$AWAKE_PROBE_ROOT/positive-a.log"
+"$AWAKE_PROBE_ROOT/awake-probe" "$STATE12_IMAGE" 4 normal >"$AWAKE_PROBE_ROOT/positive-b.trace" 2>"$AWAKE_PROBE_ROOT/positive-b.log"
+cmp "$AWAKE_PROBE_ROOT/positive-a.trace" "$AWAKE_PROBE_ROOT/positive-b.trace"
+cmp "$AWAKE_PROBE_ROOT/positive-a.log" "$AWAKE_PROBE_ROOT/positive-b.log"
+"$AWAKE_PROBE_ROOT/awake-probe" "$STATE12_IMAGE" 0 normal
+"$AWAKE_PROBE_ROOT/awake-probe" "$STATE12_IMAGE" 1 normal
+"$AWAKE_PROBE_ROOT/awake-probe" "$STATE12_IMAGE" 1 late
+```
+
+Production integration, ticket 759 (2026-09-06): the separately selected
+hash-pinned `sapporo-2.39-gps-awake` layer validates the recorded successful
+poll predicates and both completed two-hit GPS dependencies. It admits one
+100-ms-delayed/1-ms-high pulse through the unchanged transport, then commits
+one attributed hit. Four hits maximum; no instruction replacement, RAM write,
+UART response or physical-cadence claim. Lifecycle/ownership validation and
+the extracted layer snapshot codec preserve previous encodings and reject
+unattributed pending pulses, malformed layer sets/order and excess progress.
+
+The checked-in private awake gate validates all components and full-flash
+hash before execution. Two fresh production runs match byte-for-byte at
+the fifth attempted hook, with expected CLI exit 3:
+`stop=compat-refused pc=0x001291cc instructions=1272353867 virtual_time_ns=32770943068`.
+Callback 12, pending ten, retry zero, awake one, initial/reopen/awake hits
+`2,2,4`, no remaining pulse and GPIO24 low. Production log SHA-256
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`;
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+These are independently captured production hashes, not diagnostic re-pins.
+
+Snapshot boundaries at instructions 825147127 (before first hook), 825147128
+(rise pending), 827008207 (high, inside the first native callback), and
+1165000000 (four pulses complete) all resume to that exact final snapshot
+and full event-log suffix. The read-only verifier observes native callback
+entries at instructions 827008206, 941844404, 1052945626 and 1163113462,
+each with awake zero; three native instructions later PC is `0x0012892e`
+and awake is one. It uses the normal NEMA backend and production hooks,
+without signal injection, callback replacement or guest writes, and its
+terminal image equals the cold CLI image. Repeated fifth-hook refusal
+preserves the entire image and produces no new intervention log.
+
+All exact ticket commands pass: 775 normal/sanitizer cases; 129 task contracts;
+line checks; awake and unchanged startup/reopen/activity private gates, without
+skips. A bounded 2.22 run through first awake retains the log and snapshot
+hashes in E-EMU-CXD-AWAKE-FAILURE-001. Commands, changed files and external
+log paths are in ticket 759's handoff. Status remains pending separate review.
+No proprietary artifact enters Git. The evidence still supports only this
+four-pulse synthetic liveness fixture, not indefinite operation or GPS fix/time.
+
+### E-EMU-CXD-AWAKE-FAILURE-001
+
+2026-09-06; synthetic host-only probe against `9f8c121`. No firmware input.
+`src/devices/sapporo_cxd5610.c` SHA-256
+`5cb26a4bb23c8fa4f6738342291ff6b6a9ce6144c7c06395c1c6c69f94486a90`,
+`src/core/scheduler.c` SHA-256
+`0b361210676f6bc5090060ab1d445f0897b62ed3e6cc3749f5d71eb8519405fc`.
+Awake scheduling writes its event context and calls the low-level signal
+before scheduler insertion. Exhausting time, event ID or insertion sequence
+returns `SEMU_ERR_RANGE` but changes the serialized transport and emits one
+signal callback. This violates the full-operation-before-mutation contract.
+
+The rising callback then drives high before attempting to schedule the
+falling edge, and ignores a failed insertion except for immediately lowering
+the output. With rise representable but fall overflowing, or ID/sequence
+exhausted between arm and rise, scheduling and scheduler advancement both
+report success. The observed callbacks are low/high/low with no remaining
+event: a zero-duration pulse rather than the configured one millisecond.
+The void scheduler callback interface has no current failure-reporting path;
+this cannot be fixed by silently returning low or by adding a private API.
+
+External `$AWAKE_PROBE_ROOT/atomic-probe.c` hash
+`f8fac4c55b992b1647813841ad95dfb171d740fccbdf62aa0c0eb1497f463e26`,
+six-case output hash
+`6ef1212316e087324754a3c2c204bffd3d28d9814cca2216f75b3bdbebb61ecc`.
+Cases 0..2 report `arm=4 signals=1 high=0 events=0 changed=1`; cases 3..5
+report `arm=0 advance=0 signals=3 high=1 events=0 changed=1` (enum zero is
+success, four is range error). Confidence is high for these reproducible
+in-tree failures. Ticket 758 owns the minimal scheduler/device failure
+integration and regression tests; 759 must wait for its acceptance. Normal
+success timing, event ordering and historical snapshot bytes must remain
+unchanged. No fix or new production pulse is included in this evidence step.
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc "$AWAKE_PROBE_ROOT/atomic-probe.c" build/libsemu.a -o "$AWAKE_PROBE_ROOT/atomic-probe"
+"$AWAKE_PROBE_ROOT/atomic-probe"
+```
+
+Ticket-758 implementation observation, 2026-09-06: the unchanged external
+probe rebuilt against the working library reports cases 0..3 as
+`arm=4 advance=0 signals=0 high=0 events=0 changed=0`; cases 4..5 now report
+`arm=0 advance=4 signals=1 high=0 events=0 changed=1`. The latter state change
+is the accepted rise being consumed, not a failed admission; no high occurs.
+The in-tree admission/dispatch and CPU regressions first failed on `9f8c121`,
+then passed with the public copied-first-error callback contract. Normal pulse
+width, equal-deadline IDs/order, high-reset cancellation and rise/fall snapshot
+round-trips pass. The snapshot codec was moved unchanged apart from its
+internal callback symbol. No firmware trigger or response was added.
+
+Both full suites pass 768 cases. Ticket 757's unchanged authentic reopen gate
+passes with its existing hashes and precise GSTP refusal. A clean `git archive
+HEAD` build of `9f8c121` and the changed headless build independently validate
+all three 2.22 components, then run with `sapporo-2.22-no-device`,
+`--max-instructions 1500000000 --max-time 12000000000`. Both consume the
+existing first awake intervention at 10317472799 ns and stop at
+`pc=0x000d4a8c instructions=599774578 virtual_time_ns=12027701702`,
+`stop=budget` (CLI exit 3; sleeping advancement crosses the time limit).
+Their complete logs and snapshots compare byte-identically: log SHA-256
+`1672376e5f2ba81738ebcf131c29be0dda5db4141bc5e2b859ba9885d0dca92c`,
+snapshot `9db6fe24e0b5a6509333aff140ec7a635a031ef68bbac74f87d7ca2c5992e2eb`.
+Artifacts remain external under `/tmp/semu-758-{baseline,current}-222*`.
+
+The unchanged `tools/test_sdl_live_input.sh` gate was also run with the exact
+2.22 manifest on both builds. Both fail its historical stop tuple identically:
+all expected frame CRCs pass, but the stop is `user`, PC `0x000bacf4`,
+774081920 instructions / 6520939902 ns instead of E-SAP-ONBOARD-EMU-011's
+804398304 / 9504428769. The complete failed-gate logs compare byte-identically,
+SHA-256 `a39f0b54d2ce24e6d420b2f83152b53826aadc6649d915fd0ed088c46c4e8124`.
+This is evidence of a pre-existing baseline mismatch, not authority to weaken
+or re-pin a golden. Ticket 758 acceptance remains pending that separate
+integration review; ticket 759 is not enabled. The implementation handoff
+contains exact reproduction commands. No physical GPS accuracy is inferred.
+
+Integrator observation, 2026-09-06: E-SAP-ONBOARD-EMU-012 separately resolves
+the historical SDL mismatch; the corrected strict gate now passes. Ticket
+758's review reruns every mandatory command successfully, including both
+768-case suites and the unchanged private 2.39 gate. A fresh 2.22 headless run
+through first awake compares byte-identically with the clean baseline log
+and snapshot above. Ticket 758 is accepted and 759 becomes ready, without
+enabling a new production fixture.
+
+Additional host-only allocator fault injection uses external source
+`/tmp/semu-758-accept.aEyOPs/allocation_probe.c`, SHA-256
+`58d493482c775498d87875463cc2d05ebfbd0d93f5eb34b4407848284e1095b3`.
+Its scheduler-only `realloc` replacement deterministically returns NULL.
+Three assertions pass: failed first heap growth preserves complete transport
+snapshot, signal count and queue/ID/sequence state; a full queue's rising
+event frees the slot reused by its falling edge, so no allocation or early
+ID reservation is needed; a callback that fills the freed slot then triggers
+failed heap growth returns `NOMEM` with owned `cannot grow scheduler` text,
+leaving all queued tail callbacks unexecuted. The callback clears its local
+error after reporting, checking ownership. This is fault injection, not an
+attempt to exhaust host memory. No firmware is used.
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Drealloc=semu_review_realloc -c src/core/scheduler.c -o /tmp/semu-758-accept.aEyOPs/scheduler.o
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc /tmp/semu-758-accept.aEyOPs/allocation_probe.c /tmp/semu-758-accept.aEyOPs/scheduler.o build/libsemu.a -o /tmp/semu-758-accept.aEyOPs/allocation_probe
+/tmp/semu-758-accept.aEyOPs/allocation_probe
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc -Drealloc=semu_review_realloc -c src/core/scheduler.c -o /tmp/semu-758-accept.aEyOPs/scheduler-sanitize.o
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude -Isrc /tmp/semu-758-accept.aEyOPs/allocation_probe.c /tmp/semu-758-accept.aEyOPs/scheduler-sanitize.o build/sanitize/libsemu.a -o /tmp/semu-758-accept.aEyOPs/allocation_probe-sanitize
+/tmp/semu-758-accept.aEyOPs/allocation_probe-sanitize
+```
+
+Both builds and both three-case executions exit 0. The fall-capacity check is
+an implementation invariant, not evidence that all callbacks are allocation-
+free; ID/sequence exhaustion remains explicitly covered by in-tree tests.
 
 ### E-SAP-COMPAT-GPS-REOPEN-239-001
 

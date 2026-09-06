@@ -119,7 +119,9 @@ id	phase	title	status	dependencies	ticket
 754	7	Sapporo 2.39 Post-Logo Activity Budget	in-progress	729,615	plans/tasks/754-sapporo-239-post-logo-activity.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 756	7	Sapporo 2.39 GPS Startup Integration	done	416,615,729	plans/tasks/756-sapporo-239-gps-startup.md
-757	7	Sapporo 2.39 GPS Reopen and Restart Integration	ready	756,615,729	plans/tasks/757-sapporo-239-gps-reopen.md
+757	7	Sapporo 2.39 GPS Reopen and Restart Integration	done	756,615,729	plans/tasks/757-sapporo-239-gps-reopen.md
+758	7	CXD Awake Pulse Failure Integration	done	110,416,615,757	plans/tasks/758-cxd-awake-failure-integration.md
+759	7	Sapporo 2.39 Bounded GPS Awake Integration	done	757,758	plans/tasks/759-sapporo-239-gps-awake.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
 765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
 770	7	Tianjin, Rostock, or Xiamen Intake	blocked	630	plans/tasks/770-product-intake.md

@@ -1,6 +1,8 @@
 #include "cpu_fixture.h"
 #include "cpu_fixture.c"
 #include "test.h"
+#include "../../src/devices/sapporo_cxd5610.h"
+#include <string.h>
 
 #define SCS 0xe000e000u
 #define SCB_SCR (SCS + 0xd10u)
@@ -177,12 +179,47 @@ static void test_sevonpend_sleeponexit_and_refusal(semu_test_context *context)
     semu_cpu_fixture_destroy(&fixture);
 }
 
+static void test_cxd_awake_failure_stops_tick_and_sleep(semu_test_context *context)
+{
+    for (unsigned mode = 0u; mode < 3u; ++mode) {
+        uint8_t program[] = {0x00u, 0xbfu, 0x00u, 0xbeu};
+        semu_cpu_fixture f;
+        if (mode != 0u) program[0] = mode == 1u ? 0x30u : 0x20u; /* WFI/WFE */
+        SEMU_TEST_ASSERT(context, semu_cpu_fixture_init(&f, program, sizeof(program)));
+        semu_sapporo_cxd5610 *gps = semu_sapporo_cxd5610_create(
+            f.scheduler, NULL, NULL, NULL, NULL, NULL, NULL, &f.error);
+        SEMU_TEST_ASSERT(context, gps != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_cxd5610_pulse_awake_after(gps, mode ? 4u : 1u, &f.error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_scheduler_schedule(f.scheduler, 4u, signal_callback, f.cpu, NULL, &f.error));
+        f.scheduler->next_id = UINT64_MAX;
+        if (mode != 0u) {
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&f));
+            SEMU_TEST_ASSERT(context, semu_cpu_get_state(f.cpu)->waiting_for_interrupt);
+        }
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, semu_cpu_fixture_step(&f));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, f.error.code);
+        SEMU_TEST_ASSERT(context, strcmp(f.error.text, "scheduler time or id overflow") == 0);
+        SEMU_TEST_ASSERT(context, semu_cpu_get_state(f.cpu)->halted);
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_DEVICE_REFUSED, semu_cpu_stop_reason(f.cpu));
+        SEMU_TEST_EQ_U64(context, 1u, semu_cpu_get_state(f.cpu)->instructions);
+        SEMU_TEST_EQ_U64(context, mode ? 4u : 1u, semu_scheduler_now(f.scheduler));
+        SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_event_count(f.scheduler));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&f));
+        SEMU_TEST_EQ_U64(context, 1u, semu_cpu_get_state(f.cpu)->instructions);
+        semu_sapporo_cxd5610_destroy(gps);
+        semu_cpu_fixture_destroy(&f);
+    }
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_masked_unmasked_wake),
         SEMU_TEST_CASE(test_wfe_event_forms_and_scheduled_wake),
-        SEMU_TEST_CASE(test_sevonpend_sleeponexit_and_refusal)
+        SEMU_TEST_CASE(test_sevonpend_sleeponexit_and_refusal),
+        SEMU_TEST_CASE(test_cxd_awake_failure_stops_tick_and_sleep)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

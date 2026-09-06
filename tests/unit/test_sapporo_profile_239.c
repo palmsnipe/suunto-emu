@@ -28,7 +28,9 @@ static void test_profile_loads(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 240u, profile.display_width);
     SEMU_TEST_EQ_U64(context, 240u, profile.display_height);
     SEMU_TEST_EQ_U64(context, 3u, profile.required_count);
-    SEMU_TEST_EQ_U64(context, 3u, profile.layer_count);
+    SEMU_TEST_EQ_U64(context, 4u, profile.layer_count);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[3], "sapporo-2.39-gps-awake") == 0);
     SEMU_TEST_ASSERT(context,
         strcmp(profile.layers[1], "sapporo-2.39-gps-startup") == 0);
     SEMU_TEST_ASSERT(context,

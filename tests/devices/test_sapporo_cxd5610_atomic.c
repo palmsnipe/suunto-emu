@@ -8,8 +8,22 @@ typedef struct fixture {
     semu_scheduler *scheduler;
     semu_sapporo_cxd5610 *gps;
     semu_transaction_result reply;
-    unsigned tx, rx;
+    unsigned tx, rx, signals, highs;
 } fixture;
+
+static void awake(void *context, unsigned line, int level)
+{
+    fixture *f = context;
+    (void)line;
+    ++f->signals;
+    if (level) ++f->highs;
+}
+
+static void tail_event(void *context, uint64_t now)
+{
+    (void)now;
+    ++*(unsigned *)context;
+}
 
 static void receive(void *context, uint8_t byte, uint64_t now)
 {
@@ -44,7 +58,7 @@ static void init(fixture *f, semu_error *error)
 {
     memset(f, 0, sizeof(*f));
     f->scheduler = semu_scheduler_create(error);
-    f->gps = semu_sapporo_cxd5610_create(f->scheduler, NULL, NULL,
+    f->gps = semu_sapporo_cxd5610_create(f->scheduler, awake, f,
         receive, f, trace, f, error);
     semu_sapporo_cxd5610_set_exchange(f->gps, exchange, f);
 }
@@ -187,12 +201,93 @@ static void test_cxd5610_legacy_provider_refusal_keeps_hit(semu_test_context *co
     destroy(&f); (void)fclose(stream);
 }
 
+static void test_cxd5610_awake_admission_atomic(semu_test_context *context)
+{
+    for (unsigned mode = 0u; mode < 5u; ++mode) {
+        fixture f;
+        semu_error error;
+        semu_snapshot_writer before;
+        unsigned tail = 0u;
+        init(&f, &error);
+        SEMU_TEST_ASSERT(context, f.gps != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_scheduler_schedule(f.scheduler, 0u, tail_event, &tail, NULL, &error));
+        if (mode == 0u) f.scheduler->now_ns = UINT64_MAX;
+        if (mode == 1u) f.scheduler->next_id = UINT64_MAX;
+        if (mode == 2u) f.scheduler->next_sequence = UINT64_MAX;
+        if (mode == 3u) f.scheduler->now_ns = UINT64_MAX - 5u;
+        if (mode == 4u) SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_cxd5610_pulse_awake_after(f.gps, 1u, &error));
+        semu_scheduler scheduler_before;
+        semu_scheduled_event queued;
+        memcpy(&scheduler_before, f.scheduler, sizeof(scheduler_before));
+        memcpy(&queued, &f.scheduler->events[0], sizeof(queued));
+        unsigned signals = f.signals;
+        semu_snapshot_writer_init(&before);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_cxd5610_snapshot_write(f.gps, &before, &error));
+        SEMU_TEST_EQ_U64(context, mode == 4u ? SEMU_ERR_STATE : SEMU_ERR_RANGE,
+            semu_sapporo_cxd5610_pulse_awake_after(f.gps, 1u, &error));
+        SEMU_TEST_EQ_U64(context, mode == 4u ? SEMU_ERR_STATE : SEMU_ERR_RANGE,
+            semu_sapporo_cxd5610_pulse_awake_after(f.gps, 1u, NULL));
+        unchanged(context, &f, &before);
+        SEMU_TEST_EQ_U64(context, signals, f.signals);
+        SEMU_TEST_ASSERT(context, memcmp(&scheduler_before, f.scheduler,
+                                        sizeof(scheduler_before)) == 0);
+        SEMU_TEST_ASSERT(context, memcmp(&queued, &f.scheduler->events[0],
+                                        sizeof(queued)) == 0);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT,
+            semu_sapporo_cxd5610_pulse_awake_after(NULL, 1u, &error));
+        unchanged(context, &f, &before);
+        semu_snapshot_writer_destroy(&before);
+        destroy(&f);
+    }
+}
+
+static void test_cxd5610_awake_dispatch_failure(semu_test_context *context)
+{
+    for (unsigned mode = 0u; mode < 4u; ++mode) {
+        fixture f;
+        semu_error error;
+        unsigned tail = 0u;
+        init(&f, &error);
+        SEMU_TEST_ASSERT(context, f.gps != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_cxd5610_pulse_awake_after(f.gps, 10u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_scheduler_schedule(f.scheduler, 10u, tail_event, &tail, NULL, &error));
+        if ((mode & 1u) == 0u) f.scheduler->next_id = UINT64_MAX;
+        else f.scheduler->next_sequence = UINT64_MAX;
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, mode < 2u ?
+            semu_scheduler_run_next(f.scheduler, &error) :
+            semu_scheduler_advance(f.scheduler, 100u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, error.code);
+        SEMU_TEST_ASSERT(context, strcmp(error.text, "scheduler time or id overflow") == 0);
+        SEMU_TEST_EQ_U64(context, 0u, f.highs);
+        SEMU_TEST_EQ_U64(context, 2u, f.signals); /* create + accepted low */
+        SEMU_TEST_EQ_U64(context, 0u, tail);
+        SEMU_TEST_EQ_U64(context, 10u, semu_scheduler_now(f.scheduler));
+        SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_event_count(f.scheduler));
+        semu_sapporo_cxd5610_reset(f.gps);
+        semu_scheduler_reset(f.scheduler);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_sapporo_cxd5610_pulse_awake_after(f.gps, 10u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(f.scheduler,
+            10u + SEMU_SAPPORO_CXD5610_AWAKE_PULSE_NS, &error));
+        SEMU_TEST_EQ_U64(context, 1u, f.highs);
+        SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(f.scheduler));
+        destroy(&f);
+    }
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_cxd5610_command_commit_after_acceptance),
         SEMU_TEST_CASE(test_cxd5610_rx_schedule_failure_atomic),
-        SEMU_TEST_CASE(test_cxd5610_legacy_provider_refusal_keeps_hit)
+        SEMU_TEST_CASE(test_cxd5610_legacy_provider_refusal_keeps_hit),
+        SEMU_TEST_CASE(test_cxd5610_awake_admission_atomic),
+        SEMU_TEST_CASE(test_cxd5610_awake_dispatch_failure)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
