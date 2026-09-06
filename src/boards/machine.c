@@ -9,6 +9,7 @@
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_239.h"
+#include "../compat/sapporo_239_gps.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
@@ -197,6 +198,8 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         descriptor = &semu_sapporo_222_no_device_layer;
     } else if (strcmp(id, semu_sapporo_239_wbsto_layer.id) == 0) {
         descriptor = &semu_sapporo_239_wbsto_layer;
+    } else if (strcmp(id, semu_sapporo_239_gps_layer.id) == 0) {
+        descriptor = &semu_sapporo_239_gps_layer;
     } else {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unknown layer %s", id);
         return SEMU_ERR_UNSUPPORTED;
@@ -333,6 +336,12 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
                 semu_sapporo_devices_bind_no_device_fixtures(
                     machine->devices, &machine->layers[i], machine->logger,
                     error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (semu_sapporo_239_gps_is_layer(machine->layers[i].descriptor) &&
+                semu_sapporo_devices_bind_gps_startup_fixture(machine->devices,
+                    &machine->layers[i], machine->logger, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;
             }

@@ -1,6 +1,7 @@
 #include "machine_internal.h"
 
 #include "../compat/sapporo_239.h"
+#include "../compat/sapporo_239_gps.h"
 
 static semu_status reset_after_request(semu_machine *machine,
                                        semu_error *error)
@@ -78,8 +79,10 @@ static int apply_compat_hook(semu_machine *machine,
 
     for (i = 0u; i < machine->layer_count; ++i) {
         semu_layer_state *layer = &machine->layers[i];
-        if (layer->descriptor == &semu_sapporo_222_no_device_layer &&
-            semu_sapporo_devices_compat_hook_pc(state->r[15])) {
+        if ((layer->descriptor == &semu_sapporo_222_no_device_layer &&
+             semu_sapporo_devices_compat_hook_pc(state->r[15])) ||
+            (state->r[15] == SEMU_SAPPORO_239_GPS_PC &&
+             semu_sapporo_239_gps_is_layer(layer->descriptor))) {
             if (semu_sapporo_devices_apply_compat_hook(
                     machine->devices, machine->bus,
                     semu_cpu_get_state_mutable(machine->cpu), layer,

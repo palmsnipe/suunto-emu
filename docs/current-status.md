@@ -771,6 +771,48 @@ headless `c80b8191...`, SDL `1d26a03f...`, and `libsemu.a` `9feafe6d...`.
 This is a host-only guardrail; it authorizes no performance or guest-behavior
 change by itself.
 
+## Sapporo 2.39 Initial GPS Integration (Ticket 756)
+
+The separately selected `sapporo-2.39-gps-startup` layer now implements the
+two evidenced synthetic status lines from E-SAP-COMPAT-GPS-STARTUP-239-001.
+It requires the exact profile/component hashes, validates the initial native
+driver/UART boundary, and queues startup RX and the exact `@VER\r\n` reply
+through the existing delayed UART/IRQ path. Each response has one hit; the
+aggregate ceiling is two. No CPU, RAM, native-state or firmware-byte patch is
+made by this layer. Instance-owned counters survive the unchanged snapshot
+format; reset and restore explicitly bind the fixture. Unsupported state,
+commands, repeats, budgets and scheduling failures refuse atomically.
+
+Two fresh two-layer production runs reach native state 15 with retry zero:
+`stop=budget pc=0x00128ed8 instructions=393785845 virtual_time_ns=2564070074`.
+Log SHA-256 `b5b23c9f6a96d9ecfbf4f17aa4f3b70801d08cd9b9636330d11c08f2e0647123`,
+snapshot `bfce8efc3cf6fc28330eb81cf453aad2ff71a4c8f4c9d2102624bae0d937a6c9`.
+Both artifacts compare byte-identically. Snapshots before startup, with either
+response pending and at native state 14 reproduce the same final snapshot and
+log suffix. Completed exchanges also resume deterministically to the later
+retry. One-layer images are rejected by two-layer configurations; historical
+one-layer logo/activity/halt goldens remain unchanged. All 752 normal and
+sanitizer tests and both private GPS/activity gates pass. The ticket index
+remains unchanged pending integrator review.
+
+This is initial GPS lifecycle progress, not full GPS or settled 2.39 UI.
+The distinct later reopen sets pending state seven at instruction 672,044,891;
+its missing response still times out. The subsequent retry reaches
+`0x00128d14` at instruction 908,321,039 / 14,978,258,084 ns and is refused
+without another status or hit. Its response/protocol must be recovered under
+separate evidence and integration scope.
+
+Read-only follow-up E-SAP-COMPAT-GPS-REOPEN-239-001 now recovers that bounded
+exchange. One external delayed status at the post-arm `0x00128e8c` boundary
+advances native states 7/8/9 to exact `@GSR\r\n`; one delayed synthetic reply
+advances states 10 and 12 with retry zero. Two diagnostic runs are identical,
+and wrong-prefix controls still time out. The later liveness-recovery command
+`@GSTP\r\n` is the next precise UART refusal, at instruction 940,963,736 /
+16,349,008,531 ns. These are external experiments, not an enabled emulator
+feature or physical receiver transcript. Ticket 757 records the integration
+contract and waits on ticket 756's integrator review; existing production
+checkpoints and uncommitted implementation changes are preserved.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -779,20 +821,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Implement ready integration ticket 756 for the initial 2.39 GPS lifecycle.
-  Its transport/snapshot safety prerequisites are now fixed and verified under
-  E-EMU-COMPAT-ATOMIC-001; the new opt-in layer is not yet implemented.
-  E-SAP-COMPAT-GPS-STARTUP-239-001 now proves that the native retry failure
-  starts with missing unsolicited status, before any command. In two identical
-  isolated diagnostics, one delayed synthetic `$PSS0000\r\n` startup line
-  triggers native `@VER\r\n`; one exact reply advances states 14 and 15 with
-  zero retries. A wrong-prefix control still asserts. This is evidence only:
-  production still halts at instruction 932,397,950 / 11,388,431,927 ns.
-  Ticket 756 owns explicit opt-in layer activation, version-scoped device
-  binding and snapshot tests; do not reuse 2.22 hooks. A later UART reopen
-  waits for state seven and remains unsupported. Keep the normal NEMA backend
-  attached and preserve historical one-layer checkpoints. Regenerate old
-  JSON-bearing snapshots; no implicit migration is performed.
+- Integrator review of ticket 756, then ticket 757's separate, two-response
+  GPS reopen/GSR layer using E-SAP-COMPAT-GPS-REOPEN-239-001. Do not reuse the
+  exhausted startup fixture, add later GSTP/liveness behavior or transplant
+  2.22 hooks. Keep the normal NEMA backend attached and preserve historical
+  one- and two-layer checkpoints. No implicit snapshot migration is allowed.
 - Recover a native provenance sidecar and an equivalent settled command/text
   contract for E-SAP-ONBOARD-001 before adding a screen-specific emulator
   checkpoint; until then keep `setup-next` neutral. This remains an SDL

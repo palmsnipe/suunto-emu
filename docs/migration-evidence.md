@@ -77,6 +77,95 @@ checkpoints. Unsupported commands, later GPS lifecycle behavior and physical
 receiver fidelity remain unchanged; this maintenance does not implement 756's
 new GPS layer or authorize a new startup-state response.
 
+### E-SAP-COMPAT-GPS-REOPEN-239-001
+
+2026-09-06; bounded external in-tree-interpreter experiments on the exact
+E-SAP-0011 components, with the normal NEMA backend and both ticket-756 layers.
+All components validate; full-flash SHA-256 remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+No production code, CPU/RAM state, compatibility budget, GPIO input or source
+firmware is modified in this evidence-capture step. Candidate RX uses only
+the existing transport API; it is explicitly synthetic, not physical capture.
+
+From ticket 756's two-layer state-15 image
+`bfce8efc3cf6fc28330eb81cf453aad2ff71a4c8f4c9d2102624bae0d937a6c9`,
+the unchanged CLI saves the later UART-open return at instruction 672,044,883 /
+4,758,944,162 ns, PC `0x00128bf4`. Pre-open image SHA-256
+`0fee8567ae023b8cab0bb682724646069e1678b4f5519cc3ee2f55788fdda8bc`, log
+`cb9c3dc744bb2ca5c45353d693817418fb09e4101dc723351037cdae86528735`.
+Driver R4=`0x100366d8`, live UART=`0x10046188`, callback +4=`0x0012890f`,
+UART +12=zero. Pristine `0x00128dc8..0x00128e9a` observes requested mode 15
+at driver +0x74 and flags two at +0x7f, follows the reopen branch, sets pending
+seven (+0x273), then arms timeout four for 10,000 ms. The post-arm boundary
+is `0x00128e8c`, instruction 672,045,164 / 4,758,944,443 ns: callback +0x272=4,
+pending=7, retry `0x100588a4`=0, R5=driver+0x74, R6=driver+0x270. Logging
+flag +0x7b=0, cached GNS halfword +0x344=`0x04cb`, and version-seen byte
+`0x100588a3`=1. Both initial GPS interventions have already been consumed.
+
+Exactly one synthetic `$PSS0000\r\n` line queued at that boundary with a
+10,000,000-ns delay reaches the normal parser branch `0x0012a128`. It schedules
+pending seven at 673,001,215 / 4,768,967,430 ns, enters state seven at
+674,839,841 / 4,778,862,352 ns, state eight at 675,767,890 / 4,788,304,461 ns,
+and state nine at 676,717,923 / 4,797,799,071 ns. Pristine
+`0x00128f72..0x00129078` explains the exact path: version-seen skips `@GTIM`,
+the matching cached `0x04cb` skips `@GNS`, and the selected branch loads
+literal `0x00129384`, exactly `@GSR\r\n`. No command-length expansion is
+required. The native TX helper `0x00128c34`, LR=`0x00129075`, is reached at
+676,717,951 / 4,797,799,099 ns with pending ten already set.
+
+Status-only execution hits the existing unsupported-command refusal: precise
+UART DR fault at 676,735,188 / 4,797,816,336 ns, handler `0x001c0db4`, BFAR
+`0x4001d000`, stacked PC=`0x00171798`. A second experiment installs an external
+one-use exchanger accepting only those six `@GSR` bytes and returning the same
+synthetic line after ten ms, committed at 4,797,816,335 ns. Native parsing
+schedules ten at 681,351,968 / 5,396,262,689 ns; state ten is entered at
+688,672,230 / 5,405,077,968 ns, and the 5,500-ms state-12 monitor is armed at
+688,672,285 / 5,405,078,023 ns. State 12 is entered at 825,147,086 /
+10,875,951,887 ns with retry zero. Startup layer hits remain exactly two;
+the two extra diagnostic responses do not alter its counters.
+
+The next gap is separate receiver-liveness recovery. Pristine
+`0x001291c4..0x00129258` consumes the live flag and later takes its
+`Missing awake signal` / `Waking up attempt` branch. It calls helper
+`0x0012aa84`, which selects literal `0x0012ad48`, exactly `@GSTP\r\n`.
+The TX helper is reached at 940,946,122 / 16,348,990,917 ns, LR=`0x0012921f`;
+the one-use GSR exchanger refuses. Precise UART fault follows at 940,963,736 /
+16,349,008,531 ns with the same handler/BFAR/stacked PC. No GPIO pulse, GSTP
+reply, NMEA epoch, fix/time payload or full GPS/UI behavior is established.
+
+Reproducibility: external `reopen-probe.c` SHA-256
+`f4e1b3b3a8598dfcb0936ae4b02c78f7a590769af68319894afd14f0011e3e3f`, built
+against `build/libsemu.a` with `cc -std=c99 -Wall -Wextra -Werror -pedantic -O2
+-Iinclude -Isrc -Isrc/devices -Isrc/compat`. It validates all firmware and flash
+before loading the pre-open image, single-steps with absolute limits of one
+billion instructions / 30 billion ns / 200 trace records, and stops at a
+precise fault or refusal. Argument two optionally supplies one reopen line;
+argument three optionally supplies the one-shot exact-GSR reply. Two positive
+runs compare byte-identically: trace SHA-256
+`fa47f38f463a2d9c4f29e78a53111a16678163743b92e0645d36e723637b39eb`, log
+`0dc6b27a302cebafea021ec995c09e05d80f32fab21fa0afc87ee1035f0ec494`.
+Status-only trace/log are
+`66bcdccc097392cbe73f590cd3c6a62c669187ffc46f185208b6fb70aa5f0aa4` /
+`57e08963c57008b6c0b2d61fc74a4e39ddaf30c269d04c5b58cba9f6f9caac96`.
+
+Negative controls use `$BAD0000\r\n`. A wrong reopen prefix causes no GSR
+and reaches the consumed-startup refusal at 908,348,332 / 14,978,074,970 ns;
+trace/log hashes are
+`35c263ace43f3b59baf694e3a665415063af0adffb887a905b4b5e1d8125cf35` /
+`a7d3fd3516e97595886d08a10a87315fef154c6e75629703c5e0e41170e0cf10`.
+A wrong GSR-response prefix reaches the same refusal at 926,139,813 /
+15,611,043,530 ns without entering state ten; trace/log hashes are
+`3acea87f41a9b8a7ddd87e667de91e2e82b751dd00c00f1787460b0a15bd841b` /
+`e9650a72600c73a3e068d2359a2656a7efcb20471838b3873b5ea0e073563a13`.
+The no-injection baseline retains ticket 756's 908,321,039-instruction refusal;
+trace/log hashes are
+`8e63bcfa87b1da179b5c9d6d7996c8404faeffcfd78dfb6d60de621274885e9e` /
+`9aa06b7ac991b2fc5344272ab8a31cde62e3757d88c2bdd5e59b2de08071cd47`.
+All source, trace, log and image artifacts remain external to Git. Confidence
+is high for these exact native transitions and synthetic acceptance only.
+Ticket 757 specifies separate opt-in integration; no production behavior or
+existing golden changes in this maintenance step.
+
 ### E-SAP-COMPAT-GPS-STARTUP-239-001
 
 2026-09-06; read-only disassembly of Sapporo `2.39.20.22297-P` application
@@ -181,6 +270,48 @@ may be transplanted or silently enabled for 2.39. Delayed-RX schedule failure
 must also be tested for full pre-mutation refusal. No production implementation
 or new golden is authorized by the external probe alone; later state seven,
 physical status fields, further commands, fix/time data and final UI remain gaps.
+
+Ticket 756 integrated verification (2026-09-06): the user-authorized, separate
+`sapporo-2.39-gps-startup` layer now queues exactly those two lines. The pristine
+startup routine additionally confirms R5=R4+0x270, R6=R4+0x338, writes through
+driver +0x346, and UART callback +4=`0x0012890f` / +12=zero. The hook validates
+the entire aligned 0x348-byte driver span and 16-byte UART span in SRAM before
+the queue operation. R0 remains untouched. Startup and version hit times are
+1,878,380,008 and 1,897,621,518 ns, respectively. Both delayed responses reach
+the native parser; no native event scheduling, status return, assertion or
+CPU instruction is intercepted. Lifecycle authority is the two instance-owned
+intervention counters, serialized by the existing machine codec.
+
+Two cold production CLI runs with both layers and normal NEMA rendering reach
+instruction 393,785,845 / 2,564,070,074 ns, PC `0x00128ed8`, native callback
+15, pending 14, R2=15, retry zero, exactly two aggregate GPS hits and no pending
+CXD RX event. Log SHA-256
+`b5b23c9f6a96d9ecfbf4f17aa4f3b70801d08cd9b9636330d11c08f2e0647123`, snapshot
+`bfce8efc3cf6fc28330eb81cf453aad2ff71a4c8f4c9d2102624bae0d937a6c9`.
+These are new two-layer goldens, not replacements for the one-layer goldens.
+Private snapshots at instructions 357,031,764 (unused), 357,031,765 (startup
+RX pending), 376,273,275 (version RX pending), and 390,944,539 (native state
+14, retry zero) all reproduce the same final image and exact log suffix.
+The checked-in C inspector validates all firmware/flash inputs and only reads
+snapshots; it performs no guest execution or guest mutation.
+
+Continuation observes pending seven at 672,044,891 with no extra RX/hit. At
+908,321,039 / 14,978,258,084 ns the retry byte is one and PC is `0x00128d14`.
+The next attempted instruction stops `compat-refused` at the same checkpoint:
+the initial one-shot response cannot be reused for this distinct lifecycle.
+Direct and intermediate-snapshot continuations have identical retry images.
+The older one-layer image refuses when loaded into a two-layer configuration.
+
+Verification: the activation regression failed before the profile addition;
+six new synthetic tests cover exact hashes, instance isolation, both delayed
+responses, 31 atomic refusal variants (including time/ID/sequence exhaustion
+for either response), UART byte/IRQ ordering, reset/rebind, four snapshot
+phases, and atomic malformed identity/lifecycle rejection. All 752 normal and
+sanitizer cases pass. Exact ticket commands, both private GPS/activity gates,
+line/contract checks and results are recorded in ticket 756. Historical
+one-layer logo/activity/halt hashes remain exact; source flash retains the
+hash above. No firmware, pixels, snapshots, traces or private bytes enter Git.
+Later pending-seven support, other commands and full GPS/UI remain unsupported.
 
 ### E-SAP-COMPAT-WIDGETS-NATIVE-239-001
 

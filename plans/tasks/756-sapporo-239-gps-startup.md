@@ -160,10 +160,65 @@ Do not claim full GPS, settled 2.39 setup or a functional release from states
 
 ## Handoff
 
-The new GPS layer is not implemented. Dependencies 416, 615 and 729
+At ticket creation the new GPS layer was not implemented. Dependencies 416, 615 and 729
 are done in the index. The initial integration contract is grounded in the
 new GPS evidence; later pending-seven behavior remains a separate gap.
 Maintenance evidence capture changes no production code, layer or checkpoint.
+
+## Integration Handoff — 2026-09-06
+
+Implementation and local acceptance pass; status remains integrator-owned.
+The explicit hash-pinned GPS layer supplies only the initial startup and exact
+version-response fixtures. Its two counters are device-instance-owned, and
+create/reset/restore binding uses the existing machine/device contracts.
+Snapshot format is unchanged; reply-before-startup, unattributed GPS hits,
+disabled GPS lifecycle and layer-identity mismatches reject atomically.
+The old one-layer production path retains all historical checkpoints.
+
+Changed files: `src/compat/sapporo_239_gps.c` and `.h`;
+`src/devices/sapporo_device_compat.c`, `sapporo_devices.c`, `.h`, and
+`sapporo_devices_internal.h`; `src/boards/machine.c`, `machine_run.c`, and
+`machine_snapshot.c`; `profiles/sapporo/2.39.20/profile.semu`;
+`tests/unit/test_sapporo_239_gps.c`, `test_sapporo_239_gps_snapshot.c`, and
+`test_sapporo_profile_239.c`; the new private GPS script; this ticket,
+`docs/current-status.md`, and `docs/migration-evidence.md`. The device binding
+split preserves existing 2.22 behavior and keeps every file below 500 lines.
+References: E-SAP-0011, E-SAP-COMPAT-GPS-STARTUP-239-001,
+E-SAP-COMPAT-ACTIVITY-239-001, and E-EMU-COMPAT-ATOMIC-001.
+
+Exact verification commands and results:
+
+```sh
+make test TEST_FILTER=sapporo_239_gps       # 6 pass; activation failed before addition
+make test TEST_FILTER=sapporo_cxd5610      # pass
+make test TEST_FILTER=sapporo_profile_239  # 5 pass; profile count failed before addition
+make test TEST_FILTER=machine_snapshot    # pass
+make check-task-contracts                 # 126 tickets validated
+make check-lines                          # pass, review-threshold warnings only
+make check                                # 752 tests pass, all gates pass
+make sanitize                             # 752 tests pass, no sanitizer findings
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_startup
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_activity_budget
+git diff --check                           # pass
+```
+
+Both private gates pass without skips. Two cold GPS runs reach state 15,
+retry zero at `pc=0x00128ed8 instructions=393785845 virtual_time_ns=2564070074`.
+Log SHA-256 `b5b23c9f6a96d9ecfbf4f17aa4f3b70801d08cd9b9636330d11c08f2e0647123`,
+snapshot `bfce8efc3cf6fc28330eb81cf453aad2ff71a4c8f4c9d2102624bae0d937a6c9`.
+Four exchange-phase snapshots reproduce the exact final image/log suffix.
+Completed exchanges resume directly or through the later pending-seven
+checkpoint to the same retry image. The later retry at instruction 908,321,039 /
+14,978,258,084 ns refuses without another response or hit. The old one-layer
+logo/activity/halt gate passes unchanged; full flash remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+No acceptance item was skipped and no firmware artifact was added to Git.
+
+Remaining gap: reverse-engineer the separate pending-seven reopen response;
+no extra status, commands, physical payload semantics, fix/time data or settled
+2.39 UI are implemented. Requested integrator action: review acceptance and
+update the ticket index separately; assign new evidence-scoped work for the
+later lifecycle. No additional public-interface change is requested.
 
 2026-09-06 maintenance verification: `make check-task-contracts` validates
 126 tickets; `make check` passes, including line checks with existing review

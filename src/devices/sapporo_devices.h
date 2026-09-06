@@ -29,7 +29,7 @@ static inline int semu_sapporo_devices_compat_hook_pc(uint32_t pc)
     case UINT32_C(0x0010f4fc): case UINT32_C(0x0010f610):
     case UINT32_C(0x0010f7c2): case UINT32_C(0x0010f7b8):
     case UINT32_C(0x0009aaec): case UINT32_C(0x0009a3b8):
-    case UINT32_C(0x0010fbde):
+    case UINT32_C(0x0010fbde): case UINT32_C(0x00128d14):
         return 1;
     default:
         return 0;
@@ -56,6 +56,11 @@ semu_status semu_sapporo_devices_bind_bus(semu_sapporo_devices *devices,
  * binding, the GPS and OHR endpoints remain fail-closed.
  */
 semu_status semu_sapporo_devices_bind_no_device_fixtures(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error);
+
+/* Explicit 2.39 binding; lifecycle is held in instance-owned layer counters. */
+semu_status semu_sapporo_devices_bind_gps_startup_fixture(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error);
 
