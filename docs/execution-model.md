@@ -58,7 +58,28 @@ must outlive its active completion owner. Restored completion state is rebound
 to the target scheduler before its events are restored; this borrowed binding
 is transient and is not serialized. These are ticket 761's scheduler/completion
 foundations, not yet whole-ring GPU atomicity: GPU marker scanning still uses
-single admissions and backend transaction/error propagation remains pending.
+single admissions and whole-ring transaction/error propagation remains pending.
+
+The display contract now also has bounded prepare/commit/abort operations.
+The NEMA backend prepares up to 32 ordered lists in instance-owned staging:
+inherited registers/counters, RGB565 pixels, lazy-cloned TSC6A shadows and
+per-list publication images. Prepare publishes nothing. Failure/abort retains
+committed state; bounded diagnostic records may change, but cannot replace
+the original draw/bus error. The single-list convenience delegates to this
+same transaction, so refused lists no longer leak inherited registers.
+
+Commit allocates nothing and cannot fail: it installs staged state and
+publishes the saved images in order, with unchanged per-callback generation
+increments. With no callback, pixels still commit but generation does not
+advance. Empty lists publish nothing. Inputs are borrowed only during prepare;
+frame callback/context stay borrowed until commit/abort. Callback frames are
+immutable and borrowed for that call. Reentrant prepare and reset refuse;
+callbacks must not execute/reset the guest, destroy owners, mutate the bus,
+or recursively commit/abort. Backend reset returns CONFLICT while a transaction
+is active; destruction outside callbacks releases any pending staging.
+Transient staging is not encoded in machine snapshots. GPU/machine caller
+migration, strict whole-ring framing and marker admission remain ticket 761's
+next integration slice; the existing GPU still uses the single-list callback.
 
 ## Reset and Run
 

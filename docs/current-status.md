@@ -1109,6 +1109,28 @@ and the backend still lacks staged multi-child publication/inherited-state
 rollback. Refusal propagation remains unfinished. Ticket 761 stays incomplete
 and its index status is unchanged; no firmware budget or golden is extended.
 
+## NEMA Backend Transaction Foundation (Ticket 761, Partial)
+
+Commit `ce0e529` records the scheduler/completion foundation. The next slice
+adds public display prepare/commit/abort operations and an in-tree backend
+implementation. It stages inherited registers, pixels, TSC6A shadows and
+ordered per-child frame images; commit neither allocates nor fails. The
+existing single-list convenience now uses that path. Refused lists preserve
+inherited state and return the original detailed error even after diagnostic
+saturation. Reset/reentrant submission conflicts refuse before mutation.
+The large backend is split into lifecycle/list execution, draw dispatch and
+transaction responsibilities; no persistent encoding changes.
+
+E-EMU-NEMA-BACKEND-001 records three regressions failing before implementation,
+seven final backend cases, and 796 passing normal/sanitizer tests. The exact
+2.22 SDL and 2.39 awake gates pass. Two cold middle runs and a prefix resume
+retain every corrected trace/pixel/snapshot pin. The original five-scenario
+GPU probe now has two failures rather than three: inherited state is fixed,
+but later-child publication and marker admission remain non-atomic because
+GPU/machine callers have not yet migrated. Ticket 761 is not complete and its
+status remains unchanged. No budget, fixture, physical-panel claim or golden
+is extended.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1119,7 +1141,7 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
   under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
-  ownership covers the remaining backend transaction and GPU migration; do not
+  ownership covers the remaining whole-ring GPU/machine migration; do not
   work around the opaque backend with a private API. Sampling clipping is
   already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
   historical checkpoints; do not hide changes by re-pinning.

@@ -28,7 +28,13 @@ typedef struct semu_nema_backend semu_nema_backend;
 
 semu_nema_backend *semu_nema_backend_create(semu_error *error);
 void semu_nema_backend_destroy(semu_nema_backend *backend);
-void semu_nema_backend_reset(semu_nema_backend *backend);
+/* Reset refuses with CONFLICT while preparing/prepared/publishing. Destroy
+ * aborts a prepared transaction; destruction from callbacks is unsupported. */
+semu_status semu_nema_backend_reset(semu_nema_backend *backend);
+
+/* Public transactional contract; the single-list convenience uses these same
+ * operations. GPU/machine migration to this contract is ticket 761's next part. */
+extern const semu_display_backend_ops semu_nema_backend_ops;
 
 /*
  * The submit function matching the frozen callback signature
@@ -36,7 +42,9 @@ void semu_nema_backend_reset(semu_nema_backend *backend);
  * command_ring_address (command_word_count 32-bit words), feeds
  * records through nema_state, and executes evidenced draws on the
  * internal surface.  Returns REFUSE on unsupported commands with
- * bounded diagnostics; the surface is left unchanged on refusal.
+ * bounded diagnostics; pixels, inherited state and shadows are unchanged on
+ * refusal. Empty lists publish nothing. The original error survives diagnostic
+ * saturation and a NULL error sink is supported.
  */
 semu_transaction_result semu_nema_backend_submit(
     void *context, semu_bus *bus, uint32_t command_ring_address,

@@ -119,6 +119,9 @@ typedef void (*nema_draw_fn)(void *context,
 semu_status nema_state_create(nema_state **out, semu_error *error);
 void nema_state_destroy(nema_state *state);
 void nema_state_reset(nema_state *state);
+/* Copy complete inherited state and counters into an existing staging owner.
+ * Both objects must be valid; no allocation, callback or encoded format. */
+void nema_state_copy(nema_state *destination, const nema_state *source);
 
 /* Begin a new command list.  Does NOT clear inherited register state. */
 void nema_state_begin_list(nema_state *state, uint32_t list_id);

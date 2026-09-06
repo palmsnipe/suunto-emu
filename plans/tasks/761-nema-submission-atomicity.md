@@ -245,3 +245,50 @@ pass. Two cold middle-button runs and the 700M-prefix resume retain every
 E-EMU-SAMPLING-CLIP-001 trace/pixel/snapshot pin and the exact endpoint.
 E-EMU-NEMA-BATCH-001 records the full commands, unchanged SHA-256 values,
 observed pre-fix failures, evidence boundaries and remaining acceptance gaps.
+
+### Partial Implementation — Backend Transaction Foundation
+
+2026-09-06. The prior foundation was committed as `ce0e529`. This slice remains
+uncommitted and incomplete for whole-ticket acceptance; index/status unchanged.
+The existing public display header now defines bounded prepare/commit/abort
+operations. The normal backend stages all inherited state, RGB565 pixels,
+TSC6A shadow updates and ordered per-child frames before any publication.
+Commit allocates nothing and cannot fail; single-list submission delegates
+to that path. Original errors survive diagnostic saturation and NULL sinks.
+Reset returns CONFLICT while active; callback lifetime/reentrancy rules are
+explicit. No persistent encoding or guest timing changes.
+
+Changed files: `include/semu/display.h`, `src/display/nema_backend.c`,
+`nema_backend.h`, new `nema_backend_internal.h`, `nema_backend_draw.c`,
+`nema_backend_transaction.c`, `nema_state.c`, `nema_state.h`, new
+`tests/unit/test_nema_backend_atomic.c`, execution model, current status,
+evidence ledger and this handoff. Public machine/GPU callers are intentionally
+unchanged in this slice; no Makefile, profile or registry change.
+
+Evidence: E-EMU-NEMA-ATOMIC-001, E-NEMA-RING-001, E-NEMA-LISTS-001,
+architecture/execution contracts and follow-up E-EMU-NEMA-BACKEND-001.
+Three baseline regressions fail for inherited leakage, empty syntax errors
+and lost original draw errors. Seven final backend cases pass, including
+later-child and intra-child failure, abort/retry, ordered publication,
+independent instances, reentrancy/reset, shadow rollback, NULL sinks,
+diagnostic saturation, bounded inputs and deterministic allocation failure.
+
+Commands/results: `make test TEST_FILTER=nema_backend_atomic` (7),
+`make sanitize TEST_FILTER=nema_backend_atomic` (7),
+`make test TEST_FILTER=nema` (79), `make test TEST_FILTER=transcript` (91),
+`make test TEST_FILTER=machine_snapshot` (4),
+`make test TEST_FILTER=nema_completion_atomic` (5),
+`make test TEST_FILTER=scheduler_batch` (4), `make check-lines`,
+`make check-task-contracts` (130), `make check` (796), `make sanitize` (796),
+`make sdl` and both exact private commands above pass. Two cold middle runs
+and the 700M-prefix resume retain all E-EMU-SAMPLING-CLIP-001 pins. The
+read-only observer is unchanged because the convenience callback remains;
+its public transaction adaptation is still required at GPU migration.
+
+Remaining: whole-ring GPU use of backend preparation and completion batch,
+original refusal/fallback diagnostics through MMIO and bounded CPU proof,
+retry/register/generation atomicity, strict framing/tail validation and
+machine/frontend/mock callback migration. `nema_gpu_atomic` and `nema_refusal`
+are not implemented or claimed run. The original whole-GPU probe still exits
+1, now with two failures (later-child frame and partial completion admission).
+No extra integration authority is requested. Do not mark ticket 761 done.

@@ -263,6 +263,11 @@ void nema_state_begin_list(nema_state *st, uint32_t list_id)
     st->list_id = list_id;
 }
 
+void nema_state_copy(nema_state *destination, const nema_state *source)
+{
+    *destination = *source;
+}
+
 semu_status nema_state_record(nema_state *st, const nema_record *rec,
                                nema_draw_fn on_draw, void *ctx,
                                semu_error *error)

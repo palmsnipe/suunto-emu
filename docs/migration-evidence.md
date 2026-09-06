@@ -13,6 +13,103 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-BACKEND-001
+
+2026-09-06; partial ticket 761 implementation on foundation commit `ce0e529`.
+Sources: E-EMU-NEMA-ATOMIC-001's unchanged synthetic probe, the in-tree
+backend/state/TSC6A contracts, architecture/execution atomicity requirements
+and new `tests/unit/test_nema_backend_atomic.c`. E-NEMA-RING-001 and
+E-NEMA-LISTS-001 remain the native interpretation evidence. No new GPU program,
+register, physical timing or panel claim is inferred.
+
+Three narrow regressions fail before implementation: a refused list leaks
+red inherited color into the next draw; a syntax refusal returns an empty
+error; a TSC6A draw failure loses its original code/text. The public display
+contract now supplies bounded prepare/commit/abort operations. The normal
+backend stages inherited registers/counters, RGB565 pixels, lazy-cloned
+TSC6A shadows and ordered per-list frame images. No frame escapes preparation.
+Commit allocates nothing and cannot fail. The single-list convenience uses
+the same implementation; diagnostic saturation cannot replace the first error.
+NULL error sinks are supported. Reset/reentrant prepare conflict before
+mutation, and callback lifetime/restrictions are explicit. Transient staging
+does not alter snapshots; successful interpretation/generation rules remain.
+
+Seven backend tests pass for those regressions plus intra-child/later-child
+failure, abort/retry, exact two-frame order/generations, independent instances,
+TSC6A refusal/abort/commit/reset, bounds, empty lists and deterministic frame
+allocation failure. A test compiles the production transaction source with
+only its allocator replaced; no runtime allocator hook is introduced. Commit
+still succeeds with that allocator disabled and makes zero allocation calls.
+Confidence is high for these synthetic backend invariants, not for whole-ring
+GPU behavior. The original external probe still exits 1, now reporting:
+
+```text
+refused-list result=2 error=6 pixel=001f frames=1
+inherited-after-refusal pixel=001f expected=001f
+children refuse=0 status=0 error=0 frames=2 pixel=001f
+children refuse=1 status=0 error=0 frames=1 pixel=001f
+markers exhaust=0 status=0 error=0 pending=2 next_id=3
+markers exhaust=1 status=0 error=0 pending=1 next_id=18446744073709551615
+atomicity-failures=2
+```
+
+Affected files are the public display contract, backend lifecycle/list/draw/
+transaction implementation and internal header, state-copy implementation/
+header, the new regression and documentation listed in ticket 761's handoff.
+No GPU/machine caller, profile, registry, Makefile or persistent format changes.
+The handoff records exact focused commands: backend 7, NEMA 79, transcript 91,
+machine snapshots 4, completion 5, scheduler batch 4; all pass. `make check`
+and `make sanitize` each pass 796 tests; line checks and 130 task contracts
+pass. The final expanded intra-child regression also passes the targeted
+normal and sanitizer commands. Logs/artifacts: `/tmp/semu-761-backend.vQf9p6/`.
+
+Authentic validation uses unchanged exact manifest/profile component hashes
+and full-flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+All components are validated before execution. `make sdl` and these exact
+gates pass without re-pinning:
+
+```sh
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh
+SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu TEST_PROFILE=sapporo-2.39.20 TEST_FILTER=sapporo_239_gps_awake
+```
+
+The 2.22 stop remains PC `000bacf4`, 774081920 instructions, 6520939902 ns
+with all E-SAP-ONBOARD-EMU-012 frame/log pins. The 2.39 gate retains all four
+native IRQ/pulse/snapshot phases and ticket 759's exact fifth-hit refusal.
+Two cold middle-button runs and the unchanged 700M-prefix resume are rebuilt
+and reproduced with the still-compatible, read-only observer (source SHA-256
+`d96fbfbbae59a1696794a291ff5d6e8ddb81ea9358044fbf2c7fb5b789f57190`):
+
+```sh
+probe_dir=/tmp/semu-761-backend.vQf9p6
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-239-ui.690H4Q/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc /tmp/semu-nema-atomic.3Ec7wr/probe.c build/libsemu.a -o "$probe_dir/atomic-probe"
+"$probe_dir/atomic-probe" # expected exit 1: two GPU integration failures remain
+```
+
+All 79 cold submissions and 76 resumed submissions succeed. Cold traces match
+each other and E-EMU-SAMPLING-CLIP-001 byte-for-byte; all final pixels and
+snapshots match each other and that baseline. SHA-256 pins remain:
+
+- Cold trace: `a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+- RGB565: `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`.
+- Snapshot: `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+
+The last changed cold frame remains generation 79, CRC `6b6aa2dc`, instruction
+1088274630 at 12335112985 ns. Endpoint: 1300000000 instructions, 22286110403
+ns, PC `000a7abc`, GPS hits `2,2,3`. No private bytes enter Git.
+
+Unresolved: GPU/machine/frontend migration to the new contract, whole-ring
+backend/completion admission, MMIO diagnostic/retry state and bounded CPU
+refusal proof, strict framing/tail validation and caller reentrancy. The
+`nema_gpu_atomic` and `nema_refusal` groups are not yet implemented or run.
+The observer must migrate with the GPU callback contract. Ticket 761 remains
+incomplete; no new authority, budget or evidence exception is requested.
+
 ### E-EMU-NEMA-BATCH-001
 
 2026-09-06; partial ticket 761 implementation, following

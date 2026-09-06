@@ -13,6 +13,32 @@ typedef semu_transaction_result (*semu_display_backend_submit_fn)(
     semu_frame_callback frame_callback, void *frame_context,
     semu_error *error);
 
+#define SEMU_DISPLAY_MAX_LISTS 32u
+typedef struct semu_display_list {
+    uint32_t address;
+    uint32_t word_count;
+} semu_display_list;
+
+/* One synchronous transaction per context. Prepare stages at most MAX_LISTS
+ * lists in order, including inherited state and per-list frames, but publishes
+ * nothing. Refusal leaves committed state unchanged and no new transaction;
+ * a conflict preserves the already-pending transaction.
+ * A successful prepare (including count zero) must be followed exactly once by
+ * commit or abort. Lists/bus are borrowed only during prepare; callback/context
+ * remain borrowed until commit/abort. Neither operation may allocate or fail.
+ * Commit publishes prepared frames in order; abort changes no committed state.
+ * Callbacks borrow immutable frames only for the call. They must not execute or
+ * reset the guest, destroy owners, mutate the bus, or commit/abort recursively.
+ * Same-context prepare/reset conflicts must refuse before mutation. Pending
+ * transactions are transient, not serializable. No WAIT result is supported. */
+typedef struct semu_display_backend_ops {
+    semu_transaction_result (*prepare)(void *context, semu_bus *bus,
+        const semu_display_list *lists, size_t count, uint64_t virtual_time_ns,
+        semu_frame_callback callback, void *frame_context, semu_error *error);
+    void (*commit)(void *context);
+    void (*abort)(void *context);
+} semu_display_backend_ops;
+
 semu_surface *semu_surface_create(uint32_t width, uint32_t height,
                                   semu_error *error);
 void semu_surface_destroy(semu_surface *surface);
