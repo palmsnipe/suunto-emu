@@ -14,7 +14,7 @@ semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
                               uint8_t *alpha, semu_error *error)
 {
     uint32_t byte_offset, sample_idx, addr;
-    uint32_t byte_val;
+    uint8_t byte_val;
     semu_status st;
 
     if (bus == NULL || alpha == NULL) {
@@ -64,7 +64,7 @@ semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
     }
     addr = base + byte_offset;
 
-    st = semu_bus_read(bus, addr, 1u, &byte_val, error);
+    st = semu_bus_copy_out(bus, addr, &byte_val, 1u, error);
     if (st != SEMU_OK) return st;
 
     *alpha = A2LE_LUT[(byte_val >> (sample_idx * 2u)) & 0x03u];

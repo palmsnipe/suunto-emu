@@ -1,232 +1,186 @@
-/*
- * Nema ring and command-list framing parser (ticket 500).
- * Decodes verified ring/wrap/child-list framing into atomic
- * register-write records.  All records are staged before emission;
- * malformed input produces REFUSE with zero callbacks.
- */
-
+/* Validated ring plans and callback-compatible child framing (ticket 761). */
 #include "nema_framing.h"
-
+#include "nema_state.h"
 #include <stdlib.h>
 #include <string.h>
 
-static semu_status read_word(semu_bus *bus, uint32_t addr, uint32_t *out,
-                              semu_error *error)
+semu_status nema_command_read_word(semu_bus *bus, uint32_t address,
+    uint32_t *value, semu_error *error)
 {
-    return semu_bus_read(bus, addr, 4u, out, error);
-}
-
-static semu_status scan_and_stage(semu_bus *bus,
-                                   uint32_t ring_base, uint32_t ring_words,
-                                   uint32_t old_word, uint32_t new_word,
-                                   nema_record *records, size_t *record_count,
-                                   uint32_t *child_infos,
-                                   size_t *child_count,
-                                   semu_error *error)
-{
-    size_t rc = 0u;
-    size_t cc = 0u;
-    uint32_t submitted;
-    uint32_t i;
-
-    if (old_word == new_word) {
-        *record_count = 0u;
-        *child_count = 0u;
-        return SEMU_OK;
+    uint8_t bytes[4]; semu_status status;
+    if (value == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "nema: null command word output");
+        return SEMU_ERR_ARGUMENT;
     }
-    submitted = new_word >= old_word ? new_word - old_word :
-        ring_words - old_word + new_word;
-
-    for (i = 0u; i < submitted; ++i) {
-        uint32_t idx = (old_word + i) % ring_words;
-        uint32_t w0, w2;
-        uint32_t child_addr, child_entries, j;
-        semu_status st;
-
-        st = read_word(bus, ring_base + idx * 4u, &w0, error);
-        if (st != SEMU_OK) return st;
-
-        /* Payload words cannot be interpreted as opcodes. Validate the whole
-         * control record before skipping it (E-NEMA-RING-001). */
-        if (w0 == NEMA_REG_CLID || w0 == (NEMA_HOLDCMD | NEMA_REG_CMDADDR)) {
-            uint32_t control[3], k;
-            if (submitted - i < 4u) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: truncated ring control");
-                return SEMU_ERR_UNSUPPORTED;
-            }
-            for (k = 0u; k < 3u; ++k) {
-                st = read_word(bus, ring_base + ((old_word + i + k + 1u) % ring_words) * 4u,
-                    &control[k], error);
-                if (st != SEMU_OK) return st;
-            }
-            if (w0 == NEMA_REG_CLID ?
-                (control[1] != NEMA_REG_INTERRUPT || control[2] != 1u) :
-                ((control[0] != ring_base && control[0] != ring_base +
-                  ((old_word + i + 4u) % ring_words) * 4u) ||
-                 control[1] != (NEMA_HOLDCMD | NEMA_REG_CMDSIZE) ||
-                 control[2] != ring_words * 4u)) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: invalid ring control fields");
-                return SEMU_ERR_UNSUPPORTED;
-            }
-            i += 3u;
-            continue;
-        }
-
-        if ((w0 & 0xFFFFFF00u) == NEMA_CL_NOP) {
-            continue;
-        }
-        if ((w0 & 0xFF000000u) == NEMA_HOLDCMD) {
-            continue;
-        }
-        if (w0 != NEMA_REG_CMDADDR) {
-            continue;
-        }
-        if (i + 3u >= submitted) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "nema: truncated child submission");
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        idx = (old_word + i + 1u) % ring_words;
-        st = read_word(bus, ring_base + idx * 4u, &child_addr, error);
-        if (st != SEMU_OK) return st;
-        idx = (old_word + i + 2u) % ring_words;
-        st = read_word(bus, ring_base + idx * 4u, &w2, error);
-        if (st != SEMU_OK) return st;
-        idx = (old_word + i + 3u) % ring_words;
-        st = read_word(bus, ring_base + idx * 4u, &child_entries, error);
-        if (st != SEMU_OK) return st;
-
-        if ((w2 & 0xFFFF0000u) != NEMA_CL_PUSH ||
-            (w2 & 0x0000FFFFu) != NEMA_REG_CMDSIZE) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "nema: bad CL_PUSH|CMDSIZE at ring word %u", i + 2u);
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        if ((child_addr & 3u) != 0u) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "nema: child address 0x%08x not aligned",
-                           child_addr);
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        if (child_entries == 0u || child_entries > NEMA_MAX_LIST_WORDS ||
-            child_entries > (UINT32_MAX - child_addr) / 4u) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "nema: child entries %u out of range",
-                           child_entries);
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        i += 3u;
-
-        if (cc >= 32u) {
-            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                           "nema: too many child lists");
-            return SEMU_ERR_UNSUPPORTED;
-        }
-        child_infos[cc * 2u] = child_addr;
-        child_infos[cc * 2u + 1u] = child_entries;
-        ++cc;
-
-        for (j = 0u; j < child_entries; j += 2u) {
-            uint32_t reg_addr = child_addr + j * 4u;
-            uint32_t reg_word, val_word;
-            uint8_t prefix;
-
-            st = read_word(bus, reg_addr, &reg_word, error);
-            if (st != SEMU_OK) return st;
-
-            prefix = (uint8_t)(reg_word >> 24u);
-            if (prefix != 0x00u && prefix != 0xFFu) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                               "nema: bad prefix 0x%02x at child 0x%08x word %u",
-                               prefix, child_addr, j);
-                return SEMU_ERR_UNSUPPORTED;
-            }
-            if ((reg_word & 3u) != 0u) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                               "nema: register 0x%06x not aligned",
-                               reg_word & 0x00FFFFFFu);
-                return SEMU_ERR_UNSUPPORTED;
-            }
-            if (j + 1u >= child_entries) {
-                if (prefix == NEMA_HOLDCMD >> 24u) {
-                    break;
-                }
-                continue;
-            }
-            st = read_word(bus, reg_addr + 4u, &val_word, error);
-            if (st != SEMU_OK) return st;
-
-            if (rc >= NEMA_MAX_RECORDS) {
-                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                               "nema: record overflow");
-                return SEMU_ERR_UNSUPPORTED;
-            }
-            records[rc].prefix = prefix;
-            records[rc].reg_offset = reg_word & 0x00FFFFFFu;
-            records[rc].value = val_word;
-            records[rc].source_addr = reg_addr + 4u;
-            ++rc;
-        }
-    }
-
-    *record_count = rc;
-    *child_count = cc;
-    semu_error_clear(error);
+    status = semu_bus_copy_out(bus, address, bytes, sizeof(bytes), error);
+    if (status != SEMU_OK) return status;
+    *value = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8u |
+        (uint32_t)bytes[2] << 16u | (uint32_t)bytes[3] << 24u;
     return SEMU_OK;
 }
 
-semu_status nema_framing_parse(
-    semu_bus *bus,
-    uint32_t ring_base, uint32_t ring_words,
-    uint32_t old_word, uint32_t new_word,
-    nema_child_fn on_child, void *child_context,
-    nema_record_fn on_record, void *record_context,
-    semu_error *error)
+static semu_status unsupported(semu_error *error, const char *text)
 {
+    semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: %s", text);
+    return SEMU_ERR_UNSUPPORTED;
+}
+
+static semu_status append_list(nema_ring_plan *p, uint32_t address,
+    uint32_t words, uint32_t flags, semu_error *error)
+{
+    if (flags != 0u && p->list_count != 0u) {
+        semu_display_list *last = &p->lists[p->list_count - 1u];
+        if (last->flags == flags && (uint64_t)last->address +
+            (uint64_t)last->word_count * 4u == address &&
+            words <= NEMA_MAX_LIST_WORDS - last->word_count) {
+            last->word_count += words;
+            return SEMU_OK;
+        }
+    }
+    if (p->list_count == SEMU_DISPLAY_MAX_LISTS)
+        return unsupported(error, "too many command spans");
+    p->lists[p->list_count++] = (semu_display_list){address, words, flags};
+    return SEMU_OK;
+}
+
+static semu_status stage_child(semu_bus *bus, uint32_t address, uint32_t words,
+    nema_record *records, size_t *count, semu_error *error)
+{
+    uint32_t j;
+    for (j = 0u; j < words; j += 2u) {
+        uint32_t reg, value, at = address + j * 4u;
+        semu_status st = nema_command_read_word(bus, at, &reg, error);
+        if (st != SEMU_OK) return st;
+        if ((reg >> 24u) != 0u && (reg >> 24u) != 0xffu)
+            return unsupported(error, "bad child prefix");
+        if ((reg & 3u) != 0u)
+            return unsupported(error, "child register not aligned");
+        st = nema_command_read_word(bus, at + 4u, &value, error);
+        if (st != SEMU_OK) return st;
+        if (*count == NEMA_MAX_RECORDS) return unsupported(error, "record overflow");
+        records[(*count)++] = (nema_record){
+            (uint8_t)(reg >> 24u), reg & 0xffffffu, value, at + 4u};
+    }
+    return SEMU_OK;
+}
+
+static semu_status scan(semu_bus *bus, uint32_t base, uint32_t words,
+    uint32_t old, uint32_t end, nema_ring_plan *p, nema_record *records,
+    size_t *record_count, semu_error *error)
+{
+    uint32_t i, span = end >= old ? end - old : words - old + end;
+    for (i = 0u; i < span;) {
+        uint32_t idx = (old + i) % words, w[4], k, length = 2u;
+        uint32_t address = base + idx * 4u;
+        semu_status st = nema_command_read_word(bus, address, &w[0], error);
+        if (st != SEMU_OK) return st;
+        if (w[0] == NEMA_CL_NOP) { ++i; continue; }
+        if (w[0] == NEMA_REG_CMDADDR || w[0] == NEMA_REG_CLID ||
+            w[0] == (NEMA_HOLDCMD | NEMA_REG_CMDADDR)) length = 4u;
+        else if (w[0] != NEMA_REG_INTERRUPT &&
+            (((w[0] >> 24u) != 0u && (w[0] >> 24u) != 0xffu) ||
+             !nema_state_register_supported(w[0] & 0xffffffu)))
+            return unsupported(error, "unsupported inline register or padding");
+        if (span - i < length) return unsupported(error, "truncated ring command");
+        for (k = 1u; k < length; ++k) {
+            st = nema_command_read_word(bus, base + ((old + i + k) % words) * 4u,
+                &w[k], error);
+            if (st != SEMU_OK) return st;
+        }
+        if (w[0] == NEMA_REG_CMDADDR) {
+            if (w[2] != (NEMA_CL_PUSH | NEMA_REG_CMDSIZE))
+                return unsupported(error, "bad CL_PUSH|CMDSIZE");
+            if ((w[1] & 3u) != 0u) return unsupported(error, "child address not aligned");
+            if (w[3] == 0u || (w[3] & 1u) != 0u || w[3] > NEMA_MAX_LIST_WORDS ||
+                w[3] > (UINT32_MAX - w[1]) / 4u) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                    "nema: child entries %u out of range", w[3]);
+                return SEMU_ERR_UNSUPPORTED;
+            }
+            if (p->child_count == NEMA_MAX_CHILDREN)
+                return unsupported(error, "too many child lists");
+            st = stage_child(bus, w[1], w[3], records, record_count, error);
+            if (st != SEMU_OK) return st;
+            st = append_list(p, w[1], w[3], 0u, error);
+            if (st != SEMU_OK) return st;
+            ++p->child_count;
+        } else if (w[0] == NEMA_REG_CLID) {
+            if (w[2] != NEMA_REG_INTERRUPT || w[3] != 1u)
+                return unsupported(error, "invalid completion marker");
+            if (p->marker_count == NEMA_MAX_MARKERS)
+                return unsupported(error, "too many completion markers");
+            p->markers[p->marker_count++] = w[1];
+        } else if (w[0] == (NEMA_HOLDCMD | NEMA_REG_CMDADDR)) {
+            if ((w[1] != base && w[1] != base + ((old + i + 4u) % words) * 4u) ||
+                w[2] != (NEMA_HOLDCMD | NEMA_REG_CMDSIZE) || w[3] != words * 4u)
+                return unsupported(error, "invalid held control");
+        } else if (w[0] == NEMA_REG_INTERRUPT) {
+            if (w[1] != 0u) return unsupported(error, "unpaired interrupt request");
+            p->quiet = 1;
+        } else {
+            /* Native wrap trailers keep graphics pairs contiguous. Do not
+             * invent a continuation value across an unobserved pair split. */
+            if (idx + 1u == words)
+                return unsupported(error, "inline pair crosses physical ring end");
+            st = append_list(p, address, 2u, SEMU_DISPLAY_LIST_INLINE, error);
+            if (st != SEMU_OK) return st;
+        }
+        i += length;
+    }
+    return SEMU_OK;
+}
+
+static semu_status parse(semu_bus *bus, uint32_t base, uint32_t words,
+    uint32_t old, uint32_t end, nema_ring_plan *output,
+    nema_child_fn on_child, void *child_context,
+    nema_record_fn on_record, void *record_context, semu_error *error)
+{
+    nema_ring_plan plan = {0};
     nema_record *records;
-    uint32_t child_infos[64u];
-    size_t record_count, child_count, i;
+    size_t count = 0u, i;
     semu_status st;
-
-    if (bus == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT, "nema: null bus");
+    if (bus == NULL || (base & 3u) != 0u || words == 0u ||
+        words > UINT32_MAX / 4u ||
+        (uint64_t)base + (uint64_t)words * 4u > UINT64_C(0x100000000) ||
+        old >= words || end >= words) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "nema: invalid ring arguments");
         return SEMU_ERR_ARGUMENT;
     }
-    if ((ring_base & 3u) != 0u || ring_words == 0u ||
-        ring_words > UINT32_MAX / 4u ||
-        (uint64_t)ring_base + (uint64_t)ring_words * 4u > UINT64_C(0x100000000) ||
-        old_word >= ring_words || new_word >= ring_words) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "nema: invalid ring arguments");
-        return SEMU_ERR_ARGUMENT;
-    }
-
-    records = (nema_record *)calloc(NEMA_MAX_RECORDS, sizeof(*records));
+    records = calloc(NEMA_MAX_RECORDS, sizeof(*records));
     if (records == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "nema: cannot allocate records");
         return SEMU_ERR_NOMEM;
     }
-
-    st = scan_and_stage(bus, ring_base, ring_words, old_word, new_word,
-                        records, &record_count, child_infos, &child_count,
-                        error);
-    if (st != SEMU_OK) {
-        free(records);
-        return st;
-    }
-
-    for (i = 0u; i < child_count; ++i) {
-        if (on_child != NULL) {
-            on_child(child_context, child_infos[i * 2u],
-                     child_infos[i * 2u + 1u]);
+    st = scan(bus, base, words, old, end, &plan, records, &count, error);
+    if (st == SEMU_OK) {
+        if (output != NULL) *output = plan;
+        for (i = 0u; i < plan.list_count; ++i) {
+            const semu_display_list *list = &plan.lists[i];
+            if (list->flags == 0u && on_child != NULL)
+                on_child(child_context, list->address, list->word_count);
         }
+        for (i = 0u; i < count; ++i)
+            if (on_record != NULL) on_record(record_context, &records[i]);
+        semu_error_clear(error);
     }
-    for (i = 0u; i < record_count; ++i) {
-        if (on_record != NULL) {
-            on_record(record_context, &records[i]);
-        }
-    }
-
     free(records);
-    return SEMU_OK;
+    return st;
+}
+
+semu_status nema_framing_prepare(semu_bus *bus, uint32_t base, uint32_t words,
+    uint32_t old, uint32_t end, nema_ring_plan *plan, semu_error *error)
+{
+    if (plan == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "nema: null ring plan");
+        return SEMU_ERR_ARGUMENT;
+    }
+    return parse(bus, base, words, old, end, plan, NULL, NULL, NULL, NULL, error);
+}
+
+semu_status nema_framing_parse(semu_bus *bus, uint32_t base, uint32_t words,
+    uint32_t old, uint32_t end, nema_child_fn on_child, void *child_context,
+    nema_record_fn on_record, void *record_context, semu_error *error)
+{
+    return parse(bus, base, words, old, end, NULL, on_child, child_context,
+        on_record, record_context, error);
 }

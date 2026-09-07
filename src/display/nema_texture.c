@@ -57,7 +57,7 @@ semu_status nema_texture_validate(semu_bus *bus,
     uint32_t min_bpr, total;
     uint32_t last_addr;
     semu_status st;
-    uint32_t dummy;
+    uint8_t dummy;
 
     if (bus == NULL || desc == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "texture: null argument");
@@ -92,15 +92,8 @@ semu_status nema_texture_validate(semu_bus *bus,
     }
     last_addr = desc->base + total - 1u;
 
-    /* Confirm bus accessibility of the last byte */
-    st = semu_bus_read(bus, last_addr, 1u, &dummy, error);
-    if (st != SEMU_OK) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "texture: bus range 0x%08x..0x%08x not accessible",
-                       desc->base, last_addr);
-        return SEMU_ERR_UNSUPPORTED;
-    }
-    return SEMU_OK;
+    /* A non-mutating boundary check; each sampled byte is checked separately. */
+    return semu_bus_copy_out(bus, last_addr, &dummy, 1u, error);
 }
 
 static semu_status sample_rgb565(semu_bus *bus,
@@ -108,7 +101,8 @@ static semu_status sample_rgb565(semu_bus *bus,
                                   uint32_t x, uint32_t y,
                                   nema_texel *out, semu_error *error)
 {
-    uint32_t addr, lo, hi, pixel;
+    uint32_t addr, pixel;
+    uint8_t lo, hi;
     uint32_t r5, g6, b5;
     semu_status st;
 
@@ -118,12 +112,13 @@ static semu_status sample_rgb565(semu_bus *bus,
         return SEMU_ERR_UNSUPPORTED;
     }
     addr = d->base + y * d->stride + x * 2u;
-    st = semu_bus_read(bus, addr, 1u, &lo, error);
+    /* Keep byte granularity: a two-byte copy could bypass a one-byte overlay. */
+    st = semu_bus_copy_out(bus, addr, &lo, 1u, error);
     if (st != SEMU_OK) return st;
-    st = semu_bus_read(bus, addr + 1u, 1u, &hi, error);
+    st = semu_bus_copy_out(bus, addr + 1u, &hi, 1u, error);
     if (st != SEMU_OK) return st;
 
-    pixel = (lo & 0xFFu) | ((hi & 0xFFu) << 8);
+    pixel = (uint32_t)lo | (uint32_t)hi << 8u;
     r5 = (pixel >> 11) & 0x1Fu;
     g6 = (pixel >> 5) & 0x3Fu;
     b5 = pixel & 0x1Fu;
@@ -152,11 +147,14 @@ semu_status nema_texture_sample(semu_bus *bus,
     switch (desc->format) {
     case NEMA_TEX_FMT_RGB565:
         return sample_rgb565(bus, desc, x, y, out, error);
-    case NEMA_TEX_FMT_A2LE:
-        out->r = 0u; out->g = 0u; out->b = 0u;
-        return nema_a2le_sample(bus, desc->base, desc->stride,
-                                 desc->width, desc->height,
-                                 x, y, &out->a, error);
+    case NEMA_TEX_FMT_A2LE: {
+        uint8_t alpha;
+        semu_status st = nema_a2le_sample(bus, desc->base, desc->stride,
+            desc->width, desc->height, x, y, &alpha, error);
+        if (st != SEMU_OK) return st;
+        *out = (nema_texel){0u, 0u, 0u, alpha};
+        return SEMU_OK;
+    }
     default:
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "texture: unsupported format 0x%02x", desc->format);

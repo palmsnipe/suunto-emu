@@ -11,7 +11,8 @@
  * unobserved filtering remain unsupported.
  *
  * Evidence: E-NEMA-TEXTURE-001 (verified),
- *           E-NEMA-A2LE-001 (missing — endpoint coverage only).
+ *           E-NEMA-A2LE-001 (missing — endpoint coverage only),
+ *           E-EMU-NEMA-TEXTURE-MEMORY-001 (memory-only reads).
  */
 
 #define NEMA_TEX_FMT_RGB565  0x04u
@@ -38,9 +39,10 @@ typedef struct {
 } nema_texel;
 
 /*
- * Validate descriptor fields and confirm the complete texture range
- * is bus-accessible.  Checks format, dimensions, stride sufficiency,
- * and arithmetic overflow before any sample read.
+ * Validate format, dimensions, stride and range arithmetic, then check the
+ * last byte is mapped memory. This does not preflight every byte in the range:
+ * each sample below is checked separately. No device read callback is invoked;
+ * mapped-memory errors retain their original code/text.
  */
 semu_status nema_texture_validate(semu_bus *bus,
                                    const nema_texture_desc *desc,
@@ -49,7 +51,10 @@ semu_status nema_texture_validate(semu_bus *bus,
 /*
  * Sample one texel at integer coordinate (x, y).  Returns REFUSE
  * for out-of-range coordinates or unsupported formats.  Must be
- * called after nema_texture_validate succeeds.
+ * called after nema_texture_validate succeeds with the same descriptor.
+ * Every source byte must be mapped memory, including overlay checks. Refusal
+ * preserves the complete output texel. Callers rendering multiple texels must
+ * stage target writes until all required samples succeed.
  */
 semu_status nema_texture_sample(semu_bus *bus,
                                  const nema_texture_desc *desc,
@@ -59,7 +64,8 @@ semu_status nema_texture_sample(semu_bus *bus,
 /*
  * A2LE decoder (exposed for direct testing).
  * 4 two-bit alpha samples per byte, LSB first.
- * Endpoint values: 0, 85, 170, 255.
+ * Endpoint values: 0, 85, 170, 255. Memory-only reads; alpha is unchanged on
+ * refusal. The bilinear entry point below has the same output guarantee.
  */
 semu_status nema_a2le_sample(semu_bus *bus, uint32_t base, uint32_t stride,
                               uint32_t width, uint32_t height,

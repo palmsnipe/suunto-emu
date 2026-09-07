@@ -35,8 +35,12 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
     }
     for (i = 0u; i < count; ++i) {
         const semu_display_list *list = &lists[i];
+        if (list->flags > SEMU_DISPLAY_LIST_INLINE) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED, "backend: invalid list flags");
+            return SEMU_TRANSACTION_REFUSE;
+        }
         if (list->word_count == 0u) continue;
-        if (list->word_count > NEMA_MAX_LIST_WORDS ||
+        if ((list->word_count & 1u) != 0u || list->word_count > NEMA_MAX_LIST_WORDS ||
             list->word_count > (UINT32_MAX - list->address) / 4u ||
             (list->address & 3u) != 0u) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -47,7 +51,7 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
                 list->address, 0u, list->word_count, NULL, 0u, NULL);
             return SEMU_TRANSACTION_REFUSE;
         }
-        ++nonempty;
+        if (list->flags == 0u) ++nonempty;
     }
     if (callback != NULL && nonempty >
         UINT64_MAX - semu_surface_frame(b->surface)->generation) {
@@ -73,7 +77,7 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
             discard(b);
             return SEMU_TRANSACTION_REFUSE;
         }
-        if (callback != NULL) {
+        if (callback != NULL && lists[i].flags == 0u) {
             memcpy(b->frames + b->frame_count * NEMA_BACKEND_PANEL_BYTES,
                 b->working_pixels, NEMA_BACKEND_PANEL_BYTES);
             ++b->frame_count;
@@ -112,7 +116,9 @@ static void commit(void *context)
             semu_surface_publish(b->surface);
             b->callback(b->frame_context, semu_surface_frame(b->surface));
         }
-    } else memcpy(pixels, b->working_pixels, NEMA_BACKEND_PANEL_BYTES);
+    }
+    /* Inline draws after the last published child still commit their pixels. */
+    memcpy(pixels, b->working_pixels, NEMA_BACKEND_PANEL_BYTES);
     discard(b);
 }
 

@@ -1180,6 +1180,95 @@ control correction. Two cold language runs and the prefix resume preserve
 every prior trace/pixel/snapshot hash and the exact endpoint. No newly exposed
 refusal was hidden and no acceptance checkpoint was weakened.
 
+## NEMA Unmatched-Tail Refusal (Ticket 761, Partial)
+
+The prior control/allocation work is committed as `611d3c4`. Native research
+reconciliation establishes that the apparent rounded tails in early captures
+were artifacts of treating CMDSIZE entries as bytes. The framing parser and
+backend now refuse odd word counts, including held register tails, before any
+callback or renderer staging. They neither ignore the last command nor read
+its value beyond the declared list (E-EMU-NEMA-TAIL-001).
+
+Three new regressions fail on the committed baseline and pass with the fix:
+backend inherited-color/pixel preservation, later-child GPU/marker refusal and
+zero framing callbacks. Complete paired replacements succeed at the same stop.
+The native observer finds inline initialization in both pinned firmware
+versions; strict inline/padding interpretation and final acceptance review
+remain unfinished. This is not ticket completion or a new hardware claim.
+
+All 812 normal and sanitizer tests pass. Both exact private firmware gates,
+two cold 2.39 middle-button runs and the 700M-prefix resume pass with unchanged
+trace, pixel and snapshot hashes, including frame CRC `6b6aa2dc`. Ticket 761's
+handoff records the commands, bounded native syntax inventory and provenance.
+
+## NEMA Inline Ring Transactions (Ticket 761, Partial)
+
+The 2026-09-07 continuation replaces permissive inline-word skipping and the
+independent marker scan with one validated ring plan. Unknown inline registers,
+prefixes, nonexact NOPs and incomplete pairs refuse. Values resembling ring
+opcodes remain values. Inline state and draws now participate in the same
+transaction as child lists, without additional child frame publications.
+Descriptor flags extend the existing public prepare/commit/abort contract;
+no private backend API or persistent encoding is introduced.
+
+E-EMU-NEMA-INLINE-001 records the native paired-stream evidence, the failing
+mixed-command regression and corrections to two old malformed synthetic padding
+fixtures. Bounds permit 32 children, 64 markers and 64 total child/inline spans.
+Wrapped complete runs and atomic plan refusal are tested; a graphics pair split
+across the physical ring end remains explicitly unsupported. IRQ-clear semantics
+and fragment-program ISA execution are not inferred from initialization writes.
+Final malformed-input/lifecycle review remains; ticket status is unchanged.
+
+All 815 normal and sanitizer tests, both private firmware gates, two cold
+language-screen probes and the prefix resume pass. Every earlier trace,
+frame and snapshot pin is unchanged. Ticket 761's handoff records exact
+commands, test counts and the revised read-only observer's source hash.
+
+## NEMA Memory-Only Command Fetches (Ticket 761, Partial)
+
+E-EMU-NEMA-MEMORY-001 identifies device-read side effects during command
+validation. Ring, child and direct-backend command fetches now share the
+existing bus memory-copy path with explicit little-endian decoding. Device
+commands refuse without invoking their callbacks; synthetic RAM/ROM commands
+remain supported. Four zero-read regressions fail before the fix and pass
+afterward, alongside a ROM success control and corrected RAM retries.
+
+The audit also reproduces read side effects before texture validation,
+RGB565 sampling and A2LE sampling refuse. These readers and their tests are
+outside ticket 761's Allowed Files, so they have not been changed. Integrator
+authorization to extend that scope is required; staged pixels cannot undo
+device callbacks. Callback lifecycle acceptance also remains. No ticket status,
+bus policy, profile or snapshot format is changed.
+
+All 820 normal and sanitizer tests pass, as do both exact private firmware
+gates, the SDL build, task-contract and line checks. Two cold language-screen
+runs and the 700-million-prefix resume retain every trace, frame and snapshot
+pin. Exact commands, counts, evidence and the scope request are in ticket 761.
+
+## NEMA Memory-Only Texture Reads (Ticket 761, Partial)
+
+The user authorized the texture-reader scope extension on 2026-09-08.
+E-EMU-NEMA-TEXTURE-MEMORY-001 promotes the previous external counter probe into
+five MMIO refusal regressions, an A2LE output-preservation regression and a
+composed later-child texture failure. Validation and RGB565/A2LE reads now use
+the existing byte-wide memory-copy contract; a one-byte device overlay cannot
+be bypassed with a wider copy. An A2LE read refusal no longer clears RGB fields.
+Mapped-memory errors retain their original code/text instead of a generic
+validation error. No compatibility hook, bus policy or persistent format changes.
+
+RAM retries and adjacent-ROM RGB565/A2LE/bilinear success controls pass. The
+backend refuses a device byte in the second texel after staging an earlier
+child draw, retaining pixels, frame count and inherited state. The corrected
+transaction retries successfully. Descriptor validation remains a bounded
+last-byte probe; actual source bytes are independently checked by the sampler,
+and rendering targets stay staged. Callback lifecycle acceptance remains;
+the texture scope request is resolved and ticket status is unchanged.
+
+All 828 normal and sanitizer tests pass. Both exact private firmware gates,
+SDL build, line and task-contract checks pass; two cold language-screen runs
+and the prefix resume retain every prior frame, trace and snapshot hash.
+Ticket 761's texture-reader handoff records exact commands and results.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1191,7 +1280,9 @@ without manufacturing a roadmap row. The practical work queue is:
 - Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
   under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
   ownership now covers the migrated whole-ring GPU/machine transaction. Finish
-  strict inline-ring/padding/tail validation and final acceptance review; do not
+  the final malformed-input/lifecycle acceptance review. Command fetches are now
+  memory-only, and the authorized texture-reader correction is implemented.
+  Review callback ownership and complete the remaining acceptance audit. Do not
   work around the opaque backend with a private API. Sampling clipping is
   already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
   historical checkpoints; do not hide changes by re-pinning.

@@ -252,6 +252,32 @@ static void test_unsupported_access_widths(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, f.frames); SEMU_TEST_EQ_U64(context, 0u, f.irqs);
     semu_snapshot_writer_destroy(&before); finish(&f);
 }
+static void test_odd_child_refusal_and_retry(semu_test_context *context)
+{
+    fixture f; semu_error e; semu_snapshot_writer before; unsigned held;
+    SEMU_TEST_ASSERT(context, init(&f)); children(&f);
+    pair(&f, 512u, NEMA_REG_DRAW_COLOR, 0xf800u);
+    put(&f, RING + 28u, 3u);
+    pair(&f, 32u, NEMA_REG_CLID, 7u); pair(&f, 40u, NEMA_REG_INTERRUPT, 1u);
+    semu_snapshot_writer_init(&before);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_gpu_snapshot_write(f.gpu, &before, &e));
+    for (held = 0u; held < 2u; ++held) {
+        pair(&f, 520u, (held ? NEMA_HOLDCMD : 0u) | NEMA_REG_CLIPMAX, 0u);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_write(f.bus, STOP, 4u, RING + 48u, &e));
+        SEMU_TEST_ASSERT(context, strstr(e.text, "child entries 3") != NULL);
+        unchanged(context, &f, &before);
+        SEMU_TEST_EQ_U64(context, 0u, f.frames); SEMU_TEST_EQ_U64(context, 0u, f.irqs);
+        SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(f.scheduler));
+    }
+    put(&f, RING + 28u, 4u);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus, STOP, 4u, RING + 48u, &e));
+    SEMU_TEST_EQ_U64(context, 2u, f.frames);
+    SEMU_TEST_EQ_U64(context, 1u, semu_scheduler_event_count(f.scheduler));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_run_next(f.scheduler, &e));
+    SEMU_TEST_EQ_U64(context, 1u, f.irqs);
+    semu_snapshot_writer_destroy(&before); finish(&f);
+}
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -262,7 +288,8 @@ int main(void)
         SEMU_TEST_CASE(test_reentrant_callbacks),
         SEMU_TEST_CASE(test_missing_scheduler_and_partial_backend),
         SEMU_TEST_CASE(test_bad_wrap_preserves_submission),
-        SEMU_TEST_CASE(test_unsupported_access_widths)
+        SEMU_TEST_CASE(test_unsupported_access_widths),
+        SEMU_TEST_CASE(test_odd_child_refusal_and_retry)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

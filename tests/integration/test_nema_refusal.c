@@ -255,12 +255,36 @@ static void test_nema_framing_ring_range_overflow(semu_test_context *context)
         RING_BASE, UINT32_MAX, 0u, 0u, NULL, NULL, NULL, NULL, NULL));
     semu_bus_destroy(bus);
 }
+static void test_nema_framing_unmatched_tail(semu_test_context *context)
+{
+    semu_error e; semu_bus *bus = semu_bus_create(&e); unsigned held;
+    uint32_t ring[] = {NEMA_REG_CMDADDR, LIST_BASE, NEMA_CL_PUSH | NEMA_REG_CMDSIZE, 2u,
+        NEMA_REG_CMDADDR, LIST_BASE + 8u, NEMA_CL_PUSH | NEMA_REG_CMDSIZE, 3u};
+    uint32_t list[] = {NEMA_REG_CLIPMIN, 0u, NEMA_REG_DRAW_COLOR, 7u, NEMA_REG_CLIPMAX, 0u};
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &e));
+    for (held = 0u; held < 2u; ++held) {
+        capture_ctx cap = {0};
+        list[4] = (held ? NEMA_HOLDCMD : 0u) | NEMA_REG_CLIPMAX;
+        ring[7] = 3u;
+        load_words(bus, RING_BASE, ring, 8u, &e); load_words(bus, LIST_BASE, list, 6u, &e);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, nema_framing_parse(bus, RING_BASE,
+            64u, 0u, 8u, on_child, &cap, on_record, &cap, &e));
+        SEMU_TEST_EQ_U64(context, 0u, cap.children); SEMU_TEST_EQ_U64(context, 0u, cap.count);
+        ring[7] = 4u; load_words(bus, RING_BASE, ring, 8u, &e);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, nema_framing_parse(bus, RING_BASE,
+            64u, 0u, 8u, on_child, &cap, on_record, &cap, &e));
+        SEMU_TEST_EQ_U64(context, 2u, cap.children); SEMU_TEST_EQ_U64(context, 3u, cap.count);
+    }
+    semu_bus_destroy(bus);
+}
 int main(void)
 {
     static const semu_test_case cases[] = {SEMU_TEST_CASE(test_guest_gpu_store_precise_fault),
         SEMU_TEST_CASE(test_whole_submission_allocation_failures),
         SEMU_TEST_CASE(test_nema_framing_wrapped_non_power_of_two),
         SEMU_TEST_CASE(test_nema_framing_control_fields_refuse_before_callbacks),
-        SEMU_TEST_CASE(test_nema_framing_ring_range_overflow)};
+        SEMU_TEST_CASE(test_nema_framing_ring_range_overflow),
+        SEMU_TEST_CASE(test_nema_framing_unmatched_tail)};
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

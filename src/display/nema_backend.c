@@ -80,9 +80,9 @@ semu_status nema_backend_render_list(semu_nema_backend *b, semu_bus *bus,
     for (i = 0u; i + 1u < list->word_count; i += 2u) {
         uint32_t reg, value, address = list->address + i * 4u;
         nema_record record;
-        if (semu_bus_read(bus, address, 4u, &reg, error) != SEMU_OK)
+        if (nema_command_read_word(bus, address, &reg, error) != SEMU_OK)
             return refuse(b, NEMA_DIAG_FRAMING_ERROR, address, 0u, 0u, error);
-        if (semu_bus_read(bus, address + 4u, 4u, &value, error) != SEMU_OK)
+        if (nema_command_read_word(bus, address + 4u, &value, error) != SEMU_OK)
             return refuse(b, NEMA_DIAG_FRAMING_ERROR, address + 4u, 0u, 0u, error);
         if ((reg >> 24u) != 0u && (reg >> 24u) != 0xffu)
             return refuse(b, NEMA_DIAG_BAD_PREFIX, address, reg, value, error);
@@ -104,7 +104,7 @@ semu_transaction_result semu_nema_backend_submit(void *context, semu_bus *bus,
     uint32_t address, uint32_t words, uint64_t time,
     semu_frame_callback callback, void *frame_context, semu_error *error)
 {
-    const semu_display_list list = {address, words};
+    const semu_display_list list = {address, words, 0u};
     semu_transaction_result result = semu_nema_backend_ops.prepare(context, bus,
         &list, 1u, time, callback, frame_context, error);
     if (result == SEMU_TRANSACTION_OK) semu_nema_backend_ops.commit(context);

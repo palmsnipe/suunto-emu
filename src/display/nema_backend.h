@@ -43,7 +43,8 @@ extern const semu_display_backend_ops semu_nema_backend_ops;
  * records through nema_state, and executes evidenced draws on the
  * internal surface.  Returns REFUSE on unsupported commands with
  * bounded diagnostics; pixels, inherited state and shadows are unchanged on
- * refusal. Empty lists publish nothing. The original error survives diagnostic
+ * refusal. Odd word counts refuse before staging (E-EMU-NEMA-TAIL-001);
+ * empty lists publish nothing. The original error survives diagnostic
  * saturation and a NULL error sink is supported.
  */
 semu_transaction_result semu_nema_backend_submit(

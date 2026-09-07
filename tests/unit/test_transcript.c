@@ -89,7 +89,7 @@ static void test_frozen_callbacks_and_options(semu_test_context *context)
         semu_peripheral_signal_fn signal = signal_callback;
         semu_dma_request_sink_fn sink = request_sink;
         const semu_display_backend_ops backend = {display_backend, display_finish, display_finish};
-        const semu_display_list list = {0x2000u, 8u};
+        const semu_display_list list = {0x2000u, 8u, 0u};
         reset(&reset_calls);
         signal(&signal_value, 3u, 1);
         SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,

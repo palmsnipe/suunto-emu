@@ -47,6 +47,8 @@ single-list submission and single-event admission APIs cannot roll this back.
 - `src/display/nema_backend_internal.h`, `src/display/nema_backend_draw.c`
 - `src/display/nema_backend_transaction.c`
 - `src/display/nema_state.c`, `src/display/nema_state.h`
+- `src/display/nema_texture.c`, `src/display/nema_texture.h`
+- `src/display/nema_a2le.c`
 - `src/display/nema_framing.c`, `src/display/nema_framing.h`
 - `src/display/nema_completion.c`, `src/display/nema_completion.h`
 - `src/display/nema_completion_internal.h`, `src/display/nema_completion_snapshot.c`
@@ -58,6 +60,7 @@ single-list submission and single-event admission APIs cannot roll this back.
 - `src/frontends/cli.c`
 - `tests/unit/test_transcript.c`, `tests/unit/test_nema_backend.c`
 - `tests/unit/test_nema_backend_atomic.c`, `tests/unit/test_nema_state.c`
+- `tests/unit/test_nema_texture.c`
 - `tests/unit/test_nema_framing.c`, `tests/unit/test_nema_diagnostics.c`
 - `tests/unit/test_nema_completion_snapshot.c`, `tests/unit/test_nema_completion_atomic.c`
 - `tests/unit/test_scheduler_batch.c`
@@ -69,6 +72,12 @@ single-list submission and single-event admission APIs cannot roll this back.
 - This ticket
 
 ## Frozen Interfaces
+
+Scope extension authorized by the user on 2026-09-08: the texture readers,
+their existing header and focused unit tests above are now owned by this
+integration ticket. Fix the E-EMU-NEMA-MEMORY-001 texture-read side effects
+using existing bus contracts; preserve native success pins. Status/dependencies
+are unchanged. This does not authorize a bus API/policy or format change.
 
 This is the integration owner for the smallest transactional extension of
 the existing display backend/machine and scheduler contracts. Define ownership,
@@ -395,3 +404,357 @@ snapshot 4; every focused command selects tests and passes. `make check` and
 checks pass. `make sdl`, both exact private gates, two cold middle probes and
 the prefix resume pass with all historical hashes unchanged. The original
 atomicity probe reports zero failures twice normally and once under sanitizers.
+
+### Partial Implementation — Complete Paired Lists
+
+2026-09-06. Committed the prior control/allocation slice as `611d3c4`
+(`Validate NEMA ring controls and allocation refusal paths`), then continued
+ticket 761. This continuation remains uncommitted; index/status unchanged.
+Changed files: `src/display/nema_framing.c`, `.h`,
+`src/display/nema_backend_transaction.c`, `nema_backend.h`,
+`tests/unit/test_nema_backend_atomic.c`, `tests/devices/test_nema_gpu_atomic.c`,
+`tests/integration/test_nema_refusal.c`, execution model, current status,
+evidence ledger and this handoff.
+
+E-EMU-NEMA-TAIL-001 reconciles E-NEMA-LISTS-001 with the later read-only native
+research: the rounded-tail theory was superseded by the CMDSIZE entry-count
+correction. Supported lists contain complete register/value pairs. Framing
+and backend range validation now refuse odd counts before emitting callbacks
+or staging renderer work. No tail word is dropped, no value is fetched beyond
+the declared list, and no hardware opcode/register or compatibility hook is
+invented. Empty backend lists retain their no-publication behavior.
+
+Three regressions failed on `611d3c4` before the implementation, with logs in
+`/tmp/semu-761-syntax.Tuw7Uw/{backend,gpu,framing}-before.log`. They now pass,
+covering ordinary/held unmatched tails, retained inherited blue color and
+pixels/generation, zero framing callbacks, unchanged complete GPU snapshot,
+zero frames/IRQs/completion events and a corrected same-stop paired-list retry.
+All three changed handwritten tests remain below 300 lines.
+
+The external `syntax-probe.c` SHA-256 is
+`7d517824bf4f331791d983a43a97ac85a77bdf9be387c3017a8f7e3d28907282`.
+It only observes active guest-RAM ring words before delegating to the production
+submission function. The included UI observer remains SHA-256
+`6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`;
+manifest/full-flash validation and bounded input timing are unchanged.
+No observer source or private artifact is copied into Git.
+
+```sh
+probe_dir=/tmp/semu-761-syntax.Tuw7Uw
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -DUSE_UI_OBSERVER -Iinclude -Isrc -Isrc/devices "$probe_dir/syntax-probe.c" build/libsemu.a -o "$probe_dir/syntax-239"
+"$probe_dir/syntax-239" cold 1 "$probe_dir/paired-239" > "$probe_dir/paired-239.trace" 2> "$probe_dir/paired-239.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices "$probe_dir/syntax-probe.c" build/obj/src/frontends/cli.o build/obj/src/frontends/main_headless.o build/libsemu.a -o "$probe_dir/syntax-headless"
+"$probe_dir/syntax-headless" run --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu --layer sapporo-2.22-no-device --max-instructions 1300000000 --max-time 22000000000 > "$probe_dir/paired-222.log" 2>&1
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-gpu.aQow5X/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+The 2.22 observer exits 3 at the expected budget, PC `000d4a8c`, instructions
+`746431481`, time `22090668071`: 10 active stops, 5 child lists, zero odd counts.
+The 2.39 observer exits 0: 158 stops, 79 child lists, zero odd counts. Both
+observe 162 inline words across initialization prefixes. This is a bounded
+inventory, not evidence that arbitrary inline words may be ignored. Remaining
+work: strict inline-ring/padding grammar, ordered inline-state treatment and
+final malformed-input/lifecycle acceptance review. No additional integrator
+authority is requested and ticket 761 must not be marked done yet.
+
+Two cold middle-button renderer probes and the 700M-prefix resume pass. The
+renderer observer source remains E-EMU-NEMA-GPU-001's exact SHA-256
+`b59e73c8220beaade48cee629a1da3b5f8b93b8b47a1cc6cd0be1a2e4ee32ab7`.
+Cold runs accept 79 submissions; resume accepts 76. All retain final frame
+CRC `6b6aa2dc`, pixels SHA-256
+`f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`,
+snapshot SHA-256
+`4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`,
+PC `000a7abc`, instructions `1300000000`, time `22286110403`.
+Both cold traces retain SHA-256
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+
+Final verification: every command in this ticket's Tests and Commands section
+passes without skipped selection. Focused counts: backend atomic 8, GPU atomic
+9, completion atomic 5, scheduler batch 4, refusal integration 6, NEMA 95,
+transcript 91, machine snapshot 4. `make check` and `make sanitize` each pass
+812 tests; `make check-task-contracts` validates 130 tickets and
+`make check-lines` has no hard-limit violations. `make sdl` passes.
+The exact private SDL live-input and 2.39 GPS-awake commands both pass,
+including cold/resume/IRQ checks and their unchanged log/snapshot hashes:
+2.22 log `9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`;
+2.39 log `06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+The 2.39 gate still ends at its intentional fifth-hit compatibility refusal,
+PC `001291cc`, instructions `1272353867`, time `32770943068`; this is not a
+new renderer refusal. Logs are retained in the probe directory above.
+
+### Partial Implementation — Shared Inline Ring Plan
+
+2026-09-07. Continued without committing; the preceding paired-tail changes
+remain intact and uncommitted. This slice changes `include/semu/display.h`,
+GPU submission, backend list/transaction code, framing `.c`/`.h`, state `.c`/`.h`,
+backend-atomic/completion-atomic/framing/transcript unit tests, GPU snapshot
+tests, execution model, current status, evidence ledger and this handoff.
+No index/status, Makefile, profile, firmware, CPU/bus policy or codec changes.
+
+E-EMU-NEMA-INLINE-001 supplies the paired inline/NOP/bootstrap evidence. The
+parser now produces one validated plan for ordered command spans and marker
+IDs. The GPU no longer rescans values as potential marker opcodes, ignores
+inline state, or submits the whole ring when a direct stream wraps. Known
+inline register validation shares the state module's existing register map.
+Child-only callbacks retain their contract and share the same parser.
+
+The public display descriptor gains a flags field: zero retains ordinary
+publication, `SEMU_DISPLAY_LIST_INLINE` stages commands without publication,
+and other values refuse. All in-tree initializers are migrated. The backend
+admits up to 64 spans; framing retains 32 children and 64 markers. A synthetic
+32-child/32-inline plan succeeds, and the next span refuses without modifying
+the output plan. The existing prepare/commit/abort ownership contract applies
+to every span. Inline work after the last child commits final working pixels
+without adding a child frame; commit remains allocation-free and infallible.
+
+The mixed inline/child/completion regression fails before the fix: an unknown
+inline command after a child is accepted. Final coverage includes ordinary and
+held unknown registers, nonexact NOPs, a failing inline draw after two children,
+unchanged GPU codec/pixels/frames/events, command-shaped values, ordered child
+colors, unpublished trailing inline pixels and corrected/repeated stops. Two
+old synthetic padding inputs also fail new negative assertions under the old
+parser: an unmatched zero register and unmatched held graphics word. Their
+corrected retries use exact NOPs; no native golden was changed. Additional
+plan tests cover wrapped complete runs, truncated markers, unchanged output
+on refusal, physical pair-split refusal and capacity boundaries. The framing
+implementation is now 171 lines and GPU submission is 84 lines.
+
+External evidence/log directory: `/tmp/semu-761-inline.JJ1n7Q`. The old framing
+source extracted read-only from `611d3c4` has SHA-256
+`24ec7912e86351503f17dffe17c0ca59f378de6f9cca91e230472cc7b6e4d1c3`.
+Compiling the final framing tests with it yields exactly the two new padding
+refusals as failures; `before.log` records the earlier mixed-command failure.
+The revised renderer observer has SHA-256
+`03aeafb4e9eb1e8a568aa7c024fe1cca57e3c77f5d0ddb7d1e18622abc33184a`.
+Its only behavioral instrumentation change is to number/trace published child
+descriptors, not the newly surfaced initialization spans. Every span still
+passes unchanged to the production backend. The included UI observer remains
+SHA-256 `6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`;
+component/full-flash validation and bounded input timing are unchanged.
+
+```sh
+probe_dir=/tmp/semu-761-inline.JJ1n7Q
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/display -Itests/support tests/unit/test_nema_framing.c tests/support/test.c "$probe_dir/framing-before.c" build/libsemu.a -o "$probe_dir/framing-before"
+"$probe_dir/framing-before" > "$probe_dir/framing-before.log" 2>&1
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices "$probe_dir/render-probe.c" build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+Both cold traces remain SHA-256
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`.
+Cold and prefix-resumed final pixels remain
+`f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`,
+snapshot `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`,
+frame CRC `6b6aa2dc`, PC `000a7abc`, instructions `1300000000`,
+time `22286110403`; 79 cold and 76 resumed child publications.
+
+Remaining: final malformed-input/lifecycle acceptance review, including
+side effects of command-memory reads and callback ownership. Graphics pairs
+split across the physical ring end, arbitrary held jumps, IRQ-clear behavior
+and fragment-processor ISA execution are explicitly unsupported. The current
+64-span/32-child bound is a declared software limit, not a physical GPU claim.
+No additional integrator authority is requested. Do not mark ticket 761 done.
+
+Final inline-slice verification: every command in Tests and Commands passes
+with actual selection: backend atomic 8, GPU atomic 9, completion atomic 6,
+scheduler batch 4, refusal integration 6, NEMA 98, transcript 91, machine
+snapshot 4. The additional `make test TEST_FILTER=nema_gpu_snapshot` selects
+4 passing cases. `make check` and `make sanitize` each pass 815 tests;
+`make check-task-contracts` validates 130 tickets and `make check-lines` passes
+with only existing review-threshold warnings. `make sdl` and both exact private
+gate commands pass without skips. The 2.22 cold live-input log retains
+`9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c` and
+the exact `000bacf4 / 774081920 / 6520939902` stop tuple. The 2.39 gate verifies
+four awake pulses, native IRQs, four snapshot phases and the intentional fifth
+refusal, retaining log
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`
+and snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`.
+
+### Command-memory audit continuation, 2026-09-07/08 (partial)
+
+This slice changes only `src/display/nema_framing.c`/`.h`,
+`src/display/nema_backend.c`, `tests/unit/test_nema_framing.c`,
+the execution model, current status, evidence ledger and this handoff.
+Earlier uncommitted tail/inline work is preserved; no commit is made.
+E-EMU-NEMA-MEMORY-001 and the architecture's validation-before-mutation rule
+support memory-only command fetches. The existing bus copy API suffices:
+four-byte reads decode explicitly little-endian and refuse device mappings
+without invoking callbacks, retaining the original error and output word.
+No bus API/policy, public header, profile, registry or codec changes this slice.
+
+External evidence/log directory: `/tmp/semu-761-memory.KpbRMR`.
+`make test TEST_FILTER=nema_framing` fails before implementation: 15 unit cases,
+four failures, each at the zero-device-read assertion. They cover a device ring,
+device child, direct device list and RAM register/device value. After the fix
+all 15 pass; the filter also selects six passing refusal integration cases.
+ROM little-endian commands and corrected RAM retries remain successful.
+Shared fixture setup keeps the framing test at 418 lines versus the prior 403;
+the parser implementation is 186 lines. No expected native stop or golden changes.
+
+The read-only texture audit reproduces a remaining atomicity gap. Source
+`texture-probe.c` in that external directory has SHA-256
+`9c0c29f72931d2c1888638f589786739f55786b2fa9fc87db125bd1302d089ce`.
+Its synthetic device increments a read counter before returning an error:
+texture validation refuses after one callback, RGB565 sampling after two,
+and A2LE sampling after one. Mapped-ROM white-pixel/opaque-alpha controls pass.
+The program returns zero only when all three gaps and both controls reproduce;
+this is evidence of unfixed behavior, not passing atomicity acceptance.
+
+```sh
+probe_dir=/tmp/semu-761-memory.KpbRMR
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc "$probe_dir/texture-probe.c" build/libsemu.a -o "$probe_dir/texture-probe"
+"$probe_dir/texture-probe" > "$probe_dir/texture-probe.log"
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-inline.JJ1n7Q/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+Renderer observer/UI source hashes were verified against the preceding
+inline-slice pins before recompilation. Full-flash and prefix hashes likewise
+match the existing pins; all components are validated before execution.
+Both cold traces retain
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`,
+resume trace `1136b75b42117100c287048cb5282eb14987f99f63b27f987a8f050beb9061fe`.
+All three final pixel images retain
+`f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`,
+snapshots `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+There are no refused child submissions: 79 cold and 76 resumed publications;
+the final tuple remains `000a7abc / 1300000000 / 22286110403`, frame CRC
+`6b6aa2dc`. Firmware/resource/frame/snapshot bytes remain outside Git.
+
+Requested integrator-owned change: explicitly extend this ticket's Allowed
+Files to `src/display/nema_texture.c`, `src/display/nema_texture.h`,
+`src/display/nema_a2le.c` and `tests/unit/test_nema_texture.c` for the demonstrated
+texture-source side effects and focused refusal/success regressions. No private
+parallel read API, backend-only duplicate preflight or permissive fallback was
+added to evade scope. Callback lifecycle acceptance remains separate unfinished
+work within the current scope. Physical ring-end split pairs, arbitrary held
+jumps, IRQ-clear semantics and fragment-processor ISA remain unsupported.
+Ticket 761 is not complete; its index/status is unchanged.
+
+Final command-memory-slice verification: every exact command in Tests and
+Commands passes without a skipped private gate. Actual focused selection is
+backend atomic 8, GPU atomic 9, completion atomic 6, scheduler batch 4,
+refusal integration 6, NEMA 103, transcript 91 and machine snapshot 4.
+`make check` and `make sanitize` each pass 820 tests with zero failures.
+`make check-lines` passes with existing review-threshold warnings;
+`make check-task-contracts` validates 130 tickets and is rerun after this
+handoff. `git diff --check` passes. `make sdl` succeeds.
+
+The exact 2.22 live-input command passes its transcript/frame/stop assertions,
+retaining log `9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`
+and stop tuple `000bacf4 / 774081920 / 6520939902`. The exact 2.39 awake gate
+passes four pulses, native IRQs, four snapshot phases and intentional fifth-hit
+refusal. Its log remains
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`,
+stop tuple `001291cc / 1272353867 / 32770943068`. Long 2.22 onboarding is not
+revalidated in this slice. Passing these gates does not resolve the texture
+side-effect gap or complete callback lifecycle acceptance.
+
+### Texture-reader continuation, 2026-09-08 (partial)
+
+The user approved the preceding four-file scope request. This ticket's
+Allowed Files now include `src/display/nema_texture.c`/`.h`,
+`src/display/nema_a2le.c` and `tests/unit/test_nema_texture.c`; status and
+dependencies are unchanged. This slice changes those files, the already-owned
+`tests/unit/test_nema_backend_atomic.c`, execution model, current status,
+evidence ledger and this handoff. All earlier uncommitted work is preserved;
+no commit, public bus/header, profile, registry, build or codec changes.
+
+E-EMU-NEMA-TEXTURE-MEMORY-001 supplies the synthetic evidence and architecture
+contract. Texture validation and RGB565/A2LE samples now use byte-wide mapped
+memory copies without device callbacks. The byte width matters: the bus's
+existing wider-copy lookup would bypass a partial one-byte overlay. RGB565
+also retains support for a pixel split across adjacent mapped memory regions.
+The A2LE wrapper stages alpha before assigning the whole output texel, fixing
+RGB-field mutation on read refusal. Bilinear taps retain staged alpha output.
+
+Validation remains a bounded last-byte accessibility check after descriptor
+arithmetic validation; the header no longer incorrectly promises full-range
+preflight. Every sampled byte is checked independently, and rendering callers
+stage their target writes. Validation now preserves the original memory-copy
+error instead of replacing it with generic UNSUPPORTED. The existing synthetic
+out-of-memory-range test consequently expects RANGE; this is a diagnostic
+correction supported by the new exact-code/text assertions, not a native repin.
+
+External evidence/log directory: `/tmp/semu-761-texture.SVO7Ta`.
+`make test TEST_FILTER=nema_texture` before the implementation runs 17 cases,
+with six failures: validation, RGB565 low/high bytes, A2LE, a later bilinear
+tap all invoke MMIO; unmapped A2LE with a null error sink alters output RGB.
+All ten prior cases and the new adjacent-ROM success control pass. Final
+texture tests pass all 17, including overlay removal/corrected RAM retries.
+The old fixture setup is compacted without removing existing assertions;
+this test is 309 lines versus 301 before this slice. Production texture/A2LE
+implementations are 163/118 lines.
+
+The backend regression has an earlier successful child draw and a RAM-backed
+texture whose last byte is accessible but second texel contains a device byte.
+It requires zero callbacks, original error text, unchanged full frame and
+snapshot count, then an inherited draw that confirms refused source registers
+did not leak. Removing the overlay permits the same two-child transaction to
+publish both frames. The corrected fixture includes required TEX_COLOR;
+its read-only baseline replay fails the zero-read assertion, while all eight
+previous backend cases pass. Final backend selection is nine passing cases.
+
+The baseline texture/A2LE files extracted read-only from `611d3c4` have hashes
+`3de0a763b0613c36b200a2611a2ce5a22c608f850bf0622402e3ffc5d208c3a2` and
+`25c61165a0e06a964c6996695ea38601c76818d93ac1761e66f0ae08c88f4fc8`.
+Reproduction commands (baseline executable intentionally exits 1):
+
+```sh
+probe_dir=/tmp/semu-761-texture.SVO7Ta
+make test TEST_FILTER=nema_texture
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/display -Itests/support tests/unit/test_nema_backend_atomic.c tests/support/test.c "$probe_dir/before-nema_texture.c" "$probe_dir/before-nema_a2le.c" build/libsemu.a -o "$probe_dir/backend-before"
+"$probe_dir/backend-before" > "$probe_dir/backend-before.log" 2>&1
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-inline.JJ1n7Q/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+The unchanged renderer/UI observer source hashes were rechecked against
+the inline-slice pins before compilation, as were the full-flash and prefix
+snapshot hashes. All private components are validated before execution.
+Two cold runs and the prefix resume retain cold trace
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`,
+resume trace `1136b75b42117100c287048cb5282eb14987f99f63b27f987a8f050beb9061fe`,
+pixels `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`,
+and snapshot `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+All 79 cold / 76 resumed child submissions succeed. Final frame CRC remains
+`6b6aa2dc`; endpoint `000a7abc / 1300000000 / 22286110403` is unchanged.
+
+The texture scope request is resolved. Remaining work is final callback
+lifecycle acceptance, not a new texture or bus interface. Device-backed
+textures, physical ring-end split pairs, arbitrary held jumps, IRQ-clear
+semantics and fragment-processor ISA remain unsupported. Descriptor validation
+does not claim full-range memory preflight. No further integrator-owned scope
+change is requested by this slice; ticket 761 remains incomplete.
+
+Final texture-slice verification: every exact Tests and Commands invocation
+passes with actual selection: backend atomic 9, GPU atomic 9, completion
+atomic 6, scheduler batch 4, refusal integration 6, NEMA 111, transcript 91,
+machine snapshot 4. The extra `make test TEST_FILTER=nema_texture` selects
+17 passing cases. `make check` and `make sanitize` each pass 828 tests with
+zero failures. `make check-lines` passes with review-threshold warnings
+(backend-atomic test 342 lines, texture test 309; no file exceeds 500).
+`make check-task-contracts` validates 130 tickets, including the user-authorized
+scope extension. `make sdl` and `git diff --check` pass.
+
+Both exact private gate commands pass without skips. The 2.22 live-input gate
+retains log `9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`,
+all four frame CRCs, and stop `000bacf4 / 774081920 / 6520939902`.
+The 2.39 gate retains log
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`,
+four awake pulses/native IRQs/four snapshot phases and the intentional
+fifth-hit refusal at `001291cc / 1272353867 / 32770943068`.
+The longer 2.22 onboarding gate is not revalidated in this slice.

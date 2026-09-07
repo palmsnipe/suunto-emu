@@ -60,12 +60,14 @@ is transient and is not serialized. GPU submissions use one batch for all
 completion markers, after all child lists prepare and before publication.
 
 The display contract now also has bounded prepare/commit/abort operations.
-The NEMA backend prepares up to 32 ordered lists in instance-owned staging:
+The NEMA backend prepares up to 64 ordered spans in instance-owned staging:
 inherited registers/counters, RGB565 pixels, lazy-cloned TSC6A shadows and
 per-list publication images. Prepare publishes nothing. Failure/abort retains
 committed state; bounded diagnostic records may change, but cannot replace
 the original draw/bus error. The single-list convenience delegates to this
 same transaction, so refused lists no longer leak inherited registers.
+Descriptor flags distinguish ordinary publication from inline commands without
+publication; unknown flags refuse, including on an empty descriptor.
 
 Commit allocates nothing and cannot fail: it installs staged state and
 publishes the saved images in order, with unchanged per-callback generation
@@ -80,8 +82,9 @@ Transient staging is not encoded in machine snapshots. Machine options and
 GPU construction use the public operations table, copied at creation; the
 single-list callback remains only a backend convenience entry point.
 
-An active CMDRINGSTOP write collects the child lists and completion markers,
-prepares all children in one backend transaction, then atomically admits all
+An active CMDRINGSTOP write builds one validated ring plan containing ordered
+inline spans, child lists and completion markers. It prepares all command spans
+in one backend transaction, then atomically admits all
 markers. Only after successful admission does it commit frames and consume
 the stop pointer/generation. Refusal preserves those values and the queue,
 publishes no frame/IRQ and returns the original error through MMIO. Unexpected
@@ -102,8 +105,38 @@ GPU accesses refuse without changing registers or read outputs. Production-path
 allocation tests cover parser records, staged frames and scheduler growth,
 including inherited-state preservation and corrected same-stop retry.
 
-Ticket 761 still needs the remaining strict inline-ring/padding and unmatched-
-tail audit. Arbitrary held jumps are not supported; no physical timing or
+Child and backend lists require complete register/value pairs. Odd word counts
+refuse before callbacks or renderer staging; held tails are not an exception.
+The old rounded-tail theory was superseded by the native CMDSIZE entry-count
+correction (E-EMU-NEMA-TAIL-001). No missing value is read outside the list.
+Ring and list words are fetched as explicit little-endian mapped-memory copies,
+not device reads. Device-backed commands refuse with the original bus error
+without invoking MMIO callbacks (E-EMU-NEMA-MEMORY-001). Texture validation and
+RGB565/A2LE sampling now also use memory-only byte copies, preserving one-byte
+overlay checks and adjacent mapped-memory access. Failed samples leave their
+whole texel/alpha output unchanged; bilinear taps remain staged. The descriptor
+validator checks arithmetic and last-byte addressability, not the whole range:
+each actually sampled byte is checked separately, with original bus errors
+retained. Rendering callers stage target pixels until their samples succeed
+(E-EMU-NEMA-TEXTURE-MEMORY-001); the backend stages whole child submissions.
+
+Inline framing uses the same known-register map as child execution. Values
+cannot be interpreted as opcodes; only exact NOP padding is accepted. The
+old separate marker scan and whole-ring wrapped fallback are removed. A plan
+contains at most 32 children, 64 completion markers and 64 total command spans;
+32 children interleaved with 32 inline runs are supported. Refusal leaves the
+caller-owned plan unchanged. Existing child-only framing callbacks share this
+parser but retain their child-only purpose (E-EMU-NEMA-INLINE-001).
+
+Inline runs stage inherited state and pixels without extra frame generations.
+This includes inline writes after the last child: final working pixels commit
+after ordered child callbacks. Direct graphics-only submissions publish once
+at their final span and retain their immediate IRQ. INTERRUPT=0 is accepted
+as non-requesting control, not an inferred IRQ-clear operation. Initialization
+therefore adds no frame or IRQ. Complete inline runs can wrap as separate
+contiguous spans; a graphics pair split across the physical ring end refuses.
+Ticket 761 still needs final callback lifecycle acceptance review.
+Arbitrary held jumps and fragment-processor ISA execution are not supported; no physical timing or
 unobserved command behavior is inferred from the transaction tests.
 
 ## Reset and Run

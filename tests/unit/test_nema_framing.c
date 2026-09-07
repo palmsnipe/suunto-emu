@@ -1,4 +1,5 @@
 #include "../../src/display/nema_framing.h"
+#include "../../src/display/nema_backend.h"
 #include "test.h"
 
 #include "semu/bus.h"
@@ -45,28 +46,42 @@ static void load_words(semu_bus *bus, uint32_t addr, const uint32_t *words,
     semu_bus_load(bus, addr, (const uint8_t *)words, count * 4u, error);
 }
 
-static uint32_t w(uint32_t v)
+static semu_bus *make_bus(semu_error *error)
 {
-    return v;
+    semu_bus *bus = semu_bus_create(error);
+    if (bus != NULL && semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, error) != SEMU_OK) {
+        semu_bus_destroy(bus); return NULL;
+    }
+    return bus;
+}
+
+static void load_child_ring(semu_bus *bus, uint32_t address, uint32_t entries,
+    semu_error *error)
+{
+    const uint32_t ring[] = {NEMA_REG_CMDADDR, address,
+        NEMA_CL_PUSH | NEMA_REG_CMDSIZE, entries};
+    load_words(bus, RING_BASE, ring, 4u, error);
 }
 
 static void test_bootstrap(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
     uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
-    ring[0u] = w(NEMA_REG_INTERRUPT);
+    ring[0u] = NEMA_REG_INTERRUPT;
     ring[1u] = 0u;
-    ring[2u] = w(NEMA_CL_NOP);
+    ring[2u] = NEMA_CL_NOP;
     ring[3u] = 0u;
+    load_words(bus, RING_BASE, ring, 4u, &error);
+    /* The old synthetic zero padding is an unmatched TEX0_BASE write. */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, nema_framing_parse(bus,
+        RING_BASE, RING_WORDS, 0u, 4u, on_child, &cap, on_record, &cap, &error));
+    SEMU_TEST_EQ_U64(context, 0u, cap.count);
+    ring[3u] = NEMA_CL_NOP;
     load_words(bus, RING_BASE, ring, 4u, &error);
     st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 4u,
                              on_child, &cap, on_record, &cap, &error);
@@ -78,24 +93,15 @@ static void test_bootstrap(semu_test_context *context)
 
 static void test_complete_child(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
-    uint32_t ring[RING_WORDS] = {0};
     uint32_t list[8u] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
-    ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
-    ring[3u] = 8u;
-    load_words(bus, RING_BASE, ring, 4u, &error);
+    load_child_ring(bus, LIST_BASE, 8u, &error);
 
     list[0u] = 0x00000110u; list[1u] = 0x00000000u;
     list[2u] = 0x00000114u; list[3u] = 0x007800F0u;
@@ -118,27 +124,23 @@ static void test_complete_child(semu_test_context *context)
 
 static void test_multiple_children(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
     uint32_t ring[RING_WORDS] = {0};
     uint32_t list1[4u] = {0};
     uint32_t list2[4u] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
+    ring[0u] = NEMA_REG_CMDADDR;
     ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
+    ring[2u] = NEMA_CL_PUSH | NEMA_REG_CMDSIZE;
     ring[3u] = 4u;
-    ring[4u] = w(NEMA_REG_CMDADDR);
+    ring[4u] = NEMA_REG_CMDADDR;
     ring[5u] = LIST_BASE + 0x100u;
-    ring[6u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
+    ring[6u] = NEMA_CL_PUSH | NEMA_REG_CMDSIZE;
     ring[7u] = 4u;
     load_words(bus, RING_BASE, ring, 8u, &error);
 
@@ -160,26 +162,27 @@ static void test_multiple_children(semu_test_context *context)
 
 static void test_nop_and_holdcmd(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
     uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_CL_NOP);
-    ring[1u] = w(NEMA_HOLDCMD | 0x10u);
-    ring[2u] = w(NEMA_HOLDCMD | NEMA_REG_CMDADDR);
+    ring[0u] = NEMA_CL_NOP;
+    ring[1u] = NEMA_HOLDCMD | 0x10u;
+    ring[2u] = NEMA_HOLDCMD | NEMA_REG_CMDADDR;
     ring[3u] = RING_BASE;
-    ring[4u] = w(NEMA_HOLDCMD | NEMA_REG_CMDSIZE);
+    ring[4u] = NEMA_HOLDCMD | NEMA_REG_CMDSIZE;
     ring[5u] = RING_WORDS * 4u;
     load_words(bus, RING_BASE, ring, 6u, &error);
-
+    /* Held graphics writes need a value; arbitrary held words are not NOPs. */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, nema_framing_parse(bus,
+        RING_BASE, RING_WORDS, 0u, 6u, on_child, &cap, on_record, &cap, &error));
+    SEMU_TEST_EQ_U64(context, 0u, cap.children);
+    ring[1u] = NEMA_CL_NOP;
+    load_words(bus, RING_BASE, ring, 6u, &error);
     st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 6u,
                              on_child, &cap, on_record, &cap, &error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, st);
@@ -191,17 +194,13 @@ static void test_nop_and_holdcmd(semu_test_context *context)
 static void test_completion_marker_payload_is_not_a_command(
     semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
     uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
     /* 0xf0 is both the observed list ID and CMDADDR. */
     ring[0u] = NEMA_REG_CLID;
@@ -219,21 +218,17 @@ static void test_completion_marker_payload_is_not_a_command(
 
 static void test_truncated_child(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
     uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
+    ring[0u] = NEMA_REG_CMDADDR;
     ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
+    ring[2u] = NEMA_CL_PUSH | NEMA_REG_CMDSIZE;
     load_words(bus, RING_BASE, ring, 3u, &error);
 
     st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 3u,
@@ -245,24 +240,15 @@ static void test_truncated_child(semu_test_context *context)
 
 static void test_bad_prefix(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
-    uint32_t ring[RING_WORDS] = {0};
     uint32_t list[4u] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
-    ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
-    ring[3u] = 4u;
-    load_words(bus, RING_BASE, ring, 4u, &error);
+    load_child_ring(bus, LIST_BASE, 4u, &error);
 
     list[0u] = 0x80000110u; list[1u] = 0u;
     list[2u] = 0x00000114u; list[3u] = 0u;
@@ -277,23 +263,14 @@ static void test_bad_prefix(semu_test_context *context)
 
 static void test_bad_alignment(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
-    uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
-    ring[1u] = LIST_BASE + 1u;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
-    ring[3u] = 4u;
-    load_words(bus, RING_BASE, ring, 4u, &error);
+    load_child_ring(bus, LIST_BASE + 1u, 4u, &error);
 
     st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 4u,
                              on_child, &cap, on_record, &cap, &error);
@@ -303,23 +280,14 @@ static void test_bad_alignment(semu_test_context *context)
 
 static void test_bad_size(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap = {0};
     semu_status st;
-    uint32_t ring[RING_WORDS] = {0};
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
-    ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
-    ring[3u] = 0u;
-    load_words(bus, RING_BASE, ring, 4u, &error);
+    load_child_ring(bus, LIST_BASE, 0u, &error);
 
     st = nema_framing_parse(bus, RING_BASE, RING_WORDS, 0u, 4u,
                              on_child, &cap, on_record, &cap, &error);
@@ -329,26 +297,17 @@ static void test_bad_size(semu_test_context *context)
 
 static void test_repeat_output(semu_test_context *context)
 {
-    semu_error error;
-    semu_bus *bus;
+    semu_error error; semu_bus *bus;
     capture_ctx cap1 = {0};
     capture_ctx cap2 = {0};
     semu_status st;
-    uint32_t ring[RING_WORDS] = {0};
     uint32_t list[8u] = {0};
     size_t i;
 
-    semu_error_clear(&error);
-    bus = semu_bus_create(&error);
+    bus = make_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    SEMU_TEST_ASSERT(context,
-        semu_bus_map_ram(bus, "sram", SRAM_BASE, SRAM_SIZE, &error) == SEMU_OK);
 
-    ring[0u] = w(NEMA_REG_CMDADDR);
-    ring[1u] = LIST_BASE;
-    ring[2u] = w(NEMA_CL_PUSH | NEMA_REG_CMDSIZE);
-    ring[3u] = 8u;
-    load_words(bus, RING_BASE, ring, 4u, &error);
+    load_child_ring(bus, LIST_BASE, 8u, &error);
 
     list[0u] = 0x00000110u; list[1u] = 0u;
     list[2u] = 0x00000114u; list[3u] = 0u;
@@ -374,6 +333,68 @@ static void test_repeat_output(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static semu_status counted_read(void *context, uint32_t offset,
+    unsigned width, uint32_t *value, semu_error *error)
+{
+    unsigned *reads = context;
+    (void)width; ++*reads;
+    *value = (offset & 4u) != 0u ? 0u : NEMA_REG_CLIPMIN;
+    semu_error_clear(error); return SEMU_OK;
+}
+static void command_memory_case(semu_test_context *context, unsigned mode)
+{
+    const uint32_t device = 0x40000000u;
+    const uint8_t rom[] = {0x10u, 1u, 0u, 0u, 0x78u, 0x56u, 0x34u, 0x12u};
+    const semu_bus_device_ops ops = {counted_read, NULL, NULL};
+    uint32_t ring[] = {NEMA_REG_CMDADDR, device, NEMA_CL_PUSH | NEMA_REG_CMDSIZE, 2u};
+    semu_error error; semu_bus *bus = make_bus(&error);
+    semu_nema_backend *backend = semu_nema_backend_create(&error);
+    capture_ctx cap = {0}; unsigned reads = 0u; semu_status status = SEMU_OK;
+    SEMU_TEST_ASSERT(context, bus != NULL && backend != NULL);
+    if (mode == 4u) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_rom(bus, "commands", device,
+            rom, sizeof(rom), &error));
+    } else {
+        if (mode == 3u) {
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_ram(bus, "register", device, 4u, &error));
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, device, 4u, NEMA_REG_CLIPMIN, &error));
+        }
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_device(bus, "read-side-effect",
+            device + (mode == 3u ? 4u : 0u), 16u, &ops, &reads, &error));
+    }
+    load_words(bus, RING_BASE, ring, 4u, &error);
+    if (mode < 2u || mode == 4u)
+        status = nema_framing_parse(bus, mode == 0u ? device : RING_BASE,
+            mode == 0u ? 4u : RING_WORDS, 0u, mode == 0u ? 2u : 4u,
+            on_child, &cap, on_record, &cap, &error);
+    else (void)semu_nema_backend_submit(backend, bus, device, 2u, 0u, NULL, NULL, &error);
+    SEMU_TEST_EQ_U64(context, 0u, reads);
+    SEMU_TEST_EQ_U64(context, mode == 4u ? SEMU_OK : SEMU_ERR_RANGE, error.code);
+    SEMU_TEST_EQ_U64(context, mode == 4u ? 1u : 0u, cap.count);
+    SEMU_TEST_EQ_U64(context, mode == 4u ? 1u : 0u, cap.children);
+    SEMU_TEST_EQ_U64(context, 0u, semu_nema_backend_frame(backend)->generation);
+    if (mode == 4u) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+        SEMU_TEST_EQ_U64(context, 0x12345678u, cap.records[0].value);
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+            semu_nema_backend_submit(backend, bus, device, 2u, 0u, NULL, NULL, &error));
+    }
+    /* Correct the same ring/list input to mapped RAM and retry. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_load(bus, LIST_BASE, rom, sizeof(rom), &error));
+    ring[1] = LIST_BASE; load_words(bus, RING_BASE, ring, 4u, &error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_framing_parse(bus, RING_BASE, RING_WORDS,
+        0u, 4u, on_child, &cap, on_record, &cap, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, semu_nema_backend_submit(
+        backend, bus, LIST_BASE, 2u, 0u, NULL, NULL, &error));
+    SEMU_TEST_EQ_U64(context, 0u, reads);
+    semu_nema_backend_destroy(backend); semu_bus_destroy(bus);
+}
+static void test_mmio_ring_has_no_reads(semu_test_context *c) { command_memory_case(c, 0u); }
+static void test_mmio_child_has_no_reads(semu_test_context *c) { command_memory_case(c, 1u); }
+static void test_mmio_backend_has_no_reads(semu_test_context *c) { command_memory_case(c, 2u); }
+static void test_mmio_value_has_no_reads(semu_test_context *c) { command_memory_case(c, 3u); }
+static void test_rom_commands_are_little_endian(semu_test_context *c) { command_memory_case(c, 4u); }
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -386,7 +407,12 @@ int main(void)
         SEMU_TEST_CASE(test_bad_prefix),
         SEMU_TEST_CASE(test_bad_alignment),
         SEMU_TEST_CASE(test_bad_size),
-        SEMU_TEST_CASE(test_repeat_output)
+        SEMU_TEST_CASE(test_repeat_output),
+        SEMU_TEST_CASE(test_mmio_ring_has_no_reads),
+        SEMU_TEST_CASE(test_mmio_child_has_no_reads),
+        SEMU_TEST_CASE(test_mmio_backend_has_no_reads),
+        SEMU_TEST_CASE(test_mmio_value_has_no_reads),
+        SEMU_TEST_CASE(test_rom_commands_are_little_endian)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

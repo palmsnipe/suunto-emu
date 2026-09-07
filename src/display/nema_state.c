@@ -96,6 +96,10 @@ static int map_register(uint32_t offset, size_t *idx)
     }
 }
 
+/* Keep inline framing and child execution on the same register contract. */
+int nema_state_register_supported(uint32_t offset)
+{ size_t index; return map_register(offset, &index); }
+
 static int is_supported_draw_cmd(uint32_t cmd)
 {
     return cmd == NEMA_DRAW_QUAD ||

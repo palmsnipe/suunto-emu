@@ -2,6 +2,7 @@
 #define SEMU_NEMA_FRAMING_H
 
 #include "semu/bus.h"
+#include "semu/display.h"
 #include "semu/types.h"
 
 /*
@@ -25,6 +26,11 @@
 #define NEMA_CL_NOP        0x00010000u
 #define NEMA_HOLDCMD       0xFF000000u
 
+/* Command fetches are memory-only: never invoke a device read callback.
+ * Decode explicit little endian; leave value unchanged on failure. */
+semu_status nema_command_read_word(semu_bus *bus, uint32_t address,
+    uint32_t *value, semu_error *error);
+
 typedef struct {
     uint8_t  prefix;
     uint32_t reg_offset;
@@ -36,6 +42,24 @@ typedef void (*nema_record_fn)(void *context, const nema_record *record);
 typedef void (*nema_child_fn)(void *context, uint32_t child_address,
                                uint32_t child_entries);
 
+#define NEMA_MAX_CHILDREN 32u
+#define NEMA_MAX_MARKERS 64u
+typedef struct {
+    semu_display_list lists[SEMU_DISPLAY_MAX_LISTS];
+    uint32_t markers[NEMA_MAX_MARKERS];
+    size_t list_count, marker_count, child_count;
+    int quiet;
+} nema_ring_plan;
+
+/* Same parser as parse below: no callbacks or partial output on failure.
+ * Lists include ordered inline runs (LIST_INLINE, no publication) and children.
+ * Only exact NOP padding and evidenced control records are accepted. A pair
+ * straddling the physical ring end is unsupported; complete runs may wrap.
+ * INTERRUPT=0 is accepted as non-requesting control, not inferred IRQ clear. */
+semu_status nema_framing_prepare(semu_bus *bus, uint32_t ring_base,
+    uint32_t ring_words, uint32_t old_word, uint32_t new_word,
+    nema_ring_plan *plan, semu_error *error);
+
 /*
  * Parses the ring between old_word and new_word (wrapping), finds
  * child-list submissions, and decodes register/value pairs from each
@@ -44,7 +68,9 @@ typedef void (*nema_child_fn)(void *context, uint32_t child_address,
  * base or immediate continuation with the exact capacity (E-EMU-NEMA-CONTROL-001);
  * completion markers require INTERRUPT=1. Bad
  * control fields/truncation return SEMU_ERR_UNSUPPORTED without callbacks.
- * Unrecognized inline-ring/odd-tail syntax remains a separate strictness gap.
+ * Odd child entry counts refuse; no unmatched register is dropped or completed
+ * outside the declared list (E-EMU-NEMA-TAIL-001).
+ * Unknown inline registers/prefixes, nonexact NOPs and incomplete pairs refuse.
  *
  * ring_base:   SRAM address of ring start (must be 4-byte aligned).
  * ring_words:  ring capacity in words (> 0); byte size must fit uint32_t and

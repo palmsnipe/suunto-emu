@@ -2,19 +2,17 @@
 
 #include "../../src/core/scheduler_internal.h"
 #include "../../src/devices/sapporo_nema_gpu.h"
+#include "../../src/display/nema_state.h"
 
 #include <stdint.h>
+#include <string.h>
 
 #define SRAM_BASE 0x10000000u
 #define SRAM_SIZE 0x00100000u
 #define CMD_BASE  (SRAM_BASE + 0x10000u)
 
-#define NEMA_REG_CMDADDR     0x0f0u
-#define NEMA_REG_CMDSIZE     0x0f4u
 #define NEMA_REG_STATUS      0x0fcu
 #define NEMA_REG_CMDRINGSTOP 0x0ecu
-#define NEMA_REG_CLID        0x148u
-#define NEMA_REG_INTERRUPT   0x0f8u
 
 typedef struct snapshot_fixture {
     semu_error error;
@@ -202,11 +200,74 @@ static void test_initialized_snapshot_requires_command_ring(
     fixture_destroy(&source);
 }
 
+static void test_inline_plan_wrapping_and_refusal(semu_test_context *context)
+{
+    semu_error e; semu_bus *bus = semu_bus_create(&e); unsigned mode, i;
+    uint32_t ring[20] = {NEMA_REG_DRAW_COLOR, NEMA_CL_PUSH,
+        NEMA_REG_CMDADDR, SRAM_BASE + 256u, NEMA_CL_PUSH | NEMA_REG_CMDSIZE, 2u,
+        NEMA_REG_CLID, NEMA_REG_CMDADDR, NEMA_REG_INTERRUPT, 1u};
+    nema_ring_plan plan, before;
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_ram(bus, "ring", SRAM_BASE, 512u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 256u, 4u, NEMA_REG_CLIPMAX, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 260u, 4u, 0u, &e));
+    ring[16] = NEMA_REG_DRAW_COLOR; ring[17] = NEMA_REG_CLID;
+    ring[18] = ring[19] = NEMA_CL_NOP;
+    for (i = 0u; i < 20u; ++i)
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + i * 4u, 4u, ring[i], &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_framing_prepare(bus, SRAM_BASE, 20u, 16u, 10u, &plan, &e));
+    SEMU_TEST_EQ_U64(context, 3u, plan.list_count);
+    SEMU_TEST_EQ_U64(context, 1u, plan.child_count);
+    SEMU_TEST_EQ_U64(context, 1u, plan.marker_count);
+    SEMU_TEST_EQ_U64(context, NEMA_REG_CMDADDR, plan.markers[0]);
+    SEMU_TEST_EQ_U64(context, SRAM_BASE + 64u, plan.lists[0].address);
+    SEMU_TEST_EQ_U64(context, SRAM_BASE, plan.lists[1].address);
+    SEMU_TEST_EQ_U64(context, 2u, plan.lists[0].word_count);
+    SEMU_TEST_EQ_U64(context, SEMU_DISPLAY_LIST_INLINE, plan.lists[0].flags);
+    SEMU_TEST_EQ_U64(context, SEMU_DISPLAY_LIST_INLINE, plan.lists[1].flags);
+    SEMU_TEST_EQ_U64(context, 0u, plan.lists[2].flags);
+    before = plan;
+    for (mode = 0u; mode < 3u; ++mode) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 72u, 4u,
+            mode == 0u ? NEMA_CL_NOP | 1u : NEMA_CL_NOP, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 76u, 4u,
+            mode == 2u ? NEMA_REG_DRAW_COLOR : NEMA_CL_NOP, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, nema_framing_prepare(bus,
+            SRAM_BASE, 20u, 16u, mode == 1u ? 9u : 10u, &plan, &e));
+        SEMU_TEST_ASSERT(context, memcmp(&before, &plan, sizeof(plan)) == 0);
+    }
+    semu_bus_destroy(bus);
+}
+static void test_inline_plan_capacity(semu_test_context *context)
+{
+    semu_error e; semu_bus *bus = semu_bus_create(&e); unsigned i, j;
+    const uint32_t commands[] = {NEMA_REG_DRAW_COLOR, 0x123u,
+        NEMA_REG_CMDADDR, SRAM_BASE + 2048u, NEMA_CL_PUSH | NEMA_REG_CMDSIZE, 2u};
+    nema_ring_plan plan, before;
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_ram(bus, "ring", SRAM_BASE, 4096u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 2048u, 4u, NEMA_REG_CLIPMIN, &e));
+    for (i = 0u; i < 32u; ++i)
+        for (j = 0u; j < 6u; ++j)
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus,
+                SRAM_BASE + (i * 6u + j) * 4u, 4u, commands[j], &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_framing_prepare(bus, SRAM_BASE, 256u, 0u, 192u, &plan, &e));
+    SEMU_TEST_EQ_U64(context, 64u, plan.list_count);
+    SEMU_TEST_EQ_U64(context, 32u, plan.child_count);
+    before = plan;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SRAM_BASE + 768u, 4u, NEMA_REG_DRAW_COLOR, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_framing_prepare(bus, SRAM_BASE, 256u, 0u, 194u, &plan, &e));
+    SEMU_TEST_ASSERT(context, memcmp(&before, &plan, sizeof(plan)) == 0);
+    semu_bus_destroy(bus);
+}
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_pending_completion_rebinds_callbacks),
-        SEMU_TEST_CASE(test_initialized_snapshot_requires_command_ring)
+        SEMU_TEST_CASE(test_initialized_snapshot_requires_command_ring),
+        SEMU_TEST_CASE(test_inline_plan_wrapping_and_refusal),
+        SEMU_TEST_CASE(test_inline_plan_capacity)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

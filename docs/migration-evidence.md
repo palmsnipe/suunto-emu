@@ -13,6 +13,132 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-TEXTURE-MEMORY-001
+
+2026-09-08; ticket 761's user-authorized texture-reader scope extension.
+Sources: E-EMU-NEMA-MEMORY-001's external counter probe, existing byte-wide bus
+read/copy and overlay contracts, architecture transaction rules, and new
+synthetic texture/backend regressions. No firmware-specific behavior is added;
+native application/component hashes remain the preceding entry's pinned inputs.
+Five texture cases fail zero-MMIO-read assertions before implementation:
+validation, RGB565 low/high bytes, A2LE and a later bilinear tap. A sixth finds
+that the A2LE wrapper clears RGB output before its alpha read refuses, including
+with a null error sink. The composed backend case refuses a device-backed
+second texel after an earlier child draw and requires no device callbacks,
+state/pixel publication or diagnostic replacement. Before implementation it
+instead invokes the device callback. Existing and adjacent-ROM success controls
+pass. Exact commands and logs are recorded in ticket 761.
+
+The correction uses memory-only byte copies at the original access granularity:
+a two-byte RGB565 copy would incorrectly bypass a one-byte overlay under the
+existing bus rules. Both bytes must succeed before publishing a texel. A2LE
+uses a local alpha until the whole output is valid; bilinear already stages
+all taps. Memory errors retain their original code/text. Descriptor validation
+checks arithmetic and last-byte addressability, not every byte in the range;
+each actual sample is separately checked. Transactional callers stage target
+pixels, so holes/overlays encountered later still refuse without publication.
+Confidence is high for these bounded software contracts; no device-backed
+texture support, compressed texture decode or physical GPU behavior is inferred.
+Native pins and callback lifecycle acceptance require the ticket's final review.
+
+### E-EMU-NEMA-MEMORY-001
+
+2026-09-07; ticket 761 command-memory/lifecycle audit, continuing the
+uncommitted inline-plan slice on `611d3c4`. Sources: architecture's
+validation-before-mutation rule, E-EMU-NEMA-ATOMIC-001, the existing bus
+read/copy implementation and synthetic counter-backed MMIO command sources.
+Ordinary bus reads invoke device callbacks; `semu_bus_copy_out` only reads
+mapped memory and refuses devices without invoking them. Ring, child and
+backend command fetches previously used ordinary reads, leaking external
+device state even if a later command refused. Four regressions fail before
+the fix: device-backed ring, child, backend list, and a RAM register followed
+by a device-backed value. Each requires zero device reads. A synthetic ROM
+success control verifies explicit little-endian decoding and RAM retries.
+
+Command fetches now share a memory-only four-byte reader in the framing
+module, used by the parser and backend. Failure preserves the caller's output
+word and the original bus error. No bus policy/API or memory mapping changes.
+Confidence is high for these synthetic refusal paths and the existing mapped
+RAM/ROM command contract; no MMIO command-fetch support is inferred. The
+related texture-source read paths remain an integration gap: a bounded external
+synthetic probe observes one MMIO callback before texture validation refuses,
+two before RGB565 sampling refuses, and one before A2LE sampling refuses.
+Mapped-ROM RGB565/A2LE controls pass. Probe source SHA-256 is
+`9c0c29f72931d2c1888638f589786739f55786b2fa9fc87db125bd1302d089ce`;
+source and output are in the external evidence directory named by ticket 761.
+These readers and their focused tests are outside its Allowed Files. No
+renderer-side duplicate validation or bus fallback was added to bypass that
+boundary. Exact commands, results, native pins and requested integration are
+in ticket 761. Completion callback lifecycle remains unaudited acceptance work.
+
+### E-EMU-NEMA-INLINE-001
+
+2026-09-07; ticket 761, continuing the uncommitted E-EMU-NEMA-TAIL-001 slice
+on `611d3c4`. Sources: E-NEMA-RING-001 and read-only
+`$FIRMWARE_ROOT/docs/research/native-nema-ring-bootstrap-decode.md`, plus
+E-EMU-NEMA-TAIL-001's active-span observers on both hash-validated applications.
+The bootstrap decode establishes paired inline register/value syntax, exact
+CL_NOP (`0x00010000`) padding and held wrap controls. It explicitly assigns
+no command meaning to the unused zero-filled gap. The later active observers
+see three initialization prefixes in each version, each containing
+INTERRUPT=0, IMEM slot setup and constant writes. Application pins remain
+E-EMU-NEMA-CONTROL-001's exact values. Confidence: high for framing and the
+existing evidenced register set; no fragment-processor ISA or IRQ-clear
+semantics are inferred. INTERRUPT=0 remains a non-requesting control.
+
+The prior scanner ignores unknown inline words, and its second marker scan
+can mistake values for opcodes. A synthetic mixed inline/child transaction
+accepts an unknown register after an earlier child instead of refusing. The
+new regression fails before the fix. The shared parser now stages one ring
+plan: ordered contiguous inline runs and child lists, plus complete marker
+IDs. The same plan supplies renderer preparation and completion admission.
+Inline runs use the public transaction descriptor's no-publication flag,
+retaining per-child callback order and inherited state across the whole stop.
+Unknown flags, inline registers/prefixes, nonexact NOPs and truncated commands
+refuse. This adds no second backend API, runtime hook or persistent encoding.
+
+Two older framing tests used an unmatched zero register and an unmatched held
+graphics word as padding. Those synthetic inputs now explicitly refuse; their
+corrected retries use exact NOPs. Their prior acceptance was not a native
+golden. Child syntax callbacks retain their original purpose; the GPU consumes
+the complete plan instead of silently dropping inline commands. Bounds remain
+32 children and 64 markers, with at most 64 total child/inline spans. Complete
+inline runs may wrap via separate spans; a graphics pair split across the
+physical ring end remains unsupported pending evidence. Final commands,
+success pins and remaining acceptance gaps are recorded in ticket 761.
+
+### E-EMU-NEMA-TAIL-001
+
+2026-09-06; ticket 761 follow-up on `611d3c4`. Sources: read-only
+`$FIRMWARE_ROOT/docs/research/native-live-ui-navigation.md`, sections
+"CMDSIZE entry-count correction" and the superseded rounded-tail theory;
+E-NEMA-LISTS-001; synthetic regressions and bounded native-stream observations.
+The later research explicitly corrects the older first-frame list notes:
+CMDSIZE counts 32-bit entries, not bytes. The apparent unmatched tails came
+from decoding one quarter of a list; 902 entries occupy 3,608 bytes and 1,954
+occupy 7,816 bytes. This is not evidence for fetching an undeclared value.
+Supported child syntax consists of complete register/value pairs, including
+held writes. Odd entry counts must refuse, not drop or extend the last record.
+Confidence: high for the supported paired-list grammar; no claim about unknown
+hardware tail opcodes. Affected modules: framing and backend preparation.
+
+Before the fix, three new synthetic regressions fail: the backend accepts a
+red-color write followed by an unmatched draw register and leaks the color;
+the GPU accepts a later odd child and consumes its stop/marker; framing emits
+callbacks for the incomplete child. Tests exercise ordinary and held tails,
+unchanged inherited color/pixels/generation, zero callbacks/completions on
+refusal and successful corrected retries. Validation uses
+`make test TEST_FILTER=nema_backend_atomic`, `nema_gpu_atomic`, and
+`nema_refusal` (the latter contains the framing regression).
+
+An external read-only submission observer on the unchanged baseline finds no
+odd child counts during bounded 2.22 startup and 2.39 middle-button execution.
+Both versions submit an inline initialization prefix; its semantics and
+strict inline/padding validation remain separate unresolved work. Application
+SHA-256 pins are those in E-EMU-NEMA-CONTROL-001. No firmware bytes, pixels,
+compatibility rule, snapshot encoding or success pin changes are authorized.
+Final verification and external observer provenance are recorded in ticket 761.
+
 ### E-EMU-NEMA-CONTROL-001
 
 2026-09-06; ticket 761 control-framing follow-up on commit `1733bb8`.

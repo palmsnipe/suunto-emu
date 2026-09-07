@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "../../src/display/nema_backend_internal.h"
 #include "../../src/display/nema_tsc6a_internal.h"
+#include "../../src/core/bus_internal.h"
 
 /* Compile the production transaction path with a deterministic allocation
  * fault. This is not a second implementation or a runtime allocator hook. */
@@ -124,8 +125,8 @@ static void test_batch_abort_commit_and_publication_order(semu_test_context *con
     fixture f, other; semu_error e; semu_display_list lists[2];
     publications out = {0}; uint8_t before[NEMA_BACKEND_PANEL_BYTES];
     SEMU_TEST_ASSERT(context, init(&f) && init(&other));
-    lists[0] = (semu_display_list){BASE, clear_list(&f)};
-    lists[1] = (semu_display_list){BASE + 256u, 4u};
+    lists[0] = (semu_display_list){BASE, clear_list(&f), 0u};
+    lists[1] = (semu_display_list){BASE + 256u, 4u, 0u};
     pair(&f, 256u, NEMA_REG_DRAW_COLOR, 0xf800u);
     pair(&f, 264u, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
     memcpy(before, semu_nema_backend_frame(f.backend)->pixels, sizeof(before));
@@ -158,8 +159,8 @@ static void test_later_child_and_allocation_refusal(semu_test_context *context)
 {
     fixture f; semu_error e; semu_display_list lists[2]; unsigned i;
     SEMU_TEST_ASSERT(context, init(&f));
-    lists[0] = (semu_display_list){BASE, clear_list(&f)};
-    lists[1] = (semu_display_list){BASE + 256u, 2u};
+    lists[0] = (semu_display_list){BASE, clear_list(&f), 0u};
+    lists[1] = (semu_display_list){BASE + 256u, 2u, 0u};
     pair(&f, 256u, NEMA_REG_DRAW_CMD, 0xdeadbeefu);
     for (i = 0u; i < 4u; ++i) {
         /* Also refuse after the first draw within the first child. */
@@ -198,8 +199,8 @@ static void test_shadow_abort_refusal_and_commit(semu_test_context *context)
     pair(&f, 288u, NEMA_REG_DRAW_COLOR, 0xffff0000u);
     pair(&f, 296u, NEMA_REG_DRAW_CMD, NEMA_DRAW_TRI_AA);
     pair(&f, 512u, NEMA_REG_DRAW_CMD, 0xdeadbeefu);
-    lists[0] = (semu_display_list){BASE + 256u, 12u};
-    lists[1] = (semu_display_list){BASE + 512u, 2u};
+    lists[0] = (semu_display_list){BASE + 256u, 12u, 0u};
+    lists[1] = (semu_display_list){BASE + 512u, 2u, 0u};
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, semu_nema_backend_ops.prepare(
         f.backend, f.bus, lists, 1u, 0u, NULL, NULL, &e));
     SEMU_TEST_ASSERT(context, f.backend->pending_tsc6a->pixels[0] != 0u);
@@ -222,21 +223,106 @@ static void test_shadow_abort_refusal_and_commit(semu_test_context *context)
 static void test_batch_bounds_and_empty(semu_test_context *context)
 {
     fixture f; semu_error e;
-    semu_display_list list = {BASE + 1u, 2u};
+    semu_display_list list = {BASE + 1u, 2u, 0u};
     SEMU_TEST_ASSERT(context, init(&f));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, semu_nema_backend_ops.prepare(
         f.backend, f.bus, &list, 1u, 0u, frame, &f, NULL));
-    list = (semu_display_list){0xfffffffcu, 2u};
+    list = (semu_display_list){0xfffffffcu, 2u, 0u};
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, semu_nema_backend_ops.prepare(
         f.backend, f.bus, &list, 1u, 0u, frame, &f, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, semu_nema_backend_ops.prepare(
         f.backend, f.bus, &list, SEMU_DISPLAY_MAX_LISTS + 1u, 0u, frame, &f, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, semu_nema_backend_ops.prepare(
         f.backend, f.bus, NULL, 1u, 0u, frame, &f, &e));
+    list = (semu_display_list){BASE, 0u, 2u};
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, semu_nema_backend_ops.prepare(
+        f.backend, f.bus, &list, 1u, 0u, frame, &f, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, semu_nema_backend_ops.prepare(
         f.backend, f.bus, NULL, 0u, 0u, frame, &f, NULL));
     semu_nema_backend_ops.commit(f.backend);
     SEMU_TEST_EQ_U64(context, 0u, f.frames);
+    list = (semu_display_list){BASE, clear_list(&f), SEMU_DISPLAY_LIST_INLINE};
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, semu_nema_backend_ops.prepare(
+        f.backend, f.bus, &list, 1u, 0u, frame, &f, &e));
+    semu_nema_backend_ops.commit(f.backend);
+    SEMU_TEST_EQ_U64(context, 0u, f.frames);
+    SEMU_TEST_EQ_U64(context, 0x1fu, semu_nema_backend_frame(f.backend)->pixels[0]);
+    finish(&f);
+}
+static void test_unmatched_tail_preserves_state(semu_test_context *context)
+{
+    fixture f; semu_error e; unsigned held;
+    uint8_t before[NEMA_BACKEND_PANEL_BYTES];
+    SEMU_TEST_ASSERT(context, init(&f));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, 0u, clear_list(&f), &e));
+    memcpy(before, semu_nema_backend_frame(f.backend)->pixels, sizeof(before));
+    pair(&f, 256u, NEMA_REG_DRAW_COLOR, 0xf800u);
+    for (held = 0u; held < 2u; ++held) {
+        pair(&f, 264u, (held ? NEMA_HOLDCMD : 0u) | NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, submit(&f, 256u, 3u, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, e.code);
+        SEMU_TEST_ASSERT(context, strstr(e.text, "words=3") != NULL);
+        SEMU_TEST_EQ_U64(context, 1u, f.frames);
+        SEMU_TEST_EQ_U64(context, 1u, semu_nema_backend_frame(f.backend)->generation);
+        SEMU_TEST_ASSERT(context, memcmp(before,
+            semu_nema_backend_frame(f.backend)->pixels, sizeof(before)) == 0);
+    }
+    pair(&f, 512u, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, 512u, 2u, &e));
+    SEMU_TEST_EQ_U64(context, 0x1fu, semu_nema_backend_frame(f.backend)->pixels[0]);
+    SEMU_TEST_EQ_U64(context, 0u, semu_nema_backend_frame(f.backend)->pixels[1]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, 256u, 4u, &e));
+    SEMU_TEST_EQ_U64(context, 0xf8u, semu_nema_backend_frame(f.backend)->pixels[1]);
+    SEMU_TEST_EQ_U64(context, 3u, f.frames);
+    finish(&f);
+}
+static semu_status texture_device_read(void *context, uint32_t offset,
+    unsigned width, uint32_t *value, semu_error *error)
+{
+    unsigned *reads = context;
+    (void)offset; (void)width; ++*reads; *value = 255u;
+    semu_error_clear(error); return SEMU_OK;
+}
+static void test_texture_refusal_after_child_preserves_state(semu_test_context *context)
+{
+    const semu_bus_device_ops ops = {texture_device_read, NULL, NULL};
+    fixture f; semu_error e; unsigned reads = 0u; semu_transaction_result result;
+    uint8_t before[NEMA_BACKEND_PANEL_BYTES];
+    semu_display_list lists[] = {{BASE + 256u, 4u, 0u}, {BASE + 512u, 14u, 0u}};
+    SEMU_TEST_ASSERT(context, init(&f));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, 0u, clear_list(&f), &e));
+    memcpy(before, semu_nema_backend_frame(f.backend)->pixels, sizeof(before));
+    pair(&f, 256u, NEMA_REG_DRAW_COLOR, 0xf800u);
+    pair(&f, 264u, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+    pair(&f, 512u, NEMA_REG_TEX1_BASE, BASE + 1024u);
+    pair(&f, 520u, NEMA_REG_TEX1_FSTRIDE, 0x04000004u);
+    pair(&f, 528u, NEMA_REG_TEX1_RESXY, 0x00010002u);
+    pair(&f, 536u, NEMA_REG_CLIPMAX, 0x00010002u);
+    pair(&f, 544u, NEMA_REG_POINT2_X, 0x20000u);
+    pair(&f, 552u, NEMA_REG_TEX_COLOR, 0xffffffffu);
+    pair(&f, 560u, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+    /* The last byte is RAM: validation succeeds, the second texel must refuse. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_map_overlay(f.bus, "texture-byte",
+        BASE + 1026u, 1u, &ops, &reads, &e));
+    result = semu_nema_backend_ops.prepare(f.backend, f.bus, lists, 2u, 0u, frame, &f, &e);
+    SEMU_TEST_EQ_U64(context, 0u, reads);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE, result);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE, e.code);
+    SEMU_TEST_ASSERT(context, strcmp(e.text, "copy is not within mapped memory") == 0);
+    SEMU_TEST_EQ_U64(context, 1u, f.frames);
+    SEMU_TEST_EQ_U64(context, 1u, nema_state_snapshot_count(f.backend->state));
+    SEMU_TEST_ASSERT(context, memcmp(before, semu_nema_backend_frame(f.backend)->pixels,
+        sizeof(before)) == 0);
+    pair(&f, 768u, NEMA_REG_DRAW_CMD, NEMA_DRAW_QUAD);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, 768u, 2u, &e));
+    SEMU_TEST_ASSERT(context, memcmp(before, semu_nema_backend_frame(f.backend)->pixels,
+        sizeof(before)) == 0); /* Refused texture registers did not become inherited state. */
+    semu_bus_unmap_overlay(f.bus, &reads);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, semu_nema_backend_ops.prepare(
+        f.backend, f.bus, lists, 2u, 0u, frame, &f, &e));
+    semu_nema_backend_ops.commit(f.backend);
+    SEMU_TEST_EQ_U64(context, 4u, f.frames);
+    SEMU_TEST_EQ_U64(context, 0u, reads);
     finish(&f);
 }
 int main(void)
@@ -248,7 +334,9 @@ int main(void)
         SEMU_TEST_CASE(test_batch_abort_commit_and_publication_order),
         SEMU_TEST_CASE(test_later_child_and_allocation_refusal),
         SEMU_TEST_CASE(test_shadow_abort_refusal_and_commit),
-        SEMU_TEST_CASE(test_batch_bounds_and_empty)
+        SEMU_TEST_CASE(test_batch_bounds_and_empty),
+        SEMU_TEST_CASE(test_unmatched_tail_preserves_state),
+        SEMU_TEST_CASE(test_texture_refusal_after_child_preserves_state)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

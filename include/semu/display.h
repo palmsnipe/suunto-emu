@@ -13,14 +13,20 @@ typedef semu_transaction_result (*semu_display_backend_submit_fn)(
     semu_frame_callback frame_callback, void *frame_context,
     semu_error *error);
 
-#define SEMU_DISPLAY_MAX_LISTS 32u
+#define SEMU_DISPLAY_MAX_LISTS 64u
+#define SEMU_DISPLAY_LIST_INLINE 1u
 typedef struct semu_display_list {
     uint32_t address;
     uint32_t word_count;
+    uint32_t flags;
 } semu_display_list;
 
 /* One synchronous transaction per context. Prepare stages at most MAX_LISTS
- * lists in order, including inherited state and per-list frames, but publishes
+ * contiguous lists in order, including inherited state and per-list frames.
+ * flags=0 requests the usual publication; LIST_INLINE stages commands without
+ * publishing a frame. Unknown flags refuse. Inline writes participate in the
+ * same transaction, including writes following the last published child.
+ * Prepare publishes
  * nothing. Refusal leaves committed state unchanged and no new transaction;
  * a conflict preserves the already-pending transaction.
  * A successful prepare (including count zero) must be followed exactly once by
