@@ -124,7 +124,8 @@ id	phase	title	status	dependencies	ticket
 759	7	Sapporo 2.39 Bounded GPS Awake Integration	done	757,758	plans/tasks/759-sapporo-239-gps-awake.md
 760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
 761	7	NEMA Submission Atomicity and Refusal Integration	done	110,500,502,506,513,615,759	plans/tasks/761-nema-submission-atomicity.md
-762	7	Sapporo 2.39 General Settings Persistence Evidence	ready	729,759,761	plans/tasks/762-sapporo-239-general-settings-evidence.md
+762	7	Sapporo 2.39 General Settings Persistence Evidence	done	729,759,761	plans/tasks/762-sapporo-239-general-settings-evidence.md
+763	7	Sapporo 2.39 General Settings Budget Integration	ready	729,759,762	plans/tasks/763-sapporo-239-general-settings-budget.md
 765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
 770	7	Tianjin, Rostock, or Xiamen Intake	blocked	630	plans/tasks/770-product-intake.md
 775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md

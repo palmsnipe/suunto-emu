@@ -1294,7 +1294,7 @@ scheduler batch (four), and all 829 normal tests pass. No further scope extensio
 is requested; unsupported command/source/callback cases remain explicit in the
 ticket handoff. This is not a claim of new physical GPU or firmware coverage.
 
-## Native General-Settings Boundary (Ticket 762, Evidence Pending)
+## Native General-Settings Boundary (Ticket 762, Evidence Collected)
 
 Two normal-backend, four-layer runs from the pinned 700-million-instruction
 prefix reproduce the two held MIDDLE presses with 148 successful submissions
@@ -1308,6 +1308,45 @@ precedes the open's success: the complete serialization sequence and required
 finite operation count are not yet measured. Ticket 762 scopes that evidence
 work before a separate production integration decision.
 
+The 2026-09-08 continuation now measures that complete sequence using an
+isolated, bounded diagnostic executable (E-SAP-COMPAT-GENERAL-239-001):
+open, 90 successful contiguous writes totalling 1,505 bytes, and close.
+The native serializer returns success and clears its pending-save flag.
+Exactly 92 additional operations imply a proposed production ceiling of
+76,371 logical-file / 76,374 aggregate hits; no ABI change is indicated.
+Production remains unchanged at 76,279 / 76,282 until separate integration.
+
+Two pre-screen-prefix runs, two refusal-start runs and a mid-save snapshot
+resume agree on final pixels and machine state. The prefix runs accept all
+676 submissions and visibly reach `Define your profile` (CRC `405d1af6`).
+They stop at the existing fifth GPS-awake refusal, PC `0x001291cc`,
+2,363,623,546 instructions / 32,619,070,564 ns, GPS hits `2,2,4`.
+No further logical-file hit occurs between save completion and that stop.
+This does not reach the watch face or demonstrate post-setup menu navigation.
+Ticket 762 records exact repeat/resume hashes, commands and the smallest
+proposed production integration scope; its status awaits integrator review.
+
+## Production General-Settings Save (Ticket 763)
+
+The separate integration review accepts ticket 762's evidence; ticket 763
+implements exactly its 92-operation allowance. Production now permits 76,371
+logical-file / 76,374 aggregate hits. Only the two budget constants and evidence
+comment change in runtime code. Other one-hit interventions, firmware hashes,
+file semantics/capacities, rendering and the four-pulse GPS limit are unchanged.
+The new synthetic regression fails at the native-shaped open before the change
+and passes afterward, including all 90 write sizes, exact close at the limit,
+mid-write snapshot restore and atomic excess/unknown-operation refusal.
+
+The production observer matches the accepted native profile frame (CRC
+`405d1af6`), mid-save snapshot and final machine hash exactly. Further bounded
+native MIDDLE presses at requested 20, 22 and 24 seconds reach the birth-year
+selector. Both repeats then refuse a mode-two `settings/personal` open at
+PC `0x000920b4`, LR `0x000adb2f`, instruction 2,953,605,137 /
+24,380,651,994 ns, with GPS hits `2,2,3` and 772/772 renderer submissions
+accepted (E-SAP-UI-PERSONAL-239-001). This exposes the next persistence
+sequence before GPS exhaustion; it is not evidence for another budget increase.
+The watch face and post-setup menu navigation have not yet been reached.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1318,9 +1357,12 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Work ticket 762: recover the complete native `settings/general` sequence
-  after language selection, starting from E-SAP-UI-239-002, before requesting
-  a finite logical-file budget or ABI integration. Preserve the four-pulse GPS bound,
+- Ticket 762 is accepted; review ticket 763's production integration handoff.
+  Next recover the complete native `settings/personal` save at the birth-year
+  boundary in E-SAP-UI-PERSONAL-239-001 before proposing an additional finite
+  allowance or ABI change. Do not infer its write count from `settings/general`.
+  Subsequent profile choices, watch-face activation and menu navigation remain
+  the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
   indefinite heartbeat or assertion bypass is authorized by this observation.
 - Recover a native provenance sidecar and an equivalent settled command/text

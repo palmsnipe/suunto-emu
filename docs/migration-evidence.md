@@ -750,6 +750,249 @@ this ledger. No profile, budget, persistent format or integrator-owned change
 is needed. Swallowed backend errors remain a separate demonstrated bug;
 logical-file investigation must wait for that fail-closed boundary correction.
 
+### E-SAP-COMPAT-GENERAL-239-001
+
+2026-09-08; ticket 762 evidence collection on committed runtime `2d230a2`
+(planning handoff `6ec6572`). The unchanged production E-SAP-UI-239-002
+observer was rerun twice: both traces retain SHA-256
+`c7851cdb89e7998a2e94eedd6a7e5e815d3e45f359553f8dd577dc9e5b2d6a34`,
+all five saved checkpoint pairs match, and final inspection again identifies
+`settings/general`, mode two, PC `0x000920b4`, LR `0x000ad079` at
+1,376,488,437 instructions / 14,401,737,146 ns. Production still refuses
+before the open succeeds; no production source or limit changes in this work.
+
+An isolated external translation unit changes only its logical-file ceiling
+from 76,279 to **76,791**, and aggregate from 76,282 to **76,794** (512
+diagnostic operations, not a proposed production allowance). It supplies the
+same descriptor symbol to the otherwise unchanged library at static link time;
+there is no private-state mutation, counter replenishment or parallel API.
+A forwarding wrapper records the existing file adapter's arguments, cursor,
+status, return PC/value, hit ordinals and payload hashes without changing its
+results. A normal-backend wrapper counts submissions/refusals unchanged.
+All four layers, native input, CPU execution, file ABI/capacities and GPS
+limits remain intact. Every run validates all three E-SAP-0011 components and
+the E-SAP-UI-239-002 full-flash hash before loading a snapshot or executing.
+
+The complete native suffix is **92 operations**: one mode-two open, 90 writes
+totalling 1,505 bytes, then close. Handle `0x10161200` starts at offset zero;
+each write returns its full requested length and advances contiguously. The
+file was already 1,505 bytes and does not grow. No seek, truncate, flush or
+read intervenes. The ordered write sizes are:
+
+```text
+9,11,19,19,11,17,19,15,16,21,25,16,24,24,24,22,19,20,23,17,19,13,20,15,
+15,2,16,2,16,2,16,2,13,2,18,2,16,2,14,2,20,18,28,22,18,20,20,20,20,
+20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,19,14,16,
+17,18,18,22,21,16,15,14,16,16,11,14,15,19,14,14,15,17
+```
+
+The final write consumes logical ordinal 76,370; close consumes 76,371 and
+returns one at 14,401,853,366 ns. Resulting file SHA-256:
+`df219aee240f50708ecc9bd603ea77c965f927b45bc9a4859731cc22c7cb26d4`.
+At `0x000ad086`, instruction 1,376,604,655 / 14,401,853,364 ns, the native
+serializer has returned one; object `0x10035408` still has pending byte one
+at `+0xf4`. At `0x000ad092`, instruction 1,376,604,659 /
+14,401,853,368 ns, native code has closed the file and cleared that byte.
+No successful adapter hit occurs afterward before the next stop. Native
+read-only filesystem calls still pass through and are separately visible in
+the observer; they are not counted as logical-file interventions.
+
+Pristine application analysis covers save wrapper `0x000ad064..0x000ad092`,
+the entire serializer `0x000d5794..0x000d5bcc`, and helpers at
+`0x000af55c`, `0x000af6e0..0x000af76c`, `0x000af806`,
+`0x000af8a8..0x000af914`, `0x000af9bc..0x000af9e0`,
+`0x000afa30..0x000afa60`, `0x000afac8..0x000afada`, and
+`0x000afb10..0x000afb26`. Scalar helpers format bounded records and compare
+write return values with their requested lengths. The eight empty variable
+records take the two-write header/CRLF branch at `0x000af724..0x000af748`.
+The serializer checks the boolean results, including its six-by-four field
+loop at `0x000d5a1e..0x000d5a5c`; its observed final return is success.
+The 90 writes are dynamically measured, not inferred by counting static calls.
+No ABI correction is indicated by this successful path.
+
+Write-call LR distribution corroborates the native helper branches:
+`0x000af583` x14, `0x000af733` x8, `0x000af743` x8,
+`0x000af813` x5, `0x000af8f9` x26, `0x000af9d7` x25,
+`0x000afa4b` x1 and `0x000afb1d` x3.
+
+Two diagnostic runs from the production refusal and two runs from the original
+700-million-instruction pre-screen prefix reach the same next refusal:
+PC `0x001291cc`, **2,363,623,546 instructions / 32,619,070,564 ns**,
+`2.39 GPS awake lifecycle or hit budget refused`, GPS hits `2,2,4`.
+This is the existing intentional fifth-awake refusal, not a new GPS contract.
+All runs have absolute bounds of five billion instructions and 35 billion
+virtual ns; changed-frame trace capacity is 5,000. An earlier two-billion
+instruction diagnostic ended normally at its instruction budget and is not
+the acceptance endpoint.
+
+The prefix runs reproduce E-SAP-UI-239-002's actual four input edges and
+publish 676 frames / 473 consecutive CRC changes, all 676 submissions accepted.
+The later-start and mid-save runs publish 528 frames / 359 changes, all 528
+accepted. The last changed prefix frame is generation 673 at instruction
+2,064,298,519 / 19,042,711,247 ns; the last callback is at 19,059,727,592 ns.
+Final CRC `405d1af6`, RGB565 SHA-256
+`6eb15b72ea2d250b1106d6a89c39ac87eb3827ebd1ce7c367bf1efcfeb2b4742`.
+Visual inspection reads **Define your profile**, with a cyan person icon and
+right arrow. This is a native renderer milestone, not a watch face, completed
+setup, physical-panel equivalence or a new production golden. Starting with
+an empty frontend surface mid-animation produces different early partial
+frames, but all runs converge to these exact final pixels and machine state.
+
+The mid-save snapshot is after logical ordinal 76,320, instruction
+1,376,525,552 / 14,401,774,261 ns / PC `0x000af744`. Its resume retains
+all later operation arguments/returns, exact log suffix and final pixels/state.
+Pairwise SHA-256 pins:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Prefix-run trace (`full-a`, `full-b`) | `a2739edaaa06b8ef81f7110c5eac1353be044886affbf442aa8ffe2e5a3d819f` |
+| Refusal-start trace (`long-a`, `long-b`) | `d9ad3c2b7e55c7a2be7de058878ec9cedc00d44c3f50eeb6c30e0e7c9bd9589f` |
+| Mid-save resume trace | `223a734b3f173351b9cb424d3811194a76d552210089f33d35954e8c93aa8b7a` |
+| Mid-save snapshot (all captures) | `76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66` |
+| Final snapshot (all five runs) | `613712b78fd1ba748517e710d70280300bee0a48ee43133c9fd9f8070f5442f8` |
+| Prefix-run log | `47979b14ad148e366fce73b64a5589c7793ae58a58645f02f2bdaf761ae3458b` |
+| Refusal-start log | `9559f2aec824099c30a8d399c1e943014abfc9c1218726e9a8a9d50e03ab3aa6` |
+| Mid-save resume log / matching suffix | `9dc4cff27c7a2a3d8499af7460e830d2dc9cc8615c5d50290abc56422b95eb3f` |
+
+External directory `/tmp/semu-762-save.YOUCY2/` contains all private artifacts.
+Source SHA-256 pins:
+
+| Source | SHA-256 |
+| --- | --- |
+| `sapporo_239_diag.c` | `548d5a7a67451033e40ba6a468d762434dac01ea4589f55814fc297195d16c87` |
+| `file-observer.c` | `10c3c1684343f245bf47cc27b67f34b16199705b3ed43897d7637b3593df77af` |
+| `save-probe.c` (35-second / five-billion final version) | `6bb343bb392c52a366f683f21c72f516ae13b8ecb001f9a234b344c97a2b94f7` |
+| `full-probe.c` | `bd9175bcfb24ff1968d74ac9876b3ade8e3f0d5de16c2d64f624f142dc2a1d18` |
+| `ui-probe-long.c` | `140c33e9d0754f58edc06aa77758bb56fe1dfb0c009bfae0f10fbcc5a188c5a4` |
+
+The last file changes only the earlier E-SAP-UI-239-002 observer's frame trace
+capacity. `file-observer.c` includes the unchanged in-tree adapter source.
+The library hash remains E-SAP-UI-239-002's
+`9327c56df85ace7f21814087ce634d2898edb55b2836f7524f84f02af1619776`.
+Reproduction from the repository root, with the external sources available:
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc \
+  -Isrc/compat -Isrc/devices /tmp/semu-762-save.YOUCY2/full-probe.c \
+  /tmp/semu-762-save.YOUCY2/file-observer.c \
+  /tmp/semu-762-save.YOUCY2/sapporo_239_diag.c build/libsemu.a \
+  -o /tmp/semu-762-save.YOUCY2/full-probe
+```
+
+Run that executable with output prefixes `/tmp/semu-762-save.YOUCY2/full-a`
+and `full-b`, redirecting stdout to each `.trace` and stderr to each `.log`.
+For the refusal-start executable, replace `full-probe.c` by `save-probe.c`
+and output executable by `save-probe-long`; run with prefixes `long-a` and
+`long-b`. Supply `/tmp/semu-762-save.YOUCY2/long-a.mid.sems` as its second
+argument for a mid-save resume. Each observer exits zero after capturing its
+explicit END record; zero does not mean onboarding completed. Final snapshots
+and RGB565 pixels compare byte-for-byte. Firmware disassembly uses
+`arm-none-eabi-objdump -D -b binary -m arm -M force-thumb --adjust-vma=0x40000`
+with the exact ranges above on the pristine application component.
+
+Confidence is high for the 92-operation suffix and the exact proposed
+**76,371 logical / 76,374 aggregate** limit. Production integration still
+requires a regression and review; the diagnostic 512-operation allowance must
+not enter production. Other file paths/modes/capacities, subsequent profile
+choices, the fifth GPS pulse, watch-face activation and menu navigation are
+not authorized or claimed by this evidence.
+
+#### Production integration (ticket 763), 2026-09-08
+
+The accepted 762 evidence is integrated using precisely 76,371 logical-file
+hits and 76,374 aggregate hits. Runtime diff: only the two constants and
+their comment in `src/compat/sapporo_239.c`. The new synthetic general-budget
+regression fails at the first post-76,279 open before this change and passes
+after it. It checks all 90 write sizes and synthetic payloads, mid-write file
+snapshot restore, exact final close and atomic excess/unknown-mode/path refusal.
+Historical activity/history sequences remain intact; only their final-limit
+assertions and separate saturation steps are updated.
+
+The private-only `sapporo_239_general_probe.c` uses the production library,
+normal NEMA backend and existing machine/snapshot/input APIs. It generates the
+original prefix, advances to the four evidenced actual instruction/time edges,
+captures the exact mid-save image and requires the previously pinned terminal
+PC/instructions/time/frame. No diagnostic descriptor, file-hook replacement,
+opaque-state mutation or direct native callback is linked. The shell gate
+compares two prefix continuations and a mid-save resume, 92 operations/90
+writes, exact logs, snapshots and pixels, and wrong manifest/flash rejection.
+Its first draft correctly rejected its malformed negative fixture's absolute
+component paths, but the test expected a hash-related diagnostic. The fixture
+now uses safe relative paths through a temporary read-only source-directory
+symlink, and requires the exact application/profile mismatch diagnostic.
+No emulator behavior or expected successful checkpoint was changed for that
+test-harness correction.
+
+Production library SHA-256
+`d5be57c61d475e2b3dc10c17d4bdfc8f257dae86fbfc8895ef277a1bb7db12a9`.
+The retained production observer run in `/tmp/semu-763.WR6heT/first.*` matches
+the established mid/final snapshot hashes and full log
+`47979b14ad148e366fce73b64a5589c7793ae58a58645f02f2bdaf761ae3458b`.
+All 676 renderer frames succeed; final CRC `405d1af6` and pixel SHA-256
+remain unchanged. Ticket 763 records exact verification commands and results.
+
+### E-SAP-UI-PERSONAL-239-001
+
+2026-09-08; bounded read-only follow-on observation using ticket 763's normal
+production library, all four explicit layers and the normal NEMA backend.
+Every run validates the unchanged E-SAP-0011 components and full flash before
+restoring the general-save midpoint SHA-256
+`76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66`.
+There are no firmware, CPU/RAM, file ABI, descriptor or GPS changes. Native
+button input is the only additional stimulus. The existing observer wrappers
+forward production backend results without modification.
+
+Two runs request three MIDDLE clicks at 20, 22 and 24 seconds, with release
+requested 70 ms after each actual press. WFI overshoots yield actual edges:
+
+| Edge | Instructions | Virtual ns |
+| --- | ---: | ---: |
+| Press 1 | 2103476826 | 20020743409 |
+| Release 1 | 2107221220 | 20106721328 |
+| Press 2 | 2397641544 | 22084812137 |
+| Release 2 | 2404140067 | 22170370053 |
+| Press 3 | 2701906762 | 24048201779 |
+| Release 3 | 2708404518 | 24133728411 |
+
+Each click produces native button events 2, 5, 1 at `0x0010ace2`.
+View-open `0x00073898` observes tokens `0x529ec8bc`, `0xadadd14f` and
+`0xe0d3258c` in sequence without invoking the opener itself. The final
+visually inspected frame reads **BIRTH YEAR**, with 1990 centred in the native
+selector; this is firmware state, not a supplied user birth year.
+Both runs accept 772 renderer submissions with no refusal, and stop at:
+
+```text
+compat-refused pc=000920b4 lr=000adb2f instructions=2953605137 time=24380651994
+r0=000ae360 r1=00000002 r2=10024e88 path=settings/personal gps_hits=2,2,3
+```
+
+The logical-file budget is exhausted at 76,371; this next open has not been
+admitted. The existing file capacity is 1,727 bytes, but neither the required
+operation count nor a complete personal-save execution is measured here.
+Pristine disassembly `0x000adb1e..0x000adb48` tests object byte `+0x145`,
+opens through `0x000adb16` in mode two, calls `0x000d5ff8` with the object
+and address of the returned handle, closes it and clears the byte. This
+identifies the next serializer to investigate, not permission to assume its
+ABI, count, success or payload from the general-settings serializer.
+
+Repeat SHA-256 pins:
+
+- Trace: `4d2d046a4dbf6744d762eaf240229aa610a56a6a2fbc117fb0d668930d94c20a`.
+- Final snapshot: `b94ffb8e873b141fb05defa02754311d67ce48939b537da86ea421de8ed39062`.
+- Final RGB565: `d2c4833a433610b5087f6e04fe16c7c4bd9d3baf6573df21cc72e0abde77b09b`.
+
+Private artifacts are `/tmp/semu-763.WR6heT/walk-{a,b}.*`. Observer
+`walk-probe.c` SHA-256
+`c04fe9705e93b0383424f8285163cec4fabc0cf09fb4f6b775b0ce2007a06b84`
+includes the earlier `ui-probe-long.c` pinned above. Compile with
+`cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices`
+and the normal `build/libsemu.a` (no diagnostic translation units). Its two
+arguments are an output prefix and the production `first.mid.sems` path;
+stdout/stderr are retained as `.trace`/`.log`. Both runs exit zero after
+capturing the explicit refusal, bounded by five billion instructions,
+35 billion virtual ns and 5,000 changed frames. The probes do not complete
+onboarding, reach a watch face, or justify extra GPS pulses/file headroom.
+
 ### E-SAP-UI-239-002
 
 2026-09-08; read-only native continuation after ticket 761's integration

@@ -6,7 +6,7 @@
 
 #define RAM UINT32_C(0x10000000)
 #define OLD_LIMIT UINT64_C(76258)
-#define LIMIT UINT64_C(76279)
+#define LIMIT UINT64_C(76371)
 
 typedef struct fixture {
     semu_bus *bus;
@@ -115,6 +115,13 @@ static void test_post_logo_activity_budget(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, LIMIT,
         f.layer.descriptor->interventions[SEMU_SAPPORO_239_IV_LOGICAL_FILE].max_hits);
     SEMU_TEST_EQ_U64(context, LIMIT + 3u, f.layer.descriptor->maximum_hits);
+    /* Preserve the 21-hit activity suffix above; saturate the later ceiling
+     * separately before checking the same excess-open refusal. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920b4u, RAM, 3u, 0u));
+    handle = f.cpu.r[0];
+    while (f.layer.hits < LIMIT - 1u)
+        SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x9221au, handle, 0u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920f4u, handle, 0u, 0u));
     semu_snapshot_writer_init(&before); semu_snapshot_writer_init(&after);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_sapporo_239_files_snapshot_write(f.files, &before, &f.error));
