@@ -1,6 +1,6 @@
 # 761 — NEMA Submission Atomicity and Refusal Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 110,500,502,506,513,615,759
 
@@ -859,3 +859,26 @@ The implementation candidate has passing evidence for the recorded acceptance
 requirements and is ready for integrator review. No further integrator-owned
 interface change is requested. Do not treat this handoff as a status/index
 update or as evidence for unsupported physical GPU behavior.
+
+### Integrator acceptance, 2026-09-08
+
+Planning-only review accepts the implementation through commit `2d230a2`
+(`cfce2a1` plus the callback-lifetime correction). All seven dependencies are
+done. The acceptance matrix and its exact command results above were checked
+against the implementation and retained `/tmp/semu-761-lifecycle.hA9RV8/`
+logs: 829 normal and 829 sanitizer cases, every required focused selection,
+SDL build, both non-skipped private gates, and matching cold/resumed native
+pins. No acceptance condition was waived and no golden was changed.
+
+The review reran `make test TEST_FILTER=nema` (112 cases),
+`make test TEST_FILTER=scheduler_batch` (four), and `make check` (829);
+all pass. Review logs are in `/tmp/semu-762-nav.TIs8nQ/`. No runtime changes
+followed the accepted verification. This explicit integration pass changes
+the ticket/index to done; earlier implementation handoffs remain historical.
+
+E-SAP-UI-239-002 independently repeats the next two-button boundary with
+148/148 accepted renderer submissions and zero refusals. Its settings-file
+budget stop is outside this ticket. Ticket 762 now owns evidence collection
+for that sequence; no compatibility ceiling or interface extension is approved
+by this acceptance. Unsupported physical GPU, command and callback cases
+remain as recorded above.

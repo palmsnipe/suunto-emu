@@ -146,7 +146,8 @@ as non-requesting control, not an inferred IRQ-clear operation. Initialization
 therefore adds no frame or IRQ. Complete inline runs can wrap as separate
 contiguous spans; a graphics pair split across the physical ring end refuses.
 Ticket 761's recorded callback-lifecycle and transaction acceptance cases pass;
-integrator review remains separate from implementation and status updates.
+the separate 2026-09-08 integrator review accepts the implementation through
+`2d230a2`. This does not extend physical GPU or firmware coverage.
 Arbitrary held jumps and fragment-processor ISA execution are not supported; no physical timing or
 unobserved command behavior is inferred from the transaction tests.
 

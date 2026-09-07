@@ -1269,7 +1269,7 @@ SDL build, line and task-contract checks pass; two cold language-screen runs
 and the prefix resume retain every prior frame, trace and snapshot hash.
 Ticket 761's texture-reader handoff records exact commands and results.
 
-## NEMA Callback Lifecycle (Ticket 761, Integrator Review Pending)
+## NEMA Callback Lifecycle (Ticket 761, Accepted)
 
 The previously verified tail/inline/command-memory/texture changes are committed
 as `cfce2a1`. The 2026-09-08 continuation fixes the final identified completion
@@ -1287,11 +1287,26 @@ exact recipient/order/value, queued-event cancellation, counters and the next
 gates, SDL build, line checks and task contracts pass. Two cold language-screen
 runs and the prefix resume retain every prior trace, frame and snapshot hash.
 
-The recorded ticket acceptance cases have passing evidence; the implementation
-candidate is ready for integrator review. Ticket status/index remain unchanged
-and the lifecycle continuation remains uncommitted. No further scope extension
+The lifecycle continuation is committed as `2d230a2`. The separate 2026-09-08
+planning-only integration pass reviewed all acceptance evidence and accepts
+ticket 761, updating its status/index to done. Review reruns of NEMA (112),
+scheduler batch (four), and all 829 normal tests pass. No further scope extension
 is requested; unsupported command/source/callback cases remain explicit in the
 ticket handoff. This is not a claim of new physical GPU or firmware coverage.
+
+## Native General-Settings Boundary (Ticket 762, Evidence Pending)
+
+Two normal-backend, four-layer runs from the pinned 700-million-instruction
+prefix reproduce the two held MIDDLE presses with 148 successful submissions
+and zero renderer refusals (E-SAP-UI-239-002). Both stop at instruction
+1,376,488,437 / 14,401,737,146 ns / PC `0x000920b4`, opening
+`settings/general` in mode two; GPS hits remain `2,2,1`. Their traces and all
+five saved machine checkpoints match pairwise. No budget or firmware was
+changed. The observed native caller tests a pending flag, opens the file,
+calls `0x000d5794`, closes the handle, and clears the flag. The runtime stop
+precedes the open's success: the complete serialization sequence and required
+finite operation count are not yet measured. Ticket 762 scopes that evidence
+work before a separate production integration decision.
 
 ## Next Actionable Work
 
@@ -1301,15 +1316,11 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Integrator review of ticket 761: its whole-ring transaction, strict framing,
-  memory-only source reads and callback-lifecycle candidate now pass the recorded
-  acceptance gates. Review the handoff before accepting/updating ticket status;
-  implementation has not changed the index. Preserve all native rendering and
-  historical checkpoint pins. Sampling clipping is already corrected by
-  E-EMU-SAMPLING-CLIP-001; no private backend API or repinning is needed.
-- Only after renderer/refusal correctness is established, trace the native
-  `settings/general` sequence after language selection and justify any finite
-  logical-file budget or ABI correction. Preserve the four-pulse GPS bound,
+- Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
+  pins; no private backend API or repinning is needed.
+- Work ticket 762: recover the complete native `settings/general` sequence
+  after language selection, starting from E-SAP-UI-239-002, before requesting
+  a finite logical-file budget or ABI integration. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
   indefinite heartbeat or assertion bypass is authorized by this observation.
 - Recover a native provenance sidecar and an equivalent settled command/text

@@ -750,6 +750,109 @@ this ledger. No profile, budget, persistent format or integrator-owned change
 is needed. Swallowed backend errors remain a separate demonstrated bug;
 logical-file investigation must wait for that fail-closed boundary correction.
 
+### E-SAP-UI-239-002
+
+2026-09-08; read-only native continuation after ticket 761's integration
+review. Runtime commit `2d230a2`, library SHA-256
+`9327c56df85ace7f21814087ce634d2898edb55b2836f7524f84f02af1619776`.
+The observer validates all three E-SAP-0011 component sizes/hashes and full
+flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`
+before execution. It uses the normal NEMA backend through forwarding
+prepare/commit/abort callbacks that count results but do not alter them.
+All four explicit layers remain enabled: synthetic-wbsto, gps-startup,
+gps-reopen and gps-awake. No production budget, guest-state patch, direct
+native callback, profile, firmware or snapshot-format change is made.
+
+Two runs restore the E-SAP-UI-239-001 prefix at 700,000,000 instructions,
+5,792,348,681 ns, PC `0x000be50a`, SHA-256
+`7650d82fe72e58d544dc0043df99ab756ece41092d39e94d7c0b2b7460a904d2`.
+They single-step with absolute limits of two billion instructions and
+35 billion virtual ns; requested MIDDLE presses are at 12 and 14 seconds,
+with release requested 70 ms after each actual press. WFI jumps produce
+the following actual native-input edges (active-low):
+
+| Edge | Instructions | Virtual ns |
+| --- | ---: | ---: |
+| First press | 847389018 | 12010884553 |
+| First release | 850221529 | 12096961148 |
+| Second press | 1132984059 | 14075897022 |
+| Second release | 1136723800 | 14161873768 |
+
+Native publication `0x0010ace2` records events 2, 5, 1 for each click.
+Native view-open `0x00073898` records token `0x8a7f9b55` before input and
+`0x9cdbd4e2` after the second click. Both runs accept all **148 renderer
+submissions with zero refusals**, unlike the old E-SAP-UI-239-001 observation.
+The observer records 148 frame callbacks and 115 consecutive CRC changes;
+its final frame callback is at 14,399,427,971 ns. The final saved pixels are
+diagnostic, not a settled-screen or physical-panel golden.
+
+Both stop with `compat-refused` at 1,376,488,437 instructions,
+14,401,737,146 ns, PC `0x000920b4`, LR `0x000ad079`. Snapshot inspection
+finds R0 `0x000ad9ec` naming `settings/general`, R1 two, R2 one,
+R3 `0x351e000f`. The diagnostic names the exhausted `logical-file` trigger;
+the limits remain 76,279 logical and 76,282 aggregate. GPS hits are `2,2,1`.
+Thus the old stop/time is reproduced without swallowed renderer failures;
+this still does not measure any successful operation beyond that open.
+
+Pairwise SHA-256 pins (both `nav-a` and `nav-b`):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Normalized trace | `c7851cdb89e7998a2e94eedd6a7e5e815d3e45f359553f8dd577dc9e5b2d6a34` |
+| Before first press snapshot | `d85840a8065640b3cfe7480ce6103a71643b47deb6bcc0bd0c807c81ea0cfd08` |
+| Before first release snapshot | `24a4db0066973eaf9335acd2abfee2600f4a9ca7a54bfe9649cae29370fd0384` |
+| Before second press snapshot | `e75e7d180e2a81c0e65ea10067c4f5fcbf50c007a2f2129e47f97819529376c2` |
+| Before second release snapshot | `d144f21ce3051229f1d2bc762f004c547e734cd6cb334c15fb0ffd54587577bc` |
+| Final snapshot | `088bb2058955ee19a7e33582c0c5a2a743408395b75219aa84eb34e6a8ca18c1` |
+| Last changed RGB565 pixels | `617ebc8ee9347ab0d493276901d14df99a5ad4c2882fcbb23fd35f49de91c592` |
+
+Read-only pristine application disassembly establishes the wrapper at
+`0x000ad064..0x000ad092`: test object byte `+0xf4`; if nonzero, open
+`settings/general` in mode two at `0x000ad074`; if a nonzero handle returns,
+pass its stack address and the object to `0x000d5794`, close at `0x000ad088`,
+and clear the flag. Calling this a pending-save wrapper is an inference from
+that control flow. The serializer's initial section (`0x000d5794..0x000d58bc`)
+calls `0x000af55c`, `0x000af8ec` and `0x000af806` for distinct object fields
+and checks return values. Neither the complete reachable helper ABI nor the
+operation count is established by this partial static analysis. The current
+run stops before the open returns; no successful serialization is claimed.
+
+External artifacts: `/tmp/semu-762-nav.TIs8nQ/`. The observer source
+`nav-probe.c` SHA-256 is
+`b1007fe204f66c16e44dbda932f2a071163c3a678e5c6884fd305d4c448cf39e`;
+it includes `/tmp/semu-761-gpu.aQow5X/ui-probe.c`, SHA-256
+`6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`.
+It adapts the old navigation observer (SHA-256
+`508c684cc26eb1781d2c5618488b4636d3343a955aa14fb6013f8d68c5cb3233`)
+to the accepted backend contract and adds result counts. Native RAM reads
+are observational; inputs are delivered through the normal machine API.
+Reproduction from the emulator root (private artifacts must be present):
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices \
+  /tmp/semu-762-nav.TIs8nQ/nav-probe.c build/libsemu.a \
+  -o /tmp/semu-762-nav.TIs8nQ/nav-probe
+/tmp/semu-762-nav.TIs8nQ/nav-probe /tmp/semu-762-nav.TIs8nQ/nav-a \
+  > /tmp/semu-762-nav.TIs8nQ/nav-a.trace 2> /tmp/semu-762-nav.TIs8nQ/nav-a.log
+/tmp/semu-762-nav.TIs8nQ/nav-probe /tmp/semu-762-nav.TIs8nQ/nav-b \
+  > /tmp/semu-762-nav.TIs8nQ/nav-b.trace 2> /tmp/semu-762-nav.TIs8nQ/nav-b.log
+/tmp/semu-762-nav.TIs8nQ/nav-probe /tmp/semu-762-nav.TIs8nQ/inspect \
+  /tmp/semu-762-nav.TIs8nQ/nav-a.final.sems
+arm-none-eabi-objdump -D -b binary -m arm -M force-thumb \
+  --adjust-vma=0x40000 --start-address=0xad064 --stop-address=0xad094 \
+  tests/private/sapporo-2.39.20.22297/application.raw
+arm-none-eabi-objdump -D -b binary -m arm -M force-thumb \
+  --adjust-vma=0x40000 --start-address=0xd5794 --stop-address=0xd58bc \
+  tests/private/sapporo-2.39.20.22297/application.raw
+```
+
+All commands exit zero; probe exit zero means the observation was captured,
+not that firmware completed onboarding. The explicit END/RENDER records and
+hashes above define success. Full serialization, a finite added hit count,
+mid-save snapshot continuation and the next independent stop are still missing.
+Ticket 762 scopes this evidence work; no production increase is justified yet.
+
 ### E-SAP-UI-239-001
 
 2026-09-06; bounded observational maintenance after ticket 759 acceptance.
