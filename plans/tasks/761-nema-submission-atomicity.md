@@ -758,3 +758,104 @@ snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`,
 four awake pulses/native IRQs/four snapshot phases and the intentional
 fifth-hit refusal at `001291cc / 1272353867 / 32770943068`.
 The longer 2.22 onboarding gate is not revalidated in this slice.
+
+### Callback-lifecycle continuation, 2026-09-08
+
+Committed the previously verified tail/inline/command-memory/texture work as
+`cfce2a1` (`Validate inline NEMA submissions and keep source reads memory-only`)
+on the user's request. The worktree was clean afterward. This continuation
+changes only `src/display/nema_completion.c`/`.h`,
+`tests/unit/test_nema_completion_snapshot.c`, execution model, current status,
+evidence ledger and this handoff. These new lifecycle edits remain uncommitted.
+
+E-EMU-NEMA-CALLBACK-001 records the discovered slot-lifetime defect. Dispatch
+marked a completion inactive, then repeatedly read callback pointers from that
+reusable entry. Scheduling from its CLID callback reused the slot and redirected
+INTERRUPT/IRQ to the next recipient. Reset could clear its callback pointers;
+completion-owner destruction could free the entry while dispatch still used it.
+The regression fails before the fix: six selected cases, one failure at the
+original recipient's three-notification count. The first recipient gets only
+CLID, while the replacement receives the remaining calls.
+
+Dispatch now copies the accepted notification tuple before retiring the slot
+and uses only that local copy after calling out. Queued work remains cancellable;
+the in-flight CLID/INTERRUPT/IRQ sequence is not revocable. The existing header
+documents that callback contexts and scheduler must remain alive through that
+sequence, even if the standalone completion owner is reset/destroyed. This does
+not authorize destruction of a callback context's machine/device owner or
+recursive scheduler dispatch. No scheduler, public ABI, delay, event identity,
+codec, frame callback restriction, profile or compatibility change is made.
+
+The new case covers slot reuse, reset, cancel and completion-owner destruction
+from the CLID callback with independent live stack contexts. It verifies exact
+CLID/INTERRUPT/IRQ values and recipient order, cancellation of the second pending
+completion, final pending flags/counters, and delivery of an older equal-time
+completion before the replacement at the next 100-us deadline. Existing snapshot
+round trips and separate-instance ownership tests remain intact. The completion
+implementation is 178 lines and the expanded snapshot/lifecycle test is 295.
+
+External evidence/log directory: `/tmp/semu-761-lifecycle.hA9RV8`.
+In addition to every command in Tests and Commands, run:
+
+```sh
+make test TEST_FILTER=nema_completion_snapshot
+probe_dir=/tmp/semu-761-lifecycle.hA9RV8
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc -Isrc/devices /tmp/semu-761-inline.JJ1n7Q/render-probe.c build/libsemu.a -o "$probe_dir/render-probe"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-a" > "$probe_dir/middle-a.trace" 2> "$probe_dir/middle-a.log"
+"$probe_dir/render-probe" cold 1 "$probe_dir/middle-b" > "$probe_dir/middle-b.trace" 2> "$probe_dir/middle-b.log"
+"$probe_dir/render-probe" /tmp/semu-239-ui.690H4Q/cold-a.prefix.sems 1 "$probe_dir/middle-resume" > "$probe_dir/middle-resume.trace" 2> "$probe_dir/middle-resume.log"
+```
+
+Renderer observer/UI sources retain their verified hashes
+`03aeafb4e9eb1e8a568aa7c024fe1cca57e3c77f5d0ddb7d1e18622abc33184a` and
+`6a7131826e53fe885b50e17f9ed6a30555a8d2df98e1e8da0cc4d3695c791b75`.
+The full-flash and prefix identities were also rechecked before execution;
+all private components are validated by the observers/gates. Two cold runs
+and the prefix resume retain cold trace
+`a65336ef681dde147b4ed5bd6d777fd353b46e86a0000361028db53ebf5c9d46`,
+resume trace `1136b75b42117100c287048cb5282eb14987f99f63b27f987a8f050beb9061fe`,
+pixels `f66dc6d3f1c20bd937c0f166b13e01450949103cb733ac50974e0adf87e69b03`,
+snapshot `4cf21fba0d84778dadc8de6706bda2e57b98ada9f3cabab58845805a708723c5`.
+All 79 cold / 76 resumed child submissions succeed; CRC `6b6aa2dc` and endpoint
+`000a7abc / 1300000000 / 22286110403` are unchanged.
+
+Acceptance review maps the requirements to the existing, executed regressions:
+
+| Requirement | Coverage |
+| --- | --- |
+| Whole-list/child state and pixel atomicity, retry | Backend/GPU atomic tests; inline completion transaction; texture later-child regression |
+| Queue IDs, sequence, deadline and allocation refusal | Scheduler-batch, completion-atomic and composed allocation integration tests |
+| Original diagnostics and CPU-visible refusal | Backend diagnostic saturation/null-sink cases, GPU callback-result cases, precise guest GPU-store fault |
+| Strict framing and memory reads | Framing, wrapped-plan/capacity GPU snapshot, unmatched-tail and command/texture MMIO-counter tests |
+| Publication/notification order and lifecycle | Backend batch publication, GPU reentrancy, completion snapshot/rebind and new in-flight lifecycle case |
+| Persistent and authentic success pins | Machine/GPU snapshot tests, both exact private gates, two cold middle runs and prefix resume |
+
+Unsupported cases remain explicit: device-backed command/texture sources,
+physical ring-end split pairs, arbitrary held jumps, inferred IRQ-clear behavior,
+fragment-processor ISA, destroyed callback contexts and recursive dispatch.
+No such support is required by the pinned native acceptance runs. The long 2.22
+onboarding test is outside this ticket's exact gate and is not rerun. The ticket
+status/index remain unchanged; integrator acceptance is separate from implementation.
+
+Final lifecycle-slice results: all exact Tests and Commands invocations pass
+with actual selection. Backend atomic 9, GPU atomic 9, completion atomic 6,
+scheduler batch 4, refusal integration 6, NEMA 112, transcript 91, machine
+snapshot 4; the extra completion-snapshot filter selects six passing cases.
+`make check` and `make sanitize` each pass 829 tests. `make check-lines` passes
+with existing review-threshold warnings; `make check-task-contracts` validates
+130 tickets. `make sdl` and `git diff --check` pass.
+
+Both private gates run without skips and retain their exact pins. The 2.22
+live-input gate retains log
+`9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c`,
+four frame CRCs and stop `000bacf4 / 774081920 / 6520939902`.
+The 2.39 awake gate retains log
+`06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543`,
+snapshot `da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a`,
+four pulses/native IRQs/four snapshot phases and intentional fifth-hit refusal
+at `001291cc / 1272353867 / 32770943068`.
+
+The implementation candidate has passing evidence for the recorded acceptance
+requirements and is ready for integrator review. No further integrator-owned
+interface change is requested. Do not treat this handoff as a status/index
+update or as evidence for unsupported physical GPU behavior.

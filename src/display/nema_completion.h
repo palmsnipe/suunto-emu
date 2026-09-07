@@ -43,6 +43,13 @@ void nema_completion_reset(nema_completion *comp);
  * Schedule a completion for the given list ID.  Only one completion
  * per list ID; calling twice for the same ID is a no-op.  When the
  * delay elapses, writes CLID=list_id, INTERRUPT=1, then asserts IRQ.
+ * Dispatch retires the entry and captures this notification tuple before
+ * calling out. Scheduling/rebinding cannot redirect an in-flight sequence;
+ * cancel/reset/destroy removes queued work but does not revoke that sequence.
+ * Callback contexts must remain alive through all three notifications, even
+ * if the completion owner itself is reset or destroyed from a notification.
+ * The scheduler must remain alive; its recursive-dispatch restrictions apply.
+ * These rules do not permit freeing a callback context's machine/device owner.
  */
 semu_status nema_completion_schedule(nema_completion *comp,
                                      semu_scheduler *scheduler,

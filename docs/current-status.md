@@ -1269,6 +1269,30 @@ SDL build, line and task-contract checks pass; two cold language-screen runs
 and the prefix resume retain every prior frame, trace and snapshot hash.
 Ticket 761's texture-reader handoff records exact commands and results.
 
+## NEMA Callback Lifecycle (Ticket 761, Integrator Review Pending)
+
+The previously verified tail/inline/command-memory/texture changes are committed
+as `cfce2a1`. The 2026-09-08 continuation fixes the final identified completion
+callback lifetime defect (E-EMU-NEMA-CALLBACK-001): dispatch now copies its
+notification recipients before making the entry reusable. Scheduling from CLID
+cannot redirect INTERRUPT/IRQ, and resetting/cancelling/destroying the standalone
+completion owner cannot invalidate the in-flight sequence. Callback contexts
+and the scheduler must remain alive; machine/device owner destruction and
+recursive scheduler dispatch are not authorized by this contract.
+
+The new regression fails before the fix and passes afterward, including slot
+reuse, reset, cancel and owner destruction with live external contexts. It checks
+exact recipient/order/value, queued-event cancellation, counters and the next
+100-us deadline. All 829 normal and sanitizer tests, both exact private firmware
+gates, SDL build, line checks and task contracts pass. Two cold language-screen
+runs and the prefix resume retain every prior trace, frame and snapshot hash.
+
+The recorded ticket acceptance cases have passing evidence; the implementation
+candidate is ready for integrator review. Ticket status/index remain unchanged
+and the lifecycle continuation remains uncommitted. No further scope extension
+is requested; unsupported command/source/callback cases remain explicit in the
+ticket handoff. This is not a claim of new physical GPU or firmware coverage.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1277,15 +1301,12 @@ is instantiated; independent product evidence inventories no longer wait on
 another product's release. Bounded maintenance may proceed under `AGENTS.md`
 without manufacturing a roadmap row. The practical work queue is:
 
-- Continue ready ticket 761: atomic NEMA submission and diagnostic propagation
-  under E-SAP-UI-239-001 / E-EMU-NEMA-ATOMIC-001. Its explicit public-interface
-  ownership now covers the migrated whole-ring GPU/machine transaction. Finish
-  the final malformed-input/lifecycle acceptance review. Command fetches are now
-  memory-only, and the authorized texture-reader correction is implemented.
-  Review callback ownership and complete the remaining acceptance audit. Do not
-  work around the opaque backend with a private API. Sampling clipping is
-  already corrected by E-EMU-SAMPLING-CLIP-001. Recheck native rendering and
-  historical checkpoints; do not hide changes by re-pinning.
+- Integrator review of ticket 761: its whole-ring transaction, strict framing,
+  memory-only source reads and callback-lifecycle candidate now pass the recorded
+  acceptance gates. Review the handoff before accepting/updating ticket status;
+  implementation has not changed the index. Preserve all native rendering and
+  historical checkpoint pins. Sampling clipping is already corrected by
+  E-EMU-SAMPLING-CLIP-001; no private backend API or repinning is needed.
 - Only after renderer/refusal correctness is established, trace the native
   `settings/general` sequence after language selection and justify any finite
   logical-file budget or ABI correction. Preserve the four-pulse GPS bound,

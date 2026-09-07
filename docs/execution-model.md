@@ -59,6 +59,16 @@ to the target scheduler before its events are restored; this borrowed binding
 is transient and is not serialized. GPU submissions use one batch for all
 completion markers, after all child lists prepare and before publication.
 
+A dispatched NEMA completion copies its accepted callback tuple before
+retiring the reusable entry, then delivers CLID, INTERRUPT=1 and IRQ28 from
+that copy. Rescheduling cannot redirect the remaining notifications. Cancel,
+reset or destruction removes owned queued work but does not revoke the
+in-flight sequence (E-EMU-NEMA-CALLBACK-001). Callback contexts and the
+scheduler must remain alive through the whole sequence; this does not permit
+destroying their machine/device owners. Scheduler recursion restrictions and
+the frame-callback restrictions below remain unchanged. No notification tuple
+or dispatch-local state is serialized.
+
 The display contract now also has bounded prepare/commit/abort operations.
 The NEMA backend prepares up to 64 ordered spans in instance-owned staging:
 inherited registers/counters, RGB565 pixels, lazy-cloned TSC6A shadows and
@@ -135,7 +145,8 @@ at their final span and retain their immediate IRQ. INTERRUPT=0 is accepted
 as non-requesting control, not an inferred IRQ-clear operation. Initialization
 therefore adds no frame or IRQ. Complete inline runs can wrap as separate
 contiguous spans; a graphics pair split across the physical ring end refuses.
-Ticket 761 still needs final callback lifecycle acceptance review.
+Ticket 761's recorded callback-lifecycle and transaction acceptance cases pass;
+integrator review remains separate from implementation and status updates.
 Arbitrary held jumps and fragment-processor ISA execution are not supported; no physical timing or
 unobserved command behavior is inferred from the transaction tests.
 

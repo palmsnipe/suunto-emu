@@ -213,6 +213,74 @@ static void test_total_count_round_trip(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+typedef struct lifecycle_trace {
+    nema_completion *comp;
+    semu_scheduler *scheduler;
+    struct lifecycle_trace *replacement;
+    semu_status status;
+    unsigned mode, count;
+    uint32_t values[6];
+} lifecycle_trace;
+static void lifecycle_irq(void *context, unsigned line, int asserted)
+{
+    lifecycle_trace *t = context;
+    if (t->count < 6u) t->values[t->count] = 0x20000000u | line | ((uint32_t)asserted << 8u);
+    ++t->count;
+}
+static void lifecycle_write(void *context, uint32_t offset, uint32_t value)
+{
+    lifecycle_trace *t = context;
+    if (t->count < 6u) t->values[t->count] = value | (offset == NEMA_REG_CLID ? 0u : 0x10000000u);
+    ++t->count;
+    if (offset != NEMA_REG_CLID || t->mode >= 4u) return;
+    if (t->mode == 0u)
+        t->status = nema_completion_schedule(t->comp, t->scheduler, 9u,
+            lifecycle_write, t->replacement, lifecycle_irq, t->replacement, NULL);
+    else if (t->mode == 1u) nema_completion_reset(t->comp);
+    else if (t->mode == 2u) { nema_completion_destroy(t->comp); t->comp = NULL; }
+    else nema_completion_cancel(t->comp);
+    t->mode = 4u;
+}
+static void test_inflight_notification_lifetime(semu_test_context *context)
+{
+    const uint32_t expected[] = {7u, 0x10000001u, 0x2000011cu, 8u, 0x10000001u, 0x2000011cu};
+    const uint32_t replacement_expected[] = {9u, 0x10000001u, 0x2000011cu};
+    const uint32_t ids[] = {7u, 8u}; unsigned mode;
+    for (mode = 0u; mode < 4u; ++mode) {
+        semu_error e; lifecycle_trace next = {0}, t = {0};
+        next.mode = 4u; t.mode = mode; t.replacement = &next;
+        t.scheduler = semu_scheduler_create(&e);
+        SEMU_TEST_ASSERT(context, t.scheduler != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, nema_completion_create(&t.comp, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, nema_completion_schedule_batch(t.comp,
+            t.scheduler, ids, 2u, lifecycle_write, &t, lifecycle_irq, &t, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_run_next(t.scheduler, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_OK, t.status);
+        SEMU_TEST_EQ_U64(context, 3u, t.count);
+        SEMU_TEST_EQ_U64(context, 0u, next.count);
+        SEMU_TEST_ASSERT(context, memcmp(t.values, expected, 3u * sizeof(uint32_t)) == 0);
+        SEMU_TEST_EQ_U64(context, NEMA_COMPLETION_DELAY_NS, semu_scheduler_now(t.scheduler));
+        SEMU_TEST_EQ_U64(context, mode == 0u ? 2u : 0u, semu_scheduler_event_count(t.scheduler));
+        if (mode == 0u) {
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_run_next(t.scheduler, &e));
+            SEMU_TEST_EQ_U64(context, 6u, t.count);
+            SEMU_TEST_ASSERT(context, memcmp(t.values, expected, sizeof(expected)) == 0);
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_run_next(t.scheduler, &e));
+            SEMU_TEST_EQ_U64(context, 3u, next.count);
+            SEMU_TEST_ASSERT(context, memcmp(next.values, replacement_expected, sizeof(replacement_expected)) == 0);
+            SEMU_TEST_EQ_U64(context, 2u * NEMA_COMPLETION_DELAY_NS, semu_scheduler_now(t.scheduler));
+        }
+        SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(t.scheduler));
+        if (t.comp != NULL) {
+            SEMU_TEST_ASSERT(context, !nema_completion_pending(t.comp, 7u) &&
+                !nema_completion_pending(t.comp, 8u) && !nema_completion_pending(t.comp, 9u));
+            SEMU_TEST_EQ_U64(context, mode == 0u ? 3u : (mode == 1u ? 0u : 2u),
+                nema_completion_count(t.comp));
+        }
+        nema_completion_destroy(t.comp); semu_scheduler_destroy(t.scheduler);
+    }
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -220,7 +288,8 @@ int main(void)
         SEMU_TEST_CASE(test_missing_event_id_refuses),
         SEMU_TEST_CASE(test_active_identity_mismatch_refuses),
         SEMU_TEST_CASE(test_active_count_mismatch_refuses),
-        SEMU_TEST_CASE(test_total_count_round_trip)
+        SEMU_TEST_CASE(test_total_count_round_trip),
+        SEMU_TEST_CASE(test_inflight_notification_lifetime)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

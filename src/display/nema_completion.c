@@ -12,22 +12,26 @@
 void nema_completion_callback(void *context, uint64_t now_ns)
 {
     completion_entry *e = (completion_entry *)context;
+    completion_entry notification;
     nema_completion *comp;
     (void)now_ns;
     if (!e->active) {
         return;
     }
+    /* Callbacks may reuse/reset/destroy this slot's owner. Never reread the
+     * entry after the first notification; callback contexts must remain live. */
+    notification = *e;
     comp = e->owner;
     e->active = 0;
     if (comp != NULL && comp->active_count > 0u) {
         --comp->active_count;
     }
-    if (e->on_reg_write != NULL) {
-        e->on_reg_write(e->reg_context, NEMA_REG_CLID, e->list_id);
-        e->on_reg_write(e->reg_context, NEMA_REG_INTERRUPT, 1u);
+    if (notification.on_reg_write != NULL) {
+        notification.on_reg_write(notification.reg_context, NEMA_REG_CLID, notification.list_id);
+        notification.on_reg_write(notification.reg_context, NEMA_REG_INTERRUPT, 1u);
     }
-    if (e->on_irq != NULL) {
-        e->on_irq(e->irq_context, NEMA_COMPLETION_IRQ_LINE, 1);
+    if (notification.on_irq != NULL) {
+        notification.on_irq(notification.irq_context, NEMA_COMPLETION_IRQ_LINE, 1);
     }
 }
 

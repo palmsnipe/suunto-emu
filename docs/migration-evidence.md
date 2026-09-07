@@ -13,6 +13,33 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-NEMA-CALLBACK-001
+
+2026-09-08; ticket 761 callback-lifecycle audit after `cfce2a1`. Sources:
+completion/scheduler ownership contracts, architecture callback lifetime rules,
+E-NEMA-LISTS-001 notification ordering and a synthetic slot-reuse regression.
+The scheduler removes a due event before dispatch. Completion then marks its
+entry inactive before notifying CLID, INTERRUPT=1 and IRQ28. Previously all
+three calls reread that entry: scheduling from the CLID callback can reuse it
+and redirect the remaining calls to another recipient. Reset can clear the
+function pointers; destroying the completion owner can free the entry.
+The new regression fails before implementation because the original recipient
+receives only one notification instead of three. No firmware behavior is
+inferred; this is an emulator callback ownership defect.
+
+Copy the accepted notification tuple before making its slot reusable. Retire
+its active bookkeeping before callbacks, then use only the local copy. Reset,
+cancel or destruction affects queued work but cannot revoke an in-flight
+CLID/INTERRUPT/IRQ sequence. Callbacks and their contexts remain borrowed until
+that sequence returns; the scheduler must also remain alive. This does not
+permit freeing callback contexts or destroying the machine from a callback.
+The regression additionally exercises reset, cancel and completion-owner
+destruction with live external contexts, verifies pending-event cancellation,
+and preserves the equal-deadline older completion before the newly scheduled
+100-us completion. Confidence: high for the bounded synthetic lifecycle cases.
+Snapshot layout, notification ordering and delay are unchanged. Exact results
+and native checkpoints are recorded in ticket 761's handoff.
+
 ### E-EMU-NEMA-TEXTURE-MEMORY-001
 
 2026-09-08; ticket 761's user-authorized texture-reader scope extension.
