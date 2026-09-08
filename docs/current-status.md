@@ -1390,8 +1390,8 @@ The shorter idle branch also repeats/restores exactly to its existing fifth
 GPS-pulse refusal. Retrying either refusal leaves the machine snapshot intact.
 Wrong component metadata, full flash and starting checkpoints are rejected.
 All 831 normal and sanitizer tests, four Sapporo 2.39 private gates, SDL build
-and the Sapporo 2.22.60 live-input gate pass. Ticket 766 awaits integrator
-review; its handoff records exact commands and pins.
+and the Sapporo 2.22.60 live-input gate pass. Commit `bca8f7d` records this
+work; the separate 2026-09-08 integrator review accepts ticket 766.
 
 The next production boundary remains unknown mode-two `settings/time` at
 PC `0x000920b4`, instruction 3,885,178,598 / 30,368,914,377 ns. Read-only
@@ -1399,6 +1399,58 @@ disassembly now recovers the 19-field serializer and its helper calls
 (E-SAP-TIME-SCHEMA-239-001), but not the complete dynamic write sequence or
 required file capacity. This is not support for that path, an invented clock,
 completed setup, the watch face or post-setup menu navigation.
+
+## Native Time-Settings Persistence Evidence (Ticket 767)
+
+The bounded diagnostic measures two complete saves, each open, 22 writes
+totalling 349 bytes, close. Both serializers return one and clear the native
+pending flag. More importantly, an independent native-path control shows
+that a new compatibility file slot is unnecessary for this observed save:
+forwarding only the exact mode-two `settings/time` open allows the original
+firmware filesystem to write the same bytes into the existing flash overlay.
+No additional file hit or fabricated data is needed (E-SAP-TIME-NATIVE-239-001).
+
+The second 349-byte output is absent before execution and appears exactly once
+at flash offset `0x00a91a00` afterward. Two refusal-start runs, two earlier
+personal-midpoint runs and a mid-native-save restore match final snapshot
+`ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d`.
+The unchanged production loader restores that native snapshot, retains the
+stored bytes and repeats its next refusal without mutation. Normal tests
+(831), focused tests (46), snapshot tests (four), contract/line checks and
+a native-control ASan/UBSan run pass. Source firmware/full flash is unchanged.
+
+The proposed integration was exact-path native routing, not a new slot,
+snapshot format, file capacity or budget increase. At the evidence baseline,
+production still refused the time open. The control reaches the existing fifth GPS-awake
+refusal at `0x001291cc`, 3,960,123,530 instructions / 32,455,738,919 ns,
+with weight-frame CRC `a8c9f3d3`. It does not reach a new setup screen or the
+watch face. The separate 2026-09-08 integrator review accepts ticket 767.
+
+## Native Time Routing Integration (Ticket 768)
+
+Production now forwards the exact normalized mode-two `settings/time` open
+to the original firmware filesystem. No synthetic file slot, hit, return value,
+clock, capacity or snapshot format was added. Routing itself leaves CPU, RAM,
+file state and logs untouched; unobserved create paths still refuse.
+
+The extended private personal-settings gate generates its historical prefix
+from cold boot and repeats/restores through the accepted native time midpoint
+`b85eed95839285b520bb560cd1fff13431b837c59b29b60f5d6a12d8b86b58f2`
+to final snapshot `ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d`.
+Independent production observations verify the 349 saved bytes in the flash
+overlay and byte-identical loading of the former time-open refusal snapshot.
+The historical shorter idle branch, earlier midpoint/log pins, twelve slots,
+76,599 logical-file ceiling and four GPS pulses are unchanged.
+
+All 832 normal and sanitizer tests, 47 focused Sapporo 2.39 tests, four snapshot
+tests, four Sapporo 2.39 private gates, SDL build and Sapporo 2.22.60 SDL live
+input pass. Ticket 768 remains ready for separate acceptance review.
+
+Read-only inspection identifies the next refusal as the exhausted four-pulse
+GPS compatibility fixture: all remaining checked driver predicates match and
+no awake pulse is pending (E-SAP-GPS-FIFTH-239-001). This does not establish a
+fifth physical pulse or permission for an indefinite heartbeat. The last frame
+is still WEIGHT, not a watch face or post-setup menu.
 
 ## Next Actionable Work
 
@@ -1410,12 +1462,12 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Tickets 762–764 are accepted. Review ticket 766's production integration of
-  the exact 228-operation allowance. Next measure the native `settings/time`
-  save at its pinned boundary, using E-SAP-TIME-SCHEMA-239-001's recovered
-  serializer as the starting evidence; establish its complete writes, return
-  behavior and capacity before scoping a new path. An existing general/personal
-  capacity does not justify a new time-file slot.
+- Tickets 762–764, 766 and 767 are accepted. Review ticket 768's exact native
+  time routing and repeated/resumed storage checks. Native storage retains
+  the observed bytes; no experimental slot or file-hit increase is needed.
+  Recover evidence for the fifth GPS-awake lifecycle boundary before extending
+  navigation further; the observed exhausted fixture is not physical timing
+  evidence or permission to raise the pulse limit.
   Subsequent profile choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,

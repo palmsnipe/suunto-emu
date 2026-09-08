@@ -1,6 +1,6 @@
 # 766 — Sapporo 2.39 Personal Settings Budget Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,759,764
 
@@ -164,3 +164,12 @@ setup, watch-face activation and post-setup menus. Static recovery identifies
 19 time fields but neither full emitted writes nor a justified file capacity;
 measure those before a separate integration ticket. The four-pulse GPS bound
 is preserved. No fabricated clock or later hardware behavior is authorized.
+
+### Integrator acceptance, 2026-09-08
+
+User-requested commit `bca8f7d` records the implementation and evidence.
+Separate planning review accepts all recorded acceptance results, including
+the exact full/idle production pins and private input/refusal negatives.
+Fresh review runs pass the personal unit (one), machine snapshot tests (four)
+and all 831 normal tests. This review marks 766 done and instantiates 767
+for time-file evidence only; no production scope expansion is implicit.

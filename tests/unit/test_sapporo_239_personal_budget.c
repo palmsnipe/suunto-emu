@@ -141,7 +141,7 @@ static void test_native_personal_save_budget(semu_test_context *context)
             "sapporo-2.39.20", semu_sapporo_239_wbsto_layer.component_hashes,
             3u, &f.error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-        semu_bus_load(f.bus, RAM, (const uint8_t *)"settings/time", 14u, &f.error));
+        semu_bus_load(f.bus, RAM, (const uint8_t *)"settings/times", 15u, &f.error));
     assert_refusal(context, &f, 2u, "writable file path", log);
     assert_refusal(context, &f, 10u, "open mode", log);
     for (pass = 0u; pass < 2u; ++pass) {
@@ -193,7 +193,7 @@ static void test_native_personal_save_budget(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, LIMIT + 3u, f.layer.descriptor->maximum_hits);
     assert_refusal(context, &f, 2u, "exceeded budget", log);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-        semu_bus_load(f.bus, RAM, (const uint8_t *)"settings/time", 14u, &f.error));
+        semu_bus_load(f.bus, RAM, (const uint8_t *)"settings/times", 15u, &f.error));
     assert_refusal(context, &f, 2u, "writable file path", log);
     semu_sapporo_239_files_destroy(f.files); semu_bus_destroy(f.bus); fclose(log);
 }

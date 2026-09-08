@@ -42,7 +42,9 @@ test "$(hash "$run_dir/cold.prefix.sems")" = 76a7af5385eb2ddf5dfe94f6607db34e6e8
 for attempt in first second; do
     run "$attempt" "$run_dir/cold.prefix.sems"
     test "$(hash "$run_dir/$attempt.mid.sems")" = 68ab2fa1fda8596e1b51a6b3d83950363effb0598f1835506492d20636fad7d8
-    test "$(hash "$run_dir/$attempt.final.sems")" = 3d19f80df2c47a1e98f6bfa8dd0640f0d6cbb38a4d06f933d16f09c2c54245c6
+    # E-SAP-TIME-NATIVE-239-001 extends the former time-open refusal natively.
+    test "$(hash "$run_dir/$attempt.time-mid.sems")" = b85eed95839285b520bb560cd1fff13431b837c59b29b60f5d6a12d8b86b58f2
+    test "$(hash "$run_dir/$attempt.final.sems")" = ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d
     test "$(hash "$run_dir/$attempt.log")" = 21a566167b8e34a1bf36e25feca4f1e337e8ca1f4d858822fe8e24661d3de139
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
     # 51 remaining prior general-save operations plus the new 228-operation suffix.
@@ -50,6 +52,7 @@ for attempt in first second; do
     test "$(grep -c 'operation=write path=settings/personal ' "$run_dir/$attempt.log")" -eq 132
     test "$(grep -c 'operation=write path=settings/general ' "$run_dir/$attempt.log")" -eq 140
     grep -F -q 'trigger=logical-file ordinal=76599 ' "$run_dir/$attempt.log"
+    test "$(grep -c 'path=settings/time ' "$run_dir/$attempt.log" || true)" -eq 0
 done
 cmp "$run_dir/first.out" "$run_dir/second.out"
 cmp "$run_dir/first.final.sems" "$run_dir/second.final.sems"
@@ -60,6 +63,10 @@ test "$(hash "$run_dir/resumed.log")" = f287fc1e9276ea1540596234b8b65ae4d560fdda
 awk 'match($0,/time_ns=[0-9]+/) {t=substr($0,9,RLENGTH-8); if(t>=24380713255) print}' \
     "$run_dir/first.log" >"$run_dir/suffix.log"
 cmp "$run_dir/suffix.log" "$run_dir/resumed.log"
+run time-resumed "$run_dir/first.time-mid.sems"
+cmp "$run_dir/first.final.sems" "$run_dir/time-resumed.final.sems"
+cmp "$run_dir/time-resumed.final.sems" "$run_dir/time-resumed.refused.sems"
+test ! -s "$run_dir/time-resumed.log"
 for attempt in idle-first idle-second; do
     run "$attempt" "$run_dir/cold.prefix.sems" idle
     test "$(hash "$run_dir/$attempt.final.sems")" = 4faf5b8934c80cbadc33a7d6a389dd8f50a26bacdf2ed7208effd7a4abadb3e3
@@ -96,4 +103,4 @@ if "$run_dir/probe" "$manifest" "$full_flash" "$run_dir/first.final.sems" \
     "$run_dir/bad-snapshot" full >"$run_dir/bad-snapshot.out" 2>"$run_dir/bad-snapshot.log"; then exit 1; fi
 grep -F -q 'unexpected native start checkpoint' "$run_dir/bad-snapshot.log"
 test ! -e "$run_dir/bad-snapshot.final.sems"
-echo "PASS sapporo-2.39.20 personal saves: 228 operations, weight frame, repeat/resume, time-path and GPS refusals"
+echo "PASS sapporo-2.39.20 personal/time saves: 228 synthetic operations, native persistence, repeat/resume and GPS refusals"

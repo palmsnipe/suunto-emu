@@ -8,6 +8,7 @@
 #define END_TIME UINT64_C(35000000000)
 #define PREFIX UINT64_C(1376525552)
 #define MID UINT64_C(2953666398)
+#define TIME_MID UINT64_C(3885613020)
 #define END_COUNT UINT64_C(5000000000)
 
 typedef struct observer {
@@ -82,7 +83,7 @@ int main(int argc, char **argv)
     semu_snapshot *s = NULL;
     semu_stop_reason reason = SEMU_STOP_BUDGET;
     unsigned edge = 0u, edge_end;
-    int result = 2, mid_saved = 0, resumed = 0, cold, idle;
+    int result = 2, mid_saved = 0, time_saved = 0, resumed = 0, cold, idle;
     semu_error_clear(&e);
     if (argc != 6 || (strcmp(argv[5], "full") && strcmp(argv[5], "idle"))) {
         fprintf(stderr, "usage: probe manifest flash cold|snapshot output-prefix full|idle\n");
@@ -111,11 +112,14 @@ int main(int argc, char **argv)
             semu_machine_snapshot_load(m, s, &e) != SEMU_OK) goto done;
         if (semu_machine_instructions(m) == MID) {
             edge = 10u; mid_saved = 1; resumed = 1;
+        } else if (!idle && semu_machine_instructions(m) == TIME_MID) {
+            edge = 16u; mid_saved = 1; time_saved = 1; resumed = 2;
         } else if (semu_machine_instructions(m) == PREFIX) edge = 4u;
         else {
             semu_error_set(&e, SEMU_ERR_STATE, "unexpected native start checkpoint"); goto done;
         }
-        if (!file_hash(argv[3], resumed ?
+        if (!file_hash(argv[3], resumed == 2 ?
+            "b85eed95839285b520bb560cd1fff13431b837c59b29b60f5d6a12d8b86b58f2" : resumed ?
             "68ab2fa1fda8596e1b51a6b3d83950363effb0598f1835506492d20636fad7d8" :
             "76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66", &e)) goto done;
     }
@@ -126,6 +130,7 @@ int main(int argc, char **argv)
         uint64_t target = edge < edge_end ? counts[edge] : END_COUNT;
         if (cold && target > PREFIX) target = PREFIX;
         if (!cold && !mid_saved && target > MID) target = MID;
+        if (!cold && !idle && !time_saved && target > TIME_MID) target = TIME_MID;
         if (cold && count == PREFIX) {
             if (!save(m, argv[4], "prefix", &e)) goto done;
             result = 0; goto done;
@@ -133,6 +138,10 @@ int main(int argc, char **argv)
         if (!cold && !mid_saved && count == MID) {
             if (!save(m, argv[4], "mid", &e)) goto done;
             mid_saved = 1; continue;
+        }
+        if (!cold && !idle && !time_saved && count == TIME_MID) {
+            if (!save(m, argv[4], "time-mid", &e)) goto done;
+            time_saved = 1; continue;
         }
         if (edge < edge_end && count == counts[edge]) {
             semu_input_event event = {SEMU_INPUT_BUTTON, SEMU_BUTTON_MIDDLE,
@@ -151,16 +160,16 @@ int main(int argc, char **argv)
         (unsigned)reason, semu_machine_instructions(m), semu_machine_virtual_time(m),
         semu_machine_program_counter(m), obs.frames, obs.crc, obs.hash, e.text);
     if (reason != SEMU_STOP_COMPAT_REFUSED || edge != edge_end ||
-        semu_machine_instructions(m) != (idle ? UINT64_C(3152721353) : UINT64_C(3885178598)) ||
-        semu_machine_virtual_time(m) != (idle ? UINT64_C(32538694863) : UINT64_C(30368914377)) ||
-        semu_machine_program_counter(m) != (idle ? 0x1291ccu : 0x920b4u) ||
+        semu_machine_instructions(m) != (idle ? UINT64_C(3152721353) : UINT64_C(3960123530)) ||
+        semu_machine_virtual_time(m) != (idle ? UINT64_C(32538694863) : UINT64_C(32455738919)) ||
+        semu_machine_program_counter(m) != 0x1291ccu ||
         obs.crc != (idle ? 0x568bdc7du : 0xa8c9f3d3u) ||
         strcmp(obs.hash, idle ?
             "d2c4833a433610b5087f6e04fe16c7c4bd9d3baf6573df21cc72e0abde77b09b" :
             "3820703556359211f629aea5ef013dda45fba092229b8d61e5a10d684c42d585") ||
-        obs.frames != (idle ? (resumed ? 6u : 778u) : (resumed ? 232u : 1004u)) ||
-        strcmp(e.text, idle ? "2.39 GPS awake lifecycle or hit budget refused" :
-            "unknown Sapporo 2.39 writable file path") ||
+        obs.frames != (idle ? (resumed ? 6u : 778u) :
+            (resumed == 2 ? 6u : resumed ? 238u : 1010u)) ||
+        strcmp(e.text, "2.39 GPS awake lifecycle or hit budget refused") ||
         !save(m, argv[4], "final", &e)) goto done;
     {
         semu_run_limits retry = {1u, 1u};

@@ -1175,6 +1175,175 @@ required capacity and subsequent navigation remain unmeasured. Production
 continues to refuse the path. This entry authorizes evidence collection,
 not a new file slot, fabricated time value, GPS fix or runtime hook.
 
+### E-SAP-TIME-NATIVE-239-001
+
+2026-09-08; ticket 767, production base `bca8f7d`, exact E-SAP-0011
+application SHA-256 `85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`
+and full flash `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Every observer validates all three components, full flash and input snapshot
+hash before execution. Bounds: five billion instructions, 35 billion virtual
+ns, 5,000 frames. All sources/artifacts remain external at
+`/tmp/semu-767-time.PaLEy5/`; production C, capacities, budgets and formats
+are unchanged. Ticket 767 records exact reproduction commands/source pins.
+
+Two production attempts at ticket 766's final checkpoint preserve snapshot
+`3d19f80df2c47a1e98f6bfa8dd0640f0d6cbb38a4d06f933d16f09c2c54245c6`:
+unknown mode-two time open, `000920b4 / 3885178598 / 30368914377`, object
+R5 `0x1003538c`, pending byte `+0x12` equal to one. The known static
+serializer is E-SAP-TIME-SCHEMA-239-001.
+
+#### Measurement and native-path control
+
+An isolated diagnostic copy appends only `settings/time` with a 4,096-byte
+observation ceiling and at most 256 extra logical operations (76,855 / 76,858).
+Existing file operation logic is unchanged. The diagnostic codec appends slot
+13 only after creation and retains exact 11/12-slot historical encodings.
+No guest object, counter, time source or file bytes are seeded or repaired.
+Both repeated runs and a mid-save restore show **two 24-operation saves**:
+open, 22 full contiguous writes, close, 349 bytes per save. Write lengths:
+
+```text
+15,15,25,19,35,13,16,21,21,21,14,14,14,13,2,12,2,13,2,19,22,21
+```
+
+The three strings are empty (header + CRLF, no payload). Every write returns
+its full length; native serializer returns one at `0x000acb98` and pending
+clears at `0x000acba2`. The two output hashes are
+`496716b1f14deebf5f1201146c75d6138d3c22dc8b7ca52f641c357984047491` and
+`7c471060d2e4e4c8f8c3258d328de60564a60164b96c4b96daa284e2c81b108d`.
+349 is the observed size, not evidence for a general capacity or persisted
+default. The 4,096-byte/256-hit ceilings are experimental, not proposed runtime
+limits. The diagnostic ends at GPS refusal with logical hits 76,647.
+
+The independent **native-path control** changes only the unknown-create guard:
+exact `settings/time`, mode two, forwards the open to native instructions.
+It uses the original twelve-slot file implementation and original production
+descriptor, no new slot, no new counter or hook result. Native mode construction
+at `0x000bdfd0..0x000be062` selects write mode and invokes `0x000cd1ae`.
+Native writes pass `0x000be0c4..0x000be0e8` → `0x000cd214` → `0x000cfda4`;
+the observer sees all 44 actual helper-return lengths equal their requests.
+All 44 input lengths/payload hashes also match the diagnostic sequence exactly.
+
+| Native save | Open return | Serializer returns one | Close continuation | Pending cleared |
+| --- | --- | --- | --- | --- |
+| First | `3885586479 / 30369322258`, handle `00000ae0` | `3885633877 / 30369369656` | `3885698502 / 30369434281` | `3885698504 / 30369434283` |
+| Second | `3886287972 / 30370023751`, handle `00000af0` | `3886347995 / 30370083774` | `3886412674 / 30370148453` | `3886412676 / 30370148455` |
+
+Table pairs are instruction count / virtual ns. The public native close wrapper
+does not return the adapter's synthetic one: observed R0 is `0x10053b2c` at
+`0x000acb9e`, and this caller ignores it. The native inner close result is
+checked in `0x00092110..0x0009213e`; both executions continue without assertion.
+Do not translate or infer a new public close ABI from this observation.
+
+Read-only `semu_storage_read` of the flash overlay finds the second exact
+349-byte output absent before execution and present once at `0x00a91a00`
+afterward. Dirty-page count goes from 69 to 72. A restored native midpoint
+starts with 70 dirty pages and reaches the identical retained bytes and final
+snapshot. The original production loader also restores the final native
+snapshot, finds the bytes at that same offset, and retries the GPS refusal
+with a byte-identical snapshot. The immutable source flash hash never changes.
+Thus the existing lower-level storage path suffices for this observed file;
+adding session-file retention would unnecessarily replace working native code.
+
+#### Repeat/resume pins and integration boundary
+
+Two native refusal-start runs, two personal-midpoint starts with the six
+remaining ticket-766 input edges, and a mid-native-save restore converge to
+`compat-refused / 001291cc / 3960123530 / 32455738919`, GPS hits `2,2,4`,
+logical hits unchanged at 76,599. The final frame remains WEIGHT, CRC
+`a8c9f3d3`, SHA-256
+`3820703556359211f629aea5ef013dda45fba092229b8d61e5a10d684c42d585`.
+There are six post-refusal-start / 238 earlier-start frames. No renderer refusal,
+reset, assertion, fabricated time value or new GPS response is involved.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Native midpoint, `3885613020 / 30369348799 / 000af89c` | `b85eed95839285b520bb560cd1fff13431b837c59b29b60f5d6a12d8b86b58f2` |
+| Native final, every repeat/resume plus sanitizer run | `ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d` |
+| Native refusal-start trace pair | `598ec08b97e1b65ac1f58a52e7f67616fa7e88e541deba454f77e16d72c9c0eb` |
+| Earlier native trace pair | `af9de2d604b53fad3ca92aef55315bf7fad0df917e8debbb2fda51ddb35d7022` |
+| Earlier native compatibility log | `f287fc1e9276ea1540596234b8b65ae4d560fdda493ae7865bd9c3d928ae54bf` |
+| Native resumed SAVE/WRITE_RETURN/END suffix | `6ddd5846c029f4b04ddf2e41f7526037d3d8f5351b2041b94694b3feb6a61406` |
+| All 44 native/diagnostic write-size and hash records | `11bc65c3d99473602e122f09dceca585547ce0c33a96d3d87554f8d7a9195f81` |
+| Diagnostic midpoint | `d96e97d12badecb2bff5ed295923fa528fed0c80ef9a6b77cbc1979571387af5` |
+| Diagnostic final | `8c4461bd698930930aea0620a0a4985cfa5b1da8b01d5220045da281826314e6` |
+| Diagnostic trace pair | `79663293b02c7d1900c706b247ce89fbb395420785e28fa01c6407ffd2c1a425` |
+| Diagnostic log pair / resumed log | `29f0ae6558d7ccab7ecb28832f3c9b3213531c813bc0c3c70e3cdb5574dec06b` / `9664c250af9ec23b17ec1c45daef059bbf97a1d6abf793997570250f15207c3e` |
+
+Native refusal-start and resumed compatibility logs are empty: the time saves
+execute normally without consuming an intervention. The earlier log is still
+ticket 766's exact remaining general/personal suffix. Diagnostic and native
+final snapshots are intentionally distinct; neither replaces a release golden.
+
+Confidence is high for these exact two native saves and retained bytes.
+Propose a separate integration limited to exact mode-two `settings/time`
+native routing in the existing hash-pinned opt-in layer, with unknown-create
+refusal tests and repeated/resumed native storage gates. No extra compatibility
+hit, file slot, capacity, snapshot version, firmware patch or public API is
+needed. Do not generalize this success to other unknown create paths or the
+historical general-file FAT failure. The fifth GPS-awake lifecycle remains the
+next independent evidence boundary; setup and watch-face navigation are unproven.
+
+#### Ticket 768 production verification
+
+2026-09-08; the production hook now forwards only normalized exact mode-two
+`settings/time` after existing validation. No other runtime change is made.
+The new routing regression fails before this change and passes afterward;
+CPU/RAM/file codec/counters/logs remain unchanged on forwarding and refusal.
+Sibling paths, malformed/unterminated input, invalid modes and disabled or
+wrong-hash activation retain fail-closed behavior. Table-owned files still
+consume the original bounded synthetic operations.
+
+The extended personal gate preserves general/personal midpoint and log pins,
+and the complete shorter idle branch. Its full branch now verifies the accepted
+native time midpoint/final hashes above, including a mid-time-save restore and
+byte-identical refusal retries. Two independent production runs from the old
+time-open refusal also reproduce that final hash and the one retained 349-byte
+payload at `0x00a91a00`, with 69 to 72 dirty pages. The old snapshot saves back
+byte-identically immediately after load; source flash retains its original hash.
+
+External production artifacts: `/tmp/semu-768.42dyOp/`. Observer source is the
+unchanged ticket-767 `probe.c`, SHA-256
+`611fd0c04d823f3a76018b5cd8fa789deb96e2264cc8e4da089904eddb55acbb`,
+compiled against production without an adapter override. Its included in-tree
+personal probe has SHA-256
+`272bca169f8d9d9628464b55c1bf9fdcc01bde3c865f7ca86a94614ba70ad4a9`;
+production library SHA-256
+`acc9513c4e4d2db74c2eba170eefe165152a69d11aa031982dc39945276a2547`.
+Repeated production trace SHA-256
+`896bb9a2ade5f6d244bcbc7f84634222faec635b3d59b740bce354d832044483`.
+All 832 normal/sanitizer tests, 47 focused cases, four machine-snapshot tests,
+four 2.39 private gates, SDL build and 2.22.60 live-input gate pass. Ticket 768
+records the commands. No setup completion or additional GPS behavior is claimed.
+
+### E-SAP-GPS-FIFTH-239-001
+
+2026-09-08; read-only production inspection of the native time final checkpoint
+`ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d`,
+with the exact component/full-flash inputs above. External observer
+`/tmp/semu-768.42dyOp/gps-inspect.c`, SHA-256
+`72affc4dfbe83a77eb9f3e4d957c43d5c415d4849ebdd92498a178968920cc2e`,
+links the same production library. It adds only read-only CPU/bus/scheduler
+inspection to the bounded observer; no hook, pulse or guest state repair.
+Trace SHA-256
+`8735ef6ab4923fdf325e5b6837fa9ad4631046dd314db6f19874b5c07bd8882b`.
+
+At PC `0x001291cc`, instruction 3,960,123,530 / 32,455,738,919 ns,
+the GPS counters are `2,2,4` and logical-file count is 76,599. Registers are
+R0=1, R2=12, R4=`100588a2`, R5=`10036944`, R6=`100369ec`,
+R7=`1003674d`, R8=`100366d8`. Driver bytes +272/+273 are 12/10;
+awake/retry bytes `100588a2`/`100588a4` are 1/0; GPIO24 configuration at
+`40010060` is `00000093`. There are no queued CXD-awake events.
+
+The first check in the existing awake hook rejects four exhausted hits; the
+remaining currently checked driver predicates match. A retry refuses without
+advancing time/count; the inspected final snapshot remains byte-identical.
+This identifies the immediate emulator stop as an exhausted compatibility
+fixture, not a newly observed driver mismatch. It does not establish a physical
+fifth-pulse cadence, a GPS fix/time or a receiver response. Those require a
+separate evidence ticket before changing the bounded GPS behavior. The last
+rendered frame remains WEIGHT (CRC `a8c9f3d3`).
+
 ### E-SAP-UI-PERSONAL-239-001
 
 2026-09-08; bounded read-only follow-on observation using ticket 763's normal

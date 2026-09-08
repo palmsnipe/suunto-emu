@@ -128,7 +128,9 @@ id	phase	title	status	dependencies	ticket
 763	7	Sapporo 2.39 General Settings Budget Integration	done	729,759,762	plans/tasks/763-sapporo-239-general-settings-budget.md
 764	7	Sapporo 2.39 Personal Settings Persistence Evidence	done	729,759,763	plans/tasks/764-sapporo-239-personal-settings-evidence.md
 765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
-766	7	Sapporo 2.39 Personal Settings Budget Integration	ready	729,759,764	plans/tasks/766-sapporo-239-personal-settings-budget.md
+766	7	Sapporo 2.39 Personal Settings Budget Integration	done	729,759,764	plans/tasks/766-sapporo-239-personal-settings-budget.md
+767	7	Sapporo 2.39 Time Settings Persistence Evidence	done	729,759,766	plans/tasks/767-sapporo-239-time-settings-evidence.md
+768	7	Sapporo 2.39 Native Time Settings Routing	ready	729,759,767	plans/tasks/768-sapporo-239-native-time-routing.md
 770	7	Tianjin, Rostock, or Xiamen Intake	blocked	630	plans/tasks/770-product-intake.md
 775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md
 780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md

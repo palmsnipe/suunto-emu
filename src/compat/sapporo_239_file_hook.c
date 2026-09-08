@@ -77,6 +77,8 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
     int index;
     if (read_path(bus, cpu->r[0], path, error) != SEMU_OK) return error->code;
     index = semu_s239_file_index(path);
+    /* E-SAP-TIME-NATIVE-239-001: native storage retains this exact save. */
+    if (mode == 2u && strcmp(path, "settings/time") == 0) return SEMU_OK;
     /* E-SAP-COMPAT-QUIET-READ-239-001: do not bypass table-owned state. */
     if (mode == 9u && index < 0) return SEMU_OK;
     if (mode < 1u || mode > 3u)
