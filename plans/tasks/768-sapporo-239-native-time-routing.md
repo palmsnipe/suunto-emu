@@ -1,6 +1,6 @@
 # 768 — Sapporo 2.39 Native Time Settings Routing
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,759,767
 
@@ -150,3 +150,12 @@ Remaining gap: recover evidence for the fifth GPS-awake lifecycle, then
 continue setup/watch-face/menu work. No fifth pulse or physical cadence is
 inferred from budget exhaustion. No public-interface integration is requested;
 acceptance/status review is the only current integrator-owned action.
+
+### Integrator acceptance, 2026-09-08
+
+Separate planning review accepts implementation commit `44ee4d6`. Reviewed
+the exact-route delta, immutable routing/refusal regression, native checkpoint
+extension and recorded normal/sanitizer/private results. The focused routing
+test passes again and 136 task contracts validate before this planning change.
+All prior acceptance inputs were available; no condition was skipped. The next
+evidence ticket is 769. No GPS or other runtime change accompanies acceptance.

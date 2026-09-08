@@ -1344,6 +1344,92 @@ fifth-pulse cadence, a GPS fix/time or a receiver response. Those require a
 separate evidence ticket before changing the bounded GPS behavior. The last
 rendered frame remains WEIGHT (CRC `a8c9f3d3`).
 
+### E-SAP-GPS-FIFTH-239-002
+
+2026-09-08; ticket 769, production base `44ee4d6`, exact E-SAP-0011
+components and full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Every observer validates all component bytes, full flash and starting snapshot
+hash before execution. Start is E-SAP-TIME-NATIVE-239-001 final
+`ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d`.
+The production control repeats that exact snapshot/refusal without mutation.
+
+Only an external copy of `sapporo_239_gps_awake.c` changes: its total/per-trigger
+and validation/refusal bounds are five rather than four. All driver/GPIO
+predicates, CPU execution, pulse scheduling, IRQ handling, file limits, layer
+identity and snapshot encoding remain unchanged. No live counter or guest RAM
+is repaired. The diagnostic uses the existing 100-ms delay/1-ms high fixture;
+this is not a new physical-cadence claim. The source has compile-time controls
+for no pulse or six-second delay; neither supplies a UART response.
+
+The fifth admission occurs at `3960123530 / 32455738919 / 001291cc`.
+The native clear at `00129250` is reached at 3,960,123,849 / 32,455,739,238 ns.
+The GPIO rise invokes `00128926` at 3,962,901,511 / 32,555,739,360 ns,
+with awake zero; three retired instructions later `0012892e` observes awake
+one. The next successful poll is `4071207676 / 37929735196 / 001291cc`:
+callback 12, pending ten, awake one, retry zero, no pulse pending, GPS `2,2,5`.
+The diagnostic refuses a sixth admission atomically. No additional renderer
+frame or logical-file operation occurs in this idle continuation.
+
+Two complete runs, pending-rise/high/fallen restores and an ASan/UBSan run
+produce identical final state. Repeated normal/sanitizer traces and logs match;
+restored traces match their native suffix and all restored logs are empty.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pending rise, `3960123531 / 32455738920` | `3a8d9d5e24ccd74df852681b8e80097272095e2b2b55443ed543280c8a74d674` |
+| High after native STRB, `3962901514 / 32555739363` | `03712d1dea6acbb028b5a3b04fd2c1b5d6f2df848bcdf96ece85a72f70f274e4` |
+| Fallen, `3962902096 / 32556738919` | `f545b28f0ac7575c3ce29294487231136210512a64a3db505a77d6a85eb27452` |
+| Idle final / atomic refusal retry | `127214e55e966741d3cc3acb5fd5fad50988b3cb4bdadb78788e590b91f8df28` |
+| Repeated idle trace / one-hit log | `1537c34214c48cd407e3ec08e7d85cd0084c5358f99203e71271b24007a06d23` / `cce5f2765d9562c45a062ca2db03d7126657b37bfcf2f8c52d105ed0fe9fb5c5` |
+| No-pulse trace | `6b023bc5ceff3ec672a52144c1f7e3e3454faea520c7b859ffc88e787814146d` |
+| Six-second-late trace | `6a6492b4d8598e3dbf09a0cfae7bfb3f7011e4ce0e1b57942c643dba6c65a4e3` |
+
+Both controls reach the same native precise fault at instruction 4,071,268,202 /
+37,929,984,335 ns: PC `001c0db4`, BFAR `4001d000`, stacked PC `00171798`.
+Neither invokes an awake callback. The no-pulse variant forwards the validated
+poll without admission/hit; the late variant queues the pulse after the fault
+deadline and has five hits. The latter retains the original static descriptor
+effect text, but the compiler override is six seconds, not the text's 100 ms.
+These controls distinguish the actual input deadline from mere hit accounting.
+Production refuses the five-hit pending snapshot; wrong starting hash also
+fails before execution. Source flash retains its initial hash.
+
+#### Navigation boundary within the additional interval
+
+A normal MIDDLE click requested at 34 s has actual press/release edges
+`3991602893 / 34088644931` and `3995360381 / 34174452535`; the release was
+requested 70 ms after actual press, with WFI overshoot retained. Two runs
+match traces, logs and final snapshot
+`00432bcc97bc988da8370e9e2a298a39bdfa86971e5a8000ccd36dafaaf5a286`.
+There are 69 native renderer publications; final CRC `cd4c0a99`, pixel SHA-256
+`33339448cbcfafa47bd9d0ed4e37b61abd43062acf95f2bf7470ebefae921072`.
+Visual inspection of the live-run capture identifies HEIGHT with 170 cm
+centred; that is guest state, not personal information supplied by the user.
+The next operation is a refused mode-two `settings/personal` open, LR
+`000adb2f`, at `000920b4 / 4232903136 / 34413596174`, logical hits 76,599.
+Its retry and an independently inspected loaded image are byte-identical.
+The completed additional save and its required operation count are unmeasured.
+
+External sources/artifacts are `/tmp/semu-769.py1saC/`:
+`probe.c` SHA-256 `6a188ed8f630153871df48016abea4e5072c404a4a4939caf4b17d841bf02f5f`,
+`awake.c` `4e62e815ac56a533ee555386c5192288c63defc94ddf87b317d6f5f5c3b688de`,
+`inspect.c` `aa5d4f8d1e023afc0668d1fe085467e12665ef62169ac390b6a96ca655e8cade`.
+Included personal probe/library hashes remain those in ticket 768's entry.
+Navigation trace SHA-256
+`f0aa8fc8be5eb05331f01969c53d3daf474e3b8911d81a39e9a87c33a9a662d2`;
+independent live-image trace
+`6b23a486dff03a3458cc61c5b626d7a41ef9374f0e4d91053cf7b6ff34325349`.
+The latter repeats the same final machine/image; a loaded snapshot alone
+does not republish a frontend frame and was not used to identify the screen.
+
+Confidence is high for one additional synthetic liveness interval and its
+native input path, not physical timing, GPS fix/time or indefinite operation.
+Production is unchanged. Any integration must preserve the four-pulse layer's
+historical identity/refusals and explicitly select extended fixture behavior;
+do not silently repin existing gates. The subsequent personal save is a
+separate evidence task. Ticket 769 records exact commands and results.
+
 ### E-SAP-UI-PERSONAL-239-001
 
 2026-09-08; bounded read-only follow-on observation using ticket 763's normal

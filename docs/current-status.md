@@ -1444,13 +1444,41 @@ The historical shorter idle branch, earlier midpoint/log pins, twelve slots,
 
 All 832 normal and sanitizer tests, 47 focused Sapporo 2.39 tests, four snapshot
 tests, four Sapporo 2.39 private gates, SDL build and Sapporo 2.22.60 SDL live
-input pass. Ticket 768 remains ready for separate acceptance review.
+input pass. Commit `44ee4d6` records the work; the separate 2026-09-08
+integrator review accepts ticket 768.
 
 Read-only inspection identifies the next refusal as the exhausted four-pulse
 GPS compatibility fixture: all remaining checked driver predicates match and
 no awake pulse is pending (E-SAP-GPS-FIFTH-239-001). This does not establish a
 fifth physical pulse or permission for an indefinite heartbeat. The last frame
 is still WEIGHT, not a watch face or post-setup menu.
+
+## Fifth GPS Awake Evidence (Ticket 769)
+
+An isolated five-hit diagnostic preserves all production driver predicates
+and supplies one additional 100-ms-delayed, 1-ms-wide GPIO24 pulse. Native IRQ
+callback `0x00128926` observes awake zero, then its own STRB sets awake one;
+the next state-twelve poll succeeds with retry zero. Two runs, pending-rise,
+high and completed-pulse restores, and an ASan/UBSan run match final snapshot
+`127214e55e966741d3cc3acb5fd5fad50988b3cb4bdadb78788e590b91f8df28`.
+They stop before a sixth pulse at `001291cc / 4071207676 / 37929735196`.
+Missing-pulse and six-second-late controls instead reach the same precise
+UART fault at `4001d000`, stacked PC `00171798` (E-SAP-GPS-FIFTH-239-002).
+
+With that isolated fifth pulse, a normal held MIDDLE click requested at 34 s
+advances from WEIGHT to the native HEIGHT selector (170 cm, firmware state,
+not supplied user data), CRC `cd4c0a99`. Two runs reproduce all 69 frames and
+the final snapshot `00432bcc97bc988da8370e9e2a298a39bdfa86971e5a8000ccd36dafaaf5a286`.
+The next refused operation is `settings/personal`, mode two, LR `000adb2f`,
+at `000920b4 / 4232903136 / 34413596174`; the 76,599 logical-file ceiling
+is unchanged. No new file hit, bytes or capacity is inferred from that open.
+
+Production remains at the original four-pulse refusal; it rejects diagnostic
+five-hit snapshots rather than silently migrating them. All 832 normal tests,
+47 focused cases, four machine-snapshot cases and 137 task contracts pass.
+Private inputs are unchanged and all experimental sources/images stay outside
+Git. This is finite synthetic-liveness evidence, not physical GPS timing,
+setup completion, a watch face or post-setup menu navigation.
 
 ## Next Actionable Work
 
@@ -1462,12 +1490,12 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Tickets 762–764, 766 and 767 are accepted. Review ticket 768's exact native
-  time routing and repeated/resumed storage checks. Native storage retains
-  the observed bytes; no experimental slot or file-hit increase is needed.
-  Recover evidence for the fifth GPS-awake lifecycle boundary before extending
-  navigation further; the observed exhausted fixture is not physical timing
-  evidence or permission to raise the pulse limit.
+- Tickets 762–764 and 766–768 are accepted. Review ticket 769's additional
+  synthetic GPIO pulse, native callback, repeat/restore and negative controls.
+  Any integration needs explicit opt-in selection while preserving the existing
+  four-pulse layer and historical refusals; the measured fifth pulse is not
+  permission for a sixth or an indefinite heartbeat. Then measure the additional
+  personal-settings save exposed by WEIGHT → HEIGHT before changing file limits.
   Subsequent profile choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
