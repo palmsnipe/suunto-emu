@@ -7,6 +7,7 @@
 #define RAM UINT32_C(0x10000000)
 #define OLD_LIMIT UINT64_C(76279)
 #define LIMIT UINT64_C(76371)
+#define CURRENT_LIMIT UINT64_C(76599)
 
 typedef struct fixture {
     semu_bus *bus;
@@ -135,8 +136,8 @@ static void test_native_general_save_budget(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920f4u, handle, 0u, 0u));
     SEMU_TEST_EQ_U64(context, 1u, f.cpu.r[0]);
     SEMU_TEST_EQ_U64(context, LIMIT, f.layer.hits);
-    SEMU_TEST_EQ_U64(context, LIMIT, f.layer.descriptor->interventions[2].max_hits);
-    SEMU_TEST_EQ_U64(context, LIMIT + 3u, f.layer.descriptor->maximum_hits);
+    SEMU_TEST_EQ_U64(context, CURRENT_LIMIT, f.layer.descriptor->interventions[2].max_hits);
+    SEMU_TEST_EQ_U64(context, CURRENT_LIMIT + 3u, f.layer.descriptor->maximum_hits);
     SEMU_TEST_EQ_U64(context, sizeof(payload),
         semu_sapporo_239_file_size(f.files, "settings/general"));
     /* Inspect the explicit file codec without consuming another file hit. */
@@ -156,6 +157,12 @@ static void test_native_general_save_budget(semu_test_context *context)
         semu_snapshot_reader_bytes(&reader, actual, sizeof(actual), &f.error));
     SEMU_TEST_ASSERT(context, memcmp(payload, actual, sizeof(payload)) == 0);
     semu_snapshot_writer_destroy(&writer);
+    /* Preserve the measured 92-hit suffix; saturate the later ceiling separately. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920b4u, RAM, 3u, 0u));
+    handle = f.cpu.r[0];
+    while (f.layer.hits < CURRENT_LIMIT - 1u)
+        SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x9221au, handle, 0u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920f4u, handle, 0u, 0u));
     assert_refusal(context, &f, 2u, "exceeded budget", log);
     semu_sapporo_239_files_destroy(f.files); semu_bus_destroy(f.bus); fclose(log);
 }

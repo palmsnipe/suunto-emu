@@ -84,12 +84,12 @@ static void test_descriptor_and_hash_pins(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
         strcmp(semu_sapporo_239_wbsto_layer.id,
                "sapporo-2.39-synthetic-wbsto") == 0);
-    SEMU_TEST_EQ_U64(context, 76374u,
+    SEMU_TEST_EQ_U64(context, 76602u,
                      semu_sapporo_239_wbsto_layer.maximum_hits);
     SEMU_TEST_EQ_U64(context, 4u, semu_sapporo_239_wbsto_layer.intervention_count);
     SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_wbsto_layer.interventions[0].max_hits);
     SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_wbsto_layer.interventions[1].max_hits);
-    SEMU_TEST_EQ_U64(context, 76371u, semu_sapporo_239_wbsto_layer.interventions[2].max_hits);
+    SEMU_TEST_EQ_U64(context, 76599u, semu_sapporo_239_wbsto_layer.interventions[2].max_hits);
     SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_wbsto_layer.interventions[3].max_hits);
     enable_layer(context, &state, &error);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_CONFLICT,

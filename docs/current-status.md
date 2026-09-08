@@ -1347,6 +1347,59 @@ accepted (E-SAP-UI-PERSONAL-239-001). This exposes the next persistence
 sequence before GPS exhaustion; it is not evidence for another budget increase.
 The watch face and post-setup menu navigation have not yet been reached.
 
+## Personal-Settings Persistence Evidence (Ticket 764)
+
+The user-requested commit `3afb5ff` records ticket 763's general-save
+integration. A separate acceptance review marks 763 done. Evidence-only ticket
+764 reproduces the production personal-open refusal twice, then measures its
+complete native save using an isolated 512-operation diagnostic allowance:
+open, 66 full contiguous writes totalling 1,727 bytes, close. The serializer
+returns one and firmware clears its pending flag. Two earlier-start runs,
+two refusal-start runs and mid-save restore match the exact final machine and
+birth-year pixels at the unchanged fifth-GPS-pulse refusal, about 32.54 seconds.
+No file ABI correction is indicated (E-SAP-COMPAT-PERSONAL-239-001).
+
+Additional native MIDDLE presses at 26, 28 and 30 seconds reach the weight
+selector. Complete repeated navigation and mid-save continuations match
+exactly: 1,004 successful renderer submissions, CRC `a8c9f3d3`, and final
+snapshot `3d19f80df2c47a1e98f6bfa8dd0640f0d6cbb38a4d06f933d16f09c2c54245c6`.
+This whole suffix consumes 228 operations: two 68-operation personal saves
+and one repeated 92-operation general save. The next refusal is unknown
+`settings/time`, mode two, PC `0x000920b4`, LR `0x000acb8b`, instruction
+3,885,178,598 / 30,368,914,377 ns, GPS hits `2,2,4`. It refuses despite
+remaining diagnostic headroom; schema/capacity/serialization still need recovery.
+
+Ticket 764 originally proposed a separately tested **76,599 / 76,602**
+allowance to cover the measured suffix, not the diagnostic 512 extra
+operations. The subsequent planning review accepts 764 and instantiates 766.
+All firmware artifacts remain external; the evidence adds no time source.
+
+## Production Personal-Settings Saves (Ticket 766)
+
+Production now permits exactly 76,599 logical-file / 76,602 aggregate hits.
+Only the two constants and evidence comment change at runtime. A synthetic
+regression fails before the change, then passes all 68+68+92 operations,
+content checks, mid-save restore and atomic unknown/excess refusals afterward.
+File paths, capacities, formats, rendering and GPS bounds remain unchanged.
+
+The new private gate generates the historical general-save midpoint from
+cold boot and verifies two full continuations plus a personal-mid-save
+restore. Production matches the accepted weight frame CRC `a8c9f3d3` and
+final snapshot `3d19f80df2c47a1e98f6bfa8dd0640f0d6cbb38a4d06f933d16f09c2c54245c6`.
+The shorter idle branch also repeats/restores exactly to its existing fifth
+GPS-pulse refusal. Retrying either refusal leaves the machine snapshot intact.
+Wrong component metadata, full flash and starting checkpoints are rejected.
+All 831 normal and sanitizer tests, four Sapporo 2.39 private gates, SDL build
+and the Sapporo 2.22.60 live-input gate pass. Ticket 766 awaits integrator
+review; its handoff records exact commands and pins.
+
+The next production boundary remains unknown mode-two `settings/time` at
+PC `0x000920b4`, instruction 3,885,178,598 / 30,368,914,377 ns. Read-only
+disassembly now recovers the 19-field serializer and its helper calls
+(E-SAP-TIME-SCHEMA-239-001), but not the complete dynamic write sequence or
+required file capacity. This is not support for that path, an invented clock,
+completed setup, the watch face or post-setup menu navigation.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1357,10 +1410,12 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Ticket 762 is accepted; review ticket 763's production integration handoff.
-  Next recover the complete native `settings/personal` save at the birth-year
-  boundary in E-SAP-UI-PERSONAL-239-001 before proposing an additional finite
-  allowance or ABI change. Do not infer its write count from `settings/general`.
+- Tickets 762–764 are accepted. Review ticket 766's production integration of
+  the exact 228-operation allowance. Next measure the native `settings/time`
+  save at its pinned boundary, using E-SAP-TIME-SCHEMA-239-001's recovered
+  serializer as the starting evidence; establish its complete writes, return
+  behavior and capacity before scoping a new path. An existing general/personal
+  capacity does not justify a new time-file slot.
   Subsequent profile choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,

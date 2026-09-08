@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define RAM UINT32_C(0x10000000)
-#define LIMIT UINT64_C(76371)
+#define LIMIT UINT64_C(76599)
 
 typedef struct fixture {
     semu_bus *bus;
@@ -104,7 +104,7 @@ static void test_history_scan_budget_and_atomic_refusal(semu_test_context *conte
     SEMU_TEST_ASSERT(context, memcmp(before.data, after.data, before.size) == 0);
     rewind(log);
     while (fgets(line, sizeof(line), log) != NULL)
-        if (strstr(line, "trigger=logical-file ordinal=76371") != NULL) ++events;
+        if (strstr(line, "trigger=logical-file ordinal=76599") != NULL) ++events;
     SEMU_TEST_EQ_U64(context, 1u, events);
     semu_snapshot_writer_destroy(&before); semu_snapshot_writer_destroy(&after);
     semu_sapporo_239_files_destroy(f.files); semu_bus_destroy(f.bus);

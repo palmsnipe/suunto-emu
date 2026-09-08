@@ -1,6 +1,6 @@
 # 763 — Sapporo 2.39 General Settings Budget Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,759,762
 
@@ -200,3 +200,13 @@ completed setup and post-setup menu navigation remain unproven.
 All logs and retained production/follow-on snapshots are outside Git under
 `/tmp/semu-763.WR6heT/`; new helper/gate sources contain no firmware or pixels.
 Acceptance has passing implementation evidence and awaits integrator review.
+
+### Integrator acceptance, 2026-09-08
+
+Separate planning review accepts committed implementation `3afb5ff`. The
+runtime diff is restricted to the two measured constants and evidence comment;
+synthetic refusal/snapshot checks and private observer identity/limit checks
+were reviewed. Retained normal/sanitizer and all four private-gate logs confirm
+the handoff, with no skipped acceptance or repinned checkpoint. The focused
+general-budget test is rerun and passes. Ticket 764 scopes the next personal
+save as evidence-only work; production remains unchanged during that research.

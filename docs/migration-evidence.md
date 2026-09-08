@@ -931,6 +931,250 @@ the established mid/final snapshot hashes and full log
 All 676 renderer frames succeed; final CRC `405d1af6` and pixel SHA-256
 remain unchanged. Ticket 763 records exact verification commands and results.
 
+### E-SAP-COMPAT-PERSONAL-239-001
+
+2026-09-08; ticket 764, committed production baseline `3afb5ff`. Separate
+planning review accepts ticket 763; no runtime source changes in this evidence
+work. Two newly compiled production runs of the E-SAP-UI-PERSONAL-239-001
+observer reproduce its trace, final snapshot and pixels exactly, including
+the refused personal open at 2,953,605,137 instructions / 24,380,651,994 ns.
+Normal renderer and all four explicit layers are retained throughout.
+
+An external translation unit substitutes only the descriptor ceilings at link
+time: **76,883 logical / 76,886 aggregate**, 512 extra diagnostic operations.
+This is not a production proposal. A forwarding adapter observer records
+arguments, returns, cursor and hashes without modifying their values. No
+private-state mutation, counter replenishment, firmware patch or callback
+invocation occurs. Every run validates all three firmware components and full
+flash before execution. Bounds: five billion instructions, 35 billion virtual
+ns, 5,000 changed frames. Production remains **76,371 / 76,374**.
+
+The first personal save is **68 operations**: mode-two open, **66 successful
+contiguous writes totalling 1,727 bytes**, close. Handle `0x10161300` starts
+at zero; the existing file size stays 1,727. No read, seek, flush or truncate
+intervenes. Ordered write sizes (metadata only):
+
+```text
+10,2,10,16,17,17,17,19,11,10,17,20,25,21,25,21,25,24,22,23,22,
+32,32,32,32,28,28,28,28,28,28,28,28,34,34,34,34,30,30,30,30,
+30,30,30,30,34,34,34,34,30,30,30,30,30,30,30,30,29,25,25,31,
+27,27,31,27,27
+```
+
+Every write returns its requested size; final write consumes ordinal 76,438.
+Close returns one at ordinal **76,439**, virtual ns 24,380,809,738.
+File SHA-256 `a7bcb15b0615a8c530b22b3b735cf6bea34827a316f6a47ace2cb39896034180`.
+At PC `0x000adb3c`, instruction 2,953,762,879 / 24,380,809,736 ns, the native
+serializer returned one and object `0x10035500` has pending byte one at
+`+0x145`. At `0x000adb48`, instruction 2,953,762,883 / 24,380,809,740 ns,
+the native close and flag clear have completed. A later invocation on a
+different object with its flag already zero is a no-op, not a second save.
+
+Pristine wrapper `0x000adb1e..0x000adb48` opens only when pending, skips a
+null handle, invokes `0x000d5ff8`, closes and clears the flag. The wrapper
+does not test the serializer result, so flag clear alone would not prove
+success. The entire serializer `0x000d5ff8..0x000d6248` independently checks
+helper booleans and returns their accumulated result. Its loops serialize
+three-by-three-by-four scalar fields and three-by-three boolean fields.
+The initial empty variable record uses the two-write header/CRLF branch at
+`0x000af724..0x000af750`. Helpers `0x000af55c..0x000af58e`,
+`0x000af6e0..0x000af770`, `0x000af806..0x000af81e`,
+`0x000af8a8..0x000af918`, `0x000afa30..0x000afa62`,
+`0x000afac8..0x000afadc` and `0x000afb10..0x000afb28` were read before
+interpreting their full-length comparisons. Observed write LR counts:
+`af583` x10, `af733` x1, `af743` x1, `af813` x48, `af8f9` x3,
+`afa4b` x1, `afb1d` x2. No adapter ABI correction is indicated.
+
+Two runs from the production refusal, two from the earlier general-save
+midpoint (with the six E-SAP-UI-PERSONAL-239-001 edges), and a personal
+mid-save resume converge to the same next stop with no further button input:
+
+```text
+compat-refused pc=001291cc instructions=3152721353 time=32538694863 gps_hits=2,2,4
+```
+
+This is the unchanged fifth GPS-awake refusal. Earlier-start runs accept all
+778 renderer submissions; refusal-start/resume runs accept six. All converge
+to BIRTH YEAR, CRC `568bdc7d`, pixels SHA-256
+`d2c4833a433610b5087f6e04fe16c7c4bd9d3baf6573df21cc72e0abde77b09b`.
+The midpoint is after ordinal 76,405, instruction 2,953,666,398 /
+24,380,713,255 ns, PC `0x000af814`, after 33 of 66 writes. Resume preserves
+the remaining operations, exact log suffix, final pixels and machine image.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Refusal-start trace pair | `10e01c8cd11e016e3e34c13c63f0c7c14b42dfb8837f1fa69501e7b5b651efb4` |
+| Earlier-start trace pair | `37187c7cd2870379a4c97c62130e9abff4426d724653f37beb3688c89ff221c5` |
+| Mid-save resume trace | `40d2cf595245b2a01bc3c9e15d5dbee5f0c76402aa6635ea480b466a0af16c2a` |
+| Mid-save snapshot | `68ab2fa1fda8596e1b51a6b3d83950363effb0598f1835506492d20636fad7d8` |
+| Final snapshot (all five runs) | `4faf5b8934c80cbadc33a7d6a389dd8f50a26bacdf2ed7208effd7a4abadb3e3` |
+| Refusal-start log pair | `62eebc2edfde72ac0537692975cc9fc9490d7507433b0464ef818782411b9782` |
+| Earlier-start log pair | `509437ffa701685958420794fdf70d24ef4704b2869c0f49fb3fc09f0130dfcf` |
+| Resume log / exact suffix | `f6d6c1bab95a4150129d65d917ddbeade37bd7b0647354ba6877d68ad2013bd3` |
+
+All sources/artifacts remain in `/tmp/semu-764-personal.rFx4hQ/`. Source pins:
+`sapporo_239_diag.c` SHA-256
+`bb487188910069998074a583126bf6b18148580f6c0317442f2ac8d1d498ef10`,
+`file-observer.c` `69c45be2dd01da1f7ec50a9584a1518f2c1319a367bde772a85872d2f2bff22b`,
+`personal-probe.c` `f39a817fda5fc710811333c1c789077c04e97c0c461af3ca6a9371100a36d007`.
+The latter includes the unchanged `ui-probe-long.c` pinned under the general
+save evidence. Library remains
+`d5be57c61d475e2b3dc10c17d4bdfc8f257dae86fbfc8895ef277a1bb7db12a9`;
+full flash remains
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+Exact compile/run commands and further navigation findings follow in ticket
+764's handoff. No firmware bytes, settings payloads or frame pixels enter Git.
+
+#### Native continuation to weight and the next file boundary
+
+Three further native MIDDLE presses at requested 26, 28 and 30 seconds expose
+a more useful integration endpoint before the GPS ceiling. Two complete
+earlier-start runs reproduce all twelve input edges; two continuations from
+the personal-save midpoint reproduce their exact remaining log and final
+snapshot/pixels. Additional actual edges are:
+
+| Edge | Instructions | Virtual ns |
+| --- | ---: | ---: |
+| Press 4 | 3016651598 | 26010661264 |
+| Release 4 | 3023149894 | 26096218953 |
+| Press 5 | 3326045273 | 28022050108 |
+| Release 5 | 3332543381 | 28107577092 |
+| Press 6 | 3637404457 | 30036360075 |
+| Release 6 | 3640223889 | 30116594734 |
+
+Native button events remain 2/5/1 at `0x0010ace2`. View-open tokens are
+`4f56c51f`, `b3ffea5a`, `9fdbd95d`; only the final pixels are visually
+identified here: **WEIGHT**, 70 kg centred in the native selector. This is a
+firmware default, not a supplied user measurement. No direct view calls,
+host-drawn UI, fake time or extra GPS fixture are involved.
+
+The whole post-76,371 suffix contains exactly **228 operations**:
+
+- First personal save: 68 operations, ordinals 76,372–76,439, detailed above.
+- Second personal save: the same 68 operations/sizes, ending at 76,507;
+  native serializer returns one at PC `0x000adb3c`, instruction 3,268,066,472 /
+  26,342,736,425 ns; pending clears four instructions later. File hash is
+  unchanged from the first personal save.
+- One general save: the established 92-operation sequence from
+  E-SAP-COMPAT-GENERAL-239-001, ending at 76,599. All 90 write sizes and
+  final 1,505-byte hash match that evidence; close returns one.
+
+All 222 writes return their full size and advance contiguously, 4,959 total
+bytes across three saves. There are no extra admitted operations before:
+
+```text
+compat-refused pc=000920b4 lr=000acb8b instructions=3885178598 time=30368914377
+r0=000ace70 r1=00000002 r2=10034da0 path=settings/time gps_hits=2,2,4
+error=unknown Sapporo 2.39 writable file path
+```
+
+This is an unknown-path refusal with diagnostic budget still available, not
+another hit-limit failure. Pristine wrapper `0x000acb78..0x000acba4` tests
+object byte `+0x12`, opens the path in mode two, calls serializer `0x000d5084`,
+closes and clears the flag. Its schema, capacity and complete operation
+sequence are not measured; this observation authorizes neither a time file
+nor a fabricated clock source. It does not prove that the weight selection
+was accepted or that setup is complete.
+
+Complete earlier-start runs accept 1,004 submissions, no renderer refusals;
+mid-save continuations accept 232. Final frame CRC `a8c9f3d3`, SHA-256
+`3820703556359211f629aea5ef013dda45fba092229b8d61e5a10d684c42d585`.
+Last frame time is 30,366,784,927 ns. Repeat pins:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Complete continuation trace pair | `59a9c0b4079ebd6758f66788a2d15e1e7b4dc3e11379111ebafafacc55fba87a` |
+| Complete continuation log pair | `21a566167b8e34a1bf36e25feca4f1e337e8ca1f4d858822fe8e24661d3de139` |
+| Mid-save continuation trace pair | `2484f1751dddfed44e45ecba3238e4a74869eb7cf2e7819e5cce80e84296e002` |
+| Mid-save log pair / exact full-log suffix | `f287fc1e9276ea1540596234b8b65ae4d560fdda493ae7865bd9c3d928ae54bf` |
+| Final snapshot (all four runs) | `3d19f80df2c47a1e98f6bfa8dd0640f0d6cbb38a4d06f933d16f09c2c54245c6` |
+
+Sources `total-probe.c` SHA-256
+`86a11d4c0a46ba515e78d48ee3b5a7ee616fe5e9af394016c69f3349aa3a1482`
+and `next-probe.c`
+`6a3fc194494f0a6bd7d9ff87cc166da7e9e81b54787d3840705ebc286a7b9f65`
+use the same diagnostic descriptor/adapter/library and bounds. The only
+stimulus difference is six MIDDLE presses versus the first three; the latter
+source starts mid-save and supplies only the remaining three presses.
+
+The proposed separate production integration is therefore **76,599 logical /
+76,602 aggregate** (228 measured additional operations), not 512 diagnostic
+operations or an unbounded file budget. A 68-operation-only integration would
+stop again at the next already-measured personal save. Keep the shorter idle
+branch's GPS refusal and the full branch's unknown-time-file refusal as
+distinct required gates. Watch-face activation, post-setup menus, later
+personal values/sizes and physical-panel equivalence remain unproven.
+
+Ticket 766 production verification (2026-09-08): the only runtime delta is
+the exact 76,599 / 76,602 ceiling plus its evidence comment. The new public-API
+observer uses the normal library/backend and four explicit layers, without
+a diagnostic descriptor. It cold-generates the historical general midpoint
+`76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66`,
+then verifies repeated full/idle branches and personal-midpoint restoration.
+All final logs, snapshots and pixels match the preceding evidence exactly.
+The full prefix logs contain 279 file operations (51 remaining prior-general
+operations plus 228 new ones), ending at ordinal 76,599. A one-instruction /
+one-nanosecond retry of either refusal preserves the entire machine snapshot.
+Wrong firmware metadata, full flash and starting checkpoint negatives pass;
+the source flash hash remains unchanged. Production library SHA-256 is
+`7a0cb81857760b224d4511ea2e1c49392c2591ee1df34166110a15ce1f4d3e05`.
+All 831 normal and sanitizer cases, 46 focused Sapporo 2.39 cases, four
+machine-snapshot cases, the personal/general/activity/GPS private gates and
+2.22.60 SDL live-input gate pass. No later path or GPS behavior is admitted.
+
+### E-SAP-TIME-SCHEMA-239-001
+
+2026-09-08; read-only static analysis of the pristine Sapporo
+`2.39.20.22297-P` application, E-SAP-0011, SHA-256
+`85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89`.
+Use `arm-none-eabi-objdump -D -b binary -m arm -M force-thumb
+--adjust-vma=0x40000 --start-address=0xd5084 --stop-address=0xd51b8`
+on the private application; read the little-endian literal pointers at
+`0x000d51b8..0x000d5200` and their NUL-terminated key names separately.
+Wrapper `0x000acb78..0x000acba4` checks object byte `+0x12`, opens
+`settings/time` in mode two, invokes serializer `0x000d5084` for a nonnull
+handle, closes, then clears the flag. It does not test the serializer result.
+
+The serializer calls these 19 fields in order, checking each helper result;
+it returns zero on failure and one only after the final field succeeds.
+Offsets below are hexadecimal offsets into the source object, not disk offsets.
+
+| Key | Object offset | Helper / source access |
+| --- | --- | --- |
+| TimeFormat | `0e` | `af8ec`, byte |
+| DateFormat | `0f` | `af8ec`, byte |
+| AlarmClockTime | `00` | `afb10`, 32-bit |
+| AlarmClockMode | `0c` | `af8ec`, byte |
+| AlarmClockSnoozeDuration | `04` | `afb10`, 32-bit |
+| WeekType | `0d` | `af8ec`, byte |
+| AutoTimeSync | `10` | `af55c`, boolean |
+| DstChange0 | `14` | `afb10`, 32-bit |
+| DstChange1 | `18` | `afb10`, 32-bit |
+| DstChange2 | `1c` | `afb10`, 32-bit |
+| UtcOffset | `20` | `af88c`, byte |
+| DstOffset | `21` | `af88c`, byte |
+| DstActive | `22` | `af88c`, byte |
+| TzShort | `24` | `af5d2`, string; caller R3=4 |
+| TzName | `28` | `af5d2`, string; caller R3=52 |
+| LocName | `5c` | `af5d2`, string; caller R3=32 |
+| DualTimeEnabled | `11` | `af55c`, boolean |
+| LocalTimeOffset | `08` | `af9bc`, signed 16-bit |
+| DualTimeOffset | `0a` | `af9bc`, signed 16-bit |
+
+Read-only helper inspection at `0x000af5d2..0x000af658`, `0x000af88c`,
+`0x000af904`, `0x000af9bc` and the existing scalar/boolean helpers shows
+length-checked writes of formatted values. The string writer calls native
+`strlen` at `0x000700a4`; the caller's R3 is not a string-length bound.
+Nonempty strings take header, payload and CRLF writes, while empty/null
+strings omit the payload write. Therefore 19 fields are not 19 file writes,
+and the R3 literals alone cannot justify a capacity or operation ceiling.
+
+Confidence is high for static order, object accesses and success checks.
+Actual field values, emitted sizes, complete native save/close behavior,
+required capacity and subsequent navigation remain unmeasured. Production
+continues to refuse the path. This entry authorizes evidence collection,
+not a new file slot, fabricated time value, GPS fix or runtime hook.
+
 ### E-SAP-UI-PERSONAL-239-001
 
 2026-09-08; bounded read-only follow-on observation using ticket 763's normal
