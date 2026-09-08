@@ -45,3 +45,8 @@ max_hits=2
 kind=device-fixture
 evidence=E-SAP-COMPAT-GPS-AWAKE-239-001
 max_hits=4
+
+[layer sapporo-2.39-gps-awake-five]
+kind=device-fixture
+evidence=E-SAP-GPS-FIFTH-239-002
+max_hits=5

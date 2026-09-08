@@ -1473,12 +1473,43 @@ The next refused operation is `settings/personal`, mode two, LR `000adb2f`,
 at `000920b4 / 4232903136 / 34413596174`; the 76,599 logical-file ceiling
 is unchanged. No new file hit, bytes or capacity is inferred from that open.
 
-Production remains at the original four-pulse refusal; it rejects diagnostic
+At the ticket-769 baseline, production remains at the original four-pulse refusal; it rejects diagnostic
 five-hit snapshots rather than silently migrating them. All 832 normal tests,
 47 focused cases, four machine-snapshot cases and 137 task contracts pass.
 Private inputs are unchanged and all experimental sources/images stay outside
 Git. This is finite synthetic-liveness evidence, not physical GPS timing,
 setup completion, a watch face or post-setup menu navigation.
+
+## Optional Five-Pulse GPS Integration (Ticket 771)
+
+Commit `15c2a53` records ticket 769's evidence; separate integrator review
+accepts 769. Ticket 771 now implements the explicitly selected alternative
+`--layer sapporo-2.39-gps-awake-five`, used instead of
+`--layer sapporo-2.39-gps-awake`, with the same startup/reopen dependencies
+and exact component hashes. No default selection changes. The old four-pulse
+identity, logs, snapshots and refusal gates remain unchanged. Selecting both
+variants or loading a snapshot from the other variant refuses atomically.
+Five total pulses are permitted; no sixth pulse or file-budget increase is added.
+
+Cold native execution generates the new-identity prefix snapshot
+`6e67094057d9510874a3766ced6372066fc134c1014840a0908a990266afa6de`.
+Repeated idle and MIDDLE branches reproduce ticket 769's native state, including
+HEIGHT CRC `cd4c0a99` and the personal-save refusal at
+`000920b4 / 4232903136 / 34413596174`. The new final snapshot is
+`2224b55ed72f0cac548fa80117787ae5b049f5783f10a8b6730f5ea1a0936467`.
+Test-only normalization proves the serialized layer name is the sole difference
+from the diagnostic final snapshot; that comparison copy is never executed.
+Snapshots for the alternative must be generated through native execution,
+not migrated or relabelled from the old variant.
+
+All 836 normal and sanitizer tests, 138 task contracts, focused lifecycle/profile/
+snapshot tests, the new private five-pulse repeat/resume gate, both legacy
+awake/personal private gates, SDL build and the 2.22.60 live-input check pass.
+An authentic ASan/UBSan MIDDLE continuation matches normal logs, trace and final
+snapshot byte-for-byte. Private flash is unchanged. Ticket 771 remains ready
+for review; its implementation is not yet committed. Physical GPS timing,
+GPS fix/time, the additional personal save, watch face and post-setup menus
+remain outside this verified boundary (E-SAP-GPS-FIFTH-239-002).
 
 ## Next Actionable Work
 
@@ -1490,10 +1521,10 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Tickets 762–764 and 766–768 are accepted. Review ticket 769's additional
-  synthetic GPIO pulse, native callback, repeat/restore and negative controls.
-  Any integration needs explicit opt-in selection while preserving the existing
-  four-pulse layer and historical refusals; the measured fifth pulse is not
+- Tickets 762–764 and 766–769 are accepted. Review ticket 771's optional
+  five-pulse integration, native callback, repeat/restore and atomic refusals.
+  Preserve explicit selection, the existing four-pulse layer and historical
+  refusals; the measured fifth pulse is not
   permission for a sixth or an indefinite heartbeat. Then measure the additional
   personal-settings save exposed by WEIGHT → HEIGHT before changing file limits.
   Subsequent profile choices, watch-face activation and menu navigation remain

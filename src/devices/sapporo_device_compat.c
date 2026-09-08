@@ -51,6 +51,7 @@ semu_status semu_sapporo_devices_bind_gps_layers(
         goto conflict;
     if (awake != NULL && (!awake->enabled ||
         (awake->descriptor != &semu_sapporo_239_gps_awake_layer &&
+         awake->descriptor != &semu_sapporo_239_gps_awake_five_layer &&
          awake->descriptor != &d->gps_awake_context.descriptor) ||
         (awake->descriptor == &d->gps_awake_context.descriptor &&
          awake->descriptor->interventions != &d->gps_awake_context.intervention) ||

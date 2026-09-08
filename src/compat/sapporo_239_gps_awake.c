@@ -18,10 +18,29 @@ const semu_layer_descriptor semu_sapporo_239_gps_awake_layer = {
     hashes, 3u, &intervention, 1u, 4u
 };
 
+static semu_layer_intervention five_intervention = {
+    "gps-awake-pulse", "queue synthetic GPIO24 pulse after 100ms, high for 1ms",
+    "E-SAP-GPS-FIFTH-239-002", 5u, 0u
+};
+const semu_layer_descriptor semu_sapporo_239_gps_awake_five_layer = {
+    "sapporo-2.39-gps-awake-five", SEMU_LAYER_DEVICE_FIXTURE,
+    "sapporo-2.39.20", "E-SAP-GPS-FIFTH-239-002",
+    hashes, 3u, &five_intervention, 1u, 5u
+};
+
+static const semu_layer_descriptor *canonical(const semu_layer_descriptor *d)
+{
+    if (d == NULL || d->id == NULL) return NULL;
+    if (strcmp(d->id, semu_sapporo_239_gps_awake_layer.id) == 0)
+        return &semu_sapporo_239_gps_awake_layer;
+    if (strcmp(d->id, semu_sapporo_239_gps_awake_five_layer.id) == 0)
+        return &semu_sapporo_239_gps_awake_five_layer;
+    return NULL;
+}
+
 int semu_sapporo_239_gps_awake_is_layer(const semu_layer_descriptor *d)
 {
-    return d != NULL && d->id != NULL &&
-        strcmp(d->id, semu_sapporo_239_gps_awake_layer.id) == 0;
+    return canonical(d) != NULL;
 }
 
 static int dependency_valid(const semu_layer_state *s)
@@ -38,13 +57,14 @@ semu_status semu_sapporo_239_gps_awake_validate(const semu_layer_state *state,
     const semu_layer_state *startup, const semu_layer_state *reopen,
     semu_error *error)
 {
+    const semu_layer_descriptor *definition = state == NULL ? NULL : canonical(state->descriptor);
     if (state == NULL || !state->enabled ||
-        !semu_sapporo_239_gps_awake_is_layer(state->descriptor) ||
+        definition == NULL ||
         state->descriptor->intervention_count != 1u ||
         state->descriptor->interventions == NULL ||
-        state->descriptor->maximum_hits != 4u ||
-        state->descriptor->interventions[0].max_hits != 4u ||
-        state->hits > 4u || state->hits != state->descriptor->interventions[0].hits ||
+        state->descriptor->maximum_hits != definition->maximum_hits ||
+        state->descriptor->interventions[0].max_hits != definition->maximum_hits ||
+        state->hits > definition->maximum_hits || state->hits != state->descriptor->interventions[0].hits ||
         !dependency_valid(startup) || !dependency_valid(reopen) ||
         !semu_sapporo_239_gps_is_layer(startup->descriptor) ||
         !semu_sapporo_239_gps_reopen_is_layer(reopen->descriptor) ||
@@ -63,6 +83,7 @@ semu_status semu_sapporo_239_gps_awake_bind(
 {
     if (c == NULL || state == NULL || logger == NULL ||
         (state->descriptor != &semu_sapporo_239_gps_awake_layer &&
+         state->descriptor != &semu_sapporo_239_gps_awake_five_layer &&
          state->descriptor != &c->descriptor) ||
         (state->descriptor == &c->descriptor &&
          c->descriptor.interventions != &c->intervention) ||
@@ -72,9 +93,9 @@ semu_status semu_sapporo_239_gps_awake_bind(
     }
     semu_status status = semu_sapporo_239_gps_awake_validate(state, startup, reopen, error);
     if (status != SEMU_OK) return status;
-    if (state->descriptor == &semu_sapporo_239_gps_awake_layer) {
-        c->descriptor = semu_sapporo_239_gps_awake_layer;
-        c->intervention = intervention;
+    if (state->descriptor != &c->descriptor) {
+        c->descriptor = *state->descriptor;
+        c->intervention = state->descriptor->interventions[0];
         c->descriptor.interventions = &c->intervention;
         state->descriptor = &c->descriptor;
     }
@@ -99,7 +120,8 @@ semu_status semu_sapporo_239_gps_awake_poll(
         c->state->descriptor != &c->descriptor ||
         c->descriptor.interventions != &c->intervention ||
         semu_sapporo_239_gps_awake_validate(c->state, c->startup, c->reopen, error) != SEMU_OK ||
-        c->startup->hits != 2u || c->reopen->hits != 2u || c->state->hits >= 4u) {
+        c->startup->hits != 2u || c->reopen->hits != 2u ||
+        c->state->hits >= c->descriptor.maximum_hits) {
         semu_error_set(error, SEMU_ERR_STATE, "2.39 GPS awake lifecycle or hit budget refused");
         return SEMU_ERR_STATE;
     }

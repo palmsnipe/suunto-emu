@@ -14,6 +14,7 @@ typedef struct semu_sapporo_239_gps_awake_context {
 } semu_sapporo_239_gps_awake_context;
 
 extern const semu_layer_descriptor semu_sapporo_239_gps_awake_layer;
+extern const semu_layer_descriptor semu_sapporo_239_gps_awake_five_layer;
 int semu_sapporo_239_gps_awake_is_layer(const semu_layer_descriptor *d);
 /* Preflight only; no counter, descriptor, callback or device mutation. */
 semu_status semu_sapporo_239_gps_awake_validate(const semu_layer_state *state,

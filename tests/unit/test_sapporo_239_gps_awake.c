@@ -10,7 +10,7 @@ static void test_sapporo_239_gps_awake_activation(semu_test_context *context)
     semu_error error;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_profile_load("profiles/sapporo/2.39.20/profile.semu", &profile, &error));
-    SEMU_TEST_EQ_U64(context, 4u, profile.layer_count);
+    SEMU_TEST_EQ_U64(context, 5u, profile.layer_count);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[3], "sapporo-2.39-gps-awake") == 0);
     const semu_layer_descriptor *d = &semu_sapporo_239_gps_awake_layer;
     const char *hashes[3];
@@ -56,10 +56,10 @@ static void receive(void *context, uint8_t value, uint64_t now)
     (void)context; (void)value; (void)now;
 }
 
-static int init(fixture *f, semu_error *e)
+static int init_layer(fixture *f, const semu_layer_descriptor *awake, semu_error *e)
 {
     const semu_layer_descriptor *descriptors[] = {&semu_sapporo_239_gps_layer,
-        &semu_sapporo_239_gps_reopen_layer, &semu_sapporo_239_gps_awake_layer};
+        &semu_sapporo_239_gps_reopen_layer, awake};
     memset(f, 0, sizeof(*f));
     f->log = tmpfile(); f->scheduler = semu_scheduler_create(e);
     f->bus = semu_bus_create(e); f->d.scheduler = f->scheduler;
@@ -85,6 +85,11 @@ static int init(fixture *f, semu_error *e)
     return semu_bus_write(f->bus, 0x1003694au, 2u, 0x0a0cu, e) == SEMU_OK &&
         semu_bus_write(f->bus, 0x100588a2u, 1u, 1u, e) == SEMU_OK &&
         semu_bus_write(f->bus, 0x40010060u, 4u, 0x93u, e) == SEMU_OK;
+}
+
+static int init(fixture *f, semu_error *e)
+{
+    return init_layer(f, &semu_sapporo_239_gps_awake_layer, e);
 }
 
 static void destroy(fixture *f)
@@ -130,12 +135,12 @@ static void test_sapporo_239_gps_awake_four_pulses(semu_test_context *context)
     destroy(&f); destroy(&other);
 }
 
-static void test_sapporo_239_gps_awake_refusals(semu_test_context *context)
+static void refusals(semu_test_context *context, const semu_layer_descriptor *definition)
 {
     for (unsigned mode = 0u; mode < 29u; ++mode) {
         fixture f; semu_error e; semu_snapshot_writer before, after;
         uint64_t id, seq, hits; size_t count; unsigned signals; long log_end;
-        SEMU_TEST_ASSERT(context, init(&f, &e));
+        SEMU_TEST_ASSERT(context, init_layer(&f, definition, &e));
         if (mode == 0u) f.layers[2].enabled = 0;
         if (mode <= 6u && mode >= 1u) {
             static const unsigned regs[] = {0u, 2u, 4u, 5u, 6u, 7u};
@@ -160,7 +165,7 @@ static void test_sapporo_239_gps_awake_refusals(semu_test_context *context)
         if (mode == 23u) f.d.gps_awake_context.intervention.max_hits = 0u;
         if (mode == 24u) f.layers[2].hits = 1u;
         if (mode == 25u) f.d.gps_awake_context.intervention.hits = 1u;
-        if (mode == 26u) f.layers[2].hits = f.d.gps_awake_context.intervention.hits = 4u;
+        if (mode == 26u) f.layers[2].hits = f.d.gps_awake_context.intervention.hits = definition->maximum_hits;
         if (mode == 27u) f.d.gps_awake_context.startup = NULL;
         if (mode == 28u) f.d.gps_awake_context.reopen = NULL;
         id = f.scheduler->next_id; seq = f.scheduler->next_sequence;
@@ -179,6 +184,11 @@ static void test_sapporo_239_gps_awake_refusals(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, log_end, ftell(f.log));
         semu_snapshot_writer_destroy(&before); semu_snapshot_writer_destroy(&after); destroy(&f);
     }
+}
+
+static void test_sapporo_239_gps_awake_refusals(semu_test_context *context)
+{
+    refusals(context, &semu_sapporo_239_gps_awake_layer);
 }
 
 static void test_sapporo_239_gps_awake_binding(semu_test_context *context)

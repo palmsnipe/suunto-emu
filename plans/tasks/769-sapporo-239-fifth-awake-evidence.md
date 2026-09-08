@@ -1,6 +1,6 @@
 # 769 — Sapporo 2.39 Fifth GPS Awake Evidence
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 759,768
 
@@ -179,3 +179,10 @@ Do not silently raise the existing bound or migrate diagnostic snapshots.
 After that, measure the complete additional personal-save suffix before
 changing its file ceiling. Neither a larger storage allowance nor runtime
 GPS implementation is included in this evidence task.
+
+### Integrator acceptance, 2026-09-08
+
+Separate planning review accepts evidence commit `15c2a53`: native fifth IRQ,
+three phase restores, repeated/sanitized traces and missing/late controls all
+meet acceptance. No production behavior changed. Ticket 771 owns the optional
+five-pulse integration; the personal-save suffix remains a later evidence task.

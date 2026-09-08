@@ -206,6 +206,8 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         descriptor = &semu_sapporo_239_gps_reopen_layer;
     } else if (strcmp(id, semu_sapporo_239_gps_awake_layer.id) == 0) {
         descriptor = &semu_sapporo_239_gps_awake_layer;
+    } else if (strcmp(id, semu_sapporo_239_gps_awake_five_layer.id) == 0) {
+        descriptor = &semu_sapporo_239_gps_awake_five_layer;
     } else {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unknown layer %s", id);
         return SEMU_ERR_UNSUPPORTED;

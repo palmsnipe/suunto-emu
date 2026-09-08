@@ -1430,6 +1430,54 @@ historical identity/refusals and explicitly select extended fixture behavior;
 do not silently repin existing gates. The subsequent personal save is a
 separate evidence task. Ticket 769 records exact commands and results.
 
+#### Ticket 771 production integration verification
+
+2026-09-08; evidence commit `15c2a53`. The production implementation adds
+the separately selected `sapporo-2.39-gps-awake-five` alternative. It retains
+the measured predicates and pulse shape, pins its bound to five, and rejects
+simultaneous variants and cross-identity snapshot loads. The four-pulse layer
+is unchanged. No CPU, snapshot format, file budget or receiver response changes.
+
+The new in-tree private probe generates its starting checkpoint from cold native
+execution using the previously measured input edges. Its boundary helper checks
+both count and time: WFI can advance time without retiring an instruction, so
+matching count alone could inject an edge too early. Bounded native dispatches
+reach the measured time without mutating CPU/time or changing execution semantics.
+
+| New-identity production artifact | SHA-256 |
+| --- | --- |
+| Cold prefix, `3960123530 / 32455738919` | `6e67094057d9510874a3766ced6372066fc134c1014840a0908a990266afa6de` |
+| Pending rise | `83ddd7933cc11667595277e53ba19ef14cbc84c658b246aee91d6d5066dc614f` |
+| IRQ entry, `3962901511 / 32555739360` | `14f8dfd79dfcbf5ec2035025cf8e1bf02ac3ef59619b8fc1d985f309331f49f2` |
+| High after native STRB | `4c59bc416db19638a06a925880b6af3dc2e470cd3dca9e898aa3589e40e3f894` |
+| Fallen | `f2f88ecc28fcd7968cd94e0ec09bc87f2cdfcc6be2c6525a0a45eaf0c341a028` |
+| Idle final / atomic refusal retry | `d5244833987e6801192af15f0c57077eba2d23329fbaa4e09a6ccc4ec5b455c1` |
+| MIDDLE final / atomic refusal retry | `2224b55ed72f0cac548fa80117787ae5b049f5783f10a8b6730f5ea1a0936467` |
+| One-hit log | `18a7d21d6d2dd42c1e7841530dd340bfdb103257310588c6195e5aba5bbea93c` |
+| MIDDLE trace | `0ea2119eed8b56107a023ce2b932607af2fcf8c3758ff90229e8abe441519cb7` |
+
+The production idle and MIDDLE finals have exactly the diagnostic state above
+apart from their serialized layer ID. A test-only snapshot comparison removes
+only the new ID's `-five` suffix and matches the old diagnostic hashes. That
+comparison image is never loaded or executed; runtime migration remains refused.
+The new private gate repeats both branches, restores pending/IRQ/high/fallen
+snapshots to the exact idle final, and checks input/component/hash and duplicate
+selection refusals. MIDDLE reproduces all 69 frame publications and the exact
+HEIGHT pixel hash above, then stops at the unchanged personal-file budget.
+
+All 836 normal and sanitizer tests, 138 task contracts, the new private gate,
+legacy four-pulse and personal-budget private gates, SDL build and 2.22.60 live
+input pass. An independent production ASan/UBSan MIDDLE continuation matches
+normal trace/log/final bytes. Source flash retains its initial SHA-256.
+External verification artifacts are `/tmp/semu-771.BtFo6c/`; source
+`tests/integration/sapporo_239_five_probe.c` SHA-256 is
+`44b91b22702a85729ab9295ead3aa40ac59b28cda6acbeaa9d7b0669d9bdb1ab`,
+production awake source `f09cd4e5fdb4979d4934c2cb61b9c0820c8f1fcfeba280870d17583b9bd3279d`,
+and library `dae599fb003ea6c24b0f627d600b7f7b58e6fe4757c7b1036b45aa5bdb440901`.
+Ticket 771 records commands and handoff; status awaits separate review.
+No sixth pulse, physical cadence, GPS fix/time, additional file allowance,
+completed setup, watch face or post-setup menu is established by this integration.
+
 ### E-SAP-UI-PERSONAL-239-001
 
 2026-09-08; bounded read-only follow-on observation using ticket 763's normal

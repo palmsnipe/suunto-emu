@@ -5,7 +5,8 @@
 #include "../../src/frontends/cli_snapshot.c"
 #include "../../src/display/nema_backend.h"
 
-static semu_machine *synthetic_machine(char path[128], semu_logger *logger, semu_error *e)
+static semu_machine *synthetic_machine_layer(char path[128], semu_logger *logger,
+    const semu_layer_descriptor *awake, semu_error *e)
 {
     static const uint8_t program[36] = {
         0u, 1u, 0u, 0x10u, 0x21u, 0u, 0u, 0u, [32] = 0u, 0xbfu, 0u, 0xbeu
@@ -31,7 +32,7 @@ static semu_machine *synthetic_machine(char path[128], semu_logger *logger, semu
     m = semu_machine_create(&o, e); if (!m) return NULL;
     /* Synthetic-only binding. Production creation retains all exact hashes. */
     const semu_layer_descriptor *d[] = {&semu_sapporo_239_gps_layer,
-        &semu_sapporo_239_gps_reopen_layer, &semu_sapporo_239_gps_awake_layer};
+        &semu_sapporo_239_gps_reopen_layer, awake};
     m->layer_count = 3u;
     for (unsigned i = 0u; i < 3u; ++i)
         if (semu_layer_enable(&m->layers[i], d[i], p.id, e) != SEMU_OK) goto fail;
@@ -43,6 +44,11 @@ static semu_machine *synthetic_machine(char path[128], semu_logger *logger, semu
     return m;
 fail:
     semu_machine_destroy(m); return NULL;
+}
+
+static semu_machine *synthetic_machine(char path[128], semu_logger *logger, semu_error *e)
+{
+    return synthetic_machine_layer(path, logger, &semu_sapporo_239_gps_awake_layer, e);
 }
 
 static void equal(semu_test_context *context, semu_snapshot *a, semu_snapshot *b)
