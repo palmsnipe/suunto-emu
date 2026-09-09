@@ -109,5 +109,43 @@ new dependency, index/status update or weakened golden.
 
 ## Handoff
 
-Planning baseline only.
+Evidence complete 2026-09-09; recorded as E-SAP-COMPAT-PERSONAL-SUFFIX-239-001.
+Outcome: under a separately linked diagnostic ceiling (77,111/77,114 =
+production + 512), the mode-two `settings/personal` save triggered at the
+WEIGHT → HEIGHT boundary completes as exactly 68 operations (open handle
+`0x10161600`, 66 successful contiguous 1,727-byte writes with the birth-year
+save's exact size sequence, close returning one at ordinal 76,667). Serializer
+returns one at `0x000adb3c` (4,233,060,376 / 34,413,753,414 ns, pending
+`+0x145` = 1); close/flag-clear complete at `0x000adb48` (4,233,060,380 /
+34,413,753,418 ns). The unchanged adapter ABI suffices; no ABI correction.
+The screen remains HEIGHT (CRC `cd4c0a99`) and the next independent refusal
+is the sixth GPS-awake admission, not a file refusal: `001291cc` /
+`lr=000d3c35` / 4,345,171,340 / 37,899,807,613 ns with gps_hits 2,2,5. The
+file layer is not binding anywhere through the save. Proposed finite
+production scope: **76,667 logical / 76,670 aggregate** (+68 measured), to be
+applied by a separate integration ticket; the diagnostic 512 margin is not
+proposed.
+
+Verification: prefix `6e670940…` cold-regenerated and hash-validated; two
+clean repeats byte-identical in trace and adapter log; third instrumented run
+identical modulo probe output; mid-save capture after open + 33/66 writes at
+`0x000af814` / 4,232,964,397 / 34,413,657,435 ns (snapshot `e343e340897a…`)
+resumes to byte-identical final/refused snapshots (`41c65d4626481ddd…`);
+refusal-start repeat re-emits the identical refusal atomically; no-input
+control reproduces the accepted 771 idle pin `001291cc / 4071207676 /
+37929735196` exactly. Full flash validated at
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`; probe
+source `e8157f288a4654c7ea9d9b75540d155c038096a2dc7dbd8e43d068b28a1daa8b`,
+diagnostic descriptor `31e2c1ed652e312ec11da351ce979494fa67beeef2d19672d0abf09f91074b27`.
+Commands: `cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc
+-Isrc/devices -Isrc/compat probe.c sapporo_239_diag.c build/libsemu.a` (plus
+`-DMID_HITS=76636u -DMID_START=UINT64_C(4232900000)` for the mid variant),
+then `./probe <manifest> <full-flash> <start.sems> <start-hash> <out-prefix>
+suffix|idle|resume`.
+
+Remaining gaps: whether the HEIGHT selection was accepted and which input
+follows the completed save are unmeasured (the sixth-admission refusal bounds
+continuation at 37,899,807,613 ns); watch-face activation and post-setup
+menus remain unproven. Production ceilings, profiles, registries and goldens
+untouched; status remains `ready` for integrator review.
 

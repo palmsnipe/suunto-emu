@@ -1553,6 +1553,31 @@ manual-entry chain and negative phone-time result both fully evidenced.
 Also corrected here: ticket 740 is blocked on dependency 730 (Ulsan product
 evidence), not on tickets 736/737 review.
 
+## Personal Save Suffix Evidence (Ticket 772)
+
+Ticket 772 measured the complete native HEIGHT-boundary personal save with an
+external probe and a separately linked diagnostic ceiling of 77,111 logical /
+77,114 aggregate (production + 512; not a proposal), starting from the cold
+five-identity prefix. The save that production refuses at `000920b4` completes
+as exactly 68 operations: mode-two open, 66 successful contiguous writes
+totalling 1,727 bytes (the birth-year save's exact size sequence), close
+returning one at ordinal 76,667. The serializer returns one at `0x000adb3c`
+(4,233,060,376 / 34,413,753,414 ns) with object `0x10035500` pending byte
+`+0x145` still one; close and flag clear finish at `0x000adb48` four
+instructions later. The unchanged adapter ABI suffices. The screen stays on
+HEIGHT (CRC `cd4c0a99`) and execution reaches the next independent boundary —
+the sixth GPS-awake admission refusal at `001291cc`, instruction
+4,345,171,340 / 37,899,807,613 ns with gps_hits 2,2,5 — not a file refusal;
+the file layer is not the binding limit anywhere through the save. Two clean
+repeats, an instrumented third run, a mid-save resume (after open and 33/66
+writes, snapshot `e343e340…`), an atomic refusal-start repeat and the
+unperturbed 771 idle control all agree byte-for-byte on final snapshot
+`41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa`. The
+measured finite production scope is 76,667 logical / 76,670 aggregate (+68),
+to be applied only by a separate integration ticket. Whether the HEIGHT
+selection is accepted and which input follows remain unmeasured
+(E-SAP-COMPAT-PERSONAL-SUFFIX-239-001).
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1565,13 +1590,13 @@ without manufacturing a roadmap row. The practical work queue is:
   pins; no private backend API or repinning is needed.
 - Tickets 762–764, 766–769, and 771 are accepted. The measured fifth pulse is
   not permission for a sixth or an indefinite heartbeat; explicit selection,
-  the existing four-pulse layer and historical refusals remain preserved. The
-  next work is a new evidence-only ticket measuring the complete native
-  personal-settings save suffix exposed by WEIGHT → HEIGHT, whose current
-  precise refusal is `settings/personal` mode two at PC `0x000920b4`,
-  LR `0x000adb2f`, instruction 4,232,903,136 / 34,413,596,174 ns against the
-  accepted 76,599 ceiling, before any file budget is changed.
-  Subsequent profile choices, watch-face activation and menu navigation remain
+  the existing four-pulse layer and historical refusals remain preserved.
+  Ticket 772 has measured the complete HEIGHT-boundary personal save (68
+  operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001) and awaits review; the
+  next work is a separate integration ticket applying
+  exactly the measured 76,667 logical / 76,670 aggregate ceiling with its own
+  gates, before any further profile choice is attempted. Subsequent profile
+  choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
   indefinite heartbeat or assertion bypass is authorized by this observation.

@@ -1122,6 +1122,93 @@ All 831 normal and sanitizer cases, 46 focused Sapporo 2.39 cases, four
 machine-snapshot cases, the personal/general/activity/GPS private gates and
 2.22.60 SDL live-input gate pass. No later path or GPS behavior is admitted.
 
+### E-SAP-COMPAT-PERSONAL-SUFFIX-239-001
+
+2026-09-09; ticket 772 against accepted five-pulse integration (tickets
+769/771, commits `0826523` and `29d74db`). No production source changes in
+this evidence work. An external probe (`probe.c` SHA-256
+`e8157f288a4654c7ea9d9b75540d155c038096a2dc7dbd8e43d068b28a1daa8b`) reuses the
+committed four-layer set `sapporo-2.39-synthetic-wbsto`, `gps-startup`,
+`gps-reopen` and `gps-awake-five`, the normal NEMA backend and the unchanged
+file adapter, linked against a separately compiled descriptor copy
+`sapporo_239_diag.c` (`31e2c1ed652e312ec11da351ce979494fa67beeef2d19672d0abf09f91074b27`)
+that substitutes only the file ceilings with **77,111 logical / 77,114
+aggregate** (production plus 512 diagnostic operations). This is not a
+production proposal. Bounds: six billion instructions, 45 billion virtual ns,
+5,000 changed frames. Every run validates the manifest, three components and
+the full flash `37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`
+before execution and starts from the cold-regenerated five-identity prefix
+`6e67094057d9510874a3766ced6372066fc134c1014840a0908a990266afa6de`.
+Production remains **76,599 / 76,602**.
+
+Under the diagnostic ceiling the mode-two `settings/personal` open that
+production refuses at 4,232,903,136 / 34,413,596,174 ns begins identically
+and completes as **68 accepted operations**: mode-two open handle
+`0x10161600`, **66 successful contiguous writes totalling 1,727 bytes** with
+the exact ordered write-size sequence of the first birth-year save in
+E-SAP-COMPAT-PERSONAL-239-001, and close returning one at ordinal 76,667.
+The wbsto aggregate moves 76,602 → 76,670; GPS startup/reopen/awake hits
+remain 2, 2 and 5. No read, seek, flush or truncate intervenes. One-step
+observation of the pristine wrapper repeats the 764 shape: the serializer
+returned one at PC `0x000adb3c`, instruction 4,233,060,376 / 34,413,753,414
+ns, object `0x10035500` pending byte `+0x145` still one; close and flag
+clear complete at PC `0x000adb48`, instruction 4,233,060,380 /
+34,413,753,418 ns, pending byte zero. The wrapper still does not test the
+serializer result, so adapter `result=` evidence remains required.
+
+The save is UI-invisible at this boundary. The screen stays on HEIGHT; the
+last accepted frame is unchanged at CRC `cd4c0a99`, SHA-256
+`33339448cbcfafa47bd9d0ed4e37b61abd43062acf95f2bf7470ebefae921072`
+(75 accepted submissions). Execution continues natively to the next
+independent boundary, which is the sixth GPS-awake admission refusal, not a
+file refusal:
+
+```text
+compat-refused pc=001291cc lr=000d3c35 instructions=4345171340 time=37899807613
+r0=00000001 r1=00000005 r2=0000000c gps_hits=2,2,5
+error=2.39 GPS awake lifecycle or hit budget refused
+```
+
+No file operation, save or renderer refusal occurs between the close above
+and this refusal; the 444 remaining diagnostic operations were never
+approached, so the file layer is not the binding limit anywhere through the
+HEIGHT save. The accepted 771 idle control tuple `001291cc / 4071207676 /
+37929735196` is unchanged under the diagnostic ceiling, proving no GPS
+lifecycle perturbation.
+
+Protocol: two clean repeat runs share one byte-identical trace and adapter
+log; a third run with one-step save observation differs from them only by
+probe output lines; all three plus both resumes share one final snapshot.
+The mid-save capture is after the open and 33 of 66 writes (through ordinal 76,633),
+PC `0x000af814`, instruction 4,232,964,397 / 34,413,657,435 ns, snapshot
+`e343e340897a72dceb71ea9c8fbbb319e65eb7463141f3f944e6c9fc7161b7a3`. Mid-save
+resume reproduces the remaining operations, both SAVE tuples, the exact
+refusal tuple and the final and refused snapshots; a refusal-start repeat
+re-emits the identical refusal with the snapshot unchanged (atomic: the
+refused image equals the final image).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Clean repeat trace pair | `76c0ffc1ff0bd31e9325e468d446f8dc8b9bd15b42de3027e4fd08f73dff38b7` |
+| Clean repeat adapter log pair | `a79b6362bfb2299d23087ef60b1e9df7269e053488c427471a4faaa7f138f65b` |
+| Instrumented trace (mid-save and save tuples) | `46993fb7a092767899ad85abb131357330587c7431d0b96406636e604e94a9a4` |
+| Mid-save snapshot | `e343e340897a72dceb71ea9c8fbbb319e65eb7463141f3f944e6c9fc7161b7a3` |
+| Mid-save resume trace | `9447f5d92169bfc5ca6038c166bada12b9ad597910afa555e4df61ed43511ac1` |
+| Refusal-start trace | `6e259d035bb48e9cc472af6506e62a907e67281135f29f297a519057d8effad8` |
+| Idle control trace | `76f3cbb825af28a2be93de80a32124b5ddd482b9c024e1b21b092d8df960d807` |
+| Final snapshot (all five continuing runs) | `41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa` |
+
+The unchanged adapter ABI carried the whole save; no ABI correction is
+indicated. The proposed separate production integration is therefore
+**76,667 logical / 76,670 aggregate** — the measured 68 additional
+operations exactly — not the 512 diagnostic operations or an unbounded
+budget. Applying it, naming its gates and tests belongs to a separate
+integration ticket. Whether the HEIGHT selection itself was accepted, and
+which input follows the completed save, remain unmeasured: the sixth-admission
+refusal bounds any continuation at 37,899,807,613 ns. No firmware bytes,
+settings payloads or frame pixels enter Git; all artifacts, both binaries and
+the prefix snapshot remain under `/tmp/semu-772-suffix/`.
+
 ### E-SAP-TIME-SCHEMA-239-001
 
 2026-09-08; read-only static analysis of the pristine Sapporo
