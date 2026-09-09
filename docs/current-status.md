@@ -1645,10 +1645,12 @@ without manufacturing a roadmap row. The practical work queue is:
   2026-09-09. Evidence ticket 774 measured the post-save continuation under
   a bounded diagnostic GPS-awake raise: the firmware neither saves again nor
   changes the UI, then issues its own SCB system reset roughly 23 seconds
-  later (E-SAP-GPS-CONTINUATION-239-001), and it awaits integrator
-  acceptance. Further 2.39 continuation now requires physical evidence of
+  later (E-SAP-GPS-CONTINUATION-239-001) and was accepted by integrator
+  review on 2026-09-09 with every recorded control reproduced byte-for-byte
+  from rebuilt probes. Further 2.39 continuation now requires physical evidence of
   GPS behavior beyond the fifth pulse (or a GSTP-time contract), not another
-  ceiling raise; ticket 774 integrates nothing. Subsequent profile
+  ceiling raise; ticket 774 integrates nothing, and that evidence gap is
+  registered as blocked ticket 776 naming the exact required captures. Subsequent profile
   choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,

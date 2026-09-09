@@ -1,6 +1,6 @@
 # 774 — Sapporo 2.39 Post-Save Continuation Evidence
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,766,771,772,773
 
@@ -121,3 +121,27 @@ that, not a ceiling, bounds further continuation; HEIGHT-selection visual
 acceptance remains unasserted (no frame change to pin). Integrator review
 should rebuild both probe variants from the recorded sources and re-run the
 control pair plus one continuation before flipping 774.
+
+## Integrator Acceptance
+
+Accepted 2026-09-09. Acceptance binaries were rebuilt from the recorded
+sources (`probe774.c` `b46eccf82e3d17dcc749af63c20e67cb781f03b2324d3cccb782a27a162efd92`,
+`probecap.c` `598de23c7d24aea78a6b2d8a8e1360ce12f66dfe7e1464883ec29926d2442642`,
+`awake_diag.c` `3f3377c2d93ae75f2afaa38ab377e921b12388d4b1c84a15490ef2e451153cee`,
+derivative capped source `10af6d93686d2470f90ef1292183405ce0869e909d791cc4d4b2bd9f9f232e52`,
+with `build/libsemu.a` unchanged at `25f1f6d51e213ee4a5d1fd5c764e3c3c240145df815263c23a84fa22e7acda16`).
+The idle and post-save pre-admission control pairs and the full post-save
+continuation were rerun in parallel and every artifact reproduced the ledger
+byte-for-byte: idle control pair `e46aa7e6c57bb90491f84f74aa9cb10f2b2f7eeb1189938351e73acc5ea5b41e`,
+post-save pair `6c3e261bc4bb76456ecdee1f506cb42ff7d30d7425cfe5cf09a4b785ce812ad2`,
+continuation final `411e3551a95a33aa0fb8afbc756ed9b6f27fe94adf1e7959c83d096d0916c6c8`,
+trace `04723096035b034741c0e381aca28187188e185e27301ff4543d689834e5a0aa`,
+log `ed0f31b0e5837c58f7320ba752e5bd6233f26c0364914023922fca9325a9e637`,
+reset tuple `0x000d2f6e / 4,875,799,883 / 60,779,430,750 ns /
+compat_hits=76670`. The three private gates (gps-five, gps-awake,
+personal-budget) re-ran green with unchanged pins; the accepted-file list was
+respected (`git status` showed only docs/plans). Diagnostic-grant framing is
+explicit in E-SAP-GPS-CONTINUATION-239-001. Remaining gaps accepted as
+stated: physical GPS behavior beyond the fifth pulse is unobserved and is
+now registered as blocked ticket 776; HEIGHT-selection visual acceptance
+remains unasserted.

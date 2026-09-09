@@ -136,7 +136,8 @@ id	phase	title	status	dependencies	ticket
 771	7	Sapporo 2.39 Optional Five-Pulse GPS Integration	done	759,768,769	plans/tasks/771-sapporo-239-five-awake-integration.md
 772	7	Sapporo 2.39 Personal Save Suffix Evidence	done	729,766,771	plans/tasks/772-sapporo-239-personal-save-suffix-evidence.md
 773	7	Sapporo 2.39 Personal Save Suffix Budget Integration	done	729,766,771,772	plans/tasks/773-sapporo-239-personal-save-suffix-budget.md
-774	7	Sapporo 2.39 Post-Save Continuation Evidence	ready	729,766,771,772,773	plans/tasks/774-sapporo-239-post-save-continuation-evidence.md
+774	7	Sapporo 2.39 Post-Save Continuation Evidence	done	729,766,771,772,773	plans/tasks/774-sapporo-239-post-save-continuation-evidence.md
 775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md
+776	7	Sapporo 2.39 GPS Physical Post-Acquisition Evidence	blocked	771,774	plans/tasks/776-sapporo-239-gps-physical-post-acquisition-evidence.md
 780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md
 790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md
