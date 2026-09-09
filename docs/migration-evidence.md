@@ -1224,6 +1224,85 @@ rule). The cold prefix `6e670940…`, the idle-branch pins `d5244833…` and
 `127214e5…`, every four-pulse checkpoint and the 2.22.60 gate are unchanged,
 because none of those runs attempts an operation beyond ordinal 76,599.
 
+### E-SAP-GPS-CONTINUATION-239-001
+
+2026-09-09; ticket 774 against accepted integration ticket 773. No
+production source changes. This entry measures what the firmware attempts
+after the completed HEIGHT personal save when the five-pulse GPS-awake
+ceilings are raised in a diagnostic-only build, and what the next boundary
+then is. One separately compiled copy of `src/compat/sapporo_239_gps_awake.c`
+(SHA-256 `3f3377c2d93ae75f2afaa38ab377e921b12388d4b1c84a15490ef2e451153cee`)
+raises exactly two constants — the five-pulse intervention maximum and the
+awake-five layer aggregate, 5 to 25 — and is linked ahead of
+`build/libsemu.a` (run-time SHA-256
+`25f1f6d51e213ee4a5d1fd5c764e3c3c240145df815263c23a84fa22e7acda16`) so the
+awake registry, application and snapshot identities stay self-consistent.
+File budgets stay at production 76,667 / 76,670; nothing else differs.
+
+Because the sixth admission hook fires at instruction start, no snapshot can
+straddle it; byte-identity was therefore proven at the last preceding
+instruction with time-capped control runs of identical probe sources
+(`b46eccf82e3d17dcc749af63c20e67cb781f03b2324d3cccb782a27a162efd92`,
+`598de23c7d24aea78a6b2d8a8e1360ce12f66dfe7e1464883ec29926d2442642`) linked
+against the production library and against the diagnostic copy. Idle stops
+at 4,071,207,675 instructions / 37,929,735,195 ns, PC `0x001291ca`,
+snapshot `e46aa7e6c57bb90491f84f74aa9cb10f2b2f7eeb1189938351e73acc5ea5b41e`;
+the accepted-post-save branch stops at 4,345,171,339 / 37,899,807,612 ns,
+PC `0x001291ca`, snapshot `6c3e261bc4bb76456ecdee1f506cb42ff7d30d7425cfe5cf09a4b785ce812ad2`;
+both snapshots and the whole adapter log are byte-identical between the two
+link variants, so the raise provably does not disturb the cold prefix
+(`6e67094057d9510874a3766ced6372066fc134c1014840a0908a990266afa6de`,
+regenerated identically), pulses one through five, the 773 refusal tuples,
+or any state before the first diagnostic grant.
+
+With the sixth admission granted, the idle control logs the ordinal-6
+`gps-awake-pulse` line and then performs no further wake, save or UI change:
+at PC `0x000d2f6e` / LR `0xffffffed` / r0 `0x05fa0004` / r1 `0xe000ed0c` /
+r3 `0x01000000` / xPSR `0x21000003` the firmware writes SCB AIRCR
+VECTKEY|SYSRESETREQ — a genuine firmware system-reset request — at
+4,536,286,836 instructions / 60,828,679,535 ns (`reset_count=1`,
+`compat_hits=76602`). The emulator models the reset internally per
+E-CPU-0006 (no host-side action); the post-reset machine then reaches
+`SEMU_STOP_HALT` at PC `0x00079e1e`, 4,592,622,963 / 61,142,551,099 ns,
+final snapshot `bd5004c0cabe0ce0857bd9167a15ea5a77c10c4a545aa13ad6301dde8d96f35b`.
+The post-save branch is identical in structure: after the accepted save it
+performs no further writable file operation (still 68 personal-save
+operations, `compat_hits=76670` at reset), emits no new frame (frames stay
+75, CRC `cd4c0a99`, SHA `33339448…`), requests the same reset at
+4,875,799,883 / 60,779,430,750 ns, and halts at the same post-reset PC,
+4,932,136,015 / 61,093,302,319 ns, final snapshot
+`411e3551a95a33aa0fb8afbc756ed9b6f27fe94adf1e7959c83d096d0916c6c8`.
+Repeat runs are byte-identical (trace pair
+`04723096035b034741c0e381aca28187188e185e27301ff4543d689834e5a0aa`, log pair
+`ed0f31b0e5837c58f7320ba752e5bd6233f26c0364914023922fca9325a9e637`, idle
+trace `ac9f7eae3bb5df5075f063ceb1dfd76990908845bd787aa3c99e152ad636430f`,
+idle log `0c36f724ca391b9c0b1073498e6cd17f9e95250908592290cff754b5bcd0adac`);
+resuming from the post-grant sixth-admission snapshot
+`2b5c43a4808462f2a3ad94ba3ac0eaae6716b7085cf2b4f416bccd6e52b61af2`
+reproduces each final snapshot byte-for-byte.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Diagnostic awake copy (5→25, two constants) | `3f3377c2d93ae75f2afaa38ab377e921b12388d4b1c84a15490ef2e451153cee` |
+| Pre-admission idle control pair (both link variants) | `e46aa7e6c57bb90491f84f74aa9cb10f2b2f7eeb1189938351e73acc5ea5b41e` |
+| Pre-admission post-save control pair (both link variants) | `6c3e261bc4bb76456ecdee1f506cb42ff7d30d7425cfe5cf09a4b785ce812ad2` |
+| Diagnostic idle final | `bd5004c0cabe0ce0857bd9167a15ea5a77c10c4a545aa13ad6301dde8d96f35b` |
+| Diagnostic post-save final | `411e3551a95a33aa0fb8afbc756ed9b6f27fe94adf1e7959c83d096d0916c6c8` |
+| Post-grant sixth-admission snapshot (post-save) | `2b5c43a4808462f2a3ad94ba3ac0eaae6716b7085cf2b4f416bccd6e52b61af2` |
+
+Limitations: the sixth and later wakes are diagnostic grants, not physical
+observations; E-SAP-GPS-FIFTH-239-002 remains the physical bound of five
+pulses and production keeps the unchanged sixth-admission refusal. What
+this entry does establish is that if wake admission ever continued, the
+2.39 firmware's own next actions would be: no second save and no UI change
+after the HEIGHT save, then a self-initiated SCB system reset roughly 23
+seconds later, ending (post-reset, in this emulator) in a halt at
+`0x00079e1e` before any frame. Further 2.39 profile continuation therefore
+requires physical evidence of GPS behavior beyond the fifth pulse (or a
+GSTP-time contract), not a ceiling raise. All artifacts, binaries and
+snapshots remain under `/tmp/semu-774-postsave/`; no payload or firmware
+byte enters Git.
+
 ### E-SAP-TIME-SCHEMA-239-001
 
 2026-09-08; read-only static analysis of the pristine Sapporo

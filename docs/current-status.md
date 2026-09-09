@@ -1602,8 +1602,28 @@ fourth measured save to exactly 76,667 and then the unchanged budget refusal;
 history, general and activity budget tests and the descriptor pins moved to
 76,667/76,670 with the unchanged `+3` aggregate relation. All 51 filtered
 unit passes, all three private gates, `make sanitize`, `make check` and 140
-task contracts pass. Post-save selection and follow-on input remain
-unmeasured; the sixth-admission refusal still bounds the run.
+task contracts pass. Post-save continuation was subsequently measured by
+ticket 774 (E-SAP-GPS-CONTINUATION-239-001).
+
+## Post-Save Continuation Evidence (Ticket 774)
+
+Ticket 774 measured the continuation past the completed HEIGHT save with a
+diagnostic-only raise of the five-pulse awake ceilings (5→25, two constants
+in a separately compiled copy; production untouched). Time-capped control
+runs prove the production and diagnostic builds byte-identical at the last
+instruction before the sixth admission on both branches (idle
+`e46aa7e6…`, post-save `6c3e261b…`, log pairs equal), so pulses one
+through five and every 773 tuple are undisturbed. With the sixth wake
+granted, neither branch saves again or changes the UI: the firmware issues
+a genuine SCB AIRCR VECTKEY|SYSRESETREQ system-reset request at PC
+`0x000d2f6e` (idle 4,536,286,836 / 60,828,679,535 ns, `compat_hits=76602`;
+post-save 4,875,799,883 / 60,779,430,750 ns, `compat_hits=76670`, frames
+frozen at 75/CRC `cd4c0a99`), the emulator models the reset internally per
+E-CPU-0006, and each post-reset machine halts at `0x00079e1e`
+(finals `bd5004c0…` idle, `411e3551…` post-save) with repeats and
+post-grant mid-continuation resumes byte-identical. Sixth-and-later wakes
+remain diagnostic grants; production keeps five admissions and the
+unchanged sixth-admission refusal.
 
 ## Next Actionable Work
 
@@ -1622,10 +1642,13 @@ without manufacturing a roadmap row. The practical work queue is:
   operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001), accepted 2026-09-09, and
   integration ticket 773 applied exactly the measured 76,667 logical /
   76,670 aggregate ceiling with its repinned gates and was accepted
-  2026-09-09. The next work is evidence ticket 774 for the post-save
-  continuation boundary (what the firmware does after the completed HEIGHT
-  save, measured under a bounded diagnostic GPS-awake raise) before any
-  further profile choice is attempted. Subsequent profile
+  2026-09-09. Evidence ticket 774 measured the post-save continuation under
+  a bounded diagnostic GPS-awake raise: the firmware neither saves again nor
+  changes the UI, then issues its own SCB system reset roughly 23 seconds
+  later (E-SAP-GPS-CONTINUATION-239-001), and it awaits integrator
+  acceptance. Further 2.39 continuation now requires physical evidence of
+  GPS behavior beyond the fifth pulse (or a GSTP-time contract), not another
+  ceiling raise; ticket 774 integrates nothing. Subsequent profile
   choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
