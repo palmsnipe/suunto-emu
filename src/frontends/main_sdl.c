@@ -5,6 +5,8 @@
 
 #include "semu/hash.h"
 
+#include "../display/present_coalesce.h"
+
 #include "sdl_present_core.c"
 #include "sdl_options.c"
 #include "sdl_present.c"
@@ -36,6 +38,8 @@ typedef struct sdl_frontend {
     const char *live_checkpoint_label;
     const char *ppm_dump_dir;
     uint32_t ppm_last_crc;
+    uint64_t last_now_ns;
+    semu_present_coalescer *coalesce;
     semu_sdl_live_test live_test;
 } sdl_frontend;
 
@@ -106,54 +110,7 @@ static void observe_live_input(sdl_frontend *frontend,
                                     frontend->frame_count, input);
 }
 
-static void publish_frame(void *context, const semu_frame *frame)
-{
-    sdl_frontend *frontend = (sdl_frontend *)context;
-    semu_error error;
-    uint64_t now_ns = 0u;
-    uint32_t crc = 0u;
-    if (frontend->failed) {
-        return;
-    }
-    semu_error_clear(&error);
-    if (sdl_presenter_present(frontend->presenter, frame, &error) !=
-        SEMU_OK) {
-        fprintf(stderr, "SDL present: %s\n", error.text);
-        frontend->failed = 1;
-        return;
-    }
-    frontend->viewport_height = frame->height * frontend->scale;
-    semu_sdl_input_set_viewport_height(frontend->input_adapter,
-                                       frontend->viewport_height);
-    if (frontend->frame_count == 0u || frontend->live_test.enabled) {
-        crc = semu_crc32(0u, frame->pixels, frame->size);
-    }
-    if (frontend->frame_count == 0u) {
-        fprintf(stderr,
-                "SDL first-frame width=%u height=%u generation=%llu "
-                "crc32=%08x\n",
-                frame->width, frame->height,
-                (unsigned long long)frame->generation,
-                crc);
-    }
-    frontend->last_frame_generation = frame->generation;
-    frontend->last_frame_crc = crc;
-    if (frontend->machine != NULL) {
-        now_ns = semu_machine_virtual_time(frontend->machine);
-    }
-    if (frontend->ppm_dump_dir != NULL &&
-        (frontend->frame_count == 1u || frontend->live_test.enabled)) {
-        uint32_t dump_crc = crc;
-        if (dump_crc == 0u) {
-            dump_crc = semu_crc32(0u, frame->pixels, frame->size);
-        }
-        semu_sdl_ppm_dump(frontend->ppm_dump_dir, &frontend->ppm_last_crc,
-                          dump_crc, now_ns, frame);
-    }
-    ++frontend->frame_count;
-    semu_live_frame_gate_observe(&frontend->live_checkpoint,
-                                 frontend->frame_count, now_ns, frame);
-}
+#include "sdl_coalesce_glue.c"
 
 static semu_stop_reason process_normalized_key(sdl_frontend *frontend,
     semu_machine *machine, const semu_normalized_key *key,
@@ -474,13 +431,22 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 2;
     }
+    if (configure_present_coalescing(&frontend) != 0) {
+        sdl_presenter_destroy(frontend.presenter);
+        semu_sdl_input_destroy(frontend.input_adapter);
+        semu_input_mapper_destroy(frontend.input_mapper);
+        SDL_Quit();
+        return 2;
+    }
     result = semu_cli_main(filtered_argc, filtered_argv, publish_frame,
                            &frontend, poll_input, &frontend);
+    flush_present_coalescing(&frontend);
     if (wait_for_quit && result == 0 && frontend.frame_count > 0u &&
         !frontend.failed && !frontend.window_closed) {
         fputs("SDL frame ready; close the window to exit\n", stderr);
         wait_for_window_close();
     }
+    semu_present_coalescer_destroy(frontend.coalesce);
     sdl_presenter_destroy(frontend.presenter);
     semu_sdl_input_destroy(frontend.input_adapter);
     semu_input_mapper_destroy(frontend.input_mapper);

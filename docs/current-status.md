@@ -1625,6 +1625,41 @@ post-grant mid-continuation resumes byte-identical. Sixth-and-later wakes
 remain diagnostic grants; production keeps five admissions and the
 unchanged sixth-admission refusal.
 
+## GPS Spinner Flicker And Onboarding Walk Repin (Maintenance)
+
+The 2.22.60 `w-ltim` "Searching for GPS" ring strobed in the SDL live view.
+The animation publishes every guest redraw tick as a burst of
+publish-flagged transactions — measured 660 distinct composite frames in a
+10-second window with a 0.36 ms median intra-burst gap and up to 84 partial
+composites per ~29 ms tick — and the viewer showed them all, while a physical
+panel latches only at frame boundaries. The SDL frontend now feeds its visual
+sinks (texture and PPM dump) through a pure presentation-side coalescer
+(`src/display/present_coalesce.c`) that withholds a publish while the next
+one arrives within 10 ms of virtual time and releases the burst-final
+composite otherwise, flushing at stop. The live checkpoint, setup-walk,
+frame gate, and counters still observe every raw publish: the completion
+control walk emits byte-identical live-test lines, the spinner-window
+capture drops 660→255 frames (one per redraw tick), and the main-face frame
+`fb8e0155` still lands via the stop flush. The threshold is tunable with
+`SEMU_SDL_PRESENT_COALESCE_NS` (0 restores per-publish presentation).
+Covered by `tests/unit/test_present_coalesce.c` (burst release, borrow
+durability across slots, time discontinuity, fail-closed refusals).
+
+That control walk also exposed that `make check-sdl` firmware walks had been
+silently red without the manifest env (they skip when unset, and `make check`
+does not include `check-sdl`): the ticket 670 walk's generations,
+timeline-press virtual time, disabled-case baseline generation, and halt
+totals had drifted. Bisection over `cdfc953..HEAD` identified accepted
+`d6b4235` (IOM haptic-selector 0x50 offset-byte transfer, ticket 732) as the
+first commit to move device timing — exactly the haptic-correction audit
+anticipated in the open-actions list. All ten settled screen CRCs
+(`8362b9bc`, `5321867e`, `c683e828`, `cd1b0979`, `455b603a`, `53d3f0c1`,
+`17e1772c`, `578e2601`, `1c62ab1a`, main face `fb8e0155`), halt PC
+`0x000727ca`, and the `gps-awake-pulse` refusal trigger are byte-identical,
+so `tools/test_sdl_onboarding_completion.sh` re-derived only derived
+counters, records the provenance inline, and additionally pins the
+main-face settled step 30. `make check-sdl` is green again with the manifest.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1678,6 +1713,8 @@ without manufacturing a roadmap row. The practical work queue is:
   frames, stop and cold-log hash. Audit the longer manual-entry onboarding
   gate separately against the same haptic correction; do not assume its
   historical time/generation assertions remain valid or weaken them blindly.
+  (Audit completed: see "GPS Spinner Flicker And Onboarding Walk Repin";
+  screens, halt PC and refusal trigger held, derived counters re-derived.)
 - Preserve the pinned snapshot/frame-loop baseline before any performance
   change: rerun the cold and resumed probes, requiring the exact stop, virtual
   time, and SDL CRC32 while retaining deterministic guest behavior.
