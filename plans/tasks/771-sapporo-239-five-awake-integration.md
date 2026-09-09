@@ -1,6 +1,6 @@
 # 771 — Sapporo 2.39 Optional Five-Pulse GPS Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 759,768,769
 
@@ -152,3 +152,38 @@ for execution. Genuine new-identity snapshots are generated from cold boot.
 Next work: measure the complete personal-settings save suffix exposed by
 WEIGHT → HEIGHT before any file-budget change. Physical GPS cadence/fix/time,
 sixth pulse, later setup screens, watch face and post-setup menus remain gaps.
+
+## Integrator Acceptance
+
+The 2026-09-09 separate integrator review accepts ticket 771 and updates only
+this ticket, `plans/index.tsv`, and `docs/current-status.md` in the review.
+Implementation changes are committed as `0826523`. Source review confirms
+identity-selected bounds with the budget fixed by the static descriptor rather
+than caller state, one shared awake binding slot refusing variant duplication
+before mutation, cross-identity snapshot refusals in both directions with
+byte-identical re-saves, and unchanged four-pulse lifecycle predicates, logs,
+limits and legacy gates.
+
+Every command in Tests and Commands was rerun with private evidence present:
+awake filter 11 cases, profile filter 5, snapshot filter 4; `make check` and
+`make sanitize` 836 cases each; 138 task contracts; line check with existing
+warnings only; SDL build; `git diff --check`. The authentic 2.22.60 live-input
+gate passed with the exact E-SAP-ONBOARD-EMU-012 stop
+`pc=0x000bacf4, 774081920 instructions / 6520939902 ns`. All three exact 2.39
+gates passed: the new five-pulse repeat/resume/refusal gate, the legacy
+four-pulse awake gate, and the personal/time save gate. No golden, budget, or
+fixture file was changed by the review.
+
+The synthetic 32 MiB full-flash fixture had been removed from `/tmp` with its
+recipe undocumented. The review recovered it and rebuilt the image
+byte-identically to the pinned hash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb` from
+read-only inputs only: the exact 2.39 component-05 fragment
+(SHA-256-pinned by E-SAP-0011) FF-padded to 16 MiB; the pre-existing synthetic
+manufacturing sector (SHA-256
+`c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53`, reproduced
+by `$FIRMWARE_ROOT/tools/build_production_data_fixture.py` from the exact
+2.22.60 application) patched at device address `0x00FFF000`; the upper 16 MiB
+all `0xFF`. External `shasum -a 256` of the rebuilt file equals the pin. The
+fixture remains external, hash-gated, and opt-in; no firmware or proprietary
+bytes entered Git.

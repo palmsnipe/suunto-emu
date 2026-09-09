@@ -10,3 +10,6 @@ firmware.local.semu
 # Machine checkpoints and their generated identity sidecars stay external.
 *.sems
 *.sems.provenance
+
+# Authentic-firmware frame captures are proprietary pixels and stay out of Git.
+.screenshots/

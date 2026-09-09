@@ -1506,8 +1506,21 @@ All 836 normal and sanitizer tests, 138 task contracts, focused lifecycle/profil
 snapshot tests, the new private five-pulse repeat/resume gate, both legacy
 awake/personal private gates, SDL build and the 2.22.60 live-input check pass.
 An authentic ASan/UBSan MIDDLE continuation matches normal logs, trace and final
-snapshot byte-for-byte. Private flash is unchanged. Ticket 771 remains ready
-for review; its implementation is not yet committed. Physical GPS timing,
+snapshot byte-for-byte. Private flash is unchanged. The 2026-09-09 separate
+integrator review accepts ticket 771, whose implementation is commit
+`0826523`. The review reran every ticket command with private evidence present
+(focused filters 11/5/4, 836 normal and 836 sanitizer cases, 138 contracts,
+SDL build, the authentic 2.22.60 live-input gate at the exact `pc=0x000bacf4,
+774081920 / 6520939902` tuple, and all three exact 2.39 private gates), and
+reviewed the diff for identity-bound budgets, atomic variant and
+cross-identity refusals, and unchanged four-pulse lifecycle predicates. During
+the review the deleted synthetic 32 MiB full-flash fixture was rebuilt
+byte-identically from read-only evidence: the exact pinned 2.39 component-05
+fragment FF-padded to 16 MiB, the pre-existing synthetic manufacturing sector
+reproduced from the exact 2.22.60 application and patched at `0x00FFF000`, and
+an all-`0xFF` upper 16 MiB; `shasum -a 256` again equals the pinned
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`. The
+fixture remains external, hash-gated and opt-in. Physical GPS timing,
 GPS fix/time, the additional personal save, watch face and post-setup menus
 remain outside this verified boundary (E-SAP-GPS-FIFTH-239-002).
 
@@ -1521,12 +1534,14 @@ without manufacturing a roadmap row. The practical work queue is:
 
 - Ticket 761 is accepted. Preserve its native rendering and historical checkpoint
   pins; no private backend API or repinning is needed.
-- Tickets 762–764 and 766–769 are accepted. Review ticket 771's optional
-  five-pulse integration, native callback, repeat/restore and atomic refusals.
-  Preserve explicit selection, the existing four-pulse layer and historical
-  refusals; the measured fifth pulse is not
-  permission for a sixth or an indefinite heartbeat. Then measure the additional
-  personal-settings save exposed by WEIGHT → HEIGHT before changing file limits.
+- Tickets 762–764, 766–769, and 771 are accepted. The measured fifth pulse is
+  not permission for a sixth or an indefinite heartbeat; explicit selection,
+  the existing four-pulse layer and historical refusals remain preserved. The
+  next work is a new evidence-only ticket measuring the complete native
+  personal-settings save suffix exposed by WEIGHT → HEIGHT, whose current
+  precise refusal is `settings/personal` mode two at PC `0x000920b4`,
+  LR `0x000adb2f`, instruction 4,232,903,136 / 34,413,596,174 ns against the
+  accepted 76,599 ceiling, before any file budget is changed.
   Subsequent profile choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,
