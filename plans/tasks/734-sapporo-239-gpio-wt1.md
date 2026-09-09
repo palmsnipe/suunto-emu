@@ -1,6 +1,6 @@
 # 734 — Sapporo 2.39 GPIO WT1 Readback
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 305, 729
 

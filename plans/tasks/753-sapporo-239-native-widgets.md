@@ -1,6 +1,6 @@
 # 753 — Sapporo 2.39 Native Empty Widgets Cache Value
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 728, 729, 615
 

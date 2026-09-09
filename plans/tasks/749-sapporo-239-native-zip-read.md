@@ -1,6 +1,6 @@
 # 749 — Sapporo 2.39 Native ZIP Read Passthrough
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729
 

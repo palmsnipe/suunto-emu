@@ -1,6 +1,6 @@
 # 752 — Sapporo 2.39 Combined Timer13 Interrupt Enable
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 310, 727, 729, 615
 

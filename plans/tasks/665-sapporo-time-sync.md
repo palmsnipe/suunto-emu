@@ -1,6 +1,6 @@
 # 665 — Sapporo 2.22 Time / Onboarding Trace
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 6
 **Dependencies:** 515, 516
 

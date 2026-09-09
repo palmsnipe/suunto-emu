@@ -67,8 +67,8 @@ id	phase	title	status	dependencies	ticket
 620	6	Debugging CLI Integration	done	605,610,615	plans/tasks/620-debug-cli-integration.md
 625	6	Deterministic Malformed-Input Corpus	done	620	plans/tasks/625-hardening-corpus.md
 630	6	Portability and Optional Differential Gate	done	625	plans/tasks/630-portability-differential.md
-665	6	2.22 Time/Onboarding Trace: Fix Button Pins, Extend Walk, Document Time-Sync Gate	in-progress	515,516	plans/tasks/665-sapporo-time-sync.md
-670	6	Sapporo 2.22 Onboarding Completion via Manual Time Entry	in-progress	665	plans/tasks/670-sapporo-onboarding-time.md
+665	6	2.22 Time/Onboarding Trace: Fix Button Pins, Extend Walk, Document Time-Sync Gate	done	515,516	plans/tasks/665-sapporo-time-sync.md
+670	6	Sapporo 2.22 Onboarding Completion via Manual Time Entry	done	665	plans/tasks/670-sapporo-onboarding-time.md
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
 706	7	Sapporo 2.39.20 Exact Profile	done	700	plans/tasks/706-sapporo-239-profile.md
@@ -93,30 +93,30 @@ id	phase	title	status	dependencies	ticket
 728	7	Sapporo 2.39 Synthetic WbStorage Session Cache	done	706,727	plans/tasks/728-sapporo-239-wbsto-session-cache.md
 729	7	Sapporo 2.39 Logical Writable Files	done	728	plans/tasks/729-sapporo-239-logical-writable-files.md
 730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
-731	7	Sapporo 2.39 LPS22 Pressure Startup	in-progress	315,410,729	plans/tasks/731-sapporo-239-lps22.md
-732	7	Sapporo 2.39 IOM4 Haptic Selector	in-progress	315,413,729	plans/tasks/732-sapporo-239-iom4-haptic-selector.md
-733	7	Sapporo 2.39 Haptic Calibration Fixture	in-progress	413,729	plans/tasks/733-sapporo-239-haptic-calibration.md
-734	7	Sapporo 2.39 GPIO WT1 Readback	in-progress	305,729	plans/tasks/734-sapporo-239-gpio-wt1.md
-735	7	Sapporo 2.39 OHR2 Boot Mode	in-progress	417,418,729	plans/tasks/735-sapporo-239-ohr2-boot-mode.md
-736	7	Sapporo 2.39 OHR2 BSL Identity	in-progress	417,418,729	plans/tasks/736-sapporo-239-ohr2-bsl-identity.md
-737	7	Sapporo 2.39 OHR2 MAIN Identity	in-progress	417,418,729	plans/tasks/737-sapporo-239-ohr2-main-identity.md
-738	7	Sapporo 2.39 OHR2 Result 13	in-progress	417,418,729	plans/tasks/738-sapporo-239-ohr2-result-13.md
-739	7	Sapporo 2.39 OHR2 Result 14	in-progress	417,418,729	plans/tasks/739-sapporo-239-ohr2-result-14.md
+731	7	Sapporo 2.39 LPS22 Pressure Startup	done	315,410,729	plans/tasks/731-sapporo-239-lps22.md
+732	7	Sapporo 2.39 IOM4 Haptic Selector	done	315,413,729	plans/tasks/732-sapporo-239-iom4-haptic-selector.md
+733	7	Sapporo 2.39 Haptic Calibration Fixture	done	413,729	plans/tasks/733-sapporo-239-haptic-calibration.md
+734	7	Sapporo 2.39 GPIO WT1 Readback	done	305,729	plans/tasks/734-sapporo-239-gpio-wt1.md
+735	7	Sapporo 2.39 OHR2 Boot Mode	done	417,418,729	plans/tasks/735-sapporo-239-ohr2-boot-mode.md
+736	7	Sapporo 2.39 OHR2 BSL Identity	done	417,418,729	plans/tasks/736-sapporo-239-ohr2-bsl-identity.md
+737	7	Sapporo 2.39 OHR2 MAIN Identity	done	417,418,729	plans/tasks/737-sapporo-239-ohr2-main-identity.md
+738	7	Sapporo 2.39 OHR2 Result 13	done	417,418,729	plans/tasks/738-sapporo-239-ohr2-result-13.md
+739	7	Sapporo 2.39 OHR2 Result 14	done	417,418,729	plans/tasks/739-sapporo-239-ohr2-result-14.md
 740	7	Ulsan Native Display and Interaction Gate	blocked	730	plans/tasks/740-ulsan-display-interaction.md
-741	7	Sapporo 2.39 OHR2 Exact Echo	in-progress	417,418,729	plans/tasks/741-sapporo-239-ohr2-echo.md
-742	7	Sapporo 2.39 OHR2 Command 2 Integration	in-progress	417,418,729	plans/tasks/742-sapporo-239-ohr2-command-2.md
-743	7	Sapporo 2.39 Logical File Size Integration	in-progress	729	plans/tasks/743-sapporo-239-logical-file-size.md
-744	7	Sapporo 2.39 Logical Seek Return Contract	in-progress	729	plans/tasks/744-sapporo-239-logical-seek-return.md
+741	7	Sapporo 2.39 OHR2 Exact Echo	done	417,418,729	plans/tasks/741-sapporo-239-ohr2-echo.md
+742	7	Sapporo 2.39 OHR2 Command 2 Integration	done	417,418,729	plans/tasks/742-sapporo-239-ohr2-command-2.md
+743	7	Sapporo 2.39 Logical File Size Integration	done	729	plans/tasks/743-sapporo-239-logical-file-size.md
+744	7	Sapporo 2.39 Logical Seek Return Contract	done	729	plans/tasks/744-sapporo-239-logical-seek-return.md
 745	7	Ulsan Version Suite Gate	blocked	740	plans/tasks/745-ulsan-suite-gate.md
-746	7	Sapporo 2.39 Second Preload Integration	in-progress	728,729,615	plans/tasks/746-sapporo-239-second-preload.md
-747	7	Sapporo 2.39 Native History Scan Budget	in-progress	729	plans/tasks/747-sapporo-239-history-scan-budget.md
-748	7	Sapporo 2.39 Ongoing Activity File Integration	in-progress	729,615	plans/tasks/748-sapporo-239-ongoing-file.md
-749	7	Sapporo 2.39 Native ZIP Read Passthrough	in-progress	729	plans/tasks/749-sapporo-239-native-zip-read.md
+746	7	Sapporo 2.39 Second Preload Integration	done	728,729,615	plans/tasks/746-sapporo-239-second-preload.md
+747	7	Sapporo 2.39 Native History Scan Budget	done	729	plans/tasks/747-sapporo-239-history-scan-budget.md
+748	7	Sapporo 2.39 Ongoing Activity File Integration	done	729,615	plans/tasks/748-sapporo-239-ongoing-file.md
+749	7	Sapporo 2.39 Native ZIP Read Passthrough	done	729	plans/tasks/749-sapporo-239-native-zip-read.md
 750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
-751	7	Sapporo 2.39 Native Quiet Read Routing	in-progress	729	plans/tasks/751-sapporo-239-native-quiet-read.md
-752	7	Sapporo 2.39 Combined Timer13 Interrupt Enable	in-progress	310,727,729,615	plans/tasks/752-sapporo-239-ctimer13-combined-inten.md
-753	7	Sapporo 2.39 Native Empty Widgets Cache Value	in-progress	728,729,615	plans/tasks/753-sapporo-239-native-widgets.md
-754	7	Sapporo 2.39 Post-Logo Activity Budget	in-progress	729,615	plans/tasks/754-sapporo-239-post-logo-activity.md
+751	7	Sapporo 2.39 Native Quiet Read Routing	done	729	plans/tasks/751-sapporo-239-native-quiet-read.md
+752	7	Sapporo 2.39 Combined Timer13 Interrupt Enable	done	310,727,729,615	plans/tasks/752-sapporo-239-ctimer13-combined-inten.md
+753	7	Sapporo 2.39 Native Empty Widgets Cache Value	done	728,729,615	plans/tasks/753-sapporo-239-native-widgets.md
+754	7	Sapporo 2.39 Post-Logo Activity Budget	done	729,615	plans/tasks/754-sapporo-239-post-logo-activity.md
 755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
 756	7	Sapporo 2.39 GPS Startup Integration	done	416,615,729	plans/tasks/756-sapporo-239-gps-startup.md
 757	7	Sapporo 2.39 GPS Reopen and Restart Integration	done	756,615,729	plans/tasks/757-sapporo-239-gps-reopen.md

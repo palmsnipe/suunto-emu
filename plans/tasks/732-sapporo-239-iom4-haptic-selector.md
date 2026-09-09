@@ -1,6 +1,6 @@
 # 732 — Sapporo 2.39 IOM4 Haptic Selector
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 315, 413, 729
 

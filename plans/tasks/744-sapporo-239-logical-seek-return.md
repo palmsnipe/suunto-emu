@@ -1,6 +1,6 @@
 # 744 — Sapporo 2.39 Logical Seek Return Contract
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729
 

@@ -1,6 +1,6 @@
 # 754 — Sapporo 2.39 Post-Logo Activity Budget
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,615
 

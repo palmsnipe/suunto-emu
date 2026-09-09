@@ -1,6 +1,6 @@
 # 742 — Sapporo 2.39 OHR2 Command 2 Integration
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 417, 418, 729
 

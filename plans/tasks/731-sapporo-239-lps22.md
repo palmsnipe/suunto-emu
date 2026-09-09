@@ -1,6 +1,6 @@
 # 731 — Sapporo 2.39 LPS22 Pressure Startup
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 315, 410, 729
 

@@ -1,6 +1,6 @@
 # 746 — Sapporo 2.39 Second Preload Integration
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 728,729,615
 

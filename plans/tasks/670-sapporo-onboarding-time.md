@@ -1,6 +1,6 @@
 # 670 — Sapporo 2.22 Onboarding Completion via Manual Time Entry
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 6
 **Dependencies:** 665
 

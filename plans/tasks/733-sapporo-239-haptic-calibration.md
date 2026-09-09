@@ -1,6 +1,6 @@
 # 733 — Sapporo 2.39 Haptic Calibration Fixture
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 413, 729
 

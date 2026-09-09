@@ -1,6 +1,6 @@
 # 748 — Sapporo 2.39 Ongoing Activity File Integration
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,615
 

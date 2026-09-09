@@ -1524,6 +1524,35 @@ fixture remains external, hash-gated and opt-in. Physical GPS timing,
 GPS fix/time, the additional personal save, watch face and post-setup menus
 remain outside this verified boundary (E-SAP-GPS-FIFTH-239-002).
 
+## Roadmap Ledger Reconciliation (2026-09-09)
+
+A planning-only integrator pass reconciled the 23 stale `in-progress` roadmap
+rows against their recorded evidence. Tickets 670, 731–739, 741–744, 746–749
+and 751–754 are now `done`. Each handoff already claimed its complete
+acceptance list — fail-before/pass-after regressions, exact command suites
+and, where applicable, hash-pinned private runs with two byte-identical logs,
+snapshots and snapshot-resume agreement on the immutable full flash
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb` — and each
+outcome is recorded in `docs/migration-evidence.md`
+(E-SAP-ONBOARD-EMU-010; E-SAP-LPS22-239-001 through
+E-SAP-COMPAT-ACTIVITY-239-001) and consumed by later accepted work. The
+"next boundary" sentence in those handoffs records the next ticket's roadmap
+gap, not unfinished ticket work; no separate acceptance commit existed for
+the batch, so this pass is the formal closure.
+
+Ticket 665 was initially left `in-progress` because its own handoff ends with
+"Keep the ticket `in-progress`." and no later record had re-adjudicated that
+instruction. The task contracts then proved the row stale: accepted ticket 670
+depends on it. Its original rationale — the unresolved phone-time question —
+was consumed by the negative result E-SAP-ONBOARD-EMU-009(c) (the 2.22.60
+firmware has no phone/OHR2 time source) and the standalone completion chain
+E-SAP-ONBOARD-EMU-010, which ticket 670 itself records, so the explicit
+integrator decision is now recorded: `done` — trace complete, positive
+manual-entry chain and negative phone-time result both fully evidenced.
+
+Also corrected here: ticket 740 is blocked on dependency 730 (Ulsan product
+evidence), not on tickets 736/737 review.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7

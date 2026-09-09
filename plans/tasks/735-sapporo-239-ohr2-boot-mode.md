@@ -1,6 +1,6 @@
 # 735 — Sapporo 2.39 OHR2 Boot Mode
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 417, 418, 729
 
