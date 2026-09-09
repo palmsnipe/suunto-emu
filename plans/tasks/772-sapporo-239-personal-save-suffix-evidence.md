@@ -1,6 +1,6 @@
 # 772 — Sapporo 2.39 Personal Save Suffix Evidence
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,766,771
 
@@ -149,3 +149,21 @@ continuation at 37,899,807,613 ns); watch-face activation and post-setup
 menus remain unproven. Production ceilings, profiles, registries and goldens
 untouched; status remains `ready` for integrator review.
 
+
+## Integrator Acceptance
+
+2026-09-09 separate integrator review accepts the evidence work. The exact
+recorded probe command was rerun independently against the accepted
+commits: trace `76c0ffc1ff0bd31e9325e468d446f8dc8b9bd15b42de3027e4fd08f73dff38b7`,
+adapter log `a79b6362bfb2299d23087ef60b1e9df7269e053488c427471a4faaa7f138f65b`
+and final snapshot `41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa`
+all matched byte-for-byte, including the 68-operation save, the
+`0x000adb3c`/`0x000adb48` save tuples and the sixth-admission refusal
+`001291cc / 4345171340 / 37899807613`. Ticket filters selected real suites
+(`TEST_FILTER=sapporo_239` 51 passes, `machine_snapshot` 4 passes); 139 task
+contracts and `make check` pass; the full-flash pin is unchanged. The review
+confirms the measured proposal 76,667 / 76,670 (+68), the unchanged ABI
+conclusion, and that the remaining gaps (post-save input, HEIGHT acceptance,
+watch face, menus) are recorded as unmeasured. Applying the ceiling belongs to
+integration ticket 773; production values, goldens and GPS bounds were
+untouched by this ticket.

@@ -1592,8 +1592,8 @@ without manufacturing a roadmap row. The practical work queue is:
   not permission for a sixth or an indefinite heartbeat; explicit selection,
   the existing four-pulse layer and historical refusals remain preserved.
   Ticket 772 has measured the complete HEIGHT-boundary personal save (68
-  operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001) and awaits review; the
-  next work is a separate integration ticket applying
+  operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001), accepted 2026-09-09; the
+  next work is integration ticket 773 applying
   exactly the measured 76,667 logical / 76,670 aggregate ceiling with its own
   gates, before any further profile choice is attempted. Subsequent profile
   choices, watch-face activation and menu navigation remain
