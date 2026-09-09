@@ -1620,12 +1620,12 @@ without manufacturing a roadmap row. The practical work queue is:
   the existing four-pulse layer and historical refusals remain preserved.
   Ticket 772 has measured the complete HEIGHT-boundary personal save (68
   operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001), accepted 2026-09-09, and
-  integration ticket 773 has applied exactly the measured 76,667 logical /
-  76,670 aggregate ceiling with its repinned gates, awaiting integrator
-  acceptance. The next work is that acceptance review, then a separate
-  evidence ticket for the post-HEIGHT-save boundary (selection acceptance and
-  the input that follows the completed save) before any further profile
-  choice is attempted. Subsequent profile
+  integration ticket 773 applied exactly the measured 76,667 logical /
+  76,670 aggregate ceiling with its repinned gates and was accepted
+  2026-09-09. The next work is evidence ticket 774 for the post-save
+  continuation boundary (what the firmware does after the completed HEIGHT
+  save, measured under a bounded diagnostic GPS-awake raise) before any
+  further profile choice is attempted. Subsequent profile
   choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,

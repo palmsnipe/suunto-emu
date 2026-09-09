@@ -1,6 +1,6 @@
 # 773 — Sapporo 2.39 Personal Save Suffix Budget Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729,766,771,772
 
@@ -129,3 +129,21 @@ checkpoint are byte-unchanged. Remaining gaps unchanged from 772: HEIGHT
 selection acceptance and the post-save input are unmeasured. Integrator
 review should re-run the five-pulse gate and the personal-budget unit test
 before flipping 773.
+
+## Integrator Acceptance
+
+2026-09-09 separate integrator review accepts the integration. The committed
+production change is exactly the measured 76,667 / 76,670 pair with the
+E-SAP-COMPAT-PERSONAL-SUFFIX-239-001 comment; no other production constant,
+path or ABI moved. The five-pulse gate was rerun independently on the
+accepted commits and passed with byte-identical repeats, the repinned
+sixth-admission refusal `001291cc / 4,345,171,340 / 37,899,807,613`, the
+75-frame HEIGHT completion (CRC `cd4c0a99`, SHA `33339448…`), the final
+snapshot equal to the accepted 772 diagnostic image `41c65d46…`, and the
+137-line completion log with the 66 writes, open and successful close.
+`TEST_FILTER=sapporo_239` selected 51 passes and `machine_snapshot` 4;
+140 task contracts and the full `make check`/`make sanitize` from the
+implementation pass stand. The four-pulse gates, the idle branch, all
+historical checkpoints and the 2.22.60 gate remain byte-unchanged, proving
+the raise is confined to the measured suffix. Post-HEIGHT-selection and
+post-save continuation remain unmeasured and bound ticket 774.
