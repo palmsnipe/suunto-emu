@@ -7,7 +7,7 @@
 #define RAM UINT32_C(0x10000000)
 #define OLD_LIMIT UINT64_C(76279)
 #define LIMIT UINT64_C(76371)
-#define CURRENT_LIMIT UINT64_C(76599)
+#define CURRENT_LIMIT UINT64_C(76667)
 
 typedef struct fixture {
     semu_bus *bus;

@@ -155,14 +155,14 @@ int main(int argc, char **argv)
         " crc=%08x sha=%s error=%s\n", (unsigned)reason, semu_machine_program_counter(m),
         semu_machine_instructions(m), semu_machine_virtual_time(m), obs.frames, obs.crc, obs.hash, e.text);
     if (reason != SEMU_STOP_COMPAT_REFUSED || edge != edge_end ||
-        semu_machine_program_counter(m) != (middle ? 0x920b4u : 0x1291ccu) ||
-        semu_machine_instructions(m) != (middle ? UINT64_C(4232903136) : UINT64_C(4071207676)) ||
-        semu_machine_virtual_time(m) != (middle ? UINT64_C(34413596174) : UINT64_C(37929735196)) ||
-        obs.frames != (middle ? 69u : 0u) || (middle && (obs.crc != 0xcd4c0a99u ||
+        semu_machine_program_counter(m) != 0x1291ccu ||
+        semu_machine_instructions(m) != (middle ? UINT64_C(4345171340) : UINT64_C(4071207676)) ||
+        semu_machine_virtual_time(m) != (middle ? UINT64_C(37899807613) : UINT64_C(37929735196)) ||
+        obs.frames != (middle ? 75u : 0u) || (middle && (obs.crc != 0xcd4c0a99u ||
         strcmp(obs.hash, "33339448cbcfafa47bd9d0ed4e37b61abd43062acf95f2bf7470ebefae921072"))) ||
         !save(m, argv[5], "final", &e) ||
         !compare_diagnostic(m, argv[5], middle ?
-            "00432bcc97bc988da8370e9e2a298a39bdfa86971e5a8000ccd36dafaaf5a286" :
+            "65255eb1abe56f8f3ff82e1320dfce40c7671a52e446f15b3cdced37768a83d5" :
             "127214e55e966741d3cc3acb5fd5fad50988b3cb4bdadb78788e590b91f8df28", &e)) goto done;
     {
         semu_run_limits limits = {1u, 1u};

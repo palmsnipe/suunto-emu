@@ -1578,6 +1578,33 @@ to be applied only by a separate integration ticket. Whether the HEIGHT
 selection is accepted and which input follows remain unmeasured
 (E-SAP-COMPAT-PERSONAL-SUFFIX-239-001).
 
+## Personal Save Suffix Budget Integration (Ticket 773)
+
+Ticket 773 applied the ticket 772 measurement to production.
+`src/compat/sapporo_239.c` now permits 76,667 logical-file operations and
+76,670 aggregate wbsto hits (exactly the measured +68 HEIGHT save; the
+comment names E-SAP-COMPAT-PERSONAL-SUFFIX-239-001). Under the production
+ceilings the five-pulse MIDDLE branch completes the personal save — mode-two
+open `0x10161600`, 66 full 1,727-byte writes, successful close at ordinal
+76,667 — and refuses the sixth GPS admission at `001291cc`,
+4,345,171,340 instructions / 37,899,807,613 ns with 75 frames, CRC
+`cd4c0a99`, SHA `33339448…` and final snapshot
+`41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa`,
+byte-identical to the 772 diagnostic image; the name-normalized companion is
+`65255eb1abe56f8f3ff82e1320dfce40c7671a52e446f15b3cdced37768a83d5`. The
+five-pulse gate now requires the 137-line middle log with the 66 writes, the
+open and the close, and keeps every refusal, repeat, resume and wrong-input
+assertion; its cold prefix, idle pins `d5244833…`/`127214e5…`, the
+four-pulse awake and personal gates, all historical checkpoints and the
+2.22.60 gate are unchanged (each of those runs stops at a GPS or path
+refusal before ordinal 76,600). The personal-budget unit test replays a
+fourth measured save to exactly 76,667 and then the unchanged budget refusal;
+history, general and activity budget tests and the descriptor pins moved to
+76,667/76,670 with the unchanged `+3` aggregate relation. All 51 filtered
+unit passes, all three private gates, `make sanitize`, `make check` and 140
+task contracts pass. Post-save selection and follow-on input remain
+unmeasured; the sixth-admission refusal still bounds the run.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
@@ -1592,10 +1619,13 @@ without manufacturing a roadmap row. The practical work queue is:
   not permission for a sixth or an indefinite heartbeat; explicit selection,
   the existing four-pulse layer and historical refusals remain preserved.
   Ticket 772 has measured the complete HEIGHT-boundary personal save (68
-  operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001), accepted 2026-09-09; the
-  next work is integration ticket 773 applying
-  exactly the measured 76,667 logical / 76,670 aggregate ceiling with its own
-  gates, before any further profile choice is attempted. Subsequent profile
+  operations, E-SAP-COMPAT-PERSONAL-SUFFIX-239-001), accepted 2026-09-09, and
+  integration ticket 773 has applied exactly the measured 76,667 logical /
+  76,670 aggregate ceiling with its repinned gates, awaiting integrator
+  acceptance. The next work is that acceptance review, then a separate
+  evidence ticket for the post-HEIGHT-save boundary (selection acceptance and
+  the input that follows the completed save) before any further profile
+  choice is attempted. Subsequent profile
   choices, watch-face activation and menu navigation remain
   the functional goal, not an already-completed milestone. Preserve the four-pulse GPS bound,
   normal NEMA backend and layer sets. No GSTP response, invented GPS fix/time,

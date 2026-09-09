@@ -6,7 +6,7 @@
 
 #define RAM UINT32_C(0x10000000)
 #define OLD_LIMIT UINT64_C(76371)
-#define LIMIT UINT64_C(76599)
+#define LIMIT UINT64_C(76667)
 
 typedef struct fixture {
     semu_bus *bus;
@@ -161,17 +161,18 @@ static void test_native_personal_save_budget(semu_test_context *context)
     semu_log_init(&f.logger, log, SEMU_LOG_INFO);
     SEMU_TEST_EQ_U64(context, 66u, SEMU_ARRAY_LEN(personal));
     SEMU_TEST_EQ_U64(context, 90u, SEMU_ARRAY_LEN(general));
-    for (pass = 0u; pass < 3u; ++pass) {
-        const uint8_t *sizes = pass < 2u ? personal : general;
-        size_t count = pass < 2u ? sizeof(personal) : sizeof(general);
-        size_t length = pass < 2u ? 1727u : 1505u, offset = 0u;
+    for (pass = 0u; pass < 4u; ++pass) {
+        const uint8_t *sizes = pass == 2u ? general : personal;
+        size_t count = pass == 2u ? sizeof(general) : sizeof(personal);
+        size_t length = pass == 2u ? 1505u : 1727u, offset = 0u;
         const char *path = paths[pass == 2u];
         for (i = 0u; i < length; ++i) payload[i] = (uint8_t)(i * 17u + pass + 3u);
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_load(f.bus, RAM,
             (const uint8_t *)path, strlen(path) + 1u, &f.error));
         SEMU_TEST_EQ_U64(context, SEMU_OK,
             semu_bus_load(f.bus, RAM + 256u, payload, length, &f.error));
-        /* First post-76,371 open must fail on the old production ceiling. */
+        /* Replays opens and saves the old 76,371 ceiling refused; the
+           current height-save ceiling admits all four measured saves. */
         SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920b4u, RAM, 2u, 0u));
         handle = f.cpu.r[0];
         for (i = 0u; i < count; ++i) {
@@ -185,10 +186,12 @@ static void test_native_personal_save_budget(semu_test_context *context)
         total += offset;
         SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920f4u, handle, 0u, 0u));
         SEMU_TEST_EQ_U64(context, 1u, f.cpu.r[0]);
-        SEMU_TEST_EQ_U64(context, OLD_LIMIT + (pass < 2u ? 68u * (pass + 1u) : 228u), f.layer.hits);
-        check_contents(context, &f, pass < 2u ? 9u : 2u, payload, length);
+        SEMU_TEST_EQ_U64(context, OLD_LIMIT +
+            (pass == 0u ? 68u : pass == 1u ? 136u : pass == 2u ? 228u : 296u),
+            f.layer.hits);
+        check_contents(context, &f, pass == 2u ? 2u : 9u, payload, length);
     }
-    SEMU_TEST_EQ_U64(context, 4959u, total);
+    SEMU_TEST_EQ_U64(context, 6686u, total);
     SEMU_TEST_EQ_U64(context, LIMIT, f.layer.descriptor->interventions[2].max_hits);
     SEMU_TEST_EQ_U64(context, LIMIT + 3u, f.layer.descriptor->maximum_hits);
     assert_refusal(context, &f, 2u, "exceeded budget", log);

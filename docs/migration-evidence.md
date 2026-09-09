@@ -1209,6 +1209,21 @@ refusal bounds any continuation at 37,899,807,613 ns. No firmware bytes,
 settings payloads or frame pixels enter Git; all artifacts, both binaries and
 the prefix snapshot remain under `/tmp/semu-772-suffix/`.
 
+**Production integration (ticket 773, 2026-09-09).** The proposal was
+applied exactly: `src/compat/sapporo_239.c` now carries 76,667 logical /
+76,670 aggregate. Under the production ceilings the five-pulse MIDDLE
+branch completed the HEIGHT save and refused the sixth GPS admission at the
+measured tuple `001291cc / 4,345,171,340 / 37,899,807,613` ns with 75
+frames, HEIGHT CRC `cd4c0a99` and unchanged final-frame SHA `33339448…`,
+and its final snapshot is byte-identical to this entry's diagnostic final
+image `41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa`;
+the repinned gate also records the name-normalized companion
+`65255eb1abe56f8f3ff82e1320dfce40c7671a52e446f15b3cdced37768a83d5` (proved
+equal to the four-pulse-compatibly-named image by the existing normalization
+rule). The cold prefix `6e670940…`, the idle-branch pins `d5244833…` and
+`127214e5…`, every four-pulse checkpoint and the 2.22.60 gate are unchanged,
+because none of those runs attempts an operation beyond ordinal 76,599.
+
 ### E-SAP-TIME-SCHEMA-239-001
 
 2026-09-08; read-only static analysis of the pristine Sapporo

@@ -31,14 +31,24 @@ prefix_hash=6e67094057d9510874a3766ced6372066fc134c1014840a0908a990266afa6de
 test "$(hash "$run_dir/cold.prefix.sems")" = "$prefix_hash"
 for branch in idle middle; do
     expected=d5244833987e6801192af15f0c57077eba2d23329fbaa4e09a6ccc4ec5b455c1
-    if [ "$branch" = middle ]; then expected=2224b55ed72f0cac548fa80117787ae5b049f5783f10a8b6730f5ea1a0936467; fi
+    lines=1
+    if [ "$branch" = middle ]; then
+        expected=41c65d4626481ddd0da99babfd48aff7c2d930e1864180b2eb64364f060043fa
+        lines=137
+    fi
     for attempt in first second; do
         run "$branch-$attempt" "$run_dir/cold.prefix.sems" "$prefix_hash" "$branch"
         test "$(hash "$run_dir/$branch-$attempt.final.sems")" = "$expected"
         cmp "$run_dir/$branch-$attempt.final.sems" "$run_dir/$branch-$attempt.refused.sems"
         test "$(grep -c 'trigger=gps-awake-pulse ordinal=5 ' "$run_dir/$branch-$attempt.log")" -eq 1
-        test "$(wc -l < "$run_dir/$branch-$attempt.log")" -eq 1
+        test "$(wc -l < "$run_dir/$branch-$attempt.log")" -eq "$lines"
         grep -q 'layer=sapporo-2.39-gps-awake-five .*provenance=E-SAP-GPS-FIFTH-239-002$' "$run_dir/$branch-$attempt.log"
+        if [ "$branch" = middle ]; then
+            test "$(grep -c 'operation=open path=settings/personal mode=2 ' "$run_dir/$branch-$attempt.log")" -eq 1
+            test "$(grep -c 'operation=write path=settings/personal ' "$run_dir/$branch-$attempt.log")" -eq 66
+            grep -q 'operation=close path=settings/personal result=1 size=1727 cursor=1727$' "$run_dir/$branch-$attempt.log"
+            grep -q 'trigger=logical-file ordinal=76667 ' "$run_dir/$branch-$attempt.log"
+        fi
     done
     cmp "$run_dir/$branch-first.trace" "$run_dir/$branch-second.trace"
     cmp "$run_dir/$branch-first.log" "$run_dir/$branch-second.log"
