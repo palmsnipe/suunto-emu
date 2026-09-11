@@ -130,12 +130,21 @@ build/suunto-emu-sdl run \
   --max-instructions 8000000000 --max-time 90000000000
 ```
 
-`setup-walk` settles 12 deterministic renderer transitions and then exits
-through a synthetic SDL quit event. The final settled frame is the observed
-native handoff screen, `Continue the setup on your phone` (generation 1295,
-CRC32 `ea3bc5f8`). This proves the bounded language-to-phone-handoff path; it
-does not claim phone pairing, post-setup watch-face assets, or physical-panel
-completion.
+From the preframe checkpoint, `setup-walk` settles deterministic renderer
+transitions through the observed native handoff screen, `Continue the setup
+on your phone` — the last settled frame, CRC32 `ea3bc5f8`, unchanged from the
+original observation (settled frame generation counters drift with accepted
+timing commits and are not quoted here). The built-in sequence injects no
+input after the handoff screen; the guest then advertises while waiting for
+a phone, and its GPS-awake pulses exhaust the no-device layer's evidenced
+eleven-hit `gps-awake-pulse` budget (E-SAP-COMPAT-GPS-005), so the run ends
+`stop=compat-refused` (trigger `gps-awake-pulse`, exit code 3). That refusal
+is itself a checkpointed boundary of the layer, not a failure of this path.
+This proves the bounded language-to-phone-handoff path; it does not claim
+phone pairing, post-setup watch-face assets, or physical-panel completion.
+The fully pinned continuation through the main watch face — 30 settled
+screens, generations, halt tuple — lives in
+`tools/test_sdl_onboarding_completion.sh` and runs under `make check-sdl`.
 
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to
