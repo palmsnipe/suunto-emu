@@ -1660,6 +1660,32 @@ so `tools/test_sdl_onboarding_completion.sh` re-derived only derived
 counters, records the provenance inline, and additionally pins the
 main-face settled step 30. `make check-sdl` is green again with the manifest.
 
+Silent-skip hardening: `make check` now includes `check-sdl-quick` (SDL
+build, input test, dummy-driver smoke, parser-refusal cases; loud banners
+when SDL3 is absent or firmware walks are skipped), and both firmware
+scripts auto-detect `tests/private/sapporo-2.22.60/firmware.semu`, so a
+missing manifest is now a visible decision rather than a silent pass.
+
+Walk-clock performance: sampling the pinned setup-walk showed wall time
+dominated by two helpers, not the interpreter. `semu_crc32` moved from a
+bit-by-bit loop to the equivalent 256-entry reflected-CRC-32 XOR table
+(identical function; all frame/snapshot/manifest hash pins hold), and
+`semu_storage_program` now caches the page lookup across ascending bytes
+of one operation instead of walking the page list twice per byte. Full
+walk wall time 278 s → 229 s (-17.6%) with the SDL live-test output
+stream (settled steps, generations, timeline press, halt tuple
+`instructions=14178200857 virtual_time_ns=43790375389`) byte-identical.
+The remaining profile is interpreter-dominated; further gains there are
+roadmap-scale, not maintenance.
+
+Capture sweep verdict: the coalesced onboarding capture was audited frame
+by frame — GPS window shows only the legitimate green/cyan arc gradient
+(no swapped-channel pixels), and the pure-black frames at screen
+transitions (CRC `2a01c517`, twelve in the raw stream) each dwell 16–28 ms
+of virtual time (one 509 ms language-transition hold), i.e. they are
+genuine firmware clear states held across a full frame boundary, exactly
+what a physical panel latches; no defect found.
+
 ## Next Actionable Work
 
 Phases 0–6 and the first-target functional milestone are complete. The Phase 7
