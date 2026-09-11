@@ -16,6 +16,7 @@
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
+#include "ulsan_board.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +35,24 @@ static int known_sapporo_profile(const semu_profile *profile)
            (strcmp(profile->id, "sapporo-2.22.60") == 0 ||
             strcmp(profile->id, "sapporo-2.33.16") == 0 ||
             strcmp(profile->id, "sapporo-2.39.20") == 0);
+}
+
+static int known_ulsan_profile(const semu_profile *profile)
+{
+    return semu_ulsan_board_accepted(profile->board, profile->id);
+}
+
+/* Forward declaration: map_board dispatches on the board identity. */
+static semu_status map_sapporo(semu_machine *machine, semu_error *error);
+
+/* Board dispatch for the Apollo4 Plus variant (ticket 725): the Ulsan board
+ * maps only evidence-backed memory; Sapporo wiring stays isolated. */
+static semu_status map_board(semu_machine *machine, semu_error *error)
+{
+    if (known_ulsan_profile(&machine->profile)) {
+        return semu_ulsan_board_map(machine->bus, error);
+    }
+    return map_sapporo(machine, error);
 }
 
 static semu_status map_sapporo(semu_machine *machine, semu_error *error)
@@ -234,7 +253,8 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "machine options are incomplete");
         return NULL;
     }
-    if (!known_sapporo_profile(options->profile)) {
+    if (!known_sapporo_profile(options->profile) &&
+        !known_ulsan_profile(options->profile)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "board profile is not implemented");
         return NULL;
     }
@@ -266,7 +286,7 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->scheduler = semu_scheduler_create(error);
     if (machine->sapporo_239_files == NULL || machine->bus == NULL ||
         machine->scheduler == NULL ||
-        map_sapporo(machine, error) != SEMU_OK) {
+        map_board(machine, error) != SEMU_OK) {
         semu_machine_destroy(machine);
         return NULL;
     }
@@ -391,6 +411,13 @@ semu_status semu_machine_input(semu_machine *machine,
     if (machine == NULL || event == NULL || event->kind != SEMU_INPUT_BUTTON ||
         event->code >= SEMU_ARRAY_LEN(pins)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unsupported board input");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (known_ulsan_profile(&machine->profile)) {
+        /* E-ULS-0005/E-ULS-0006: no Ulsan evidence names a button, crown, or
+         * touch pin at reset, so every semantic input refuses fail-closed. */
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "ulsan board input is not wired");
         return SEMU_ERR_UNSUPPORTED;
     }
     return semu_apollo4_set_gpio_input(machine->soc, pins[event->code],

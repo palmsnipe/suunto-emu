@@ -1,0 +1,36 @@
+# Ulsan (Suunto Race S) 2.35.36 reset profile. Ticket 725.
+# Evidence: E-ULS-0001 (component identities, vector tables), E-ULS-0002
+# (bounded reference reset trace), E-ULS-0006 (boot tuple and memory map).
+# Component hashes are the independently hashed SOF component bytes; no
+# firmware content is stored in this file.
+# The resources load address is the physical MSPI1 XIP placement
+# (0x18000000 + logical flash offset 0x00040000); the SOF manifest records
+# only the logical offset. The first 256 KiB of the XIP window is
+# device-specific, absent, and deliberately not covered by any mapping.
+[profile]
+format=1
+id=ulsan-2.35.36
+board=ulsan
+product=Ulsan
+version=2.35.36.10731-R
+vector_table=0x00030000
+display_width=466
+display_height=466
+
+[component resident]
+role=resident
+load_address=0x00010000
+size=124123
+sha256=8de61914e7de7b73e7a8b5a35adfd53332548a3b5611b4667f0fe41f7158d419
+
+[component application]
+role=application
+load_address=0x00030000
+size=1779802
+sha256=5e229bb3893ee0ac0748d701bcd339aedb6dfd928250e69504e7d089d6cb5bc3
+
+[component resources]
+role=resources
+load_address=0x18040000
+size=33292288
+sha256=ef2a1358fff0c9d2eb1df31b65296b6e99eea729dc3d4921d0f7901e247ef906

@@ -9,3 +9,7 @@ path=profiles/sapporo/2.33.16/profile.semu
 [profile sapporo-2.39.20]
 path=profiles/sapporo/2.39.20/profile.semu
 status=evidence-contract
+
+[profile ulsan-2.35.36]
+path=profiles/ulsan/2.35.36/profile.semu
+status=reset-bring-up
