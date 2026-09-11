@@ -1,0 +1,134 @@
+[evidence]
+format=1
+id=E-ULS-0003
+date=2026-09-11
+source_kind=authentic SOF package extraction
+source_location=$FIRMWARE_ROOT/artifacts/analysis/ulsan-2.44.52/ (from Ulsan-fw_2.44.52.20521-R-fc822bb5.sof)
+product=Ulsan
+version=2.44.52.20521-R
+channel=R
+
+[sof_package]
+filename=Ulsan-fw_2.44.52.20521-R-fc822bb5.sof
+size=11028954
+sha256=276ca7e6bbec83f2e08945e89b67859b090027810e2d314237e0abc25fb15a25
+magic=SOF1
+header_span=624
+revision=11ece069
+
+[component header]
+role=header
+type=1
+encoding_version=1
+load_address=0xffffffff
+size=5854
+sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+compression=none
+note=byte-identical to Ulsan 2.35.36 header and to the Sapporo cross-version
+ header component; recorded as an observed hash match, not inheritance
+
+[component code3]
+role=code3
+type=3
+encoding_version=2
+load_address=0x00040000
+size=121081
+sha256=ac0147b6110c5ac524e70f99dae0aab1883c95afe120f4c7c6283a4e19b8238e
+compression=xz
+first_vector_pair=0x1005ffc0 0x0005d799
+
+[component resident]
+role=resident
+type=5
+encoding_version=2
+load_address=0x00010000
+size=114669
+sha256=3ba7a5b312a2fd4fdb4c327270ec66888f3fc03940bf8b5184233dad221369d9
+compression=xz
+
+[component application]
+role=application
+type=4
+encoding_version=2
+load_address=0x00030000
+size=1828547
+sha256=64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef
+compression=xz
+
+[component resources]
+role=resources
+type=1
+encoding_version=3
+load_address=0x00040000
+size=33292288
+sha256=81f861d4541d5c9f0e6b0cb73c2b3e44197d5abc6f147e1de8005da9af87f524
+compression=xz
+
+[vector_table resident]
+initial_sp=0x1005ffc0
+reset_vector=0x000191d1
+reset_code_address=0x000191d0
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+note=reset vector equals 2.35.36 while resident bytes differ
+
+[vector_table application]
+initial_sp=0x1005ffc0
+reset_vector=0x001da733
+reset_code_address=0x001da732
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[reference_lane_patches]
+note=Renode translator workarounds, not guest behavior; eight sites verified
+ by the reference smoke lane as signature 4f ea 0d 00 at 0x000200e6,
+ 0x00044d6c, 0x00045d9c, 0x000b2150, 0x000b2280, 0x001261f0, 0x0018b380,
+ 0x0018b5e4 (resident base 0x00010000 below 0x30000, application base
+ 0x00030000 otherwise; the base arithmetic independently confirms the
+ resident/application load addresses)
+
+[bounded_traces]
+status=observed
+lane=$FIRMWARE_ROOT/emulator/devices/ulsan/run-2.44.52-smoke.sh
+ (ulsan-2.44.52-boundary.resc)
+reset_trace_sha256=756fa2c54a655842a955a9122142ea54a88a7df116469de6178f92fb81a3b32f
+trace_pair=single run; repeat-pair determinism not yet demonstrated
+startup_stop=paused after ulsan-2.44.52-boundary.resc RunFor 1.000
+terminal_registers=order PC SP LR CFSR HFSR then display/MSPI/NVIC slots:
+ 0xd47f0 0x10029d70 0x779ab 0x00000000 0x00000000 0x87452365 0x00000000
+ 0x00000000 0x00000000 0x00000000 0x10034360 0x00000001 0x28200406
+ 0x0f000000 0x00004004 0x00000000 0x00012000
+fault_registers=CFSR=0x00000000 HFSR=0x00000000
+display_identity=IDREG 0x87452365 observed at the boundary
+mspi1_persistence=wrote native 64-byte persistence records at
+ 0x00010380/0x000103c0/0x00010400, each preceded by an erased creation
+ header read, before pausing
+lane_caveat=the 2.44 wrapper verifies vector tables and translator signatures
+ then runs the boundary script without asserting terminal registers;
+ reads from NVM_OTP/INFO1 (0x42003240, 0x42003310) and CRYPTO (0x400c0fe0)
+ hit absent reference-model peripherals and return 0 there - personalized
+ OTP content is permanently unknown and must never be modeled as real
+
+[display_frame_contract]
+panel=466x466 RGB565; complete published frame exactly 434,312 bytes
+ (race-s-244-full-ui-checkpoint.md:81,128)
+first_observed_layer=466x466 NemaDC layer with source span 466*466/2=108,578
+ bytes and low-byte 0x05 (ulsan-native-display-boundary.md:220-222)
+text_layer=L4 width 466 height 42 stride 233 (ulsan-244-native-ui-pixel-
+ handoff.md:9)
+display_irq=IRQ29 am_disp_isr at 0x000de59f (ulsan-244-panel-self-test.md:7)
+status=cited reference research; not yet registered as per-transaction
+ evidence entries - transaction-level registration is ticket 730/740 scope
+
+[limitations]
+irq_priorities=unknown (attachments appear only in reference plugin sources)
+memory_aliases=unknown (no trustworthy contract recovered)
+cache_interventions=unknown
+logical_storage_interventions=unknown
+device_personalized=eMMC CID/CSD, ProductionData serial/calibration, NVM OTP,
+ and the 256 KiB external-flash prefix permanently unknown without hardware
+description=Component/vector contracts exact; one bounded boundary observed;
+ fifteen full-UI screen captures exist in the reference research lane and are
+ registered separately by later tickets, never re-derived here

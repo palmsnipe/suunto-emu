@@ -1,0 +1,126 @@
+[evidence]
+format=1
+id=E-ULS-0001
+date=2026-09-11
+source_kind=authentic SOF package extraction
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Ulsan-fw_2.35.36.10731-R-a30d1682.sof
+product=Ulsan
+version=2.35.36.10731-R
+channel=R
+
+[sof_package]
+filename=Ulsan-fw_2.35.36.10731-R-a30d1682.sof
+size=11025350
+sha256=52cea276bd7982aafb7c6052b94135a6ee6d0bf8541382e97cc993f636b592ff
+magic=SOF1
+header_span=624
+revision=133145ce
+
+[component header]
+role=header
+type=1
+encoding_version=1
+load_address=0xffffffff
+size=5854
+sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+compression=none
+note=unmapped descriptor; first eight bytes are not a vector pair
+
+[component code3]
+role=code3
+type=3
+encoding_version=2
+load_address=0x00040000
+size=131725
+sha256=ed24b1ca93d0bbb518f4e720cceabd685570c708284a49260dca839c2fffa4d3
+compression=xz
+first_vector_pair=0x1005ffc0 0x00060149
+note=role named by this contract only; extraction manifest labels it type 3 only
+
+[component resident]
+role=resident
+type=5
+encoding_version=2
+load_address=0x00010000
+size=124123
+sha256=8de61914e7de7b73e7a8b5a35adfd53332548a3b5611b4667f0fe41f7158d419
+compression=xz
+
+[component application]
+role=application
+type=4
+encoding_version=2
+load_address=0x00030000
+size=1779802
+sha256=5e229bb3893ee0ac0748d701bcd339aedb6dfd928250e69504e7d089d6cb5bc3
+compression=xz
+
+[component resources]
+role=resources
+type=1
+encoding_version=3
+load_address=0x00040000
+size=33292288
+sha256=ef2a1358fff0c9d2eb1df31b65296b6e99eea729dc3d4921d0f7901e247ef906
+compression=xz
+note=manifest load field 0x00040000 equals the code3 load field; address-space
+ semantics deferred to ticket 725 with the observed XIP window evidence
+
+[vector_table resident]
+initial_sp=0x1005ffc0
+reset_vector=0x000191d1
+reset_code_address=0x000191d0
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[vector_table application]
+initial_sp=0x1005ffc0
+reset_vector=0x001e1b4d
+reset_code_address=0x001e1b4c
+sp_in_apollo_sram=true
+reset_is_thumb=true
+reset_in_component=true
+
+[reference_lane_patches]
+note=Renode translator workarounds, not guest behavior; three resident-image
+ sites verified by the reference smoke lane as signature 4f ea 0d 00 at
+ 0x000c2f94, 0x000c30c4, 0x0012cb4c (application base 0x00030000)
+
+[bounded_traces]
+status=observed
+lane=$FIRMWARE_ROOT/emulator/devices/ulsan/run-2.35.36-smoke.sh
+ (ulsan-2.35.36-boundary.resc)
+reset_trace_sha256=f1bf0a8e58037c78cd2f890fed989540d5881fdbbe44ce894d18807d081e20a8
+trace_pair=two fresh runs, normalized keep-set streams byte-identical;
+ raw logs differed only in Renode banner lines and one extra
+ "MAX17050 read reg 0x21" diagnostic line in run 1, outside the keep-set
+startup_stop=paused after ulsan-2.35.36-boundary.resc; pc=0xdabcc
+terminal_registers=order PC SP LR CFSR HFSR then display/MSPI slots per the
+ boundary resc: 0xdabcc 0x10029e40 0x9760b 0x00000000 0x00000000 0x87452365
+ 0x00000000 0x00000000 0x00000000 0x00000000 0x10033fb0 0x00000001
+fault_registers=CFSR=0x00000000 HFSR=0x00000000
+display_identity=IDREG 0x87452365 observed at boundary; display-control slot
+ (0x400a00f8) read 0x00000000 at the pause
+mspi1_slot_values=inten/intstat/control 0x00000000 each, address 0x10033fb0,
+ count 0x00000001
+pmic_i2c=IOM I2C@0x28 write/read sequence captured in normalized trace
+external_flash_identity=JEDEC C2 25 39 (Macronix MX25U25645G) observed in log
+lane_caveat=the reference wrapper's own assertions are stale against its
+ current model: it expects display-control 0x10 and an "MSPI command queue
+ retired: control=0x00000013" log line that the model no longer emits
+ (it logs native JEDEC-identity and payload-free PIO wording instead),
+ so the script exits 1 while producing the deterministic pause above;
+ this contract records the observed terminal state, not the script's
+ expectations
+
+[limitations]
+irq_priorities=unknown (attachments appear only in reference plugin sources)
+memory_aliases=unknown (no trustworthy contract recovered)
+cache_interventions=unknown
+logical_storage_interventions=unknown
+device_personalized=eMMC CID/CSD, ProductionData serial/calibration, and the
+ 256 KiB external-flash prefix are permanently unavailable without hardware
+ and remain explicitly unknown, never guessed
+description=Component/vector contracts exact; bounded stop reproducible on
+ the reference Renode lane; no in-tree Ulsan profile exists (ticket 725)

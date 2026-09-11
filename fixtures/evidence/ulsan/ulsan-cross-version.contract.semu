@@ -1,0 +1,65 @@
+[evidence]
+format=1
+id=E-ULS-0005
+date=2026-09-11
+source_kind=cross-version Ulsan SOF extraction comparison
+source_location=$FIRMWARE_ROOT/artifacts/{generated/ulsan-2.35.36,analysis/ulsan-2.44.52}
+product=Ulsan
+versions=2.35.36.10731-R,2.44.52.20521-R
+
+[shared_components]
+header_component_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+header_identical_across_both_builds=true
+header_note=type 1 encoding v1, 5854 bytes, load 0xffffffff (unmapped
+ descriptor); first eight bytes are not a vector pair
+header_matches_sapporo_cross_version=true
+inheritance_claim=none - identical bytes are recorded, family inheritance
+ is explicitly not inferred (ticket 720 forbidden scope)
+
+[header_component]
+load_address=0xffffffff (both)
+size_identical=true
+
+[code3_component]
+load_address=0x00040000 (both)
+size_2.35.36=131725
+size_2.44.52=121081
+size_trend=decreased
+sha256_differs=true
+first_vector_sp_identical=0x1005ffc0
+first_vector_rv_2.35.36=0x00060149
+first_vector_rv_2.44.52=0x0005d799
+
+[resident_component]
+type=5 encoding=2 (both)
+load_address=0x00010000 (both)
+initial_sp_identical=0x1005ffc0
+reset_vector_identical=0x000191d1 (identical across versions)
+size_2.35.36=124123
+size_2.44.52=114669
+size_trend=decreased
+sha256_differs=true
+
+[application_component]
+load_address=0x00030000 (both)
+initial_sp_identical=0x1005ffc0
+reset_vector_2.35.36=0x001e1b4d
+reset_vector_2.44.52=0x001da733
+reset_vector_differs=true
+size_2.35.36=1779802
+size_2.44.52=1828547
+size_trend=increased
+sha256_differs=true
+
+[resources_component]
+type=1 encoding=3 (both)
+load_address=0x00040000 (both)
+size_identical=33292288 (exactly equal across versions)
+sha256_differs=true
+
+[cross_family_observations]
+sapporo_resident_load=0x00019000 vs ulsan_resident_load=0x00010000 (differ)
+sapporo_application_load=0x00040000 vs ulsan_application_load=0x00030000 (differ)
+sapporo_resources_load=0x14000000 vs ulsan_resources_load_manifest_field=0x00040000 (differ)
+initial_sp_both_families=0x1005ffc0 (identical; recorded, not generalized)
+recorded_to_prevent=any "same Apollo4 therefore same layout" inference
