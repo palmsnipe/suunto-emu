@@ -1,6 +1,6 @@
 # 725 — One Ulsan Reset Profile
 
-**Status:** blocked
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 720
 
