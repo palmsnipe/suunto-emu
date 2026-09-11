@@ -87,3 +87,11 @@ Blocked at registration (2026-09-09): the required physical observations do
 not exist in the repository or the user evidence roots. This ticket exists
 to keep the roadmap honest about why 2.39 continuation waits for new
 captures rather than engineering effort.
+
+Constraint update: the user owns no physical Suunto device and will not
+produce captures (stated 2026-07-08 session). The three Evidence Inputs
+above cannot be satisfied from any available source; no firmware-side
+analysis substitutes for them (Forbidden Scope stands). This ticket is
+permanently blocked absent third-party observations. The production
+boundary stays as evidenced: exactly five GPS-awake admissions, sixth
+refused, pinned by the ticket 771/774 regressions.
