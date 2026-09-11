@@ -87,12 +87,12 @@ id	phase	title	status	dependencies	ticket
 722	7	Sapporo 2.39 CTIMER Pattern Transition	done	721	plans/tasks/722-sapporo-239-ctimer-pattern.md
 723	7	Sapporo 2.39 NOR Page-Program Semantics	done	402,722	plans/tasks/723-sapporo-239-nor-program.md
 724	7	Sapporo 2.39 CTIMER7 Interrupt Clear	done	310,723	plans/tasks/724-sapporo-239-ctimer7-intclr.md
-725	7	One Ulsan Reset Profile	in-progress	720	plans/tasks/725-ulsan-reset-profile.md
+725	7	One Ulsan Reset Profile	done	720	plans/tasks/725-ulsan-reset-profile.md
 726	7	Sapporo 2.39 CTIMER7 Interrupt Enable	done	310,724	plans/tasks/726-sapporo-239-ctimer7-inten.md
 727	7	Sapporo 2.39 Combined CTIMER Interrupt Enable	done	310,726	plans/tasks/727-sapporo-239-ctimer-combined-inten.md
 728	7	Sapporo 2.39 Synthetic WbStorage Session Cache	done	706,727	plans/tasks/728-sapporo-239-wbsto-session-cache.md
 729	7	Sapporo 2.39 Logical Writable Files	done	728	plans/tasks/729-sapporo-239-logical-writable-files.md
-730	7	One Ulsan Observed Hardware Gap	blocked	725	plans/tasks/730-ulsan-observed-gap.md
+730	7	One Ulsan Observed Hardware Gap	in-progress	725	plans/tasks/730-ulsan-observed-gap.md
 731	7	Sapporo 2.39 LPS22 Pressure Startup	done	315,410,729	plans/tasks/731-sapporo-239-lps22.md
 732	7	Sapporo 2.39 IOM4 Haptic Selector	done	315,413,729	plans/tasks/732-sapporo-239-iom4-haptic-selector.md
 733	7	Sapporo 2.39 Haptic Calibration Fixture	done	413,729	plans/tasks/733-sapporo-239-haptic-calibration.md

@@ -1,6 +1,6 @@
 # 730 — One Ulsan Observed Hardware Gap
 
-**Status:** blocked
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 725
 

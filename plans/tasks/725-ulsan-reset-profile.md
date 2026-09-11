@@ -1,6 +1,6 @@
 # 725 — One Ulsan Reset Profile
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 720
 
