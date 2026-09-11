@@ -61,7 +61,7 @@ No gap/device/display implementation, another product, or inferred sharing.
 
 Report profile/board contract, evidence, stop/trace, regressions, and next gap.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): intake inputs are
 reachable for Tianjin and Rostock — packages hash-verified in

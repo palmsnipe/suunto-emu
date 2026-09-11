@@ -68,7 +68,7 @@ profile/layer, Ulsan code, or golden changes.
 Report exact eligible IDs, per-version gate result, suite record hash, layer
 audit, compiler/sanitizer results, and readiness for Ulsan evidence.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked):
 `tests/private/sapporo-2.35.34.18929` is fully present with no profile

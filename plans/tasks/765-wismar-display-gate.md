@@ -58,7 +58,7 @@ No visual tolerance, golden changes, later products, or unsupported-command acce
 
 Report hashes, interactions, transcript/layers, regressions, and gate result.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): no Wismar native
 display capture exists anywhere in `/Users/cyril/projects/suunto-firmware`.

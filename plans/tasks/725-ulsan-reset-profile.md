@@ -62,7 +62,7 @@ BLE, or unproven shared wiring.
 
 Report version, evidence, maps/wiring, stop/trace, regression results, and next gap.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): nothing physical is
 required for this ticket — its evidence inputs are ticket 720's outputs, and

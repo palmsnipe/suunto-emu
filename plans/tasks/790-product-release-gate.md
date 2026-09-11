@@ -63,7 +63,7 @@ No visual tolerance, skipped interaction, hash weakening, or another product.
 Report product/version, hashes, inputs, transcripts, layers, full regression
 matrix, and release status.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): the audit classifies
 this gate as an F conditional chain gated on 775/780, not on a device.

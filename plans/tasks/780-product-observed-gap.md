@@ -59,7 +59,7 @@ No combined epic, guessed behavior, legacy golden changes, or automatic layers.
 
 Report gap/evidence/tests/checkpoint and whether another instance or final gate follows.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): the audit places this
 ticket in the same class as 730/760 (F conditional) once the product profile

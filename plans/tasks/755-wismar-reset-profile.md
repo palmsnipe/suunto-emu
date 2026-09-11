@@ -60,7 +60,7 @@ No Timer14/MSPI2 semantics, display, inferred shared wiring, or compatibility.
 
 Report maps, evidence, stop/trace, regression results, and next gap.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): the Wismar package
 (sha256 `c0ec9904…`) and extracted components

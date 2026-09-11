@@ -67,7 +67,7 @@ No profile/code, several products per dispatch, family inheritance, or invented 
 Report product/version, eligibility, evidence IDs/hashes, contract/unknowns,
 first stop, and whether ticket 775 may start.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked), FW =
 `/Users/cyril/projects/suunto-firmware`: Rostock has 5 hash-verified packages

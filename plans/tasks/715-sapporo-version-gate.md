@@ -68,7 +68,7 @@ another version, or Ulsan work.
 Report instantiated version, hashes/checkpoints, layers/transcript, commands,
 source before/after hashes, regressions, and release result.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): repo goldens are
 emulator-produced captures by convention, and the audit found everything up to

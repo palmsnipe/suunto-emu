@@ -61,7 +61,7 @@ No tolerant image comparison, missing-input skip, hash changes, or later product
 
 Report version, hashes, inputs, transcripts, layer counts, regressions, and gate status.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): Ulsan golden material
 exists as emulator-produced captures (the repo convention for goldens): 15

@@ -64,7 +64,7 @@ No combined gaps, wildcard layers, guessed cache/storage state, or golden edits.
 Report gap ID, implementation class, evidence, exact tests, layer hits if any,
 next stop, and whether another instance is required.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): the later-Sapporo
 material is present — private bundle `tests/private/sapporo-2.35.34.18929` and

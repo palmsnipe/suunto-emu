@@ -82,7 +82,7 @@ id	phase	title	status	dependencies	ticket
 717	7	Sapporo 2.39 Deterministic Chip Identity	done	716	plans/tasks/717-sapporo-239-chip-identity.md
 718	7	Later Sapporo Expansion Gate	blocked	715	plans/tasks/718-sapporo-expansion-gate.md
 719	7	Sapporo 2.39 CTIMER OUTCFG26	done	717	plans/tasks/719-sapporo-239-ctimer-outcfg26.md
-720	7	Ulsan 2.35/2.44 Evidence Inventory	blocked	630	plans/tasks/720-ulsan-evidence.md
+720	7	Ulsan 2.35/2.44 Evidence Inventory	in-progress	630	plans/tasks/720-ulsan-evidence.md
 721	7	Sapporo 2.39 USB CLKCTRL	done	719	plans/tasks/721-sapporo-239-usb-clkctrl.md
 722	7	Sapporo 2.39 CTIMER Pattern Transition	done	721	plans/tasks/722-sapporo-239-ctimer-pattern.md
 723	7	Sapporo 2.39 NOR Page-Program Semantics	done	402,722	plans/tasks/723-sapporo-239-nor-program.md

@@ -1,6 +1,6 @@
 # 720 — Ulsan 2.35/2.44 Evidence Inventory
 
-**Status:** blocked
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 630
 
@@ -66,7 +66,7 @@ No code/profile, firmware copies, family inheritance, or speculative BLE.
 Report eligible versions, evidence IDs, exact contract, trace hashes, sharing
 proof, missing packages, and first unsupported behavior.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked), FW =
 `/Users/cyril/projects/suunto-firmware`: both Ulsan `.sof` binaries are

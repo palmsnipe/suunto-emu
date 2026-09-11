@@ -61,7 +61,7 @@ No code/profile, firmware bytes, guessed quirk semantics, or product inheritance
 
 Report hashes/contracts/evidence, trace hash, unknowns, and first gap.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked), FW =
 `/Users/cyril/projects/suunto-firmware`: the package-absence premise is stale —

@@ -63,7 +63,7 @@ No combined controller/device epic, speculative BLE/pairing, or family defaults.
 
 Report gap, evidence, transactions, timing/IRQ, next stop, and next ticket instance.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): several listed gap
 candidates are already documented byte-level in

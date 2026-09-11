@@ -60,7 +60,7 @@ golden without evidence.
 
 Report behavior, evidence, tests, new stop/hash, and next instance.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): the named controller
 contracts (Timer14 edge-mode, MSPI2 `0x9f`→`20 bb 19`, `0xf0` mask) are

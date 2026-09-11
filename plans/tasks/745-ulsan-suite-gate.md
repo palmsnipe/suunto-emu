@@ -63,7 +63,7 @@ wildcard layer, Wismar code, or golden edits.
 
 Report exact IDs, suite hash, per-version results, legacy results, and Wismar readiness.
 
-## Blocked-state audit note (2026-07-08, no-device constraint session)
+## Blocked-state audit note (2026-09-11, no-device constraint session)
 
 Verified on disk (read-only audit; hashes spot-checked): both eligible Ulsan
 versions are physically present and sha256-verified in
