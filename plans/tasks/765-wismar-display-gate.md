@@ -57,3 +57,15 @@ No visual tolerance, golden changes, later products, or unsupported-command acce
 ## Handoff
 
 Report hashes, interactions, transcript/layers, regressions, and gate result.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): no Wismar native
+display capture exists anywhere in `/Users/cyril/projects/suunto-firmware`.
+The audit's verdict for this ticket is not satisfiable today — but NOT
+device-bound; a watch would not supply the missing capture; path is new
+read-only RE tracing. Goldens are emulator-produced captures by repo
+convention, so the missing first-display-request evidence is labeled "evidence
+pending RE derivation", never "needs device". The stated blocker is therefore
+still valid in class read-only RE derivation.
+Status is left unchanged for integrator review.

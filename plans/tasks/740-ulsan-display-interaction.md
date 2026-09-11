@@ -60,3 +60,17 @@ No tolerant image comparison, missing-input skip, hash changes, or later product
 ## Handoff
 
 Report version, hashes, inputs, transcripts, layer counts, regressions, and gate status.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): Ulsan golden material
+exists as emulator-produced captures (the repo convention for goldens): 15
+ordered 466x466 screens of 434,312 B each, final SHA `d3014e70…`, and an L4
+4-bit text layer (466x42, stride 233, SHA `2d7a037a…`), regenerable via
+`run-2.44-full-ui.sh` under `/Users/cyril/projects/suunto-firmware/emulator/`
+(the prior `/tmp` capture session is gone but reproducible). The stated
+blocker is therefore partially stale. What remains — pairing completion and
+the post-pairing watch face — is "evidence pending RE derivation" (new
+read-only tracing), not "needs device": a watch would not produce these
+emulator-convention goldens.
+Status is left unchanged for integrator review.

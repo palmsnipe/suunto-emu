@@ -58,3 +58,14 @@ No combined epic, guessed behavior, legacy golden changes, or automatic layers.
 ## Handoff
 
 Report gap/evidence/tests/checkpoint and whether another instance or final gate follows.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): the audit places this
+ticket in the same class as 730/760 (F conditional) once the product profile
+exists — evidence derives from the extracted components already in
+`/Users/cyril/projects/suunto-firmware` (e.g. Tianjin
+`FW/artifacts/analysis/tianjin-2.37.48/`). The stated blocker is therefore
+still valid only as the 775 chain. What remains is in-repo implementation plus
+read-only RE derivation; nothing physical-observation-bound.
+Status is left unchanged for integrator review.

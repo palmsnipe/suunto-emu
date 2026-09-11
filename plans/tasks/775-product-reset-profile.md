@@ -60,3 +60,13 @@ No gap/device/display implementation, another product, or inferred sharing.
 ## Handoff
 
 Report profile/board contract, evidence, stop/trace, regressions, and next gap.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): intake inputs are
+reachable for Tianjin and Rostock — packages hash-verified in
+`/Users/cyril/projects/suunto-firmware/artifacts/firmware/` (Rostock
+`dd2e8fb3…`, Tianjin `d35ea721…`) (class F conditional). The stated blocker is
+therefore still valid only as the 770 chain. What remains is in-repo
+profile/board work after an eligible 770 handoff; no physical observation.
+Status is left unchanged for integrator review.

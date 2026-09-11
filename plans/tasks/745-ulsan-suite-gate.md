@@ -62,3 +62,13 @@ wildcard layer, Wismar code, or golden edits.
 ## Handoff
 
 Report exact IDs, suite hash, per-version results, legacy results, and Wismar readiness.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): both eligible Ulsan
+versions are physically present and sha256-verified in
+`/Users/cyril/projects/suunto-firmware/artifacts/firmware/` (`276ca7e6…`,
+`52cea276…`) (class F chain). The stated blocker is therefore still valid only
+as a chain gate needing the 720–740 per-version release records. What remains
+is in-repo integration and registration; no physical observation is missing.
+Status is left unchanged for integrator review.

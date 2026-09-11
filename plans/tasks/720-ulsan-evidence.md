@@ -65,3 +65,21 @@ No code/profile, firmware copies, family inheritance, or speculative BLE.
 
 Report eligible versions, evidence IDs, exact contract, trace hashes, sharing
 proof, missing packages, and first unsupported behavior.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked), FW =
+`/Users/cyril/projects/suunto-firmware`: both Ulsan `.sof` binaries are
+hash-verified — 2.44.52 sha256 `276ca7e6…` (matches `FW/firmware/catalog.json`
+and `FW/docs/research/race-s-244-full-ui-checkpoint.md`), 2.35.36 sha256
+`52cea276…` — with extracted components (`FW/artifacts/analysis/ulsan-2.44.52/`,
+`FW/artifacts/generated/ulsan-2.35.36/`) and register-level RE in
+`FW/emulator/devices/ulsan/` (~60 `.resc`/`.repl` files; NemaDC
+`0x400a00f4`=0x87452365, SDIO `0x40070000`, MAX17050 IOM2/0x36, crown
+IOM6/GPIO104, touch IOM3/0x24+GPIO100, IRQ29, 466x466 = 434,312 B/frame) plus
+runnable `run-2.35.36-smoke.sh` / `run-2.44-full-ui.sh`. The stated blocker is
+therefore stale (audit's strongest F case; dependency 630 done). What remains
+is in-repo registration of these contracts and two bounded reset traces;
+device-personalized bytes (256 KiB flash prefix, ProductionData serial/cal,
+eMMC CID/CSD) stay permanently and explicitly unknown.
+Status is left unchanged for integrator review.

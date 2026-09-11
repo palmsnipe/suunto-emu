@@ -63,3 +63,15 @@ No combined gaps, wildcard layers, guessed cache/storage state, or golden edits.
 
 Report gap ID, implementation class, evidence, exact tests, layer hits if any,
 next stop, and whether another instance is required.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): the later-Sapporo
+material is present — private bundle `tests/private/sapporo-2.35.34.18929` and
+`fixtures/evidence/sapporo/sapporo-2.35.contract.semu`; the audit found traces
+blocked only for lack of a profile, and E-SAP-0017's un-recovered state is a
+deeper-trace/disassembly job against those files, not a missing observation.
+The stated blocker is therefore partially stale (class F + stale; dependency
+705 is done). What remains — identifying one exact failing
+transaction/record — is read-only RE derivation on files already on disk.
+Status is left unchanged for integrator review.

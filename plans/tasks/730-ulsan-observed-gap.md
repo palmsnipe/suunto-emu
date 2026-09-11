@@ -62,3 +62,15 @@ No combined controller/device epic, speculative BLE/pairing, or family defaults.
 ## Handoff
 
 Report gap, evidence, transactions, timing/IRQ, next stop, and next ticket instance.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): several listed gap
+candidates are already documented byte-level in
+`/Users/cyril/projects/suunto-firmware` — JEDEC `c2 25 39` @
+`0x000f44a2`/`0x00105894`, PIO bytes b7/35/af/05/06/01, CMD8→CMD1 `0xc0ff8080`,
+data port `0x40070020` — and the audit marks BLE/pairing unobserved anywhere
+yet derivable (class F). The stated blocker is therefore still valid as the
+725 chain only. What remains per instance is in-repo implementation plus
+read-only RE derivation; no instance is physical-observation-bound.
+Status is left unchanged for integrator review.

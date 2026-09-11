@@ -59,3 +59,14 @@ golden without evidence.
 ## Handoff
 
 Report behavior, evidence, tests, new stop/hash, and next instance.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): the named controller
+contracts (Timer14 edge-mode, MSPI2 `0x9f`→`20 bb 19`, `0xf0` mask) are
+already documented under `/Users/cyril/projects/suunto-firmware` (class F; the
+panel is the not-evidenced part — no Wismar display descriptor has ever been
+observed). The stated blocker is therefore still valid per instance as the
+755 chain. What remains for panel gaps is new read-only RE tracing; no
+instance is physical-observation-bound.
+Status is left unchanged for integrator review.

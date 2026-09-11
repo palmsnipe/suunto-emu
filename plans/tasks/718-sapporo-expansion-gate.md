@@ -67,3 +67,14 @@ profile/layer, Ulsan code, or golden changes.
 
 Report exact eligible IDs, per-version gate result, suite record hash, layer
 audit, compiler/sanitizer results, and readiness for Ulsan evidence.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked):
+`tests/private/sapporo-2.35.34.18929` is fully present with no profile
+registration, and ticket 705 is done only as a template — the audit found this
+gate structurally waiting on a phantom per-version instance (class F/E chain).
+The stated blocker is therefore partially stale. What remains is in-repo
+registration work (register the 2.35.34 705 instance, then run the per-version
+705/710/715 chain); nothing physical.
+Status is left unchanged for integrator review.

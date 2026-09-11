@@ -60,3 +60,19 @@ No code/profile, firmware bytes, guessed quirk semantics, or product inheritance
 ## Handoff
 
 Report hashes/contracts/evidence, trace hash, unknowns, and first gap.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked), FW =
+`/Users/cyril/projects/suunto-firmware`: the package-absence premise is stale —
+`FW/firmware/catalog.json`, `FW/firmware/known-packages.json`, and
+`FW/emulator/devices/registry.json` all claim no Wismar package, yet
+`Wismar-fw_2.46.14.26212-U` (sha256 `c0ec9904…`, matching
+`external-package-candidates.json`) and the extracted components
+`FW/artifacts/generated/wismar-2.46.14/` have been on disk since Aug 12;
+intake must hash files, not trust registries. Documented there already: `0xf0`
+NVIC mask, SRAM alias `0x2000_0000`, Timer14 edge-mode, MSPI2 `0x9f`→
+`20 bb 19`, MAX20360 IOM4. The stated blocker is therefore stale. What
+remains — a display-submission trace and the `0x00534900` UNDEFINSTR boundary —
+is read-only RE derivation.
+Status is left unchanged for integrator review.

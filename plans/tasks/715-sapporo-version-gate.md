@@ -67,3 +67,14 @@ another version, or Ulsan work.
 
 Report instantiated version, hashes/checkpoints, layers/transcript, commands,
 source before/after hashes, regressions, and release result.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): repo goldens are
+emulator-produced captures by convention, and the audit found everything up to
+the fifth-GPS-pulse boundary derivable from the Sapporo bundles already on
+disk; only past-that-boundary behavior coincides with the 776 physical gap.
+The stated blocker is therefore partially stale (class F partial). What
+remains is in-repo golden production gated on ticket 710; no device-side
+observation is needed for the pre-boundary goldens.
+Status is left unchanged for integrator review.

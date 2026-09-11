@@ -59,3 +59,15 @@ No Timer14/MSPI2 semantics, display, inferred shared wiring, or compatibility.
 ## Handoff
 
 Report maps, evidence, stop/trace, regression results, and next gap.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): the Wismar package
+(sha256 `c0ec9904…`) and extracted components
+`/Users/cyril/projects/suunto-firmware/artifacts/generated/wismar-2.46.14/`
+are present with the reset-relevant contracts documented (class F
+conditional; the audit notes the Renode translator fault is Renode-specific —
+test in-tree, do not assume). The stated blocker is therefore still valid as
+the 750 chain only; once 750's stale premise is corrected, nothing physical
+stands between that registration and this profile.
+Status is left unchanged for integrator review.

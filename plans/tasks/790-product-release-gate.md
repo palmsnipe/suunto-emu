@@ -62,3 +62,14 @@ No visual tolerance, skipped interaction, hash weakening, or another product.
 
 Report product/version, hashes, inputs, transcripts, layers, full regression
 matrix, and release status.
+
+## Blocked-state audit note (2026-07-08, no-device constraint session)
+
+Verified on disk (read-only audit; hashes spot-checked): the audit classifies
+this gate as an F conditional chain gated on 775/780, not on a device.
+Goldens here are emulator-produced captures by repo convention, so any
+endpoint evidence still unavailable is "evidence pending RE derivation"
+(new read-only tracing), never "needs device". The stated blocker is therefore
+still valid only as the chain above it. What remains is in-repo integration
+work once the product chain lands.
+Status is left unchanged for integrator review.
