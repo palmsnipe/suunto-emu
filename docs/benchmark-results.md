@@ -73,3 +73,20 @@ deterministic behavior. Verified across multiple runs.
 - `make check`: 672 tests, 0 failures
 - `make sanitize` (ASan+UBSan): 111 test groups, 0 failures
 - `make check-lines`: all within limits
+
+## Real-firmware calibration (sapporo-2.22.60 setup-walk)
+
+Synthetic loops measure the interpreter floor. The pinned SDL live-test
+setup-walk (14,178,200,857 instructions, halt `virtual_time_ns=
+43790375389`) measures the full machine including devices, DMA flash
+emulation, presentation hashing, and frame gates. Host: same Apple
+Silicon machine, best idle-run wall clock, SDL dummy driver:
+
+| Build | Wall clock | Guest MIPS |
+|-------|-----------:|-----------:|
+| Pre-optimization (`f572d8f`) | 278 s | 51.0 |
+| + CRC-32 table + storage page cache (`6d2d706`) | 229 s | 61.9 |
+
+The residual profile is interpreter-dominated (~44% `semu_cpu_step`
+inclusive); remaining bounded targets were exhausted — further gains
+there are roadmap-scale work, not maintenance.
