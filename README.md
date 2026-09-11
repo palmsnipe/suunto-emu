@@ -32,15 +32,25 @@ make sdl
 make check-sdl
 ```
 
-`make check-sdl` always verifies invalid live-test configuration fails closed.
-When an authentic manifest is available, it also drives one Return/Enter edge
-and two successive middle-screen clicks through the dummy SDL frontend and
-verifies each new settled setup frame:
+`make check` runs `check-sdl-quick` when SDL3 is present: it builds the SDL
+frontend, runs the input-mapping and live-test-timeline tests (including their
+fail-closed refusal cases) and a dummy-driver smoke, and invokes the
+firmware-walk scripts in skip mode so their configuration paths still execute.
+Missing SDL3 or skipped walks each print one loud banner rather than passing
+silently.
+
+`make check-sdl` runs the fuller firmware-gated walks. It auto-detects the
+private bundle at `tests/private/sapporo-2.22.60/firmware.semu`; when that
+exists no environment is needed. To point at a bundle elsewhere, set
+`SEMU_FIRMWARE_MANIFEST` explicitly:
 
 ```sh
 SEMU_FIRMWARE_MANIFEST=/path/to/firmware.semu \
 SEMU_SDL_TEST_SNAPSHOT=/tmp/suunto-ui-preframe.sems make check-sdl
 ```
+
+Without any manifest found it prints a loud SKIP banner (walks skipped), never
+a silent pass.
 
 The snapshot is optional; supplying one only shortens the bounded firmware run.
 
