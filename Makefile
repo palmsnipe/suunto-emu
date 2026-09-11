@@ -37,7 +37,8 @@ TEST_BINS = $(patsubst tests/unit/%.c,$(BUILD_DIR)/tests/%,$(UNIT_TEST_SOURCES))
 INTEGRATION_TEST_BINS = $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
 
 .PHONY: all sdl bench check-sdl3-required test check check-lines \
-	check-task-contracts check-sdl test-firmware test-differential sanitize clean bench
+	check-task-contracts check-sdl check-sdl-quick test-firmware \
+	test-differential sanitize clean bench
 
 BENCH_BINS = $(BUILD_DIR)/bench_cpu
 
@@ -123,16 +124,42 @@ check-lines:
 check-task-contracts:
 	@sh tools/check_task_contracts.sh
 
-check: all test check-lines check-task-contracts
+check: all test check-lines check-task-contracts check-sdl-quick
 	@$(BUILD_DIR)/suunto-emu list >/dev/null
 	@$(BUILD_DIR)/suunto-emu show-profile sapporo-2.22.60 >/dev/null
 	@$(BUILD_DIR)/suunto-emu list-layers --profile sapporo-2.22.60 >/dev/null
 
+# Fast SDL gate inside `make check`: builds the SDL frontend, runs the input
+# unit test, the dummy-driver smoke, and the two SDL regression scripts with
+# SEMU_SDL_SKIP_FIRMWARE_WALKS=1 so only their parser-refusal cases run. It
+# never fails silently: hosts without SDL3 and skipped firmware walks each
+# print one loud banner. The firmware-gated walks themselves (slow;
+# auto-detecting tests/private/sapporo-2.22.60/firmware.semu) stay behind
+# `make check-sdl`, which behavior-change acceptance must run.
+check-sdl-quick:
+	@set -e; \
+	if PKG_CONFIG="$(PKG_CONFIG)" sh tools/check_sdl3.sh probe; then \
+		$(MAKE) -s sdl; \
+		$(MAKE) -s $(SDL_INPUT_TEST_BIN); \
+		echo "TEST $(SDL_INPUT_TEST_BIN)"; \
+		$(SDL_INPUT_TEST_BIN); \
+		SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null; \
+		SEMU_SDL_SKIP_FIRMWARE_WALKS=1 SEMU_FIRMWARE_MANIFEST= \
+			SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
+			sh tools/test_sdl_live_input.sh; \
+		SEMU_SDL_SKIP_FIRMWARE_WALKS=1 SEMU_FIRMWARE_MANIFEST= \
+			SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
+			sh tools/test_sdl_onboarding_completion.sh; \
+		echo "check-sdl-quick: passed; firmware-gated SDL walks were SKIPPED - run 'make check-sdl' (auto-detects the conventional private manifest) after device, DMA, timing, or rendering changes"; \
+	else \
+		echo "check-sdl-quick: SKIPPED entirely - SDL3 was not found by pkg-config; install SDL3 (or set PKG_CONFIG) or accept that SDL regressions stay unmeasured"; \
+	fi
+
 check-sdl:
 	@set -e; \
 	if PKG_CONFIG="$(PKG_CONFIG)" sh tools/check_sdl3.sh probe; then \
-		$(MAKE) sdl; \
-		$(MAKE) $(SDL_INPUT_TEST_BIN); \
+		$(MAKE) -s sdl; \
+		$(MAKE) -s $(SDL_INPUT_TEST_BIN); \
 		echo "TEST $(SDL_INPUT_TEST_BIN)"; \
 		$(SDL_INPUT_TEST_BIN); \
 		SDL_VIDEODRIVER=dummy $(BUILD_DIR)/suunto-emu-sdl list >/dev/null; \
@@ -140,6 +167,8 @@ check-sdl:
 			sh tools/test_sdl_live_input.sh; \
 		SEMU_SDL_EMULATOR="$(BUILD_DIR)/suunto-emu-sdl" \
 			sh tools/test_sdl_onboarding_completion.sh; \
+	else \
+		echo "check-sdl: SKIPPED entirely - SDL3 was not found by pkg-config" >&2; \
 	fi
 
 test-firmware: all

@@ -3,6 +3,11 @@ set -eu
 
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-}
+if [ -z "$manifest" ] && [ -z "${SEMU_SDL_SKIP_FIRMWARE_WALKS:-}" ] &&
+   [ -f "$(dirname "$0")/../tests/private/sapporo-2.22.60/firmware.semu" ];
+then
+    manifest="$(dirname "$0")/../tests/private/sapporo-2.22.60/firmware.semu"
+fi
 snapshot=${SEMU_SDL_TEST_SNAPSHOT:-}
 expected_first='SDL first-frame width=240 height=240 generation=1 crc32=2a01c517'
 expected_step_one='SDL live test settled step=1 generation=3 crc32=4979f432'
@@ -51,7 +56,7 @@ if [ "$status" -ne 2 ] ||
 fi
 
 if [ -z "$manifest" ]; then
-    echo "SKIP SDL live input firmware check: SEMU_FIRMWARE_MANIFEST is unset"
+    echo "SKIP SDL live input firmware check: no manifest (set SEMU_FIRMWARE_MANIFEST; the conventional tests/private/sapporo-2.22.60/firmware.semu is auto-detected)"
     exit 0
 fi
 if [ ! -f "$manifest" ]; then

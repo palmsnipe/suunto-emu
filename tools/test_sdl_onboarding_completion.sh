@@ -22,6 +22,11 @@ set -eu
 
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-}
+if [ -z "$manifest" ] && [ -z "${SEMU_SDL_SKIP_FIRMWARE_WALKS:-}" ] &&
+   [ -f "$(dirname "$0")/../tests/private/sapporo-2.22.60/firmware.semu" ];
+then
+    manifest="$(dirname "$0")/../tests/private/sapporo-2.22.60/firmware.semu"
+fi
 layer=sapporo-2.22-no-device
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-onboard.XXXXXX")
@@ -68,7 +73,7 @@ fi
 
 # --- Firmware-gated completion walk -------------------------------------------
 if [ -z "$manifest" ]; then
-    echo "SKIP onboarding completion firmware check: SEMU_FIRMWARE_MANIFEST is unset"
+    echo "SKIP onboarding completion firmware check: no manifest (set SEMU_FIRMWARE_MANIFEST; the conventional tests/private/sapporo-2.22.60/firmware.semu is auto-detected)"
     exit 0
 fi
 if [ ! -f "$manifest" ]; then
