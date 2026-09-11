@@ -8,10 +8,11 @@
  * (ticket 725). Evidence: E-ULS-0001 (component identities), E-ULS-0002
  * (bounded reference reset trace), E-ULS-0006 (boot tuple and memory map).
  *
- * The board maps exactly the proven memory classes and nothing else: every
- * MMIO block, the bootrom, and the device-specific first 256 KiB of the
- * MSPI1 XIP window stay unmapped so execution fails closed at the first
- * unsupported transaction. No Sapporo device wiring is inherited.
+ * The board maps exactly the proven memory classes plus the one attached
+ * controller block (GPIO at 0x40010000, E-ULS-0007, ticket 730). Every
+ * other MMIO block, the bootrom, and the device-specific first 256 KiB of
+ * the MSPI1 XIP window stay unmapped so execution fails closed at the
+ * first unsupported transaction. No Sapporo device wiring is inherited.
  */
 
 semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error);

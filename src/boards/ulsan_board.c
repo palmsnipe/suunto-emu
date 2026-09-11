@@ -13,22 +13,35 @@
  *       MSPI1 XIP base 0x18000000 plus the logical offset 0x00040000 and
  *       extending to the end of the 32 MiB aperture (ulsan-storage.repl).
  *
+ * Attached controller (ticket 730):
+ *   0x40010000 GPIO bank     the boot image's pad-setup sequence stores the
+ *       PADKEY value 0x73 and PINCFG words through this block while the
+ *       application table runs (first precise bus fault observed at
+ *       0x40010200 from PC 0x000c22b2, CFSR 0x00008200). The reference lane
+ *       resolves the same stores through AmbiqApollo4_GPIO at 0x40010000
+ *       (bank IRQs 56..63, upstream ambiq-apollo4 platform description) and
+ *       never refuses them; the same in-tree Apollo4 GPIO controller serves
+ *       that block for Sapporo. No GPIO interrupt sink is attached: the
+ *       Ulsan boot evidence shows pad configuration only, no bank IRQ.
+ *
  * Deliberately unmapped, so accesses fail closed with a bounded diagnostic:
  *   0x18000000..0x1803ffff  device-specific first 256 KiB, permanently
  *       absent without hardware and never synthesized (E-ULS-0006).
  *   0x1a000000 and above    outside the recorded XIP aperture.
  *   0x07fffffc, 0x08000000  bootrom/logger; the Ulsan reset starts from the
  *       application vector table, not the bootrom.
- *   every 0x400xxxxx block  CLKGEN, GPIO, IOM, MSPI1 registers, display
+ *   every other 0x400xxxxx block  CLKGEN, IOM, MSPI1 registers, display
  *       controller and NVIC-adjacent SoC blocks are observed-only in the
  *       reference lane; no register behavior is claimed here yet.
  *
- * No device wiring is registered: the Ulsan reset evidence names no button,
- * crown, or touch pin, so semu_machine_input refuses every semantic input.
+ * No semantic input wiring is registered: the Ulsan reset evidence names no
+ * button, crown, or touch pin, so semu_machine_input still refuses every
+ * semantic input.
  */
 
 #include "ulsan_board.h"
 
+#include "../soc/apollo4/gpio.h"
 #include "semu/types.h"
 
 #include <string.h>
@@ -71,6 +84,9 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
         if (status != SEMU_OK) {
             return status;
         }
+    }
+    if (semu_apollo4_gpio_create(bus, NULL, NULL, error) == NULL) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
     }
     return SEMU_OK;
 }
