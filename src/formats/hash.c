@@ -137,22 +137,47 @@ static void sha256_final(sha256_context *context, uint8_t digest[32])
     }
 }
 
+/*
+ * Reflected CRC-32 (polynomial 0xEDB88320) with the caller seed XORed into
+ * the register at entry and the standard final complement, matching the
+ * original bit-by-bit loop byte for byte. The 256-entry XOR table replaces
+ * the eight inner bit iterations per byte; semu_crc32 runs over full frame
+ * buffers on every publish (live gate, presentation, snapshots), where the
+ * bit loop was the profiled hot spot. The table is the exact function of
+ * the bit loop, so every existing hash pin stays byte-identical.
+ */
+static uint32_t crc32_table[256];
+static int crc32_table_ready;
+
+static void crc32_table_init(void)
+{
+    uint32_t index;
+    unsigned bit;
+    for (index = 0u; index < 256u; ++index) {
+        uint32_t value = index;
+        for (bit = 0u; bit < 8u; ++bit) {
+            uint32_t mask = (uint32_t)-(int32_t)(value & 1u);
+            value = (value >> 1u) ^ (0xedb88320u & mask);
+        }
+        crc32_table[index] = value;
+    }
+    crc32_table_ready = 1;
+}
+
 uint32_t semu_crc32(uint32_t seed, const void *data, size_t size)
 {
     const uint8_t *bytes = (const uint8_t *)data;
     uint32_t crc = seed ^ 0xffffffffu;
     size_t index;
-    unsigned bit;
 
     if (bytes == NULL && size != 0u) {
         return seed;
     }
+    if (!crc32_table_ready) {
+        crc32_table_init();
+    }
     for (index = 0u; index < size; ++index) {
-        crc ^= bytes[index];
-        for (bit = 0u; bit < 8u; ++bit) {
-            uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
-            crc = (crc >> 1u) ^ (0xedb88320u & mask);
-        }
+        crc = crc32_table[(crc ^ bytes[index]) & 0xffu] ^ (crc >> 8u);
     }
     return crc ^ 0xffffffffu;
 }

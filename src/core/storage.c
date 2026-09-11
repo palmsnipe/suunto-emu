@@ -277,28 +277,56 @@ semu_status semu_storage_program(semu_storage *storage, uint64_t address,
         semu_error_set(error, SEMU_ERR_RANGE, "storage program out of range");
         return SEMU_ERR_RANGE;
     }
-    for (offset = 0u; offset < size; ++offset) {
-        uint8_t old_value = byte_at(storage, address + offset);
-        if ((old_value & input[offset]) != input[offset]) {
-            semu_error_set(error, SEMU_ERR_STATE,
-                           "program requires erase at 0x%llx",
-                           (unsigned long long)(address + offset));
-            return SEMU_ERR_STATE;
+    /* One page lookup per touched page instead of per byte: addresses
+     * ascend, so a single-entry index cache serves every byte of a page in
+     * both passes (nothing mutates pages between them). Byte_at's fallback
+     * reads storage->base when the page is absent; refusals, bytes written,
+     * and pruning are unchanged. */
+    {
+        uint64_t cached_index = UINT64_MAX;
+        storage_page *cached = NULL;
+        for (offset = 0u; offset < size; ++offset) {
+            uint64_t current = address + offset;
+            uint64_t index = current / STORAGE_PAGE_SIZE;
+            size_t page_offset = (size_t)(current % STORAGE_PAGE_SIZE);
+            uint8_t old_value;
+            if (index != cached_index) {
+                cached = find_page(storage, index);
+                cached_index = index;
+            }
+            old_value = cached != NULL ? cached->bytes[page_offset]
+                                       : storage->base[(size_t)current];
+            if ((old_value & input[offset]) != input[offset]) {
+                semu_error_set(error, SEMU_ERR_STATE,
+                               "program requires erase at 0x%llx",
+                               (unsigned long long)current);
+                return SEMU_ERR_STATE;
+            }
         }
-    }
-    for (offset = 0u; offset < size; ++offset) {
-        uint64_t current = address + offset;
-        uint64_t index = current / STORAGE_PAGE_SIZE;
-        uint8_t old_value = byte_at(storage, current);
-        storage_page *page;
-        if (old_value == input[offset]) {
-            continue;
+        cached_index = UINT64_MAX;
+        cached = NULL;
+        for (offset = 0u; offset < size; ++offset) {
+            uint64_t current = address + offset;
+            uint64_t index = current / STORAGE_PAGE_SIZE;
+            size_t page_offset = (size_t)(current % STORAGE_PAGE_SIZE);
+            uint8_t old_value;
+            if (index != cached_index) {
+                cached = find_page(storage, index);
+                cached_index = index;
+            }
+            old_value = cached != NULL ? cached->bytes[page_offset]
+                                       : storage->base[(size_t)current];
+            if (old_value == input[offset]) {
+                continue;
+            }
+            if (cached == NULL) {
+                cached = create_page(storage, index, error);
+                if (cached == NULL) {
+                    return SEMU_ERR_NOMEM;
+                }
+            }
+            cached->bytes[page_offset] = input[offset];
         }
-        page = create_page(storage, index, error);
-        if (page == NULL) {
-            return SEMU_ERR_NOMEM;
-        }
-        page->bytes[(size_t)(current % STORAGE_PAGE_SIZE)] = input[offset];
     }
     prune_equal_pages(storage);
     semu_error_clear(error);
