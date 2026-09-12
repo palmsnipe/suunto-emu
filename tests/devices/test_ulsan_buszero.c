@@ -33,6 +33,15 @@ static void test_logged_offset_reads_zero(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x400c0fe0u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    /* Guest logger port: probe-pinned lane read value 0 and the
+     * lane-discarded logged write 0x2 (E-ULS-0016). */
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40000000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40000000u, 4u, UINT32_C(2),
+                                    &error));
     semu_bus_destroy(bus);
 }
 
@@ -61,6 +70,11 @@ static void test_unobserved_offsets_refused(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
                      semu_bus_write(bus, 0x400c0fe0u, 4u, UINT32_C(1),
+                                    &error) != SEMU_OK);
+    /* Logger port: only the logged 0x2 write is accepted. */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, 0x40000000u, 4u, UINT32_C(3),
                                     &error) != SEMU_OK);
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,

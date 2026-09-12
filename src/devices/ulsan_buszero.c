@@ -19,11 +19,22 @@ typedef struct {
     uint32_t size;   /* window size                                   */
     uint32_t offset; /* offset inside the window with lane-recorded value */
     uint32_t value;  /* the value the lane sysbus log recorded        */
+    int has_write;   /* the lane log also recorded a write here       */
+    uint32_t write_value; /* that logged write value (discarded)       */
     const char *name;
 } zero_window;
 
 static const zero_window zero_windows[] = {
-    { 0x400C0000u, 0x4000u, 0xFE0u, UINT32_C(0), "ulsan.buszero.crypto" }
+    { 0x400C0000u, 0x4000u, 0xFE0u, UINT32_C(0), 0, 0u,
+      "ulsan.buszero.crypto" },
+    /* Guest logger port at 0x40000000 (ticket 730, E-ULS-0016): lane
+     * lines "ReadDoubleWord from non existing peripheral at 0x40000000"
+     * (lane probe pins the returned value to 0) and "WriteDoubleWord to
+     * non existing peripheral at 0x40000000, value 0x2"; the scratch
+     * trace shows reads (returning 0) and 0x2 stores are the only
+     * accesses through instruction 200,000,000. */
+    { 0x40000000u, 0x4u, 0x0u, UINT32_C(0), 1, UINT32_C(2),
+      "ulsan.buszero.logger" }
 };
 
 typedef struct {
@@ -63,7 +74,11 @@ static semu_status buszero_write(void *context, uint32_t offset,
 {
     const buszero_context *ctx = (const buszero_context *)context;
 
-    (void)value;
+    if (ctx->window->has_write && width == 4u &&
+        offset == ctx->window->offset &&
+        value == ctx->window->write_value) {
+        return SEMU_OK; /* the lane sysbus discarded this logged write */
+    }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "Ulsan bus-zero write at 0x%08x width %u is unsupported",
                    ctx->window->base + offset, width);
