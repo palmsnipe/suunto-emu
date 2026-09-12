@@ -13,7 +13,7 @@
  *       MSPI1 XIP base 0x18000000 plus the logical offset 0x00040000 and
  *       extending to the end of the 32 MiB aperture (ulsan-storage.repl).
  *
- * Attached controller (ticket 730):
+ * Attached controllers (ticket 730):
  *   0x40010000 GPIO bank     the boot image's pad-setup sequence stores the
  *       PADKEY value 0x73 and PINCFG words through this block while the
  *       application table runs (first precise bus fault observed at
@@ -23,6 +23,12 @@
  *       never refuses them; the same in-tree Apollo4 GPIO controller serves
  *       that block for Sapporo. No GPIO interrupt sink is attached: the
  *       Ulsan boot evidence shows pad configuration only, no bank IRQ.
+ *   0x40021000 power control  the boot phase reads DEVICE_POWER_STATUS
+ *       (bit 20 sampled at 0x00096b66 by the reader called from 0x0009d20a)
+ *       and performs enable writes the reference lane logged as fully
+ *       unhandled bits; the evidence-bounded device
+ *       src/devices/ulsan_pwrctrl.c accepts exactly those observed
+ *       transactions and refuses everything else (E-ULS-0008).
  *
  * Deliberately unmapped, so accesses fail closed with a bounded diagnostic:
  *   0x18000000..0x1803ffff  device-specific first 256 KiB, permanently
@@ -41,6 +47,7 @@
 
 #include "ulsan_board.h"
 
+#include "../devices/ulsan_pwrctrl.h"
 #include "../soc/apollo4/gpio.h"
 #include "semu/types.h"
 
@@ -88,5 +95,5 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (semu_apollo4_gpio_create(bus, NULL, NULL, error) == NULL) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
-    return SEMU_OK;
+    return semu_ulsan_pwrctrl_map(bus, error);
 }
