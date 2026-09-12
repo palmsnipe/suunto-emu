@@ -122,6 +122,34 @@ static void test_observed_registers_store(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, IOM4 + 0x248u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT32_C(0x00000005), value);
+    /* Transaction block (E-ULS-0026): observed stores and the
+     * upstream field masks the lane applies on each of them. */
+    {
+        static const struct {
+            uint32_t offset; uint32_t written; uint32_t read_back;
+        } transaction[] = {
+            { 0x120u, UINT32_C(0xFFFFFFFF), UINT32_C(0xFF3FFFFF) },
+            { 0x124u, UINT32_C(0x0000001F), UINT32_C(0x00000010) },
+            { 0x128u, UINT32_C(0xDEADBEEF), UINT32_C(0xDEADBEEF) },
+            { 0x218u, UINT32_C(0xFFFFFFFF), UINT32_C(0x00000303) },
+            { 0x21Cu, UINT32_C(0xFFFFFFFF), UINT32_C(0x00000FFF) },
+            { 0x220u, UINT32_C(0xFFFFFFFF), UINT32_C(0x1FFFFFFF) },
+            { 0x2C4u, UINT32_C(0x000003FF), UINT32_C(0x0000007F) }
+        };
+        size_t index;
+        for (index = 0u; index < sizeof(transaction) / sizeof(
+                 transaction[0]); ++index) {
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+                bus, IOM4 + transaction[index].offset, 4u,
+                transaction[index].written, &error));
+            value = 0u;
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+                bus, IOM4 + transaction[index].offset, 4u, &value,
+                &error));
+            SEMU_TEST_EQ_U64(context, transaction[index].read_back,
+                             value);
+        }
+    }
     {
         static const uint32_t zero_offsets[] = {
             0x208u, 0x228u, 0x22Cu, 0x234u, 0x23Cu, 0x240u, 0x244u
@@ -144,8 +172,8 @@ static void test_observed_registers_store(semu_test_context *context)
 static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
 {
     static const uint32_t read_offsets[] = {
-        0x0u, 0x100u, 0x108u, 0x110u, 0x120u, 0x204u, 0x214u,
-        0x218u, 0x220u, 0x224u, 0x2C4u, 0x300u
+        0x0u, 0x100u, 0x108u, 0x110u, 0x114u, 0x12Cu, 0x204u,
+        0x214u, 0x224u, 0x2C8u, 0x300u
     };
     semu_bus *bus;
     semu_error error;
@@ -184,7 +212,7 @@ static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
  * IOModuleStatus IDLEST bit that clears the firmware's iom.cpp assert
  * (the lane probe reads 0x00000004 at 1 s and after completion) - the
  * former BKPT halt is gone and boot continues: budget stop at
- * instruction 13,000,000, PC 0x001d0f24, SP 0x1005ffa8 (reproducing
+ * instruction 13,000,000, PC 0x000dabcc, SP 0x10029e40 (reproducing
  * twice across a reset). Ticket 730 frontier; later instances extend
  * this pin.
  */
@@ -233,12 +261,13 @@ static void test_boot_passes_iom4(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_WFI_DEADLOCK,
+                         (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(12611224),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

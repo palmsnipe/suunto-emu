@@ -54,7 +54,7 @@ static void test_observed_transactions_accepted(semu_test_context *context)
         { 0x18u, 0x3Fu },        { 0x1Cu, 0x8u },
         { 0x24u, 0x0u },         { 0x28u, 0x3u },
         { 0x2Cu, 0x3FCu },       { 0x58u, 0x0u },
-        { 0x100u, 0x0u }
+        { 0x100u, 0x0u },       { 0x108u, 0x0u }  /* VRSTATUS (730) */
     };
     semu_bus *bus;
     semu_error error;
@@ -87,6 +87,7 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
     static const uint32_t write_pairs[][2] = {
         { 0x04u, 0x00000001u },     /* unobserved value at 0x04 */
         { 0x00u, 0x00000009u },     /* reads same, writes refused */
+        { 0x108u, 0x00000001u },    /* VRSTATUS write unobserved */
         { 0x14u, 0x0000002Fu },     /* lane branch value never observed */
         { 0x18u, 0x0000003Fu },     /* status offsets refuse writes */
         { 0x2Cu, 0x000003FCu }      /* never written in the boot trace */
@@ -186,12 +187,13 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_WFI_DEADLOCK,
+                         (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(12611224),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

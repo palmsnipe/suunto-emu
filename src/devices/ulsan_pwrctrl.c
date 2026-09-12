@@ -124,7 +124,11 @@ static const observed_read observed_reads[] = {
     { 0x78u, UINT32_C(0x00000000) },  /* dsp1 memory enable       */
     { 0x7Cu, UINT32_C(0x00000000) },  /* dsp1 memory status       */
     { 0x80u, UINT32_C(0x00000000) },
-    { 0x100u, UINT32_C(0x00000000) }  /* simo buck enable         */
+    { 0x100u, UINT32_C(0x00000000) },  /* simo buck enable         */
+    /* VRSTATUS (+0x108): the guest polls it after boot; the reference
+     * model answers 0 both at 1 s and after completion, with no
+     * unhandled-read warning (E-ULS-0026). */
+    { 0x108u, UINT32_C(0x00000000) }
 };
 
 /*

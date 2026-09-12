@@ -8,6 +8,10 @@
  * submodule - polls +0x248 for the IDLEST bit (0x00000004 while idle,
  * the lane state through the whole observed boot), and writes INTCLR
  * (+0x208), whose clear bits operate on the all-zero observed status.
+ * A later pass stores 0 to OFFSETHI (+0x128), the transaction address
+ * high half (a plain 32-bit value field), then 0x28 to
+ * I2CDeviceConfiguration (+0x2C4) - the 7-bit-trapped DEVADDR value
+ * 0x28 selecting the target device (E-ULS-0026).
  *
  * The lane answers all of these from the upstream IOMaster
  * register-collection semantics, and lane probes of the device confirm
@@ -16,11 +20,21 @@
  * +0x11C carries the read-only submodule-type enum bits 0xE20, and
  * +0x280 keeps its 0x00200000 reset constant.
  *
+ * The next pass arms the transaction: stores 0x0 to +0x218 (DMA
+ * disabled), 0x4 to +0x21C, the SRAM buffer address to +0x220, 0x0 to
+ * +0x124, the device address 0x28 to +0x2C4, 0x0 to +0x128, then rings
+ * the doorbell 0x401 on +0x120 - a four-byte write to device address
+ * 0x28 with DMA off, so the lane wrapper hands it straight to the
+ * register collection and no completion bit is read back in the
+ * observed window. Every one of those offsets is modelled as its
+ * field-masked store.
+ *
  * This device reproduces the register-collection behaviour for exactly
  * the observed offsets (see the header for the mask table). All other
- * IOM4 addresses and widths refuse; the command-queue doorbell, the
- * I2C/SPI endpoints, and the DMA engine beyond these registers stay
- * unmodelled.
+ * IOM4 addresses and widths refuse; the I2C endpoint behind the
+ * doorbell, queue completion status (+0x12C), and the DMA engine stay
+ * unmodelled - the boot now runs until it waits in WFI (12,611,224),
+ * where the missing interrupt plane takes over.
  */
 
 #include "ulsan_iom4.h"
@@ -47,6 +61,14 @@ typedef struct {
     uint32_t dma_trigger;      /* +0x210: store & 0x3 (wrapper masked)   */
     uint32_t i2c_config;       /* +0x2C0: 0x0000F373 field mask          */
     uint32_t module_err;       /* +0x248 bit 0 ERR (tagged flag stores)  */
+    uint32_t offset_high;      /* +0x128: OFFSETHI full 32-bit value     */
+    uint32_t dcx_control;      /* +0x124: DCXEN bit 4 (tag DCXSEL no)   */
+    uint32_t command;          /* +0x120: CMD|OFFSETCNT|CONT|TSIZE|
+                                *         CMDSEL|OFFSETLO (no [22,24))  */
+    uint32_t i2c_device;       /* +0x2C4: DEVADDR[6:0] (7-bit truncated) */
+    uint32_t dma_config;       /* +0x218: DMAEN|DMADIR|DMAPRI|DPWROFF 0x303 */
+    uint32_t dma_total;        /* +0x21C: TOTCOUNT[11:0]                */
+    uint32_t dma_target;       /* +0x220: TARGADDR[28:0]                */
 } iom4_state;
 
 static iom4_state iom4_instance;
@@ -99,6 +121,13 @@ static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
         return SEMU_OK;
     case 0x200u: *value = iom4_instance.interrupts_enable; return SEMU_OK;
     case 0x210u: *value = iom4_instance.dma_trigger; return SEMU_OK;
+    case 0x128u: *value = iom4_instance.offset_high; return SEMU_OK;
+    case 0x124u: *value = iom4_instance.dcx_control; return SEMU_OK;
+    case 0x120u: *value = iom4_instance.command; return SEMU_OK;
+    case 0x2C4u: *value = iom4_instance.i2c_device; return SEMU_OK;
+    case 0x218u: *value = iom4_instance.dma_config; return SEMU_OK;
+    case 0x21Cu: *value = iom4_instance.dma_total; return SEMU_OK;
+    case 0x220u: *value = iom4_instance.dma_target; return SEMU_OK;
     case 0x248u:
         *value = iom4_instance.module_err | IOM4_MODULE_STATUS_IDLE;
         return SEMU_OK;
@@ -129,6 +158,40 @@ static semu_status iom4_write(void *context, uint32_t offset,
         return SEMU_ERR_UNSUPPORTED;
     }
     switch (offset) {
+    case 0x128u:
+        iom4_instance.offset_high = value; /* full OFFSETHI field */
+        return SEMU_OK;
+    case 0x124u:
+        /* DCXSEL is a plain tag (drops); DCXEN bit 4 stores. */
+        iom4_instance.dcx_control = value & 0x10u;
+        return SEMU_OK;
+    case 0x120u:
+        /* Transaction doorbell. DMA is disabled in the observed
+         * configuration (+0x218 stores 0), so the lane wrapper hands
+         * the command straight to the register collection, where every
+         * field but the reserved pair stores. The observed command
+         * 0x401 (write, 4 bytes, address 0x28) targets an endpoint
+         * modelled by a later instance; no queue completion bits are
+         * observed and none are invented. */
+        iom4_instance.command = value & 0xFF3FFFFFu;
+        return SEMU_OK;
+    case 0x2C4u:
+        /* DEVADDR[9:0] with the lane's 7-bit truncation (extended
+         * addressing is never enabled in the observed window). */
+        iom4_instance.i2c_device = value & 0x7Fu;
+        return SEMU_OK;
+    case 0x218u:
+        /* Lane wrapper owns this register and stores value & 0x303. */
+        iom4_instance.dma_config = value & 0x303u;
+        return SEMU_OK;
+    case 0x21Cu:
+        /* Lane wrapper owns this register and stores value & 0xfff. */
+        iom4_instance.dma_total = value & 0xFFFu;
+        return SEMU_OK;
+    case 0x220u:
+        /* Lane wrapper owns this register; 29-bit TARGADDR field. */
+        iom4_instance.dma_target = value & 0x1FFFFFFFu;
+        return SEMU_OK;
     case 0x248u:
         iom4_instance.module_err = value & 0x1u; /* ERR only */
         return SEMU_OK;
@@ -178,6 +241,13 @@ static void iom4_reset(void *context)
     iom4_instance.dma_trigger = 0u;
     iom4_instance.i2c_config = 0u;
     iom4_instance.module_err = 0u;
+    iom4_instance.offset_high = 0u;
+    iom4_instance.dcx_control = 0u;
+    iom4_instance.command = 0u;
+    iom4_instance.i2c_device = 0u;
+    iom4_instance.dma_config = 0u;
+    iom4_instance.dma_total = 0u;
+    iom4_instance.dma_target = 0u;
 }
 
 static const semu_bus_device_ops iom4_ops = {
