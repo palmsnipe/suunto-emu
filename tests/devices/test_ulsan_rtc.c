@@ -1,9 +1,9 @@
 /*
- * Ulsan NVM OTP INFO1 observed-word tests (ticket 730, E-ULS-0012).
+ * Ulsan RTC tests (ticket 730, E-ULS-0019).
  *
- * The two served words return the 0 the lane sysbus log records for the
- * 2.35.36 boot reads; every other access in the window refuses. The boot
- * case is manifest-gated.
+ * The four registers boot touches store writes and answer reads from the
+ * store (lane silent = framework-handled). All other RTC addresses and
+ * widths refuse. The boot case is manifest-gated.
  */
 
 #include <stdio.h>
@@ -16,9 +16,9 @@
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/boards/ulsan_board.h"
-#include "../../src/devices/ulsan_otpinfo.h"
+#include "../../src/devices/ulsan_rtc.h"
 
-static void test_observed_words_read_zero(semu_test_context *context)
+static void test_observed_registers_store(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
@@ -30,23 +30,52 @@ static void test_observed_words_read_zero(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
+    /* First reads answer 0 like the trace, stores stick afterwards. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x42003240u, 4u, &value, &error));
+                     semu_bus_read(bus, 0x40004800u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x42003310u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+                     semu_bus_write(bus, 0x40004800u, 4u, UINT32_C(0xE),
+                                    &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40004800u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0xE), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40004800u, 4u, UINT32_C(0),
+                                    &error));
+    {
+        const uint32_t addrs[3] = {0x40004830u, 0x40004A00u, 0x40004A08u};
+        size_t index;
+        for (index = 0u; index < 3u; ++index) {
+            value = 0xdeadbeefu;
+            semu_error_clear(&error);
+            SEMU_TEST_EQ_U64(context, SEMU_OK,
+                             semu_bus_read(bus, addrs[index], 4u, &value,
+                                           &error));
+            SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+            semu_error_clear(&error);
+            SEMU_TEST_EQ_U64(context, SEMU_OK,
+                             semu_bus_write(bus, addrs[index], 4u,
+                                            UINT32_C(1), &error));
+            value = 0u;
+            SEMU_TEST_EQ_U64(context, SEMU_OK,
+                             semu_bus_read(bus, addrs[index], 4u, &value,
+                                           &error));
+            SEMU_TEST_EQ_U64(context, UINT64_C(1), value);
+        }
+    }
     semu_bus_destroy(bus);
 }
 
-static void test_unobserved_offsets_refused(semu_test_context *context)
+static void test_unobserved_rtc_accesses_refused(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
     uint32_t value = 0u;
-    const uint32_t offsets[] = {0x42003000u, 0x42003244u, 0x4200330cu,
-                                0x42003314u, 0x420033f0u};
+    const uint32_t offsets[] = {0x40004804u, 0x40004808u, 0x4000482Cu,
+                                0x40004834u, 0x400049F4u, 0x40004A04u,
+                                0x40004A0Cu, 0x40004FFCu};
     size_t index;
 
     semu_error_clear(&error);
@@ -60,26 +89,24 @@ static void test_unobserved_offsets_refused(semu_test_context *context)
         SEMU_TEST_ASSERT(context,
                          semu_bus_read(bus, offsets[index], 4u, &value,
                                        &error) != SEMU_OK);
+        semu_error_clear(&error);
+        SEMU_TEST_ASSERT(context,
+                         semu_bus_write(bus, offsets[index], 4u,
+                                        UINT32_C(1), &error) != SEMU_OK);
     }
-    /* No OTP write is observed in the lane, so none is accepted. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_write(bus, 0x42003240u, 4u, UINT32_C(1),
-                                    &error) != SEMU_OK);
-    semu_error_clear(&error);
-    SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, 0x42003240u, 2u, &value, &error) !=
+                     semu_bus_read(bus, 0x40004800u, 2u, &value, &error) !=
                          SEMU_OK);
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: with the OTP INFO1 words answering, the observed boot
- * instruction at 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8 (reproducing
- * twice across a reset). The next strict refusal is the CRYPTO block read
- * at 0x400c0fe0 from PC 0x00096a62 (E-ULS-0012 boundary).
- */
-static void test_boot_passes_otp_info1(semu_test_context *context)
+ * Boot frontier: with the RTC registers answering, the observed boot
+ * instruction at 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8
+ * (reproducing twice across a reset). The next strict refusal is the
+ * SystemTimer comparator word at 0x40008854 (E-ULS-0019 boundary).
+ */static void test_boot_passes_rtc(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
     FILE *probe;
@@ -137,10 +164,10 @@ static void test_boot_passes_otp_info1(semu_test_context *context)
 int main(void)
 {
     static const semu_test_case cases[] = {
-        { "test_observed_words_read_zero", test_observed_words_read_zero },
-        { "test_unobserved_offsets_refused",
-          test_unobserved_offsets_refused },
-        { "test_boot_passes_otp_info1", test_boot_passes_otp_info1 }
+        { "test_observed_registers_store", test_observed_registers_store },
+        { "test_unobserved_rtc_accesses_refused",
+          test_unobserved_rtc_accesses_refused },
+        { "test_boot_passes_rtc", test_boot_passes_rtc }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
