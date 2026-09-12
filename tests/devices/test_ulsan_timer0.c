@@ -122,7 +122,7 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
 
 /*
  * Boot frontier: with the TIMER block registers answering, the observed
- * boot instruction at 13,000,000 is PC 0x001d0f22, SP 0x1005ffa8
+ * boot instruction at 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8
  * (reproducing twice across a reset). The next strict refusal is a read
  * of the power controller at 0x40021004 (E-ULS-0021 boundary).
  */static void test_boot_passes_timer0(semu_test_context *context)
@@ -173,7 +173,7 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
         SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f22),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
                          semu_machine_program_counter(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }

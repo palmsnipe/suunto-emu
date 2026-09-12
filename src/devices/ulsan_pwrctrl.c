@@ -72,6 +72,11 @@ static const observed_write observed_writes[] = {
     { 0x78u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
     { 0x80u, UINT32_C(0x00000004) },
     { 0x80u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
+    /* Continuation-branch store (guest PC 0x00096a30): the +0x04 read
+     * value 0x100000 with bit 5 set by the driver. The lane logs no
+     * line for it, consistent with its other-tag bits; reads stay 0
+     * afterwards per the lane probe (PW +0x04 = 0 post-boot). */
+    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00100020) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00008000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00040000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00080000) },

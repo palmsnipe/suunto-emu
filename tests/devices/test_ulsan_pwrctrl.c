@@ -45,7 +45,8 @@ static void test_observed_transactions_accepted(semu_test_context *context)
         { 0x24u, 0x3u },        { 0x58u, 0x1u },
         { 0x60u, 0x4u },        { 0x78u, 0x1u },
         { 0x80u, 0x4u },        { 0x100u, 0x1u },
-        { 0x14u, 0x3Fu },       { 0x1Cu, 0x8u }
+        { 0x14u, 0x3Fu },       { 0x1Cu, 0x8u },
+        { 0x04u, 0x00100020u }  /* continuation store (E-ULS-0022) */
     };
     static const uint32_t read_pairs[][2] = {
         { 0x00u, 0x9u },         { 0x04u, 0x00100000u },
@@ -188,7 +189,7 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
         SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f22),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
                          semu_machine_program_counter(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
