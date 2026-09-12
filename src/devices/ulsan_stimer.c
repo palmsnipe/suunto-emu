@@ -12,6 +12,14 @@
 #define STIMER_LOAD        0x000u
 #define STIMER_COUNT       0x004u
 #define STIMER_CONTROL     0x100u
+/* Comparator window words boot touches (E-ULS-0020): +0x58 and +0x5c
+ * reads, and +0x54 read plus a store of 0. Lane probes at PC 0x0009bf7a
+ * pin reads to 0, matching idle dumps; reads answer the per-word store
+ * (framework register semantics). */
+#define STIMER_COMP0 0x050u
+#define STIMER_COMP1 0x054u
+#define STIMER_COMP2 0x058u
+#define STIMER_COMP3 0x05cu
 /* Comparator window word at +0x58: boot reads it once per pass (only
  * comparator access in the scratch trace); lane probe pins 0. */
 #define STIMER_COMP_OBSERVED 0x058u
@@ -21,6 +29,7 @@
 #define STIMER_LOAD_STORE_MASK UINT32_C(0x7FFFFFFF)
 
 typedef struct {
+    uint32_t comparator[4];
     uint32_t load;
     uint32_t control;
     uint32_t count;
@@ -59,8 +68,14 @@ static semu_status stimer_read(void *context, uint32_t offset,
     case STIMER_CONTROL:
         *value = stimer_instance.control;
         return SEMU_OK;
-    case STIMER_COMP_OBSERVED:
-        *value = 0u; /* lane probe at PC 0x0009bf7a and idle dumps */
+    case STIMER_COMP1:
+        *value = stimer_instance.comparator[1];
+        return SEMU_OK;
+    case STIMER_COMP2:
+        *value = stimer_instance.comparator[2];
+        return SEMU_OK;
+    case STIMER_COMP3:
+        *value = stimer_instance.comparator[3];
         return SEMU_OK;
     default:
         break;
@@ -89,6 +104,11 @@ static semu_status stimer_write(void *context, uint32_t offset,
     case STIMER_CONTROL:
         stimer_instance.control = value;
         return SEMU_OK;
+    case STIMER_COMP1:
+        /* Only comparator word 1 has an observed write (value 0); the
+         * others refuse until the lane shows traffic for them. */
+        stimer_instance.comparator[1] = value;
+        return SEMU_OK;
     default:
         break;
     }
@@ -104,6 +124,10 @@ static void stimer_reset(void *context)
     stimer_instance.load = 0u;
     stimer_instance.control = 0u;
     stimer_instance.count = 0u;
+    stimer_instance.comparator[0] = 0u;
+    stimer_instance.comparator[1] = 0u;
+    stimer_instance.comparator[2] = 0u;
+    stimer_instance.comparator[3] = 0u;
 }
 
 static const semu_bus_device_ops stimer_ops = {

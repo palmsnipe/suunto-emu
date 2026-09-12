@@ -104,6 +104,8 @@ semu_status semu_ulsan_wdt_map(semu_bus *bus, semu_error *error)
         semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan watchdog needs a bus");
         return SEMU_ERR_ARGUMENT;
     }
+    wdt_reset(NULL); /* single shared static: every map starts a new machine */
+
     return semu_bus_map_device(bus, "ulsan.wdt", WDT_BASE, WDT_SIZE, &wdt_ops,
                                &wdt_context, error);
 }

@@ -54,10 +54,21 @@ static void test_registers_hold_lane_behavior(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40008900u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* Comparator word +0x58: probe-pinned lane read value 0. */
+    /* Comparator words: probe-pinned reads 0; +0x54 also stores. */
     value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40008858u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x4000885cu, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40008854u, 4u, UINT32_C(0),
+                                    &error));
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40008854u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
     /* CNT is monotonic and never repeats while being read. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -82,8 +93,7 @@ static void test_unobserved_registers_refused(semu_test_context *context)
     semu_error error;
     uint32_t value = 0u;
     const uint32_t offsets[] = {0x40008808u, 0x4000880cu, 0x40008850u,
-                                0x40008854u, 0x4000885cu, 0x40008904u,
-                                0x40008908u, 0x400089f4u};
+                                0x40008904u, 0x40008908u, 0x400089f4u};
     size_t index;
 
     semu_error_clear(&error);
@@ -106,13 +116,24 @@ static void test_unobserved_registers_refused(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      semu_bus_read(bus, 0x40008802u, 4u, &value, &error) !=
                          SEMU_OK);
+    /* Unobserved comparator writes refuse; only +0x54 has lane traffic. */
+    {
+        const uint32_t write_only[2] = {0x40008858u, 0x4000885cu};
+        size_t j;
+        for (j = 0u; j < 2u; ++j) {
+            semu_error_clear(&error);
+            SEMU_TEST_ASSERT(context,
+                             semu_bus_write(bus, write_only[j], 4u,
+                                            UINT32_C(1), &error) != SEMU_OK);
+        }
+    }
     semu_bus_destroy(bus);
 }
 
 /*
  * Boot frontier: with the SystemTimer registers and comparator word
  * answering, the observed
- * boot instruction at 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8
+ * boot instruction at 13,000,000 is PC 0x001d0f2a, SP 0x1005ffa8
  * (reproducing twice across a reset). The next strict refusal is the
  * watchdog control write at 0x40024000 (E-ULS-0014 boundary).
  */
@@ -164,7 +185,7 @@ static void test_boot_passes_stimer(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
         SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f2a),
                          semu_machine_program_counter(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
