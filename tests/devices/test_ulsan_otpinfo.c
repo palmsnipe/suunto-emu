@@ -1,9 +1,9 @@
 /*
- * Ulsan cpu-complex DAXI and SilenceRange tests (ticket 730, E-ULS-0011).
+ * Ulsan NVM OTP INFO1 observed-word tests (ticket 730, E-ULS-0012).
  *
- * Values come from the lane repl script (0x4 at +0x54, 0 elsewhere across
- * 0x48000000) and from the probe-confirmed SilenceRange zero reads;
- * writes are discarded there. The boot case is manifest-gated.
+ * The two served words return the 0 the lane sysbus log records for the
+ * 2.35.36 boot reads; every other access in the window refuses. The boot
+ * case is manifest-gated.
  */
 
 #include <stdio.h>
@@ -16,13 +16,13 @@
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/boards/ulsan_board.h"
-#include "../../src/devices/ulsan_daxi.h"
+#include "../../src/devices/ulsan_otpinfo.h"
 
-static void test_script_values_served(semu_test_context *context)
+static void test_observed_words_read_zero(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
-    uint32_t value = 0u;
+    uint32_t value = 0xdeadbeefu;
 
     semu_error_clear(&error);
     bus = semu_bus_create(&error);
@@ -30,53 +30,24 @@ static void test_script_values_served(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
-    /* request.Value = 0x4 if Offset == 0x54 else 0, whole 0x1000 block. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x48000054u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x4), value);
+                     semu_bus_read(bus, 0x42003240u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
     value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x48000050u, 4u, &value, &error));
+                     semu_bus_read(bus, 0x42003310u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x48000FFCu, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* The boot's store to 0x54 is accepted and discarded: the script
-     * never stores, so 0x54 keeps answering 0x4 afterwards. */
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x48000054u, 4u, UINT32_C(0),
-                                    &error));
-    value = 0u;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x48000054u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x4), value);
-    /* SilenceRange declarations: SYNC_READ and MCUCTRL read 0 (probe
-     * confirmed on the lane) and ignore writes. */
-    {
-        const uint32_t silence_addrs[3] = {0x40020000u, 0x47FF0000u,
-                                           0x47FF0004u};
-        size_t index;
-        for (index = 0u; index < 3u; ++index) {
-            value = 0xdeadbeefu;
-            semu_error_clear(&error);
-            SEMU_TEST_EQ_U64(context, SEMU_OK,
-                             semu_bus_read(bus, silence_addrs[index], 4u,
-                                           &value, &error));
-            SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-            semu_error_clear(&error);
-            SEMU_TEST_EQ_U64(context, SEMU_OK,
-                             semu_bus_write(bus, silence_addrs[index], 4u,
-                                            UINT32_C(0xA5A5), &error));
-        }
-    }
     semu_bus_destroy(bus);
 }
 
-static void test_narrow_or_misaligned_refused(semu_test_context *context)
+static void test_unobserved_offsets_refused(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
     uint32_t value = 0u;
+    const uint32_t offsets[] = {0x42003000u, 0x42003244u, 0x4200330cu,
+                                0x42003314u, 0x420033f0u};
+    size_t index;
 
     semu_error_clear(&error);
     bus = semu_bus_create(&error);
@@ -84,28 +55,31 @@ static void test_narrow_or_misaligned_refused(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
-    /* The lane peripherals see 32-bit requests only. */
-    SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, 0x48000054u, 2u, &value, &error) !=
-                         SEMU_OK);
+    for (index = 0u; index < sizeof(offsets) / sizeof(offsets[0]); ++index) {
+        semu_error_clear(&error);
+        SEMU_TEST_ASSERT(context,
+                         semu_bus_read(bus, offsets[index], 4u, &value,
+                                       &error) != SEMU_OK);
+    }
+    /* No OTP write is observed in the lane, so none is accepted. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_write(bus, 0x48000054u, 1u, UINT32_C(4),
+                     semu_bus_write(bus, 0x42003240u, 4u, UINT32_C(1),
                                     &error) != SEMU_OK);
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, 0x47FF0002u, 4u, &value, &error) !=
+                     semu_bus_read(bus, 0x42003240u, 2u, &value, &error) !=
                          SEMU_OK);
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: with DAXI and the SilenceRange blocks answering, the
- * observed boot instruction at 13,000,000 is PC 0x001d0f22, SP 0x1005ffa8
- * (reproducing twice across a reset). The next strict refusal is the
- * lane-tagged NVM_OTP/INFO1 read at 0x42003240 (E-ULS-0011 boundary).
+ * Boot frontier: with the OTP INFO1 words answering, the observed boot
+ * instruction at 13,000,000 is PC 0x001d0f22, SP 0x1005ffa8 (reproducing
+ * twice across a reset). The next strict refusal is the CRYPTO block read
+ * at 0x400c0fe0 from PC 0x00096a62 (E-ULS-0012 boundary).
  */
-static void test_boot_passes_daxi_probe(semu_test_context *context)
+static void test_boot_passes_otp_info1(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
     FILE *probe;
@@ -163,10 +137,10 @@ static void test_boot_passes_daxi_probe(semu_test_context *context)
 int main(void)
 {
     static const semu_test_case cases[] = {
-        { "test_script_values_served", test_script_values_served },
-        { "test_narrow_or_misaligned_refused",
-          test_narrow_or_misaligned_refused },
-        { "test_boot_passes_daxi_probe", test_boot_passes_daxi_probe }
+        { "test_observed_words_read_zero", test_observed_words_read_zero },
+        { "test_unobserved_offsets_refused",
+          test_unobserved_offsets_refused },
+        { "test_boot_passes_otp_info1", test_boot_passes_otp_info1 }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
