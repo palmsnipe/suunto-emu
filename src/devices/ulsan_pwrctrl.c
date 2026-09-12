@@ -58,6 +58,9 @@ typedef struct {
 } observed_write;
 
 static const observed_write observed_writes[] = {
+    /* Zero write at the continuation branch 0x00096a32: the lane logs no
+     * unhandled bits for a valueless write and its idle dump holds 0. */
+    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00000000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00008000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00040000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00080000) },
