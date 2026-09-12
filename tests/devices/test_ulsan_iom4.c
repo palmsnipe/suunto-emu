@@ -98,7 +98,8 @@ static void test_observed_registers_store(semu_test_context *context)
                      semu_bus_read(bus, IOM4 + 0x200u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT32_C(0), value);
 
-    /* Tagged-only registers: writes discard, reads answer 0; +0x280
+    /* Write-discard registers (tagged-only or W1C over zero status):
+ * writes discard, reads answer 0; +0x280
      * reads its reset constant and stores nothing. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, IOM4 + 0x2C0u, 4u, 0u, &error));
@@ -109,9 +110,21 @@ static void test_observed_registers_store(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, IOM4 + 0x280u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT32_C(0x00200000), value);
+    /* +0x248: IDLEST reset bit 0x4; the tagged ERR bit 0 stores. */
+    value = 9u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, IOM4 + 0x248u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x00000004), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, IOM4 + 0x248u, 4u, UINT32_C(0x55),
+                                    &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, IOM4 + 0x248u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x00000005), value);
     {
         static const uint32_t zero_offsets[] = {
-            0x228u, 0x22Cu, 0x234u, 0x23Cu, 0x240u, 0x244u, 0x248u
+            0x208u, 0x228u, 0x22Cu, 0x234u, 0x23Cu, 0x240u, 0x244u
         };
         size_t index;
         for (index = 0u; index < sizeof(zero_offsets) / sizeof(
@@ -131,7 +144,7 @@ static void test_observed_registers_store(semu_test_context *context)
 static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
 {
     static const uint32_t read_offsets[] = {
-        0x0u, 0x100u, 0x108u, 0x110u, 0x120u, 0x204u, 0x208u, 0x214u,
+        0x0u, 0x100u, 0x108u, 0x110u, 0x120u, 0x204u, 0x214u,
         0x218u, 0x220u, 0x224u, 0x2C4u, 0x300u
     };
     semu_bus *bus;
@@ -167,12 +180,13 @@ static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
 }
 
 /*
- * Boot frontier: with the IOM4 registers answering, no strict MMIO
- * refusal remains on the boot path; the machine halts (BKPT) at
- * instruction 12,616,290, PC 0x0006bdaa, SP 0x10029c20 (reproducing
- * twice across a reset). The halt is an in-tree divergence symptom:
- * the lane never executes the trapping function, so the closure needs
- * the DMA/data-plane instance, not a weakened guest stop (E-ULS-0023).
+ * Boot frontier: with the IOM4 registers answering - including the
+ * IOModuleStatus IDLEST bit that clears the firmware's iom.cpp assert
+ * (the lane probe reads 0x00000004 at 1 s and after completion) - the
+ * former BKPT halt is gone and boot continues: budget stop at
+ * instruction 13,000,000, PC 0x001d0f24, SP 0x1005ffa8 (reproducing
+ * twice across a reset). Ticket 730 frontier; later instances extend
+ * this pin.
  */
 static void test_boot_passes_iom4(semu_test_context *context)
 {
@@ -219,12 +233,12 @@ static void test_boot_passes_iom4(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_HALT, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(12616290),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x0006bdaa),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029c20), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

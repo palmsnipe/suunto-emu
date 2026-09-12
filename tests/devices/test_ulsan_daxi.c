@@ -101,8 +101,8 @@ static void test_narrow_or_misaligned_refused(semu_test_context *context)
 
 /*
  * Boot frontier: with DAXI and the SilenceRange blocks answering, the
- * observed machine halts (BKPT) at instruction 12,616,290 with PC
- * 0x0006bdaa and SP 0x10029c20
+ * observed boot continues past the former panic frontier; PC at
+ * instruction 13,000,000 is 0x001d0f24 with SP 0x1005ffa8
  * (reproducing twice across a reset). Ticket 730 frontier; later
  * instances extend this pin. */
 static void test_boot_passes_daxi_probe(semu_test_context *context)
@@ -150,12 +150,12 @@ static void test_boot_passes_daxi_probe(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_HALT, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(12616290),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x0006bdaa),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029c20), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
     semu_machine_destroy(machine);
 }
