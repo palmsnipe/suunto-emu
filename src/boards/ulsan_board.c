@@ -29,6 +29,13 @@
  *       unhandled bits; the evidence-bounded device
  *       src/devices/ulsan_pwrctrl.c accepts exactly those observed
  *       transactions and refuses everything else (E-ULS-0008).
+ *   0x07FFFFFC/0x08000000  bootrom stub block and logger: the reference
+ *       lane's bootrom is zero-initialized MappedMemory filled only by the
+ *       WriteWord list published in its platform description (delay at
+ *       +0x9C, the function this boot fetches at instruction 12,584,023);
+ *       src/devices/ulsan_bootrom.c serves exactly those declared bytes
+ *       read-only and refuses BootromLogger access as the abort-equivalent
+ *       (E-ULS-0009).
  *
  * Deliberately unmapped, so accesses fail closed with a bounded diagnostic:
  *   0x18000000..0x1803ffff  device-specific first 256 KiB, permanently
@@ -47,6 +54,7 @@
 
 #include "ulsan_board.h"
 
+#include "../devices/ulsan_bootrom.h"
 #include "../devices/ulsan_pwrctrl.h"
 #include "../soc/apollo4/gpio.h"
 #include "semu/types.h"
@@ -78,6 +86,7 @@ int semu_ulsan_board_accepted(const char *board, const char *profile_id)
 semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
 {
     size_t index;
+    semu_status attach_status;
 
     if (bus == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "ulsan board needs a bus");
@@ -95,5 +104,9 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (semu_apollo4_gpio_create(bus, NULL, NULL, error) == NULL) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
-    return semu_ulsan_pwrctrl_map(bus, error);
+    attach_status = semu_ulsan_pwrctrl_map(bus, error);
+    if (attach_status != SEMU_OK) {
+        return attach_status;
+    }
+    return semu_ulsan_bootrom_map(bus, error);
 }

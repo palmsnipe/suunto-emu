@@ -9,7 +9,8 @@
  * (bounded reference reset trace), E-ULS-0006 (boot tuple and memory map).
  *
  * The board maps exactly the proven memory classes plus the one attached
- * controller block (GPIO at 0x40010000, E-ULS-0007, ticket 730). Every
+ * controller blocks (GPIO E-ULS-0007, power control E-ULS-0008, bootrom
+ * stub E-ULS-0009, ticket 730). Every
  * other MMIO block, the bootrom, and the device-specific first 256 KiB of
  * the MSPI1 XIP window stay unmapped so execution fails closed at the
  * first unsupported transaction. No Sapporo device wiring is inherited.

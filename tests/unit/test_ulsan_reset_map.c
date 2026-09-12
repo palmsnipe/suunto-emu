@@ -149,9 +149,10 @@ static void test_map_and_fail_closed_stop(semu_test_context *context)
 {
     static const uint32_t mapped[] = { 0x00000000u, 0x001ffffcu, 0x10000000u,
         0x1005fffcu, 0x10060000u, 0x1015fffcu, 0x10160000u, 0x101bfffcu,
-        0x101c0000u, 0x10266ffcu, 0x18040000u, 0x19fffffcu };
+        0x101c0000u, 0x10266ffcu, 0x18040000u, 0x19fffffcu,
+        0x08000000u };
     static const uint32_t unmapped[] = { 0x00200000u, 0x10267000u,
-        0x18000000u, 0x1803fff8u, 0x1a000000u, 0x07fffffcu, 0x08000000u,
+        0x18000000u, 0x1803fff8u, 0x1a000000u,
         0x40004000u, 0x40061000u, 0x400a0000u };
     char paths[3][128];
     component_source sources[3];
@@ -194,8 +195,11 @@ static void test_map_and_fail_closed_stop(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          read4(machine, mapped[index], &value));
     }
-    /* Fail-closed edges: personalization hole, bootrom, aperture overrun,
-     * and every observed-but-unimplemented SoC block stay unmapped. */
+    /* Fail-closed edges: personalization hole, aperture overrun, and every
+     * observed-but-unimplemented SoC block stay unmapped. The bootrom stub
+     * block joined the mapped set with E-ULS-0009; its logger word at
+     * 0x07fffffc refuses as a device (test_ulsan_bootrom.c), not as a
+     * range miss. */
     for (index = 0u; index < sizeof(unmapped) / sizeof(unmapped[0]); ++index) {
         SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
                          read4(machine, unmapped[index], &value));
