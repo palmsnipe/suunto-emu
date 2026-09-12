@@ -1,9 +1,10 @@
 /*
- * Ulsan SystemTimer tests (ticket 730, E-ULS-0014).
+ * Ulsan TIMER block tests (ticket 730, E-ULS-0021).
  *
- * LOAD/CTL hold the observed writes (bit-31 mask proven by the lane
- * read-back); CNT advances monotonically per read. The boot case is
- * manifest-gated.
+ * The seven registers boot touches store writes; the three with
+ * observed reads answer from the store (lane silent = framework-
+ * handled). Reads of write-only-observed registers, other addresses and
+ * widths refuse. The boot case is manifest-gated.
  */
 
 #include <stdio.h>
@@ -16,14 +17,16 @@
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/boards/ulsan_board.h"
-#include "../../src/devices/ulsan_stimer.h"
+#include "../../src/devices/ulsan_timer0.h"
 
-static void test_registers_hold_lane_behavior(semu_test_context *context)
+static void test_observed_registers_store(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
     uint32_t value = 0xdeadbeefu;
-    uint32_t first;
+    const uint32_t read_offsets[3] = {0x40008010u, 0x40008060u, 0x40008220u};
+    const uint32_t write_values[3] = {0x2u, 0x4u, 0xA20u};
+    size_t index;
 
     semu_error_clear(&error);
     bus = semu_bus_create(&error);
@@ -31,69 +34,60 @@ static void test_registers_hold_lane_behavior(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
-    /* Boot's OR-constants accumulate in LOAD, but bit 31 is not stored
-     * (the lane read 0x303 back after the 0x80000000 write). */
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008800u, 4u, UINT32_C(0x303),
-                                    &error));
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008800u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x303), value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008800u, 4u,
-                                    UINT32_C(0x80000303), &error));
-    value = 0u;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008800u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x303), value);
-    /* CTL stores; boot's clear lands on 0. */
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008900u, 4u, UINT32_C(0),
-                                    &error));
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008900u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* Comparator words: probe-pinned reads 0; +0x54 also stores. */
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008858u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x4000885cu, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008854u, 4u, UINT32_C(0),
-                                    &error));
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008854u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* CNT is monotonic and never repeats while being read. */
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008804u, 4u, &first, &error));
-    {
-        unsigned i;
-        for (i = 0u; i < 8u; ++i) {
-            uint32_t next = 0u;
-            SEMU_TEST_EQ_U64(context, SEMU_OK,
-                             semu_bus_read(bus, 0x40008804u, 4u, &next,
-                                           &error));
-            SEMU_TEST_ASSERT(context, next != first);
-            first = next;
-        }
+    /* First reads answer 0 like the trace, stores stick afterwards. */
+    for (index = 0u; index < 3u; ++index) {
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, read_offsets[index], 4u, &value,
+                                       &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        semu_error_clear(&error);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, read_offsets[index], 4u,
+                                        write_values[index], &error));
+        value = 0u;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, read_offsets[index], 4u, &value,
+                                       &error));
+        SEMU_TEST_EQ_U64(context, write_values[index], value);
     }
+    /* Write-only-observed registers accept their stores. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40008068u, 4u, UINT32_C(4),
+                                    &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40008228u, 4u, UINT32_C(0x20),
+                                    &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x4000822cu, 4u, UINT32_C(0),
+                                    &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40008230u, 4u, UINT32_C(0),
+                                    &error));
+    /* A fresh map clears the shared stores (machine-create semantics). */
+    semu_bus_destroy(bus);
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40008220u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
     semu_bus_destroy(bus);
 }
 
-static void test_unobserved_registers_refused(semu_test_context *context)
+static void test_unobserved_timer_accesses_refused(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
     uint32_t value = 0u;
-    const uint32_t offsets[] = {0x40008808u, 0x4000880cu, 0x40008850u,
-                                0x40008904u, 0x40008908u, 0x400089f4u};
+    const uint32_t offsets[] = {0x40008000u, 0x40008014u, 0x4000805Cu,
+                                0x40008064u, 0x4000806Cu, 0x400080F0u,
+                                0x40008224u, 0x40008300u, 0x400087FCu};
+    const uint32_t write_only_reads[4] = {0x40008068u, 0x40008228u,
+                                          0x4000822cu, 0x40008230u};
     size_t index;
 
     semu_error_clear(&error);
@@ -112,32 +106,26 @@ static void test_unobserved_registers_refused(semu_test_context *context)
                          semu_bus_write(bus, offsets[index], 4u,
                                         UINT32_C(1), &error) != SEMU_OK);
     }
+    /* Reads of write-only-observed registers refuse. */
+    for (index = 0u; index < 4u; ++index) {
+        semu_error_clear(&error);
+        SEMU_TEST_ASSERT(context,
+                         semu_bus_read(bus, write_only_reads[index], 4u,
+                                       &value, &error) != SEMU_OK);
+    }
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, 0x40008802u, 4u, &value, &error) !=
+                     semu_bus_read(bus, 0x40008010u, 2u, &value, &error) !=
                          SEMU_OK);
-    /* Unobserved comparator writes refuse; only +0x54 has lane traffic. */
-    {
-        const uint32_t write_only[2] = {0x40008858u, 0x4000885cu};
-        size_t j;
-        for (j = 0u; j < 2u; ++j) {
-            semu_error_clear(&error);
-            SEMU_TEST_ASSERT(context,
-                             semu_bus_write(bus, write_only[j], 4u,
-                                            UINT32_C(1), &error) != SEMU_OK);
-        }
-    }
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: with the SystemTimer registers and comparator word
- * answering, the observed
+ * Boot frontier: with the TIMER block registers answering, the observed
  * boot instruction at 13,000,000 is PC 0x001d0f22, SP 0x1005ffa8
- * (reproducing twice across a reset). The next strict refusal is the
- * watchdog control write at 0x40024000 (E-ULS-0014 boundary).
- */
-static void test_boot_passes_stimer(semu_test_context *context)
+ * (reproducing twice across a reset). The next strict refusal is a read
+ * of the power controller at 0x40021004 (E-ULS-0021 boundary).
+ */static void test_boot_passes_timer0(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
     FILE *probe;
@@ -195,10 +183,10 @@ static void test_boot_passes_stimer(semu_test_context *context)
 int main(void)
 {
     static const semu_test_case cases[] = {
-        { "test_registers_hold_lane_behavior", test_registers_hold_lane_behavior },
-        { "test_unobserved_registers_refused",
-          test_unobserved_registers_refused },
-        { "test_boot_passes_stimer", test_boot_passes_stimer }
+        { "test_observed_registers_store", test_observed_registers_store },
+        { "test_unobserved_timer_accesses_refused",
+          test_unobserved_timer_accesses_refused },
+        { "test_boot_passes_timer0", test_boot_passes_timer0 }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

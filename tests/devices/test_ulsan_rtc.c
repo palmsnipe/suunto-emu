@@ -103,7 +103,7 @@ static void test_unobserved_rtc_accesses_refused(semu_test_context *context)
 
 /*
  * Boot frontier: with the RTC registers answering, the observed boot
- * instruction at 13,000,000 is PC 0x001d0f2a, SP 0x1005ffa8
+ * instruction at 13,000,000 is PC 0x001d0f22, SP 0x1005ffa8
  * (reproducing twice across a reset). The next strict refusal is the
  * SystemTimer comparator word at 0x40008854 (E-ULS-0019 boundary).
  */static void test_boot_passes_rtc(semu_test_context *context)
@@ -154,7 +154,7 @@ static void test_unobserved_rtc_accesses_refused(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
         SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f2a),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f22),
                          semu_machine_program_counter(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
