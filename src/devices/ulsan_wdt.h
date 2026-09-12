@@ -7,11 +7,12 @@
  * Ulsan 2.35.36 watchdog control write at 0x40024000 (ticket 730,
  * E-ULS-0015).
  *
- * Boot configures the upstream AmbiqApollo4_Watchdog with one 32-bit
- * write of 0x033C3D06 to +0x0 per delta-table pass (scratch access trace
- * through instruction 200,000,000: the only WDT-window access; the lane
- * log records the same value verbatim, "Unhandled bits: [1] when writing
- * value 0x33C3D06"). The lane watchdog never logged an interrupt or reset
+ * Boot configures the upstream AmbiqApollo4_Watchdog per delta-table
+ * pass (scratch access trace through instruction 200,000,000): the 32-bit
+ * write of 0x033C3D06 to +0x0 (lane log records it verbatim, "Unhandled
+ * bits: [1] when writing value 0x33C3D06"), then a control read and a
+ * (read | 1) store (E-ULS-0017), the 0xB2 reload store to +0x4, and the
+ * lane-logged InterruptEnable read/write pair at +0x200. The lane watchdog never logged an interrupt or reset
  * afterwards, so no expiry effect is evidenced; the value is stored for
  * read-back refusal symmetry but produces no behavior. Every read and
  * every other write refuses: the lane log's 0x200 InterruptEnable read

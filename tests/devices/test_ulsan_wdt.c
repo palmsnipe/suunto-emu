@@ -1,8 +1,11 @@
 /*
- * Ulsan watchdog write-table tests (ticket 730, E-ULS-0015).
+ * Ulsan watchdog tests (tickets 730, E-ULS-0015/E-ULS-0017).
  *
- * The single lane-logged control write is accepted; every read and every
- * other write refuses. The boot case is manifest-gated.
+ * Control writes store minus the untagged bit 1 and reads return the
+ * store (lane probe pinned 0x33C3D04 after the 0x33C3D06 write);
+ * InterruptEnable answers its logged read/write pair; the reload store
+ * is lane-silent. Everything else refuses. The boot case is
+ * manifest-gated.
  */
 
 #include <stdio.h>
@@ -17,7 +20,7 @@
 #include "../../src/boards/ulsan_board.h"
 #include "../../src/devices/ulsan_wdt.h"
 
-static void test_logged_control_write_accepted(semu_test_context *context)
+static void test_register_store_sequence(semu_test_context *context)
 {
     semu_bus *bus;
     semu_error error;
@@ -28,13 +31,42 @@ static void test_logged_control_write_accepted(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
-    /* The exact lane-logged pair, repeated like boot's delta passes. */
+    /* Boot's pair sequence: the logged 0x33C3D06 store, then the
+     * read-back | 1 write; the store keeps neither cycle's bit 1 and
+     * answers 0x33C3D04 like the lane probe. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x40024000u, 4u,
                                     UINT32_C(0x033C3D06), &error));
+    {
+        uint32_t value = 0u;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x40024000u, 4u, &value,
+                                       &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x033C3D04), value);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, 0x40024000u, 4u,
+                                        value | UINT32_C(1), &error));
+        value = 0u;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x40024000u, 4u, &value,
+                                       &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x033C3D05), value);
+    }
+    /* InterruptEnable: logged read (0 before the write), logged write. */
+    {
+        uint32_t value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x40024200u, 4u, &value,
+                                       &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    }
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40024000u, 4u,
-                                    UINT32_C(0x033C3D06), &error));
+                     semu_bus_write(bus, 0x40024200u, 4u, UINT32_C(1),
+                                    &error));
+    /* Reload store (lane-silent, no read logged). */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40024004u, 4u, UINT32_C(0xB2),
+                                    &error));
     semu_bus_destroy(bus);
 }
 
@@ -50,30 +82,30 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
 
-    /* Reads refuse: the lane never logged a WDT read inside boot cycles. */
+    /* Reads other than control and InterruptEnable refuse. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, 0x40024000u, 4u, &value, &error) !=
+                     semu_bus_read(bus, 0x40024004u, 4u, &value, &error) !=
                          SEMU_OK);
-    /* A different control value refuses: only the logged value matches. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
-                     semu_bus_write(bus, 0x40024000u, 4u, UINT32_C(0),
-                                    &error) != SEMU_OK);
-    /* InterruptEnable (lane line belongs to an unreached phase). */
-    semu_error_clear(&error);
-    SEMU_TEST_ASSERT(context,
-                     semu_bus_write(bus, 0x40024200u, 4u, UINT32_C(1),
-                                    &error) != SEMU_OK);
+                     semu_bus_read(bus, 0x40024008u, 4u, &value, &error) !=
+                         SEMU_OK);
+    /* Narrow accesses refuse: boot only uses 32-bit. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
                      semu_bus_write(bus, 0x40024000u, 2u, UINT32_C(0x3D06),
                                     &error) != SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x40024000u, 1u, &value, &error) !=
+                         SEMU_OK);
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: with the watchdog control write accepted, the observed
+ * Boot frontier: with the watchdog control, reload and InterruptEnable
+ * registers answering, the observed
  * boot instruction at 13,000,000 is PC 0x001d0f26, SP 0x1005ffa8
  * (reproducing twice across a reset). The next strict refusal is the
  * UART0 write at 0x40000000 from PC 0x000da834 (E-ULS-0015 boundary).
@@ -136,7 +168,7 @@ static void test_boot_passes_wdt(semu_test_context *context)
 int main(void)
 {
     static const semu_test_case cases[] = {
-        { "test_logged_control_write_accepted", test_logged_control_write_accepted },
+        { "test_register_store_sequence", test_register_store_sequence },
         { "test_unobserved_transactions_refused",
           test_unobserved_transactions_refused },
         { "test_boot_passes_wdt", test_boot_passes_wdt }
