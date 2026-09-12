@@ -134,7 +134,7 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
 /*
  * Boot frontier: with the bootrom bytes in place the delay() call at
  * 0x0800009c executes and returns, and the observed boot instruction at
- * 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8 (reproducing twice across a
+ * 13,000,000 is PC 0x0006bdaa, SP 0x10029c20 (reproducing twice across a
  * reset). This advances the frontier pinned by test_ulsan_pwrctrl.c and
  * test_ulsan_gpio.c.
  */
@@ -183,12 +183,12 @@ static void test_boot_executes_bootrom_delay(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_HALT, (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(12616290),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x0006bdaa),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029c20), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

@@ -106,10 +106,10 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
 /*
  * Boot frontier: with the watchdog control, reload and InterruptEnable
  * registers answering, the observed
- * boot instruction at 13,000,000 is PC 0x001d0f24, SP 0x1005ffa8
- * (reproducing twice across a reset). The next strict refusal is the
- * UART0 write at 0x40000000 from PC 0x000da834 (E-ULS-0015 boundary).
- */
+ * machine halts (BKPT) at instruction 12,616,290 with PC
+ * 0x0006bdaa and SP 0x10029c20
+ * (reproducing twice across a reset). Ticket 730 frontier; later
+ * instances extend this pin. */
 static void test_boot_passes_wdt(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
@@ -155,12 +155,12 @@ static void test_boot_passes_wdt(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_HALT, (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(12616290),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x0006bdaa),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029c20), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

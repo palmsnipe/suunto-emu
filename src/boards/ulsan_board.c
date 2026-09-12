@@ -60,6 +60,7 @@
 #include "../devices/ulsan_bootrom.h"
 #include "../devices/ulsan_rtc.h"
 #include "../devices/ulsan_timer0.h"
+#include "../devices/ulsan_iom4.h"
 #include "../devices/ulsan_buszero.h"
 #include "../devices/ulsan_stimer.h"
 #include "../devices/ulsan_wdt.h"
@@ -137,5 +138,7 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (attach_status != SEMU_OK) { return attach_status; }
     attach_status = semu_ulsan_rtc_map(bus, error);
     if (attach_status != SEMU_OK) { return attach_status; }
-    return semu_ulsan_timer0_map(bus, error);
+    attach_status = semu_ulsan_timer0_map(bus, error);
+    if (attach_status != SEMU_OK) { return attach_status; }
+    return semu_ulsan_iom4_map(bus, error);
 }

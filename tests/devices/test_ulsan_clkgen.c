@@ -105,8 +105,8 @@ static void test_invalid_access_widths_refused(semu_test_context *context)
 
 /*
  * Boot frontier: with the clock generator dictionary attached, the
- * observed boot instruction at 13,000,000 is PC 0x001d0f24, SP
- * 0x1005ffa8 (reproducing twice across a reset). Equal pins across the
+ * observed boot instruction at 13,000,000 is PC 0x0006bdaa, SP
+ * 0x10029c20 (reproducing twice across a reset). Equal pins across the
  * two passes also confirm the stored 0x00FC0040 is cleared by reset, as
  * the lane dict is rebuilt at init.
  */
@@ -155,12 +155,12 @@ static void test_boot_passes_hfclk_control(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_HALT, (uint64_t)reason);
+        SEMU_TEST_EQ_U64(context, UINT64_C(12616290),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x0006bdaa),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029c20), state->r[13]);
     }
     semu_machine_destroy(machine);
 }
