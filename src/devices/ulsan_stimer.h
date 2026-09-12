@@ -23,7 +23,8 @@
  * counter tracks its own virtual time), so this device serves a
  * monotonic free-running 32-bit tick that advances on each CNT read;
  * LOAD and CTL hold written state with the observed bit-31 LOAD mask.
- * Only the three observed registers answer; everything else refuses.
+ * Only the four observed registers answer (LOAD, CTL, CNT, and the
+ * comparator word at +0x58 that reads 0); everything else refuses.
  */
 
 semu_status semu_ulsan_stimer_map(semu_bus *bus, semu_error *error);

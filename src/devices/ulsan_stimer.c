@@ -12,6 +12,9 @@
 #define STIMER_LOAD        0x000u
 #define STIMER_COUNT       0x004u
 #define STIMER_CONTROL     0x100u
+/* Comparator window word at +0x58: boot reads it once per pass (only
+ * comparator access in the scratch trace); lane probe pins 0. */
+#define STIMER_COMP_OBSERVED 0x058u
 /* The lane read LOAD back as 0x303 after boot's 0x80000000 write, so
  * that write's bit 31 is not stored. Other LOAD bits keep observed
  * store behavior; no other LOAD bit has proven evidence to mask. */
@@ -55,6 +58,9 @@ static semu_status stimer_read(void *context, uint32_t offset,
         return SEMU_OK;
     case STIMER_CONTROL:
         *value = stimer_instance.control;
+        return SEMU_OK;
+    case STIMER_COMP_OBSERVED:
+        *value = 0u; /* lane probe at PC 0x0009bf7a and idle dumps */
         return SEMU_OK;
     default:
         break;

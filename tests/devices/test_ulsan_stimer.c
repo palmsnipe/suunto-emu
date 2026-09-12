@@ -54,6 +54,11 @@ static void test_registers_hold_lane_behavior(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40008900u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    /* Comparator word +0x58: probe-pinned lane read value 0. */
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40008858u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
     /* CNT is monotonic and never repeats while being read. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40008804u, 4u, &first, &error));
@@ -77,8 +82,8 @@ static void test_unobserved_registers_refused(semu_test_context *context)
     semu_error error;
     uint32_t value = 0u;
     const uint32_t offsets[] = {0x40008808u, 0x4000880cu, 0x40008850u,
-                                0x4000885cu, 0x40008904u, 0x40008908u,
-                                0x400089f4u};
+                                0x40008854u, 0x4000885cu, 0x40008904u,
+                                0x40008908u, 0x400089f4u};
     size_t index;
 
     semu_error_clear(&error);
@@ -105,7 +110,8 @@ static void test_unobserved_registers_refused(semu_test_context *context)
 }
 
 /*
- * Boot frontier: with the SystemTimer registers answering, the observed
+ * Boot frontier: with the SystemTimer registers and comparator word
+ * answering, the observed
  * boot instruction at 13,000,000 is PC 0x001d0f26, SP 0x1005ffa8
  * (reproducing twice across a reset). The next strict refusal is the
  * watchdog control write at 0x40024000 (E-ULS-0014 boundary).
