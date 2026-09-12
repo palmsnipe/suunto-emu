@@ -36,14 +36,17 @@
  *       src/devices/ulsan_bootrom.c serves exactly those declared bytes
  *       read-only and refuses BootromLogger access as the abort-equivalent
  *       (E-ULS-0009).
+ *   0x40004000 clock generator  the lane models it as a sparse-offset
+ *       dictionary peripheral (ulsan-platform.repl script: stored value or
+ *       0 on read, store on write, size 0x800); boot's HFCLK control at
+ *       +0x44 stores 0x00FC0000 then 0x00FC0040 and the value survives to
+ *       idle, reproduced by src/devices/ulsan_clkgen.c (E-ULS-0010).
  *
  * Deliberately unmapped, so accesses fail closed with a bounded diagnostic:
  *   0x18000000..0x1803ffff  device-specific first 256 KiB, permanently
  *       absent without hardware and never synthesized (E-ULS-0006).
  *   0x1a000000 and above    outside the recorded XIP aperture.
- *   0x07fffffc, 0x08000000  bootrom/logger; the Ulsan reset starts from the
- *       application vector table, not the bootrom.
- *   every other 0x400xxxxx block  CLKGEN, IOM, MSPI1 registers, display
+ *   every other 0x400xxxxx block  IOM, MSPI1 registers, display
  *       controller and NVIC-adjacent SoC blocks are observed-only in the
  *       reference lane; no register behavior is claimed here yet.
  *
@@ -55,6 +58,7 @@
 #include "ulsan_board.h"
 
 #include "../devices/ulsan_bootrom.h"
+#include "../devices/ulsan_clkgen.h"
 #include "../devices/ulsan_pwrctrl.h"
 #include "../soc/apollo4/gpio.h"
 #include "semu/types.h"
@@ -108,5 +112,9 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (attach_status != SEMU_OK) {
         return attach_status;
     }
-    return semu_ulsan_bootrom_map(bus, error);
+    attach_status = semu_ulsan_bootrom_map(bus, error);
+    if (attach_status != SEMU_OK) {
+        return attach_status;
+    }
+    return semu_ulsan_clkgen_map(bus, error);
 }
