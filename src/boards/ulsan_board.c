@@ -58,6 +58,7 @@
 #include "ulsan_board.h"
 
 #include "../devices/ulsan_bootrom.h"
+#include "../devices/ulsan_daxi.h"
 #include "../devices/ulsan_clkgen.h"
 #include "../devices/ulsan_pwrctrl.h"
 #include "../soc/apollo4/gpio.h"
@@ -116,5 +117,7 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (attach_status != SEMU_OK) {
         return attach_status;
     }
-    return semu_ulsan_clkgen_map(bus, error);
+    attach_status = semu_ulsan_clkgen_map(bus, error);
+    if (attach_status != SEMU_OK) { return attach_status; }
+    return semu_ulsan_daxi_map(bus, error);
 }
