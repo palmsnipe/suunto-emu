@@ -61,6 +61,17 @@ static const observed_write observed_writes[] = {
     /* Zero write at the continuation branch 0x00096a32: the lane logs no
      * unhandled bits for a valueless write and its idle dump holds 0. */
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00000000) },
+    /* Lane write-log lines for the boot continuation (values as logged):
+     * 0x58 bit 0 PWRENDSP0RAM, 0x60 bit 2 ICACHEPWDDSP0OFF, 0x78 bit 0
+     * PWRENDSP1RAM, 0x80 bit 2 ICACHEPWDDSP1OFF. */
+    { 0x58u, UINT32_C(0x00000001) },
+    { 0x58u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
+    { 0x60u, UINT32_C(0x00000004) },
+    { 0x60u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
+    { 0x78u, UINT32_C(0x00000001) },
+    { 0x78u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
+    { 0x80u, UINT32_C(0x00000004) },
+    { 0x80u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00008000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00040000) },
     { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00080000) },
@@ -111,10 +122,23 @@ static const observed_read observed_reads[] = {
     { 0x100u, UINT32_C(0x00000000) }  /* simo buck enable         */
 };
 
+/*
+ * The lane register framework answers 1-, 2- and 4-byte requests by
+ * slicing the register word (proven: a 1-byte read at +0x4002105A
+ * executes there with no log line). Byte lanes of an observed constant
+ * read as that slice of the constant; writes of unproven widths keep
+ * refusing until the lane log records one.
+ */
 static int validate_access(uint32_t offset, unsigned width,
                            const char *action, semu_error *error)
 {
-    if (width != 4u || (offset & 3u) != 0u) {
+    if (width != 1u && width != 2u && width != 4u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Ulsan power control %s at 0x%08x width %u is "
+                       "unsupported", action, offset, width);
+        return 0;
+    }
+    if ((offset % width) != 0u || (offset & 3u) >= width * 4u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan power control %s at 0x%08x width %u is "
                        "unsupported", action, offset, width);
@@ -140,8 +164,12 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
     }
     for (index = 0u; index < sizeof(observed_reads) / sizeof(observed_reads[0]);
          ++index) {
-        if (observed_reads[index].offset == offset) {
-            *value = observed_reads[index].value;
+        if (observed_reads[index].offset == (offset & ~3u)) {
+            const uint32_t shift = (offset & 3u) * 8u;
+            const uint32_t mask = (width == 4u)
+                ? UINT32_C(0xFFFFFFFF)
+                : ((UINT32_C(1) << (width * 8u)) - UINT32_C(1));
+            *value = (observed_reads[index].value >> shift) & mask;
             return SEMU_OK;
         }
     }
@@ -159,6 +187,12 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
 
     (void)context;
     if (!validate_access(offset, width, "write", error)) {
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (width != 4u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Ulsan power control write at 0x%08x width %u has "
+                       "no lane-recorded value", offset, width);
         return SEMU_ERR_UNSUPPORTED;
     }
     for (index = 0u; index < sizeof(observed_writes) / sizeof(observed_writes[0]);

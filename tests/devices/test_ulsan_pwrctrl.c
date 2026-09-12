@@ -111,13 +111,24 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
             &error));
         SEMU_TEST_ASSERT(context, error.code != SEMU_OK);
     }
-    /* Widths other than the observed 32-bit access refuse. */
+    /* Lane framework semantics (E-ULS-0014): reads slice the register
+     * word - the 1-byte read at +0x4002105A that runs there without a
+     * log line proves byte service. */
     semu_error_clear(&error);
-    SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_read(
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
         bus, PWR_BASE + 0x08u, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x0000), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x0Au, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x0010), value);
+    /* Writes of a width the lane has never recorded still refuse. */
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_write(
         bus, PWR_BASE + 0x24u, 1u, 3u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_read(
+        bus, PWR_BASE + 0x08u, 3u, &value, &error));
     semu_bus_destroy(bus);
 }
 
@@ -177,7 +188,7 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)reason);
         SEMU_TEST_EQ_U64(context, UINT64_C(13000000),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f22),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001d0f24),
                          semu_machine_program_counter(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffa8), state->r[13]);
     }
