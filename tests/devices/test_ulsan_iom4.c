@@ -211,10 +211,10 @@ static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
  * Boot frontier: with the IOM4 registers answering - including the
  * IOModuleStatus IDLEST bit that clears the firmware's iom.cpp assert
  * (the lane probe reads 0x00000004 at 1 s and after completion) - the
- * former BKPT halt is gone and boot continues: budget stop at
- * instruction 13,000,000, PC 0x000dabcc, SP 0x10029e40 (reproducing
- * twice across a reset). Ticket 730 frontier; later instances extend
- * this pin.
+ * former BKPT halt is gone and boot runs until the OS waits in WFI:
+ * WFI deadlock at instruction 12,611,224, PC 0x000dabcc, SP
+ * 0x10029e40 (reproducing twice across a reset). Ticket 730 frontier;
+ * later instances extend this pin.
  */
 static void test_boot_passes_iom4(semu_test_context *context)
 {
