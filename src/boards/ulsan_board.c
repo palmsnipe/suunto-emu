@@ -142,3 +142,9 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (attach_status != SEMU_OK) { return attach_status; }
     return semu_ulsan_iom4_map(bus, error);
 }
+
+void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
+                                      void *context)
+{
+    semu_ulsan_iom4_set_irq_sink(sink, context);
+}

@@ -171,8 +171,11 @@ static void test_observed_registers_store(semu_test_context *context)
 
 static void test_unobserved_iom4_accesses_refused(semu_test_context *context)
 {
+    /* +0x204 (INTSTAT) became an observed read via the vector-10
+     * handler disassembly (E-ULS-0030) and is covered by the engine
+     * test's status sequence. */
     static const uint32_t read_offsets[] = {
-        0x0u, 0x100u, 0x108u, 0x110u, 0x114u, 0x12Cu, 0x204u,
+        0x0u, 0x100u, 0x108u, 0x110u, 0x114u, 0x12Cu,
         0x214u, 0x224u, 0x2C8u, 0x300u
     };
     semu_bus *bus;

@@ -1,6 +1,7 @@
 #ifndef SEMU_BOARDS_ULSAN_BOARD_H
 #define SEMU_BOARDS_ULSAN_BOARD_H
 
+#include "semu/apollo4.h"
 #include "semu/bus.h"
 
 /*
@@ -17,6 +18,13 @@
  */
 
 semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error);
+
+/* Machine-side IRQ wiring (integrator seam, E-ULS-0030): pass the
+ * machine irq_sink through to the Ulsan devices that assert lines -
+ * today only the IOM4 command-complete line at NVIC IRQ 10. Calling
+ * this is the one remaining machine.c change for the WFI wake. */
+void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
+                                      void *context);
 
 /* Accepts only the one evidence-eligible Ulsan profile (board plus id). */
 int semu_ulsan_board_accepted(const char *board, const char *profile_id);

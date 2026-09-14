@@ -86,6 +86,9 @@ typedef struct {
     uint8_t endpoint_selected; /* 0x28 recorder select register       */
     uint8_t endpoint_regs[256];/* 0x28 recorder register file         */
     semu_bus *bus;             /* self-reference for DMA payloads     */
+    semu_apollo4_irq_fn irq_sink;   /* machine line sink (IRQ 10)   */
+    void *irq_context;              /* sink context                 */
+    unsigned irq_level;             /* last driven line level       */
 } iom4_state;
 
 static iom4_state iom4_instance;
@@ -152,10 +155,26 @@ static int iom4_target_allowed(iom4_state *s, uint32_t command,
     return 0;
 }
 
+/* Upstream drives the line as OR(status & enable); the lane trace
+ * (E-ULS-0030) shows assert at completion and deassert inside the
+ * handler's INTCLR write. Transitions are edge-only notifications. */
+static void iom4_update_irq(iom4_state *s)
+{
+    unsigned level = (s->interrupt_status & s->interrupts_enable) != 0u;
+    if (level == s->irq_level) {
+        return;
+    }
+    s->irq_level = level;
+    if (s->irq_sink != NULL) {
+        s->irq_sink(s->irq_context, 10u, level != 0u); /* E-ULS-0028 */
+    }
+}
+
 static void iom4_dma_mark_error(iom4_state *s)
 {
     s->dma_status = IOM4_DMA_STATUS_ERROR;
     s->interrupt_status |= IOM4_INTSTAT_DMA_ERROR;
+    iom4_update_irq(s);
 }
 
 static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
@@ -229,6 +248,7 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
     s->dma_status = IOM4_DMA_STATUS_COMPLETE;
     s->interrupt_status |= IOM4_INTSTAT_DMA_COMPLETE |
                            IOM4_INTSTAT_COMMAND_COMPLETE;
+    iom4_update_irq(s);
 }
 
 static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
@@ -253,6 +273,9 @@ static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
         *value = iom4_instance.submodule | IOM4_SUBMODULE_READ_BITS;
         return SEMU_OK;
     case 0x200u: *value = iom4_instance.interrupts_enable; return SEMU_OK;
+    /* INTSTAT: read-only status the vector-10 handler polls
+     * (E-ULS-0030, helper 0x0015e7a6 reads base+0x204). */
+    case 0x204u: *value = iom4_instance.interrupt_status; return SEMU_OK;
     case 0x210u: *value = iom4_instance.dma_trigger; return SEMU_OK;
     case 0x128u: *value = iom4_instance.offset_high; return SEMU_OK;
     case 0x124u: *value = iom4_instance.dcx_control; return SEMU_OK;
@@ -341,6 +364,14 @@ static semu_status iom4_write(void *context, uint32_t offset,
         return SEMU_OK;
     case 0x200u:
         iom4_instance.interrupts_enable = value & IOM4_INTERRUPTS_MASK;
+        iom4_update_irq(&iom4_instance);
+        return SEMU_OK;
+    case 0x208u:
+        /* INTCLR: write-1-clear. The observed window cleared an
+         * all-zero status (storeless-equivalent); the lane handler's
+         * clear now re-evaluates the line (E-ULS-0030). */
+        iom4_instance.interrupt_status &= ~value;
+        iom4_update_irq(&iom4_instance);
         return SEMU_OK;
     case 0x210u:
         iom4_instance.dma_trigger = value & 0x3u;
@@ -382,6 +413,13 @@ static void iom4_reset(void *context)
     iom4_instance.interrupt_status = 0u;
     iom4_instance.endpoint_selected = 0u;
     memset(iom4_instance.endpoint_regs, 0, sizeof(iom4_instance.endpoint_regs));
+    iom4_update_irq(&iom4_instance);
+}
+
+void semu_ulsan_iom4_set_irq_sink(semu_apollo4_irq_fn sink, void *context)
+{
+    iom4_instance.irq_sink = sink;
+    iom4_instance.irq_context = context;
 }
 
 static const semu_bus_device_ops iom4_ops = {

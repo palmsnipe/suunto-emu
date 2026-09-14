@@ -137,27 +137,122 @@ static void test_doorbell_refusal_paths(semu_test_context *context)
 
     /* With DMA disabled the doorbell is the plain masked register
      * store the earlier instance modelled. */
+    wr(context, bus, 0x218u, 0u);
     wr(context, bus, 0x2C4u, 0x28u);
     wr(context, bus, 0x120u, 0x401u);
     SEMU_TEST_EQ_U64(context, 0x401u, rd(context, bus, 0x120u));
 
-    /* The completion status planes stay refused (guest never reads
-     * them in the observed window). */
+    /* INTSTAT (0x204) reads the now-modelled status (E-ULS-0030); the
+     * DMA status plane (0x224) stays refused (never read). */
     semu_error_clear(&error);
-    SEMU_TEST_ASSERT(context,
-                     semu_bus_read(bus, IOM4 + 0x204u, 4u, &value,
-                                   &error) != SEMU_OK);
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, IOM4 + 0x204u, 4u, &value, &error));
+    /* Only the wrapper's DmaError (bit 11) from the out-of-bounds
+     * target is pending: the gauge and DMA-off doorbells completed
+     * nothing. */
+    SEMU_TEST_EQ_U64(context, 0x800u, value);
     semu_error_clear(&error);
     SEMU_TEST_ASSERT(context,
                      semu_bus_read(bus, IOM4 + 0x224u, 4u, &value,
                                    &error) != SEMU_OK);
 }
 
+typedef struct {
+    unsigned irq[16];
+    int level[16];
+    unsigned count;
+} irq_record;
+
+static void record_irq(void *context, unsigned irq, int level)
+{
+    irq_record *rec = (irq_record *)context;
+    if (rec->count < 16u) {
+        rec->irq[rec->count] = irq;
+        rec->level[rec->count] = level;
+    }
+    rec->count++;
+}
+
+static void test_irq_line_and_status(semu_test_context *context)
+{
+    semu_bus *bus;
+    semu_error error;
+    irq_record rec;
+    unsigned i;
+
+    rec.count = 0u;
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+    semu_ulsan_iom4_set_irq_sink(record_irq, &rec);
+
+    /* Arm the line the way the handler's INTEN read implies: status
+     * bits 0 and 10 (command + DMA complete) both enabled. */
+    wr(context, bus, 0x200u, 0x401u);
+    for (i = 0u; i < 4u; i++) {
+        static const uint8_t payload[4] = { 0x21u, 0x22u, 0x23u, 0x24u };
+        semu_error_clear(&error);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, BUFFER + i, 1u, payload[i],
+                                        &error));
+    }
+    wr(context, bus, 0x218u, 0x3u);
+    wr(context, bus, 0x21Cu, 4u);
+    wr(context, bus, 0x220u, BUFFER);
+    wr(context, bus, 0x2C4u, 0x28u);
+    wr(context, bus, 0x120u, 0x401u);
+
+    /* Completion asserts IRQ 10 exactly once (edge-only). */
+    SEMU_TEST_EQ_U64(context, 1u, rec.count);
+    SEMU_TEST_EQ_U64(context, 10u, rec.irq[0]);
+    SEMU_TEST_EQ_U64(context, 1, (unsigned)rec.level[0]);
+
+    /* INTSTAT reads the recorded status; INTSTAT writes refuse. */
+    SEMU_TEST_EQ_U64(context, 0x401u, rd(context, bus, 0x204u));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, IOM4 + 0x204u, 4u, 0u,
+                                    &error) != SEMU_OK);
+
+    /* Partial INTCLR keeps the line up while an enabled bit remains;
+     * clearing the last one drops it (E-ULS-0030 handler timing). */
+    wr(context, bus, 0x208u, 0x1u);
+    SEMU_TEST_EQ_U64(context, 1u, rec.count);
+    wr(context, bus, 0x208u, 0x400u);
+    SEMU_TEST_EQ_U64(context, 2u, rec.count);
+    SEMU_TEST_EQ_U64(context, 10u, rec.irq[1]);
+    SEMU_TEST_EQ_U64(context, 0, (unsigned)rec.level[1]);
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
+
+    /* With INTEN zero a completion leaves the line inert; re-enabling
+     * the bits raises it immediately (upstream update on INTEN write). */
+    wr(context, bus, 0x200u, 0u);
+    wr(context, bus, 0x218u, 0x3u);
+    wr(context, bus, 0x120u, 0x401u);
+    SEMU_TEST_EQ_U64(context, 2u, rec.count);
+    SEMU_TEST_EQ_U64(context, 0x401u, rd(context, bus, 0x204u));
+    wr(context, bus, 0x200u, 0x401u);
+    SEMU_TEST_EQ_U64(context, 3u, rec.count);
+    SEMU_TEST_EQ_U64(context, 1, (unsigned)rec.level[2]);
+
+    /* Machine reset drops the line and the status. */
+    semu_bus_reset(bus);
+    SEMU_TEST_EQ_U64(context, 4u, rec.count);
+    SEMU_TEST_EQ_U64(context, 0, (unsigned)rec.level[3]);
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
+
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_doorbell_write_read_cycle", test_doorbell_write_read_cycle },
-        { "test_doorbell_refusal_paths", test_doorbell_refusal_paths }
+        { "test_doorbell_refusal_paths", test_doorbell_refusal_paths },
+        { "test_irq_line_and_status", test_irq_line_and_status }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
