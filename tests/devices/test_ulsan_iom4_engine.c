@@ -127,11 +127,12 @@ static void test_doorbell_refusal_paths(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x3u, rd(context, bus, 0x218u));
     SEMU_TEST_EQ_U64(context, 0x401u, rd(context, bus, 0x120u));
 
-    /* A doorbell to the fuel-gauge address (0x36) is beyond the
-     * observed recorder traffic: no transfer, no completion. */
+    /* A doorbell to an unobserved endpoint (0x40) transfers nothing and
+     * completes nothing; the observed 0x28/0x36 endpoints are covered
+     * by this and the gauge test file. */
     wr(context, bus, 0x218u, 0x1u);
     wr(context, bus, 0x220u, BUFFER);
-    wr(context, bus, 0x2C4u, 0x36u);
+    wr(context, bus, 0x2C4u, 0x40u);
     wr(context, bus, 0x120u, 0x36000112u);
     SEMU_TEST_EQ_U64(context, 0x1u, rd(context, bus, 0x218u));
 

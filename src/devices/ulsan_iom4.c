@@ -46,6 +46,8 @@
 
 #include "ulsan_iom4.h"
 
+#include "ulsan_iom4_endpoints.h"
+
 #include <string.h>
 
 #include "semu/bus.h"
@@ -83,8 +85,6 @@ typedef struct {
                                 * observed window (refused)           */
     uint32_t interrupt_status; /* INTSTAT bits, set by completions;
                                 * +0x204 stays refused (unobserved)   */
-    uint8_t endpoint_selected; /* 0x28 recorder select register       */
-    uint8_t endpoint_regs[256];/* 0x28 recorder register file         */
     semu_bus *bus;             /* self-reference for DMA payloads     */
     semu_apollo4_irq_fn irq_sink;   /* machine line sink (IRQ 10)   */
     void *irq_context;              /* sink context                 */
@@ -124,7 +124,6 @@ static int iom4_is_storeless_read_zero(uint32_t offset)
  * target; every boot transaction targets the recorder at device
  * address 0x28 through a four-byte payload. Refusal rules and the
  * completion side effects mirror the wrapper source and trace. */
-#define IOM4_END_POINT 0x28u
 #define IOM4_DMA_ENABLE 0x1u
 #define IOM4_DMA_DIR_MEM_TO_DEV 0x2u
 #define IOM4_SRAM_START 0x10000000u
@@ -195,8 +194,8 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
         iom4_dma_mark_error(s); /* wrapper DmaError path */
         return;
     }
-    if (s->i2c_device != IOM4_END_POINT) {
-        return; /* endpoint beyond the observed recorder: no transfer */
+    if (!ulsan_iom4_endpoint_known(s->i2c_device)) {
+        return; /* endpoint beyond the observed traffic: no transfer */
     }
 
     if (to_device) {
@@ -210,11 +209,7 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
             }
             payload[i] = (uint8_t)byte;
         }
-        s->endpoint_selected = payload[0];
-        for (i = 1u; i < count; i++) {
-            s->endpoint_regs[(uint8_t)(s->endpoint_selected + i - 1u)] =
-                payload[i];
-        }
+        ulsan_iom4_endpoint_write(s->i2c_device, payload, count);
     } else {
         uint32_t offset_enable = command & 0x10u; /* OFFSETEN bit 4 */
         /* Validate the full destination before writing the endpoint out. */
@@ -228,22 +223,23 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
         }
         if (offset_enable != 0u) {
             /* Upstream sends the OFFSETLO byte to the endpoint as a
-             * one-byte write first; the recorder selects on it without
-             * storing (data length 1). */
-            s->endpoint_selected = (uint8_t)((command >> 24) & 0xFFu);
+             * one-byte write first: the recorder selects on it without
+             * storing; the gauge takes it as its register pointer. */
+            uint8_t offset_byte = (uint8_t)((command >> 24) & 0xFFu);
+            ulsan_iom4_endpoint_write(s->i2c_device, &offset_byte, 1u);
         }
+        ulsan_iom4_endpoint_read(s->i2c_device, payload, count);
         for (i = 0u; i < count; i++) {
             uint32_t status;
-            uint8_t byte =
-                s->endpoint_regs[(uint8_t)(s->endpoint_selected + i)];
-            status = semu_bus_write(s->bus, s->dma_target + i, 1u, byte,
-                                    &error);
+            status = semu_bus_write(s->bus, s->dma_target + i, 1u,
+                                    payload[i], &error);
             if (status != SEMU_OK) {
                 iom4_dma_mark_error(s);
                 return;
             }
         }
     }
+    ulsan_iom4_endpoint_finish(s->i2c_device);
     s->dma_config &= ~IOM4_DMA_ENABLE; /* wrapper CompleteDma auto-clear */
     s->dma_status = IOM4_DMA_STATUS_COMPLETE;
     s->interrupt_status |= IOM4_INTSTAT_DMA_COMPLETE |
@@ -411,8 +407,7 @@ static void iom4_reset(void *context)
     iom4_instance.dma_target = 0u;
     iom4_instance.dma_status = 0u;
     iom4_instance.interrupt_status = 0u;
-    iom4_instance.endpoint_selected = 0u;
-    memset(iom4_instance.endpoint_regs, 0, sizeof(iom4_instance.endpoint_regs));
+    ulsan_iom4_endpoints_reset();
     iom4_update_irq(&iom4_instance);
 }
 
