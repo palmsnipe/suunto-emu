@@ -153,10 +153,10 @@ static void test_map_and_fail_closed_stop(semu_test_context *context)
         0x08000000u, 0x40004000u, 0x40004800u, 0x40008800u, 0x40021008u,
         0x40024000u, 0x400c0fe0u, 0x40000000u, 0x42003240u, 0x48000050u,
         0x40020000u, 0x47ff0000u,
-        0x4005411Cu };
+        0x4005411Cu, 0x40061100u };
     static const uint32_t unmapped[] = { 0x00200000u, 0x10267000u,
         0x18000000u, 0x1803fff8u, 0x1a000000u,
-        0x40061000u, 0x400a0000u };
+        0x400a0000u };
     char paths[3][128];
     component_source sources[3];
     uint8_t resident[64];

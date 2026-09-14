@@ -61,6 +61,7 @@
 #include "../devices/ulsan_rtc.h"
 #include "../devices/ulsan_timer0.h"
 #include "../devices/ulsan_iom4.h"
+#include "../devices/ulsan_mspi1.h"
 #include "../devices/ulsan_buszero.h"
 #include "../devices/ulsan_stimer.h"
 #include "../devices/ulsan_wdt.h"
@@ -140,11 +141,17 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     if (attach_status != SEMU_OK) { return attach_status; }
     attach_status = semu_ulsan_timer0_map(bus, error);
     if (attach_status != SEMU_OK) { return attach_status; }
-    return semu_ulsan_iom4_map(bus, error);
+    attach_status = semu_ulsan_iom4_map(bus, error);
+    if (attach_status != SEMU_OK) { return attach_status; }
+    return semu_ulsan_mspi1_map(bus, error);
 }
 
 void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
                                       void *context)
 {
+    /* One machine sink for every Ulsan device interrupt the evidence
+     * has wired: IOM4 at IRQ 10 (E-ULS-0030), MSPI1 at IRQ 21
+     * (E-ULS-0031). */
     semu_ulsan_iom4_set_irq_sink(sink, context);
+    semu_ulsan_mspi1_set_irq_sink(sink, context);
 }
