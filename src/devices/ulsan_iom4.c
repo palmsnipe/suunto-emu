@@ -20,25 +20,35 @@
  * +0x11C carries the read-only submodule-type enum bits 0xE20, and
  * +0x280 keeps its 0x00200000 reset constant.
  *
- * The next pass arms the transaction: stores 0x0 to +0x218 (DMA
- * disabled), 0x4 to +0x21C, the SRAM buffer address to +0x220, 0x0 to
- * +0x124, the device address 0x28 to +0x2C4, 0x0 to +0x128, then rings
- * the doorbell 0x401 on +0x120 - a four-byte write to device address
- * 0x28 with DMA off, so the lane wrapper hands it straight to the
- * register collection and no completion bit is read back in the
- * observed window. Every one of those offsets is modelled as its
- * field-masked store.
+ * The next pass arms the transaction: the device address 0x28 to
+ * +0x2C4, the SRAM buffer address to +0x220, 0x4 to +0x21C, and the
+ * doorbell 0x401 on +0x120. The full-trace lane run (E-ULS-0029)
+ * shows every boot doorbell running the wrapper DMA path: the +0x218
+ * value-0 store is the end-of-transaction state, transactions enable
+ * DMA (direction memory-to-device), load the count from the SRAM
+ * target, and hand the payload to the register-file recorder behind
+ * device address 0x28; reads (size 1, offset enabled, OFFSETLO in
+ * bits 31:24) select a recorder register and copy its value back into
+ * the DMA target. Completion auto-clears DMAEN in the +0x218 mirror
+ * and moves the internal status bits; the guest never reads +0x204 or
+ * +0x224 in the observed window, so those stay refused.
  *
  * This device reproduces the register-collection behaviour for exactly
- * the observed offsets (see the header for the mask table). All other
- * IOM4 addresses and widths refuse; the I2C endpoint behind the
- * doorbell, queue completion status (+0x12C), and the DMA engine stay
- * unmodelled - the boot now runs until it waits in WFI (12,611,224),
- * where the missing interrupt plane takes over.
+ * the observed offsets (see the header for the mask table) plus the
+ * observed doorbell data plane. All other IOM4 addresses and widths
+ * refuse; targets beyond the wrapper's SRAM/flash bounds or endpoints
+ * beyond the observed recorder accept the doorbell but transfer
+ * nothing - the lane's own refusal path. The boot now runs until it
+ * waits in WFI (12,611,224), where the missing interrupt plane - the
+ * IOM4 command-complete line into NVIC IRQ 10 (E-ULS-0028) - takes
+ * over.
  */
 
 #include "ulsan_iom4.h"
 
+#include <string.h>
+
+#include "semu/bus.h"
 #include "semu/types.h"
 
 #define IOM4_BASE 0x40054000u
@@ -69,6 +79,13 @@ typedef struct {
     uint32_t dma_config;       /* +0x218: DMAEN|DMADIR|DMAPRI|DPWROFF 0x303 */
     uint32_t dma_total;        /* +0x21C: TOTCOUNT[11:0]                */
     uint32_t dma_target;       /* +0x220: TARGADDR[28:0]                */
+    uint32_t dma_status;       /* +0x224 mirror: never read in the
+                                * observed window (refused)           */
+    uint32_t interrupt_status; /* INTSTAT bits, set by completions;
+                                * +0x204 stays refused (unobserved)   */
+    uint8_t endpoint_selected; /* 0x28 recorder select register       */
+    uint8_t endpoint_regs[256];/* 0x28 recorder register file         */
+    semu_bus *bus;             /* self-reference for DMA payloads     */
 } iom4_state;
 
 static iom4_state iom4_instance;
@@ -96,6 +113,122 @@ static int iom4_is_storeless_read_zero(uint32_t offset)
     return offset == 0x228u || offset == 0x22Cu || offset == 0x234u ||
            offset == 0x23Cu || offset == 0x240u || offset == 0x244u ||
            offset == 0x208u; /* write-1-clear over an all-zero status */
+}
+
+
+/* Doorbell data plane (E-ULS-0029). The lane wrapper (Apollo4IomDma)
+ * arms DMA from +0x218 bit 0 (direction bit 1), +0x21C count, +0x220
+ * target; every boot transaction targets the recorder at device
+ * address 0x28 through a four-byte payload. Refusal rules and the
+ * completion side effects mirror the wrapper source and trace. */
+#define IOM4_END_POINT 0x28u
+#define IOM4_DMA_ENABLE 0x1u
+#define IOM4_DMA_DIR_MEM_TO_DEV 0x2u
+#define IOM4_SRAM_START 0x10000000u
+#define IOM4_SRAM_END 0x10267000u
+#define IOM4_FLASH_START 0x00010000u
+#define IOM4_FLASH_END 0x00200000u
+#define IOM4_INTSTAT_COMMAND_COMPLETE (UINT32_C(1) << 0)
+#define IOM4_INTSTAT_DMA_COMPLETE (UINT32_C(1) << 10)
+#define IOM4_INTSTAT_DMA_ERROR (UINT32_C(1) << 11)
+#define IOM4_DMA_STATUS_COMPLETE 2u
+#define IOM4_DMA_STATUS_ERROR 4u
+
+static int iom4_target_allowed(iom4_state *s, uint32_t command,
+                               uint32_t count, int *to_device)
+{
+    uint64_t end = (uint64_t)s->dma_target + count;
+    *to_device = (s->dma_config & IOM4_DMA_DIR_MEM_TO_DEV) != 0u;
+    if (end >= (uint64_t)IOM4_SRAM_START && end <= (uint64_t)IOM4_SRAM_END &&
+        s->dma_target >= IOM4_SRAM_START) {
+        return 1;
+    }
+    /* The wrapper only allows flash as a write-direction source. */
+    if (*to_device && end >= (uint64_t)IOM4_FLASH_START &&
+        end <= (uint64_t)IOM4_FLASH_END) {
+        return 1;
+    }
+    (void)command;
+    return 0;
+}
+
+static void iom4_dma_mark_error(iom4_state *s)
+{
+    s->dma_status = IOM4_DMA_STATUS_ERROR;
+    s->interrupt_status |= IOM4_INTSTAT_DMA_ERROR;
+}
+
+static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
+{
+    uint32_t kind = command & 0xFu;
+    uint32_t size = (command >> 8) & 0xFFFu;
+    uint32_t count = s->dma_total < size ? s->dma_total : size;
+    uint8_t payload[4096];
+    int to_device = 0;
+    unsigned i;
+    semu_error error;
+
+    if ((s->dma_config & IOM4_DMA_ENABLE) == 0u ||
+        (kind != 1u && kind != 2u)) {
+        return; /* wrapper PrepareDma decline: plain register store */
+    }
+    if (count == 0u || !iom4_target_allowed(s, command, count, &to_device)) {
+        iom4_dma_mark_error(s); /* wrapper DmaError path */
+        return;
+    }
+    if (s->i2c_device != IOM4_END_POINT) {
+        return; /* endpoint beyond the observed recorder: no transfer */
+    }
+
+    if (to_device) {
+        /* Validate the full SRAM source before touching the endpoint. */
+        for (i = 0u; i < count; i++) {
+            uint32_t byte;
+            if (semu_bus_read(s->bus, s->dma_target + i, 1u, &byte,
+                              &error) != SEMU_OK) {
+                iom4_dma_mark_error(s);
+                return;
+            }
+            payload[i] = (uint8_t)byte;
+        }
+        s->endpoint_selected = payload[0];
+        for (i = 1u; i < count; i++) {
+            s->endpoint_regs[(uint8_t)(s->endpoint_selected + i - 1u)] =
+                payload[i];
+        }
+    } else {
+        uint32_t offset_enable = command & 0x10u; /* OFFSETEN bit 4 */
+        /* Validate the full destination before writing the endpoint out. */
+        for (i = 0u; i < count; i++) {
+            uint32_t probe;
+            if (semu_bus_read(s->bus, s->dma_target + i, 1u, &probe,
+                              &error) != SEMU_OK) {
+                iom4_dma_mark_error(s);
+                return;
+            }
+        }
+        if (offset_enable != 0u) {
+            /* Upstream sends the OFFSETLO byte to the endpoint as a
+             * one-byte write first; the recorder selects on it without
+             * storing (data length 1). */
+            s->endpoint_selected = (uint8_t)((command >> 24) & 0xFFu);
+        }
+        for (i = 0u; i < count; i++) {
+            uint32_t status;
+            uint8_t byte =
+                s->endpoint_regs[(uint8_t)(s->endpoint_selected + i)];
+            status = semu_bus_write(s->bus, s->dma_target + i, 1u, byte,
+                                    &error);
+            if (status != SEMU_OK) {
+                iom4_dma_mark_error(s);
+                return;
+            }
+        }
+    }
+    s->dma_config &= ~IOM4_DMA_ENABLE; /* wrapper CompleteDma auto-clear */
+    s->dma_status = IOM4_DMA_STATUS_COMPLETE;
+    s->interrupt_status |= IOM4_INTSTAT_DMA_COMPLETE |
+                           IOM4_INTSTAT_COMMAND_COMPLETE;
 }
 
 static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
@@ -166,14 +299,11 @@ static semu_status iom4_write(void *context, uint32_t offset,
         iom4_instance.dcx_control = value & 0x10u;
         return SEMU_OK;
     case 0x120u:
-        /* Transaction doorbell. DMA is disabled in the observed
-         * configuration (+0x218 stores 0), so the lane wrapper hands
-         * the command straight to the register collection, where every
-         * field but the reserved pair stores. The observed command
-         * 0x401 (write, 4 bytes, address 0x28) targets an endpoint
-         * modelled by a later instance; no queue completion bits are
-         * observed and none are invented. */
+        /* Transaction doorbell: every field but the reserved pair
+         * stores, and the command drives the DMA data phase above
+         * (E-ULS-0029). */
         iom4_instance.command = value & 0xFF3FFFFFu;
+        iom4_doorbell_data_phase(&iom4_instance, value & 0xFF3FFFFFu);
         return SEMU_OK;
     case 0x2C4u:
         /* DEVADDR[9:0] with the lane's 7-bit truncation (extended
@@ -248,6 +378,10 @@ static void iom4_reset(void *context)
     iom4_instance.dma_config = 0u;
     iom4_instance.dma_total = 0u;
     iom4_instance.dma_target = 0u;
+    iom4_instance.dma_status = 0u;
+    iom4_instance.interrupt_status = 0u;
+    iom4_instance.endpoint_selected = 0u;
+    memset(iom4_instance.endpoint_regs, 0, sizeof(iom4_instance.endpoint_regs));
 }
 
 static const semu_bus_device_ops iom4_ops = {
@@ -264,6 +398,7 @@ semu_status semu_ulsan_iom4_map(semu_bus *bus, semu_error *error)
         return SEMU_ERR_ARGUMENT;
     }
     iom4_reset(NULL);
+    iom4_instance.bus = bus;
     return semu_bus_map_device(bus, "ulsan.iom4", IOM4_BASE, IOM4_SIZE,
                                &iom4_ops, &iom4_instance, error);
 }
