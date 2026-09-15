@@ -2,16 +2,20 @@
  * Ulsan 2.35.36 power-control block attachment (ticket 730, E-ULS-0008).
  *
  * The reference lane resolves 0x40021000 with
- * Miscellaneous.AmbiqApollo4_PowerController. Every boot-phase write the
- * lane logged (0x04 enable tags, 0x24, 0x58/0x60, 0x78/0x80, 0x100) was
- * reported as fully unhandled bits, and lane probes show 0x40021014/0x18
- * read 0x3F unchanged across the guest read-modify-write chain at
- * 0x000965ec: the accepted behavior is constant reads of the observed
- * offsets and stored-nothing writes of the observed values. Before this
- * attachment the boot sampler at 0x00096b66 took a precise BusFault
- * (BFAR 0x40021008, CFSR 0x00008200, first at instruction 12583862).
+ * Miscellaneous.AmbiqApollo4_PowerController. The boot-phase writes at
+ * 0x24, 0x58/0x60, 0x78/0x80 and 0x100 were reported with tag-only
+ * (discarded) bits, and lane probes show 0x40021014/0x18 read 0x3F
+ * unchanged across the guest read-modify-write chain at 0x000965ec: the
+ * accepted behavior there is constant reads of the observed offsets and
+ * stored-nothing writes of the observed values. +0x04/+0x08 (E-ULS-0037)
+ * follow the upstream field storage: the enable word starts at
+ * 0x00100000, every write replaces it with value & 0x00103FFE, and the
+ * status register mirrors it. Before the first attachment the boot
+ * sampler at 0x00096b66 took a precise BusFault (BFAR 0x40021008,
+ * CFSR 0x00008200, first at instruction 12583862).
  *
- * Success cases: observed reads and writes through the board map.
+ * Success cases: observed reads and writes through the board map; the
+ * +0x04 stored-word plane with its +0x08 mirror.
  * Refusal cases: unobserved offsets, unobserved values, wrong widths.
  * Boot case: the guest passes the power-status sampler and the frontier
  * is reproduced twice.
@@ -61,13 +65,8 @@ static void test_observed_transactions_accepted(semu_test_context *context)
     size_t index;
 
     MAP_BOARD(bus);
-    for (index = 0u; index < sizeof(write_pairs) / sizeof(write_pairs[0]);
-         ++index) {
-        semu_error_clear(&error);
-        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
-            bus, PWR_BASE + write_pairs[index][0], 4u, write_pairs[index][1],
-            &error));
-    }
+    /* Reads first: +0x04/+0x08 are stored-word backed, so their expected
+     * values are the reset-state values asserted by a fresh map. */
     for (index = 0u; index < sizeof(read_pairs) / sizeof(read_pairs[0]);
          ++index) {
         uint32_t value = 0u;
@@ -75,6 +74,13 @@ static void test_observed_transactions_accepted(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
             bus, PWR_BASE + read_pairs[index][0], 4u, &value, &error));
         SEMU_TEST_EQ_U64(context, read_pairs[index][1], value);
+    }
+    for (index = 0u; index < sizeof(write_pairs) / sizeof(write_pairs[0]);
+         ++index) {
+        semu_error_clear(&error);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+            bus, PWR_BASE + write_pairs[index][0], 4u, write_pairs[index][1],
+            &error));
     }
     semu_bus_destroy(bus);
 }
@@ -85,7 +91,6 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
         0x34u, 0x38u, 0x50u, 0x64u, 0x84u, 0xFCu, 0x104u
     };
     static const uint32_t write_pairs[][2] = {
-        { 0x04u, 0x00000001u },     /* unobserved value at 0x04 */
         { 0x00u, 0x00000009u },     /* reads same, writes refused */
         { 0x108u, 0x00000001u },    /* VRSTATUS write unobserved */
         { 0x14u, 0x0000002Fu },     /* lane branch value never observed */
@@ -134,13 +139,146 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+/*
+ * E-ULS-0037 stored-word plane. The guest RMW helper (PC 0x000969de/
+ * 0x00096a30) reads +0x04, ORs a domain bit and stores the result back;
+ * the lane's whole-value warnings (0x8000 etc.) and the lane probe
+ * samples (0x00100000 at 0.13 s, then 0 to 11.0 s) prove the upstream
+ * field storage reproduced below: word := value & 0x00103FFE, tag-only
+ * writes leave it unchanged, and +0x08 mirrors the folded flags.
+ */
+static void test_device_power_store_plane(semu_test_context *context)
+{
+    semu_bus *bus;
+    semu_error error;
+    uint32_t value = 0u;
+
+    MAP_BOARD(bus);
+    /* Reset state matches the boot-era observations. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00100000), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00100000), value);
+
+    /* IOM4 enable read-modify-write store logged in-tree (bit 5 with the
+     * reset read-back): handled bits stay, status folds group 5-8 to
+     * 0x1E0 and copies the CRYPTO flag. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+        bus, PWR_BASE + 0x04u, 4u, 0x00100020u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00100020), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x001001E0), value);
+    /* Byte lanes slice the live word. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x06u, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00000010), value);
+
+    /* The guest's zero store clears the word: the mechanism behind the
+     * lane reading 0 at every +0x04 RMW (whole-value warning 0x8000). */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+        bus, PWR_BASE + 0x04u, 4u, 0x00000000u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00000000), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00000000), value);
+
+    /* The logged whole values (bit 15, 18, 19, 22) are tag-only: each is
+     * accepted and leaves the word at 0, matching the 0 samples after
+     * 0.23 s. */
+    {
+        static const uint32_t tag_only[] = {
+            0x00008000u, 0x00400000u, 0x00040000u, 0x00080000u
+        };
+        size_t index;
+        for (index = 0u; index < sizeof(tag_only) / sizeof(tag_only[0]);
+             ++index) {
+            semu_error_clear(&error);
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+                bus, PWR_BASE + 0x04u, 4u, tag_only[index], &error));
+            semu_error_clear(&error);
+            SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+                bus, PWR_BASE + 0x04u, 4u, &value, &error));
+            SEMU_TEST_EQ_U64(context, UINT64_C(0x00000000), value);
+        }
+    }
+
+    /* Handled-bit mask edge: bit 0 (tag-only) and bits 25-31 (reserved)
+     * drop; the full-word write keeps exactly the field bits and the
+     * status mirror folds all groups. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+        bus, PWR_BASE + 0x04u, 4u, 0x8000001Fu, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x0000001E), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+        bus, PWR_BASE + 0x04u, 4u, 0xFFFFFFFFu, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00103FFE), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00103FFE), value);
+
+    /* +0x08 writes hit FieldMode.Read and tag bits only: accepted with
+     * no state change (the enable word keeps the previous value). */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(
+        bus, PWR_BASE + 0x08u, 4u, 0x12345678u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00103FFE), value);
+
+    /* Refusals: widths the lane never recorded, and the constant-plane
+     * offsets around the live pair keep refusing unobserved accesses. */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_write(
+        bus, PWR_BASE + 0x04u, 2u, 0x20u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_write(
+        bus, PWR_BASE + 0x05u, 1u, 0x10u, &error));
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context, SEMU_OK != semu_bus_read(
+        bus, PWR_BASE + 0x04u, 3u, &value, &error));
+
+    /* Machine-level bus reset re-applies the register reset value. */
+    semu_bus_reset(bus);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(
+        bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x00100000), value);
+    semu_bus_destroy(bus);
+}
+
 /* Boot frontier: the first boot run now ends in the machine reset applied
  * after the guest's HardFault handler stores SYSRESETREQ: the TIMER0
  * comparator wake releases the WFI at instruction 12,650,485, the RTC
- * counter window answers the sleep-deepening path, which then reads the
- * still-unmodelled second PowerController window word 0x40021004
- * (precise bus fault at PC 0x00096a32), and the reset takes effect; a
- * budget of 14,769,033 stops at the first post-reset boot instruction
+ * counter window answers the sleep-deepening path, which now proceeds
+ * fault-free through the enable-window read-modify-write storm at
+ * PC 0x00096a30 (E-ULS-0037 stored-word plane) into the guest's
+ * own system-reset helper at PC 0x000c399c, and the reset takes
+ * effect; a budget of 14,756,458 stops at the first post-reset boot instruction
  * PC 0x001e1b4c, SP 0x1005ffc0 (reproduced twice). Ticket 730 frontier;
  * later instances extend this pin. */
 static void test_boot_passes_power_status_sampler(semu_test_context *context)
@@ -177,7 +315,7 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(14769033), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(14756458), UINT64_C(4000000000) };
         semu_stop_reason reason;
         const semu_cpu_state *state;
         semu_error_clear(&error);
@@ -190,7 +328,7 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(14769033),
+        SEMU_TEST_EQ_U64(context, UINT64_C(14756458),
                          semu_machine_instructions(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
                          semu_machine_program_counter(machine));
@@ -204,6 +342,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_observed_transactions_accepted),
         SEMU_TEST_CASE(test_unobserved_transactions_refused),
+        SEMU_TEST_CASE(test_device_power_store_plane),
         SEMU_TEST_CASE(test_boot_passes_power_status_sampler)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

@@ -9,9 +9,10 @@
  *           0x60 = 0x4 (ICACHEPWDDSP0OFF), 0x78 = 0x1 (PWRENDSP1RAM),
  *           0x80 = 0x4 (ICACHEPWDDSP1OFF), 0x100 = 0x1 (SIMOBUCKEN).
  *     Every lane log line names the complete written value as unhandled
- *     bits, so the reference model applied no state change to any of them;
- *     this device accepts exactly the pairs below and stores nothing. The
- *     two extra pairs (0x14,0x3F) and (0x1C,0x08) are the read-modify-
+ *     TaggedFlag bits, so those bits are discarded by the reference model
+ *     (no storage for bits without fields). The writes outside +0x04 are
+ *     accepted exactly as the pairs below and store nothing. The two extra
+ *     pairs (0x14,0x3F) and (0x1C,0x08) are the read-modify-
  *     write stores the guest itself computes from the probed constant
  *     register values (observed in an in-tree instrumented trace).
  *   reads  the observed offsets below. The boot sampler at 0x00096b5c
@@ -23,15 +24,31 @@
  *           0x14/0x18/0x1C trio is
  *           unchanged across the guest read-modify-write chains at
  *           0x000965ec/0x000966f8 and at run end, so they read as fixed
- *           values in this phase. 0x04/0x08 hold 0x100000 during boot and
- *           read 0 only after the lane has idled; boot never reads them
- *           after that point. Reads of unobserved offsets refuse.
+ *           values in this phase. Reads of unobserved offsets refuse.
+ *
+ * +0x04/+0x08 are the stored-word pair (E-ULS-0037). The lane resolves
+ * this block to upstream renode-infrastructure add012af (Renode 1.16.1
+ * submodule) Miscellaneous/AmbiqApollo4_PowerController.cs:
+ * DevicePowerEnable defines reset 0x00100000 with READ/WRITE fields at
+ * bits 1-4, 5-8, 9-12, 13 and 20, TaggedFlag-only (unhandled, discarded)
+ * bits 0, 14-19 and 21-24, and reserved bits 25-31; DevicePowerStatus
+ * mirrors the enable word on reads: OR-reduced 4-bit groups plus the ADC
+ * and CRYPTO flag copies. A write replaces the word with
+ * value & 0x00103FFE and only those handled bits survive. The TagField
+ * warning text prints the whole original value (PeripheralRegister.cs
+ * TagLogger), so the lane's single-bit +0x04 write lines (0x8000,
+ * 0x400000, 0x40000, 0x80000) prove the read-modify-write helper at
+ * 0x000969de/0x00096a30 observed the word as 0 - which it is after the
+ * guest's own stores of 0x00100020 then 0x00000000 (both fully handled,
+ * hence no lane warning line). The 0.13 s lane probe reads 0x00100000
+ * and every sample from 0.23 s to 11.0 s reads 0. +0x08 writes hit only
+ * FieldMode.Read and tag bits: accepted with no state change.
  *
  * Anything else fails closed with a bounded diagnostic: values other than
  * the observed pairs are refused at their offsets, offsets outside the
- * observed tables refuse, and only 32-bit aligned accesses are valid. The
- * block is stateless: reads never depend on prior writes, matching the
- * lane's observed no-write-state behavior.
+ * observed tables refuse, and only 32-bit aligned accesses are valid.
+ * Apart from the +0x04/+0x08 pair the block is stateless: reads never
+ * depend on prior writes, matching the lane's observed behavior.
  */
 
 #include "ulsan_pwrctrl.h"
@@ -58,34 +75,20 @@ typedef struct {
 } observed_write;
 
 static const observed_write observed_writes[] = {
-    /* Zero write at the continuation branch 0x00096a32: the lane logs no
-     * unhandled bits for a valueless write and its idle dump holds 0. */
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00000000) },
-    /* Lane write-log lines for the boot continuation (values as logged):
-     * 0x58 bit 0 PWRENDSP0RAM, 0x60 bit 2 ICACHEPWDDSP0OFF, 0x78 bit 0
-     * PWRENDSP1RAM, 0x80 bit 2 ICACHEPWDDSP1OFF. */
-    { 0x58u, UINT32_C(0x00000001) },
-    { 0x58u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
-    { 0x60u, UINT32_C(0x00000004) },
-    { 0x60u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
-    { 0x78u, UINT32_C(0x00000001) },
-    { 0x78u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
-    { 0x80u, UINT32_C(0x00000004) },
-    { 0x80u, UINT32_C(0x00000000) }, /* clear of the logged bit        */
-    /* Continuation-branch store (guest PC 0x00096a30): the +0x04 read
-     * value 0x100000 with bit 5 set by the driver. The lane logs no
-     * line for it, consistent with its other-tag bits; reads stay 0
-     * afterwards per the lane probe (PW +0x04 = 0 post-boot). */
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00100020) },
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00008000) },
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00040000) },
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00080000) },
-    { OFFSET_DEVICE_POWER_ENABLE, UINT32_C(0x00400000) },
+    /* +0x04 writes are handled by the stored-word plane below (E-ULS-0037);
+     * no pairs are listed here. Lane write-log lines for the boot
+     * continuation (values as logged): 0x58 bit 0 PWRENDSP0RAM, 0x60 bit 2
+     * ICACHEPWDDSP0OFF, 0x78 bit 0 PWRENDSP1RAM, 0x80 bit 2
+     * ICACHEPWDDSP1OFF, plus the clears of those logged bits. */
     { OFFSET_SHARED_SRAM_ENABLE, UINT32_C(0x00000003) },
     { OFFSET_DSP0_MEMORY_ENABLE, UINT32_C(0x00000001) },
+    { OFFSET_DSP0_MEMORY_ENABLE, UINT32_C(0x00000000) }, /* clear */
     { OFFSET_DSP0_MEMORY_RETENTION, UINT32_C(0x00000004) },
+    { OFFSET_DSP0_MEMORY_RETENTION, UINT32_C(0x00000000) }, /* clear */
     { OFFSET_DSP1_MEMORY_ENABLE, UINT32_C(0x00000001) },
+    { OFFSET_DSP1_MEMORY_ENABLE, UINT32_C(0x00000000) }, /* clear */
     { OFFSET_DSP1_MEMORY_RETENTION, UINT32_C(0x00000004) },
+    { OFFSET_DSP1_MEMORY_RETENTION, UINT32_C(0x00000000) }, /* clear */
     { OFFSET_SIMO_BUCK_ENABLE, UINT32_C(0x00000001) },
     { 0x140u, UINT32_C(0x00000000) }, { 0x144u, UINT32_C(0x00000000) },
     { 0x148u, UINT32_C(0x00000000) }, { 0x14Cu, UINT32_C(0x00000000) },
@@ -108,8 +111,7 @@ typedef struct {
 
 static const observed_read observed_reads[] = {
     { 0x00u, UINT32_C(0x00000009) },  /* performance control      */
-    { 0x04u, UINT32_C(0x00100000) },  /* device power enable      */
-    { 0x08u, UINT32_C(0x00100000) },  /* device power status      */
+    /* +0x04/+0x08 read the stored-word plane below (E-ULS-0037). */
     { 0x0Cu, UINT32_C(0x00000000) },
     { 0x10u, UINT32_C(0x00000000) },
     { 0x14u, UINT32_C(0x0000003F) },  /* legacy status 1          */
@@ -156,13 +158,39 @@ static int validate_access(uint32_t offset, unsigned width,
     return 1;
 }
 
+/*
+ * DevicePowerEnable (+0x04) word: reset 0x00100000; every 32-bit write
+ * replaces it with value & store mask (READ/WRITE fields at bits 1-4,
+ * 5-8, 9-12, 13, 20 of the upstream register definition). DevicePowerStatus
+ * (+0x08) mirrors it: the three 4-bit groups collapse to their OR, the
+ * ADC and CRYPTO flags copy across, all other bits read 0.
+ */
+#define DEVICE_POWER_ENABLE_RESET UINT32_C(0x00100000)
+#define DEVICE_POWER_ENABLE_STORE_MASK \
+    (UINT32_C(0x0000001E) | UINT32_C(0x000001E0) | UINT32_C(0x00001E00) | \
+     UINT32_C(0x00002000) | UINT32_C(0x00100000))
+
+typedef struct {
+    uint32_t device_power_enable;
+} pwrctrl_state;
+
+static uint32_t device_power_status(const pwrctrl_state *state)
+{
+    const uint32_t enable = state->device_power_enable;
+    uint32_t status = enable & (UINT32_C(0x00002000) | UINT32_C(0x00100000));
+    if ((enable & UINT32_C(0x0000001E)) != 0u) status |= UINT32_C(0x0000001E);
+    if ((enable & UINT32_C(0x000001E0)) != 0u) status |= UINT32_C(0x000001E0);
+    if ((enable & UINT32_C(0x00001E00)) != 0u) status |= UINT32_C(0x00001E00);
+    return status;
+}
+
 static semu_status pwrctrl_read(void *context, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error)
 {
+    pwrctrl_state *state = (pwrctrl_state *)context;
     size_t index;
 
-    (void)context;
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan power control read value required");
@@ -170,6 +198,19 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
     }
     if (!validate_access(offset, width, "read", error)) {
         return SEMU_ERR_UNSUPPORTED;
+    }
+    if ((offset & ~3u) == OFFSET_DEVICE_POWER_ENABLE ||
+        (offset & ~3u) == OFFSET_DEVICE_POWER_STATUS) {
+        const uint32_t word =
+            ((offset & ~3u) == OFFSET_DEVICE_POWER_ENABLE)
+                ? state->device_power_enable
+                : device_power_status(state);
+        const uint32_t shift = (offset & 3u) * 8u;
+        const uint32_t mask = (width == 4u)
+            ? UINT32_C(0xFFFFFFFF)
+            : ((UINT32_C(1) << (width * 8u)) - UINT32_C(1));
+        *value = (word >> shift) & mask;
+        return SEMU_OK;
     }
     for (index = 0u; index < sizeof(observed_reads) / sizeof(observed_reads[0]);
          ++index) {
@@ -192,9 +233,9 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
                                  unsigned width, uint32_t value,
                                  semu_error *error)
 {
+    pwrctrl_state *state = (pwrctrl_state *)context;
     size_t index;
 
-    (void)context;
     if (!validate_access(offset, width, "write", error)) {
         return SEMU_ERR_UNSUPPORTED;
     }
@@ -204,12 +245,22 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
                        "no lane-recorded value", offset, width);
         return SEMU_ERR_UNSUPPORTED;
     }
+    if (offset == OFFSET_DEVICE_POWER_ENABLE) {
+        state->device_power_enable =
+            value & DEVICE_POWER_ENABLE_STORE_MASK;
+        return SEMU_OK;
+    }
+    if (offset == OFFSET_DEVICE_POWER_STATUS) {
+        /* FieldMode.Read mirrors and tag bits only: the framework accepts
+         * and stores nothing. */
+        return SEMU_OK;
+    }
     for (index = 0u; index < sizeof(observed_writes) / sizeof(observed_writes[0]);
          ++index) {
         if (observed_writes[index].offset == offset &&
             observed_writes[index].value == value) {
-            /* The reference model reported every one of these writes as
-             * fully unhandled bits: accepted, stored nowhere. */
+            /* The reference model reported these writes' bits as tag-only
+             * or read-only: accepted, stored nowhere. */
             return SEMU_OK;
         }
     }
@@ -221,7 +272,8 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
 
 static void pwrctrl_reset(void *context)
 {
-    (void)context;
+    pwrctrl_state *state = (pwrctrl_state *)context;
+    state->device_power_enable = DEVICE_POWER_ENABLE_RESET;
 }
 
 static const semu_bus_device_ops pwrctrl_ops = {
@@ -230,8 +282,8 @@ static const semu_bus_device_ops pwrctrl_ops = {
     pwrctrl_reset
 };
 
-/* Stateless context: the mapping carries no mutable data. */
-static int pwrctrl_context;
+/* Mutable context: the +0x04 stored word (E-ULS-0037); one instance. */
+static pwrctrl_state pwrctrl_instance;
 
 semu_status semu_ulsan_pwrctrl_map(semu_bus *bus, semu_error *error)
 {
@@ -240,6 +292,7 @@ semu_status semu_ulsan_pwrctrl_map(semu_bus *bus, semu_error *error)
                        "Ulsan power control needs a bus");
         return SEMU_ERR_ARGUMENT;
     }
+    pwrctrl_reset(&pwrctrl_instance);
     return semu_bus_map_device(bus, "ulsan.pwrctrl", 0x40021000u, 0x400u,
-                               &pwrctrl_ops, &pwrctrl_context, error);
+                               &pwrctrl_ops, &pwrctrl_instance, error);
 }

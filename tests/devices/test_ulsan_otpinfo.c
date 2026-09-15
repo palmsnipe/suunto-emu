@@ -77,10 +77,11 @@ static void test_unobserved_offsets_refused(semu_test_context *context)
  * Boot frontier: the first boot run now ends in the machine reset applied
  * after the guest's HardFault handler stores SYSRESETREQ: the TIMER0
  * comparator wake releases the WFI at instruction 12,650,485, the RTC
- * counter window answers the sleep-deepening path, which then reads the
- * still-unmodelled second PowerController window word 0x40021004
- * (precise bus fault at PC 0x00096a32), and the reset takes effect; a
- * budget of 14,769,033 stops at the first post-reset boot instruction
+ * counter window answers the sleep-deepening path, which now proceeds
+ * fault-free through the enable-window read-modify-write storm at
+ * PC 0x00096a30 (E-ULS-0037 stored-word plane) into the guest's
+ * own system-reset helper at PC 0x000c399c, and the reset takes
+ * effect; a budget of 14,756,458 stops at the first post-reset boot instruction
  * PC 0x001e1b4c, SP 0x1005ffc0 (reproduced twice). Ticket 730 frontier;
  * later instances extend this pin. */
 static void test_boot_passes_otp_info1(semu_test_context *context)
@@ -117,7 +118,7 @@ static void test_boot_passes_otp_info1(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(14769033), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(14756458), UINT64_C(4000000000) };
         semu_stop_reason reason;
         const semu_cpu_state *state;
         semu_error_clear(&error);
@@ -130,7 +131,7 @@ static void test_boot_passes_otp_info1(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(14769033),
+        SEMU_TEST_EQ_U64(context, UINT64_C(14756458),
                          semu_machine_instructions(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
                          semu_machine_program_counter(machine));
