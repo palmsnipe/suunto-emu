@@ -1,6 +1,6 @@
 # 776 — Sapporo 2.39 GPS Physical Post-Acquisition Evidence
 
-**Status:** blocked
+**Status:** deferred
 **Phase:** 7
 **Dependencies:** 771,774
 
@@ -95,3 +95,9 @@ analysis substitutes for them (Forbidden Scope stands). This ticket is
 permanently blocked absent third-party observations. The production
 boundary stays as evidenced: exactly five GPS-awake admissions, sixth
 refused, pinned by the ticket 771/774 regressions.
+
+Integrator decision (2026-09-15, delegated): `blocked` → `deferred`. Under
+the standing no-device constraint this is an explicit human decision to stop
+pursuing the ticket, not a temporary obstacle; the recorded Evidence Inputs
+and the production five-pulse boundary remain exactly as written and are
+reactivated only if third-party captures are ever supplied.

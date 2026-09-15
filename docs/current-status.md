@@ -1754,3 +1754,36 @@ otherwise ambiguous artifacts.
 The blocked Phase 7 templates must not be treated as permission to infer later
 product wiring, storage, display, or input behavior. Missing evidence remains a
 refusal until a read-only native package or trace supplies the exact contract.
+
+## Lane-Oracle Governance Update and Ulsan Post-Assert Frontier (2026-09-15)
+
+Standing-constraint reconciliation, applied under delegated integrator
+authority. The repository has no physical device and will not acquire one;
+the read-only Renode lane is therefore recorded as the sole machine oracle in
+`AGENTS.md` ("Lane Oracle and No-Device Constraint"), together with the probe
+retention rule (volatile logs, SHA-256 cited in every evidence entry) and the
+opt-in era-gate verification rule. `deferred` was added to the ticket status
+vocabulary (`AGENTS.md`, `plans/task-template.md`,
+`tools/check_task_contracts.sh`) for tickets whose evidence can never arrive
+under this constraint.
+
+Index changes: ticket 776 is `deferred` (its three required physical captures
+are unreachable without a device; the five-pulse production boundary stays as
+evidenced); ticket 710 is `ready` per its own 2026-09-11 audit note (the
+2.35 trace material is on disk and the remaining work is offline
+RE derivation, not a missing observation); new ticket 777 (ready) tracks the
+re-derivation of the six drifted Sapporo 2.39 opt-in era scripts plus a
+`make check-era` target — the drift class discovered during E-ULS-0041, where
+`file_seek`, `file_size`, `ohr2_command2`, `ctimer13_inten`, `logical_files`
+and `wbsto_cache` were proven to fail September pins independently of the
+engine semantics change (bisect attribution in E-ULS-0041).
+
+Ulsan frontier state after E-ULS-0041/0042: BKPT #0 executes as a no-op per
+the lane and ARMv7-M (halt-era expectations fully migrated, goldens
+re-pinned with cited evidence); both Ulsan epochs now run to a
+4,000,000,000-instruction budget with zero refusals, deadlocks, or resets
+(pass 0 pc 0x000b359c / pass 1 pc 0x000b3598, reproduced byte-identically,
+E-ULS-0042). The steady-era census vs lane lp34b shows exact IRQ26/IRQ45
+match, +10 IRQ37 pairs, IRQ30/84 over-fire at 2.25x (era/gating, the tree
+tick rate is exactly the guest-programmed period), and no tree source for the
+lane's three IRQ18 pulses; those are the next ticket-730 instances.

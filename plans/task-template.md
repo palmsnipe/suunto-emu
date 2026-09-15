@@ -1,6 +1,6 @@
 # NNN — Short Title
 
-**Status:** `blocked | ready | in-progress | done`
+**Status:** `blocked | ready | in-progress | done | deferred`
 **Phase:** N
 **Dependencies:** exact ticket IDs or `none`
 

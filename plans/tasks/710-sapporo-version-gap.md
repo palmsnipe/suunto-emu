@@ -1,6 +1,6 @@
 # 710 — One Later Sapporo Observed Gap
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 7
 **Dependencies:** 705
 
@@ -47,8 +47,9 @@ stop. Open a new instance of this ticket for each later gap.
 
 `make test TEST_FILTER=<selected_gap>` selects the focused test and exits 0;
 wrong version/state/size/command refuses. Bounded `make test-firmware
-FIRMWARE_ROOT="$FIRMWARE_ROOT" TEST_PROFILE=<id>` advances to the declared next
-checkpoint twice identically. Run `make check-lines && make check && make sanitize`.
+FIRMWARE_ROOT="$FIRMWARE_ROOT" TEST_PROFILE=sapporo-2.35.34` advances to the
+declared next checkpoint twice identically. Run
+`make check-lines && make check && make sanitize`.
 
 ## Acceptance
 
@@ -75,3 +76,8 @@ The stated blocker is therefore partially stale (class F + stale; dependency
 705 is done). What remains — identifying one exact failing
 transaction/record — is read-only RE derivation on files already on disk.
 Status is left unchanged for integrator review.
+
+Integrator decision (2026-09-15, delegated): status set `ready` — the
+remaining work is the offline RE derivation named above, which needs no
+physical device; the first instance must record its derivation as an evidence
+entry before any behavior change.

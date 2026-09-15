@@ -72,7 +72,7 @@ id	phase	title	status	dependencies	ticket
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
 706	7	Sapporo 2.39.20 Exact Profile	done	700	plans/tasks/706-sapporo-239-profile.md
-710	7	One Later Sapporo Observed Gap	blocked	705	plans/tasks/710-sapporo-version-gap.md
+710	7	One Later Sapporo Observed Gap	ready	705	plans/tasks/710-sapporo-version-gap.md
 711	7	Sapporo 2.39 DSP Memory Power	done	706	plans/tasks/711-sapporo-239-dsp-power.md
 712	7	Sapporo 2.39 Watchdog Configuration Entry	done	711	plans/tasks/712-sapporo-239-watchdog-config.md
 713	7	Sapporo 2.39 Reset Generator Configuration	done	712	plans/tasks/713-sapporo-239-rstgen-config.md
@@ -138,6 +138,7 @@ id	phase	title	status	dependencies	ticket
 773	7	Sapporo 2.39 Personal Save Suffix Budget Integration	done	729,766,771,772	plans/tasks/773-sapporo-239-personal-save-suffix-budget.md
 774	7	Sapporo 2.39 Post-Save Continuation Evidence	done	729,766,771,772,773	plans/tasks/774-sapporo-239-post-save-continuation-evidence.md
 775	7	One Eligible Product Reset Profile	blocked	770	plans/tasks/775-product-reset-profile.md
-776	7	Sapporo 2.39 GPS Physical Post-Acquisition Evidence	blocked	771,774	plans/tasks/776-sapporo-239-gps-physical-post-acquisition-evidence.md
+776	7	Sapporo 2.39 GPS Physical Post-Acquisition Evidence	deferred	771,774	plans/tasks/776-sapporo-239-gps-physical-post-acquisition-evidence.md
+777	7	Sapporo Opt-in Era Gate Re-derivation	ready	729	plans/tasks/777-sapporo-era-gate-rederivation.md
 780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md
 790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md

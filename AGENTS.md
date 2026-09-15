@@ -52,6 +52,10 @@ the start of the turn and update it as each step changes state.
 - Do not change roadmap ticket status as part of implementation. The
   integrator updates the index after review; planning-only maintenance may
   update status or dependencies when that is its explicit purpose.
+- Ticket statuses are `blocked`, `ready`, `in-progress`, `done`, and
+  `deferred`. `deferred` records an explicit human decision to stop pursuing
+  a ticket under a standing constraint; only the integrator defers or
+  reactivates such tickets.
 - If an interface is insufficient, stop and report the smallest required
   integration change; do not work around it with a private parallel API.
 - Preserve all unrelated and pre-existing changes in either work class.
@@ -67,6 +71,25 @@ the start of the turn and update it as each step changes state.
   Never modify them or copy firmware/resource bytes into this repository.
 - Compatibility behavior must be named, hash-pinned, opt-in, hit-bounded, and
   logged. Valid CPU instructions are never compatibility hooks.
+
+## Lane Oracle and No-Device Constraint
+
+- This project has no physical target device and will not acquire one. The
+  read-only Renode lane under `../suunto-firmware` is the sole machine oracle:
+  guest-visible behavior counts as observed only when the lane or an existing
+  entry in `docs/migration-evidence.md` produced it.
+- Keep raw lane logs and probe binaries in volatile workspaces; every evidence
+  entry must record the SHA-256 of each log it relies on and keep the derived
+  census (counts, tuples, boundaries) in the entry itself, so findings survive
+  without committing firmware-derived logs to Git. Probe sources follow the
+  same rule: cite path and hash, do not check the firmware-derived output in.
+- Lane probe conventions: probe scripts and logs live outside the repository
+  working tree, run with explicit instruction/virtual-time budgets, and each
+  finding is reproduced at least twice byte-identically before it backs an
+  implementation.
+- Tickets whose acceptance explicitly requires physical-device captures cannot
+  be satisfied under this constraint; the integrator marks them `deferred` with
+  a dated deferral note or re-scopes acceptance to lane-equivalent evidence.
 
 ## Implementation Rules
 
@@ -98,6 +121,12 @@ Use verification proportional to the change:
 - Documentation/planning-only changes run `make check-task-contracts` when
   plans are touched and `make check` when commands, contracts, or build claims
   change. Trivial repository metadata may use focused validation only.
+- Opt-in era scripts under `tests/integration/` (selected by `TEST_PROFILE`,
+  not by `make check`) are engine-visible: when CPU, scheduler, bus, or device
+  behavior changes, run the era scripts of the affected profile or state in
+  the handoff that their pins may have drifted. Silent era drift is a defect
+  class: when pins are found stale, re-derivation is tracked as roadmap work,
+  never silently re-pinned mid-instance.
 
 Use explicit instruction or virtual-time limits for hang-prone tests. Authentic
 firmware tests are optional locally but must validate every component before

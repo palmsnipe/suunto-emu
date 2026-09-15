@@ -59,7 +59,7 @@ while IFS="$tab" read -r id phase title status dependencies ticket extra <&3; do
         *) seen="$seen$id|" ;;
     esac
     case "$status" in
-        blocked|ready|in-progress|done) ;;
+        blocked|ready|in-progress|done|deferred) ;;
         *) echo "error: invalid status for ticket $id: $status" >&2; failed=1 ;;
     esac
     case "$phase" in
