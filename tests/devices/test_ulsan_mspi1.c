@@ -1,9 +1,10 @@
 /*
  * Ulsan MSPI1 register-plane and interrupt-seam tests (ticket 730,
- * E-ULS-0031/0033). Queue-start control values store like the lane's
- * register dictionary and population REFUSES (stage machine not yet
- * ported), so completion never fires; the interrupt plane is exercised
- * through INTSET/INTCLR, which the lane class exposes identically.
+ * E-ULS-0031/0033/0034). Queue starts run the native response machine;
+ * an unproven payload refuses with the lane shape (control stored, no
+ * INTSTAT bit, no line event), so this file pins the refusal side and
+ * the interrupt plane; the populated side lives in
+ * test_ulsan_mspi1_native.c.
  */
 
 #include <stdio.h>
@@ -64,27 +65,34 @@ static void test_queue_registers_and_refusal_semantics(
 
     /* Queue registers store and read back like the lane dictionary. */
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x108u, 0x10029B90u));
-    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x10Cu, 0x01FF0000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x10Cu, 0x00005000u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x110u, 3u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x100u, 0x13u));
     SEMU_TEST_EQ_U64(context, 0x10029B90u, rd(context, bus, 0x108u));
-    SEMU_TEST_EQ_U64(context, 0x01FF0000u, rd(context, bus, 0x10Cu));
+    SEMU_TEST_EQ_U64(context, 0x00005000u, rd(context, bus, 0x10Cu));
     SEMU_TEST_EQ_U64(context, 3u, rd(context, bus, 0x110u));
     SEMU_TEST_EQ_U64(context, 0x13u, rd(context, bus, 0x100u));
 
-    /* Start accepted into the store but population refuses (E-ULS-0033):
-     * INTSTAT stays clear - the completion bit only lands with a proven
-     * response branch. */
+    /* Start runs the contract but the descriptor's native return word
+     * is zero, not the 0x000F4543 the Initial JEDEC branch requires
+     * (E-ULS-0034): control stored, INTSTAT stays clear. */
     SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x100u, 0x17u));
     SEMU_TEST_EQ_U64(context, 0x17u, rd(context, bus, 0x100u));
     SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
 
-    /* Untraced offsets refuse: PIO-plane registers (the Sapporo DIAP4
-     * path, absent from Ulsan traces) and unknown interrupt offsets. */
-    SEMU_TEST_ASSERT(context, wr(bus, 0x0u, 0xC1u) != SEMU_OK);
+    /* PIO control stores (the traced plane, ported in E-ULS-0034), but
+     * with command register 0 the start control 0xC1 matches no
+     * payload-free contract: no interrupt, no line event. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x0u, 0xC1u));
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
+    /* Untraced offsets refuse: the Sapporo DIAP4 path and unknown
+     * interrupt offsets. */
     SEMU_TEST_ASSERT(context, wr(bus, 0x210u, 1u) != SEMU_OK);
     SEMU_TEST_ASSERT(context, wr(bus, 0x1000u, 1u) != SEMU_OK);
+    /* 32-bit-only plane. */
+    SEMU_TEST_ASSERT(context, semu_bus_write(bus, MSPI1 + 0x100u, 2u, 0x13u,
+                                             &error) != SEMU_OK);
 
     semu_bus_destroy(bus);
 }
