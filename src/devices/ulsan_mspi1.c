@@ -11,10 +11,17 @@
  * unproven flash byte.
  *
  * Register semantics mirror the lane plugin's command base class:
- * INTEN readable, INTSTAT readable, INTCLR write-one-to-clear, INTSET
- * set-only, queue registers plain stores; all other offsets refuse
- * (the lane's generic store-through is per-offset untraced, so those
- * offsets stay unmodelled rather than guessed).
+ * INTEN readable, INTSTAT readable, INTCLR write-one-to-clear (never
+ * stored), INTSET set-only (never stored), queue registers plain
+ * stores. All other 32-bit aligned offsets form the base class
+ * store-through dictionary (E-ULS-0038, base class ReadDoubleWord/
+ * WriteDoubleWord default cases): a write stores the whole value, the
+ * product PIO hook then sees the same (offset, value), and a read
+ * answers the stored word - 0 while never stored; the reset clears it
+ * (lane registers.Clear()). The guest MMAREMAP-era read-modify-write at
+ * PC 0x0012a1ce (read 0x40061090 -> 0, clear bit 0, store back) is the
+ * byte-exact witness. The lane's 0x2a0 command-completion side effect
+ * is not ported (no Ulsan trace traffic reaches it); the store is exact.
  */
 
 #include "ulsan_mspi1.h"
@@ -59,7 +66,7 @@ static uint32_t mspi1_register_value(ulsan_mspi1_state *s, uint32_t offset)
     case 0x108u: return s->registers[1];
     case 0x10Cu: return s->registers[2];
     case 0x110u: return s->registers[3];
-    default:     return 0u;
+    default:     return s->reg_store[offset / 4u];
     }
 }
 
@@ -97,6 +104,7 @@ static void mspi1_plain_store(ulsan_mspi1_state *s, uint32_t offset,
                               uint32_t value)
 {
     uint32_t raised;
+    s->reg_store[offset / 4u] = value; /* lane dictionary shadow */
     switch (offset) {
     case 0x0u:  s->registers[4] = value; break;
     case 0x8u:  s->registers[5] = value; break;
@@ -126,26 +134,16 @@ static semu_status mspi1_read(void *context, uint32_t offset,
         return SEMU_ERR_UNSUPPORTED;
     }
     switch (offset) {
-    case 0x100u:
-    case 0x108u:
-    case 0x10Cu:
-    case 0x110u:
-    case 0x200u: /* INTEN */
-    case 0x204u: /* INTSTAT */
-        if (offset == 0x200u) {
-            *value = s->interrupt_enable;
-        } else if (offset == 0x204u) {
-            *value = s->interrupt_status;
-        } else {
-            *value = mspi1_register_value(s, offset);
-        }
+    case 0x200u: /* INTEN (the store also lives in the dictionary) */
+        *value = s->interrupt_enable;
+        return SEMU_OK;
+    case 0x204u: /* INTSTAT shadows the dictionary store */
+        *value = s->interrupt_status;
         return SEMU_OK;
     default:
-        break;
+        *value = mspi1_register_value(s, offset);
+        return SEMU_OK;
     }
-    semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                   "ulsan mspi1 unobserved register read");
-    return SEMU_ERR_UNSUPPORTED;
 }
 
 static semu_status mspi1_write(void *context, uint32_t offset,
@@ -175,24 +173,32 @@ static semu_status mspi1_write(void *context, uint32_t offset,
         return SEMU_OK;
     case 0x200u:
         s->interrupt_enable = value;
+        s->reg_store[offset / 4u] = value;
         mspi1_update_irq(s);
         return SEMU_OK;
-    case 0x204u:
-        break; /* INTSTAT is not directly writable (INTCLR/INTSET only) */
     case 0x208u:
-        s->interrupt_status &= ~value;
+        s->interrupt_status &= ~value; /* W1C: the lane stores nothing */
         mspi1_update_irq(s);
         return SEMU_OK;
     case 0x20Cu:
-        s->interrupt_status |= value;
+        s->interrupt_status |= value;  /* set-only: the lane stores nothing */
         mspi1_update_irq(s);
         return SEMU_OK;
     default:
-        break;
+        /* Lane base default write (INTSTAT write, DIAP4 plain words,
+         * MMAREMAP-era stores): store the whole value, then the product
+         * PIO hook sees the same (offset, value). */
+        {
+            uint32_t raised;
+            s->reg_store[offset / 4u] = value;
+            raised = ulsan_mspi1_native_pio_write(s, offset, value);
+            if (raised != 0u) {
+                s->interrupt_status |= raised;
+                mspi1_update_irq(s);
+            }
+        }
+        return SEMU_OK;
     }
-    semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                   "ulsan mspi1 unobserved register write");
-    return SEMU_ERR_UNSUPPORTED;
 }
 
 static void mspi1_reset(void *context)

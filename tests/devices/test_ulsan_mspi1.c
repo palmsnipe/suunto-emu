@@ -1,7 +1,8 @@
 /*
  * Ulsan MSPI1 register-plane and interrupt-seam tests (ticket 730,
- * E-ULS-0031/0033/0034). Queue starts run the native response machine;
- * an unproven payload refuses with the lane shape (control stored, no
+ * E-ULS-0031/0033/0034/0038). Queue starts run the native response
+ * machine; an unproven payload refuses with the lane shape (control
+ * stored, no
  * INTSTAT bit, no line event), so this file pins the refusal side and
  * the interrupt plane; the populated side lives in
  * test_ulsan_mspi1_native.c.
@@ -86,9 +87,24 @@ static void test_queue_registers_and_refusal_semantics(
      * payload-free contract: no interrupt, no line event. */
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x0u, 0xC1u));
     SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
-    /* Untraced offsets refuse: the Sapporo DIAP4 path and unknown
-     * interrupt offsets. */
-    SEMU_TEST_ASSERT(context, wr(bus, 0x210u, 1u) != SEMU_OK);
+    /* Store-through dictionary (E-ULS-0038): the guest's MMAREMAP-era
+     * read-modify-write at PC 0x0012a1ce (read 0x90 -> 0, clear bit 0,
+     * store back, zeros at 0x9C and 0x80) answers like the lane; any
+     * other plain word inside the window stores and reads back. */
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x90u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x90u, 0u));
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x9Cu));
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x80u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x210u, 1u));
+    SEMU_TEST_EQ_U64(context, 1u, rd(context, bus, 0x210u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x2A8u, 0x10058614u));
+    SEMU_TEST_EQ_U64(context, 0x10058614u, rd(context, bus, 0x2A8u));
+    /* The dictionary is a peripheral register file: the machine reset
+     * clears it (lane Reset -> registers.Clear()). */
+    semu_bus_reset(bus);
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x210u));
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x2A8u));
+    /* Outside the 0x1000 window and sub-word accesses still refuse. */
     SEMU_TEST_ASSERT(context, wr(bus, 0x1000u, 1u) != SEMU_OK);
     /* 32-bit-only plane. */
     SEMU_TEST_ASSERT(context, semu_bus_write(bus, MSPI1 + 0x100u, 2u, 0x13u,
@@ -119,10 +135,12 @@ static void test_interrupt_plane_and_seam(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 21u, irq_events[0].irq);
     SEMU_TEST_EQ_U64(context, 1, (uint32_t)irq_events[0].level);
 
-    /* INTSTAT readable; direct INTSTAT writes refuse; INTCLR W1C
-     * drops the line (lane ISR acknowledge shape). */
+    /* INTSTAT readable; a direct INTSTAT write is the lane default
+     * store (accepted) but stays shadowed by the interrupt state;
+     * INTCLR W1C drops the line (lane ISR acknowledge shape). */
     SEMU_TEST_EQ_U64(context, 0x40u, rd(context, bus, 0x204u));
-    SEMU_TEST_ASSERT(context, wr(bus, 0x204u, 0u) != SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x204u, 0xDEADBEEFu));
+    SEMU_TEST_EQ_U64(context, 0x40u, rd(context, bus, 0x204u));
     SEMU_TEST_EQ_U64(context, SEMU_OK, (uint32_t)wr(bus, 0x208u, 0x40u));
     SEMU_TEST_EQ_U64(context, 2u, (uint32_t)irq_count);
     SEMU_TEST_EQ_U64(context, 21u, irq_events[1].irq);

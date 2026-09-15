@@ -86,16 +86,22 @@ static void test_padkey_then_pin_configuration_accepted(semu_test_context *conte
     semu_bus_destroy(bus);
 }
 
-/* Boot frontier: the first boot run now ends in the machine reset applied
- * after the guest's HardFault handler stores SYSRESETREQ: the TIMER0
- * comparator wake releases the WFI at instruction 12,650,485, the RTC
- * counter window answers the sleep-deepening path, which now proceeds
- * fault-free through the enable-window read-modify-write storm at
- * PC 0x00096a30 (E-ULS-0037 stored-word plane) into the guest's
- * own system-reset helper at PC 0x000c399c, and the reset takes
- * effect; a budget of 14,756,458 stops at the first post-reset boot instruction
- * PC 0x001e1b4c, SP 0x1005ffc0 (reproduced twice). Ticket 730 frontier;
- * later instances extend this pin. */
+/*
+ * Boot frontier (ticket 730, extended by E-ULS-0038): epoch one runs
+ * past the MSPI1 store-through dictionary, the STIMER0 retained-NVRAM
+ * plane, the logger port, and the 0x400B0000/0x400B2000 lane bus-zero
+ * rows, then takes its first BusFault on the unmodelled
+ * Apollo4DisplayController register 0x400a8074 (instruction
+ * 37,491,594, PC 0x00101ef0); with faults disabled the escalation
+ * enters the guest HardFault handler, whose system-reset helper
+ * stores SYSRESETREQ at PC 0x000c399e and the machine reset applies
+ * at instruction 37,491,674, so that budget stops pass zero at the
+ * first post-reset boot instruction PC 0x001e1b4c, SP 0x1005ffc0
+ * (reproduced twice). Pass one then runs the second boot the lane
+ * shows - the STIMER NVRAM mode word survives the reset - and it
+ * reaches steady state instead of faulting again, stopping inside
+ * the running image at PC 0x000c2588, SP 0x1005ff70 (reproduced
+ * twice). Later instances extend this pin. */
 static void test_boot_passes_pad_setup_step(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
@@ -132,7 +138,7 @@ static void test_boot_passes_pad_setup_step(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(14756458), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(37491674), UINT64_C(4000000000) };
         semu_error_clear(&error);
         if (pass != 0u) {
             SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -144,11 +150,14 @@ static void test_boot_passes_pad_setup_step(semu_test_context *context)
         SEMU_TEST_ASSERT(context, machine != NULL);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(14756458),
+        SEMU_TEST_EQ_U64(context, UINT64_C(37491674),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
+        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x001e1b4c)
+                                              : UINT64_C(0x000c2588),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffc0), state->r[13]);
+        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x1005ffc0)
+                                              : UINT64_C(0x1005ff70),
+                         state->r[13]);
     }
     semu_machine_destroy(machine);
 }

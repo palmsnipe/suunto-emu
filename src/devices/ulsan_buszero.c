@@ -1,12 +1,21 @@
 /*
- * Ulsan 2.35.36 lane-recorded bus-zero reads (ticket 730, E-ULS-0013).
+ * Ulsan 2.35.36 lane-recorded bus-zero accesses (ticket 730,
+ * E-ULS-0013/0016/0038).
  *
- * See ulsan_buszero.h. Current table entries, one per reproduced lane
- * sysbus warning line: the CRYPTO tag range (upstream repl tag
- * <0x400C0000,0x400C3FFF>) read at 0x400C0FE0 from guest PC 0x00096A60,
- * logged "returning 0x00000000"; the in-tree scratch access trace shows
- * this is the block's only access through instruction 200,000,000 (one
- * read per boot pass) and no write ever targets it.
+ * See ulsan_buszero.h. The reference-lane sysbus answers every access
+ * below the peripheral registry with its non-existing-peripheral
+ * fallback: the read logs "Read<T> from non existing peripheral at
+ * 0x..." and returns the untagged default 0 (SystemBus.cs
+ * ReportNonExistingRead `tag?.DefaultValue ?? default(ulong)`, tag
+ * null - the log lines carry no tag), and the write logs the value and
+ * discards it. Each tabled block window lists exactly the
+ * (offset, width[, write value]) tuples with reproduced lane log lines;
+ * everything else refuses.
+ *
+ * Blocks: CRYPTO <0x400C0000,0x400C3FFF> read at +0xFE0 (E-ULS-0013);
+ * the logger port at 0x40000000 (E-ULS-0016); the unregistered 0x400B0
+ * I2C0 block and the 0x400B2xxx pair (E-ULS-0038, twelve read tuples
+ * and nine write tuples, identical in both reference runs).
  */
 
 #include "ulsan_buszero.h"
@@ -15,56 +24,131 @@
 #include <stddef.h>
 
 typedef struct {
-    uint32_t base;   /* device window start (the declared tag range)  */
-    uint32_t size;   /* window size                                   */
-    uint32_t offset; /* offset inside the window with lane-recorded value */
-    uint32_t value;  /* the value the lane sysbus log recorded        */
-    int has_write;   /* the lane log also recorded a write here       */
-    uint32_t write_value; /* that logged write value (discarded)       */
+    uint32_t offset; /* window-relative address                      */
+    unsigned width;  /* recorded access width (1/2/4)                */
+    int is_write;    /* 0: read returned value; 1: write discarded   */
+    uint32_t value;  /* read: returned value; write: logged value    */
+} zero_access;
+
+typedef struct {
+    uint32_t base;   /* window start                                        */
+    uint32_t size;   /* window size (routing region; answers stay per-line) */
+    const zero_access *accesses;
+    unsigned count;
     const char *name;
 } zero_window;
 
+static const zero_access crypto_accesses[] = {
+    { 0xFE0u, 4u, 0, UINT32_C(0) } /* logged read, returning 0x00000000 */
+};
+
+static const zero_access logger_accesses[] = {
+    { 0x0u, 4u, 0, UINT32_C(0) }, /* probe-pinned lane read value       */
+    { 0x0u, 4u, 1, UINT32_C(2) }  /* the lane-discarded logged write    */
+};
+
+/*
+ * 0x400B0000 I2C0 block (E-ULS-0038): the ten 0x0C writes are five
+ * rising 0x10000-step command values bracketed by zero writes, the
+ * +0x01/+0x0B byte writes are the guest's read-modify-write results
+ * over the zero reads (guest disassembly at 0x000f383c/0x000f3e7a
+ * pins each written value against the lane line).
+ */
+static const zero_access i2c0_accesses[] = {
+    { 0x00u, 4u, 0, UINT32_C(0) },
+    { 0x01u, 1u, 0, UINT32_C(0) },
+    { 0x02u, 2u, 0, UINT32_C(0) },
+    { 0x04u, 1u, 0, UINT32_C(0) },
+    { 0x04u, 4u, 0, UINT32_C(0) },
+    { 0x08u, 4u, 0, UINT32_C(0) },
+    { 0x0Au, 1u, 0, UINT32_C(0) },
+    { 0x0Bu, 1u, 0, UINT32_C(0) },
+    { 0x0Cu, 4u, 0, UINT32_C(0) },
+    { 0x10u, 4u, 0, UINT32_C(0) },
+    { 0x14u, 4u, 0, UINT32_C(0) },
+    { 0x18u, 4u, 0, UINT32_C(0) },
+    { 0x01u, 1u, 1, UINT32_C(0x00) },
+    { 0x01u, 1u, 1, UINT32_C(0x40) },
+    { 0x0Bu, 1u, 1, UINT32_C(0x04) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x00000) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x10000) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x20000) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x30000) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x40000) },
+    { 0x0Cu, 4u, 1, UINT32_C(0x50000) }
+};
+
+/* 0x400B2xxx pair (E-ULS-0038): three lane lines only - the +0x2000
+ * read/write pair and a write-only word at +0x2024 (no logged read of
+ * it, so it stays read-refused). */
+static const zero_access periph_b2000_accesses[] = {
+    { 0x0u, 4u, 0, UINT32_C(0) },
+    { 0x0u, 4u, 1, UINT32_C(0x2000000) }
+};
+
+static const zero_access periph_b2024_accesses[] = {
+    { 0x0u, 4u, 1, UINT32_C(0x80000000) }
+};
+
 static const zero_window zero_windows[] = {
-    { 0x400C0000u, 0x4000u, 0xFE0u, UINT32_C(0), 0, 0u,
+    { 0x400C0000u, 0x4000u, crypto_accesses,
+      sizeof(crypto_accesses) / sizeof(crypto_accesses[0]),
       "ulsan.buszero.crypto" },
-    /* Guest logger port at 0x40000000 (ticket 730, E-ULS-0016): lane
-     * lines "ReadDoubleWord from non existing peripheral at 0x40000000"
-     * (lane probe pins the returned value to 0) and "WriteDoubleWord to
-     * non existing peripheral at 0x40000000, value 0x2"; the scratch
-     * trace shows reads (returning 0) and 0x2 stores are the only
-     * accesses through instruction 200,000,000. */
-    { 0x40000000u, 0x4u, 0x0u, UINT32_C(0), 1, UINT32_C(2),
-      "ulsan.buszero.logger" }
+    { 0x40000000u, 0x4u, logger_accesses,
+      sizeof(logger_accesses) / sizeof(logger_accesses[0]),
+      "ulsan.buszero.logger" },
+    { 0x400B0000u, 0x20u, i2c0_accesses,
+      sizeof(i2c0_accesses) / sizeof(i2c0_accesses[0]),
+      "ulsan.buszero.i2c0" },
+    { 0x400B2000u, 0x4u, periph_b2000_accesses,
+      sizeof(periph_b2000_accesses) / sizeof(periph_b2000_accesses[0]),
+      "ulsan.buszero.periph_400b2000" },
+    { 0x400B2024u, 0x4u, periph_b2024_accesses,
+      sizeof(periph_b2024_accesses) / sizeof(periph_b2024_accesses[0]),
+      "ulsan.buszero.periph_400b2024" }
 };
 
 typedef struct {
     const zero_window *window;
 } buszero_context;
 
+static const zero_access *buszero_find(const buszero_context *ctx,
+                                       uint32_t offset, unsigned width,
+                                       int is_write, uint32_t value,
+                                       unsigned start)
+{
+    unsigned index;
+    for (index = start; index < ctx->window->count; ++index) {
+        const zero_access *acc = &ctx->window->accesses[index];
+        if (acc->offset == offset && acc->width == width &&
+            acc->is_write == is_write &&
+            (!is_write || acc->value == value)) {
+            return acc;
+        }
+    }
+    return NULL;
+}
+
 static semu_status buszero_read(void *context, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error)
 {
     const buszero_context *ctx = (const buszero_context *)context;
+    const zero_access *acc;
 
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan bus-zero read value required");
         return SEMU_ERR_ARGUMENT;
     }
-    if (width != 4u) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "Ulsan bus-zero read at offset 0x%08x width %u is "
-                       "unsupported", offset, width);
-        return SEMU_ERR_UNSUPPORTED;
-    }
-    if (offset == ctx->window->offset) {
-        *value = ctx->window->value;
+    acc = buszero_find(ctx, offset, width, 0, 0u, 0u);
+    if (acc != NULL) {
+        *value = acc->value; /* the lane fallback returned 0 */
         return SEMU_OK;
     }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                   "Ulsan bus-zero read at 0x%08x is unsupported",
-                   ctx->window->base + offset);
+                   "Ulsan bus-zero read at 0x%08x+%x width %u is "
+                   "unsupported", ctx->window->base, offset, width);
     return SEMU_ERR_UNSUPPORTED;
 }
 
@@ -74,14 +158,13 @@ static semu_status buszero_write(void *context, uint32_t offset,
 {
     const buszero_context *ctx = (const buszero_context *)context;
 
-    if (ctx->window->has_write && width == 4u &&
-        offset == ctx->window->offset &&
-        value == ctx->window->write_value) {
-        return SEMU_OK; /* the lane sysbus discarded this logged write */
+    if (buszero_find(ctx, offset, width, 1, value, 0u) != NULL) {
+        return SEMU_OK; /* the lane sysbus logged and discarded this one */
     }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                   "Ulsan bus-zero write at 0x%08x width %u is unsupported",
-                   ctx->window->base + offset, width);
+                   "Ulsan bus-zero write at 0x%08x+%x width %u value "
+                   "0x%08x is unsupported",
+                   ctx->window->base, offset, width, value);
     return SEMU_ERR_UNSUPPORTED;
 }
 
@@ -96,7 +179,7 @@ static const semu_bus_device_ops buszero_ops = {
     buszero_reset
 };
 
-/* Stable storage for one context pointer per window (one per lane line). */
+/* Stable storage for one context pointer per window (one per lane block). */
 static buszero_context buszero_contexts[sizeof(zero_windows) /
                                         sizeof(zero_windows[0])];
 

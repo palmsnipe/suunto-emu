@@ -78,6 +78,12 @@ typedef enum {
 #define ULSAN_MSPI1_INT_QUEUE_COMPLETE 0x40u
 #define ULSAN_MSPI1_INT_PIO_COMPLETE 0x01u
 
+/* Lane base-class store-through dictionary (SapporoApollo4Mspi1.cs
+ * ReadDoubleWord/WriteDoubleWord default cases): every 32-bit aligned
+ * word inside the 0x1000 window is stored on write and reads back,
+ * 0 while never stored; Reset clears it (registers.Clear()). */
+#define ULSAN_MSPI1_REG_WORDS 1024u
+
 typedef struct {
     uint32_t registers[6];          /* 0 queue control, 1 address,
                                        2 device, 3 count,
@@ -101,6 +107,7 @@ typedef struct {
     unsigned manufacturing_page_observed;
     int calibration_reads_remaining;
     unsigned synthetic_initialized;
+    uint32_t reg_store[ULSAN_MSPI1_REG_WORDS]; /* lane store-through dict */
     uint8_t backing[ULSAN_MSPI1_BACKING_LENGTH];
 } ulsan_mspi1_state;
 

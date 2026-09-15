@@ -23,8 +23,12 @@
  * counter tracks its own virtual time), so this device serves a
  * monotonic free-running 32-bit tick that advances on each CNT read;
  * LOAD and CTL hold written state with the observed bit-31 LOAD mask.
- * Only the observed registers answer (LOAD, CTL, CNT, and the comparator
- * words at +0x58/+0x54 that read 0); everything else refuses.
+ * Only the observed registers answer (LOAD, CTL, CNT, and the NVRAM
+ * words at +0x50..+0x5c; E-ULS-0038 identified them as the lane
+ * wrapper Apollo4RetainedSystemTimer's retained uint[4]); everything
+ * else refuses. The NVRAM words deliberately survive the machine reset
+ * (lane Reset() keeps them so the firmware carries its startup mode
+ * across AIRCR).
  */
 
 semu_status semu_ulsan_stimer_map(semu_bus *bus, semu_error *error);

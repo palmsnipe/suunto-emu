@@ -42,6 +42,62 @@ static void test_logged_offset_reads_zero(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x40000000u, 4u, UINT32_C(2),
                                     &error));
+    /* 0x400B2xxx (E-ULS-0038): logged read 0 at +0x2000, logged writes
+     * 0x2000000 at +0x2000 and 0x80000000 at +0x2024 accepted. */
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x400b2000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x400b2000u, 4u,
+                                    UINT32_C(0x2000000), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x400b2024u, 4u,
+                                    UINT32_C(0x80000000), &error));
+    /* 0x400B0000 I2C0 block (E-ULS-0038): the twelve logged reads answer
+     * 0 at byte/halfword/word widths; the logged byte and word writes
+     * are accepted and discarded. */
+    {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b0000u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b0001u, 1u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b0002u, 2u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b000bu, 1u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b0008u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b000cu, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        value = 0xdeadbeefu;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, 0x400b0018u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, 0x400b0001u, 1u,
+                                        UINT32_C(0x40), &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, 0x400b0001u, 1u, UINT32_C(0),
+                                        &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, 0x400b000bu, 1u, UINT32_C(4),
+                                        &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_write(bus, 0x400b000cu, 4u,
+                                        UINT32_C(0x50000), &error));
+    }
     semu_bus_destroy(bus);
 }
 
@@ -80,20 +136,66 @@ static void test_unobserved_offsets_refused(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      semu_bus_read(bus, 0x400c0fe0u, 2u, &value, &error) !=
                          SEMU_OK);
+    /* 0x400B2xxx (E-ULS-0038): only the logged values are accepted and
+     * the write-only row refuses reads (lane logged no read of
+     * 0x400B2024; a whole-window read-as-zero would fabricate). */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x400b2024u, 4u, &value, &error) !=
+                         SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, 0x400b2024u, 4u, UINT32_C(1),
+                                    &error) != SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, 0x400b2000u, 4u, UINT32_C(1),
+                                    &error) != SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x400b2004u, 4u, &value, &error) !=
+                         SEMU_OK);
+    /* 0x400B0000 I2C0 block: untabled (offset, width[, value]) tuples
+     * inside the block stay refused (E-ULS-0038). */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x400b0002u, 1u, &value, &error) !=
+                         SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x400b0000u, 2u, &value, &error) !=
+                         SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, 0x400b001cu, 4u, &value, &error) !=
+                         SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, 0x400b0001u, 1u, UINT32_C(0x41),
+                                    &error) != SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, 0x400b000cu, 4u, UINT32_C(0x50001),
+                                    &error) != SEMU_OK);
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: the first boot run now ends in the machine reset applied
- * after the guest's HardFault handler stores SYSRESETREQ: the TIMER0
- * comparator wake releases the WFI at instruction 12,650,485, the RTC
- * counter window answers the sleep-deepening path, which now proceeds
- * fault-free through the enable-window read-modify-write storm at
- * PC 0x00096a30 (E-ULS-0037 stored-word plane) into the guest's
- * own system-reset helper at PC 0x000c399c, and the reset takes
- * effect; a budget of 14,756,458 stops at the first post-reset boot instruction
- * PC 0x001e1b4c, SP 0x1005ffc0 (reproduced twice). Ticket 730 frontier;
- * later instances extend this pin. */
+ * Boot frontier (ticket 730, extended by E-ULS-0038): epoch one runs
+ * past the MSPI1 store-through dictionary, the STIMER0 retained-NVRAM
+ * plane, the logger port, and the 0x400B0000/0x400B2000 lane bus-zero
+ * rows, then takes its first BusFault on the unmodelled
+ * Apollo4DisplayController register 0x400a8074 (instruction
+ * 37,491,594, PC 0x00101ef0); with faults disabled the escalation
+ * enters the guest HardFault handler, whose system-reset helper
+ * stores SYSRESETREQ at PC 0x000c399e and the machine reset applies
+ * at instruction 37,491,674, so that budget stops pass zero at the
+ * first post-reset boot instruction PC 0x001e1b4c, SP 0x1005ffc0
+ * (reproduced twice). Pass one then runs the second boot the lane
+ * shows - the STIMER NVRAM mode word survives the reset - and it
+ * reaches steady state instead of faulting again, stopping inside
+ * the running image at PC 0x000c2588, SP 0x1005ff70 (reproduced
+ * twice). Later instances extend this pin. */
 static void test_boot_passes_crypto_read(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
@@ -128,7 +230,7 @@ static void test_boot_passes_crypto_read(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(14756458), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(37491674), UINT64_C(4000000000) };
         semu_stop_reason reason;
         const semu_cpu_state *state;
         semu_error_clear(&error);
@@ -141,11 +243,14 @@ static void test_boot_passes_crypto_read(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(14756458),
+        SEMU_TEST_EQ_U64(context, UINT64_C(37491674),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
+        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x001e1b4c)
+                                              : UINT64_C(0x000c2588),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffc0), state->r[13]);
+        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x1005ffc0)
+                                              : UINT64_C(0x1005ff70),
+                         state->r[13]);
     }
     semu_machine_destroy(machine);
 }
