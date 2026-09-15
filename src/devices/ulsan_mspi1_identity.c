@@ -26,11 +26,13 @@ static void begin_persistence_programming(ulsan_mspi1_state *s)
     s->stage = ULSAN_MSPI1_PERSISTENCE_WRITE_STATUS_READY;
 }
 
+/* Lane descriptor shape (lines 676-771): queue read, count 3, at the
+ * 2.44.52 SRAM descriptor with bytes 00 01 00 01. Stage is checked by
+ * each caller exactly like the lane's per-branch conjunction. */
 static int descriptor_244_read(ulsan_mspi1_state *s, uint32_t control,
                                uint32_t address, uint32_t count)
 {
-    return s->stage != ULSAN_MSPI1_INITIAL &&
-           control == ULSAN_MSPI1_QUEUE_READ_CONTROL && count == 3u &&
+    return control == ULSAN_MSPI1_QUEUE_READ_CONTROL && count == 3u &&
            address == DESCRIPTOR_244_ADDRESS &&
            ulsan_mspi1_guest_prefix_is(s, address, 0u, 1u, 0u, 1u) == 0;
 }
