@@ -152,10 +152,11 @@ void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
 {
     /* One machine sink for every Ulsan device interrupt the evidence
      * has wired: IOM4 at IRQ 10 (E-ULS-0030), MSPI1 at IRQ 21
-     * (E-ULS-0031), and the TIMER1 comparator line at IRQ 14 and
-     * IRQ 68 (E-ULS-0035), which additionally needs the machine
-     * scheduler for its compare events. */
+     * (E-ULS-0031), the TIMER1 comparator line at IRQ 14 and IRQ 68
+     * (E-ULS-0035), and the RTC counter window (E-ULS-0036); the
+     * scheduler feeds the comparator events and the RTC counter. */
     semu_ulsan_iom4_set_irq_sink(sink, context);
     semu_ulsan_mspi1_set_irq_sink(sink, context);
     semu_ulsan_timer0_attach(scheduler, sink, context);
+    semu_ulsan_rtc_attach(scheduler);
 }
