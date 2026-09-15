@@ -23,7 +23,7 @@
 #define EXPECTED_INSTRUCTIONS UINT64_C(268)
 #define EXPECTED_VIRTUAL_TIME UINT64_C(344)
 #define EXPECTED_STATE_SHA256 \
-    "e4497c731b9ad944edefa89b36e75bf8ab9d6c25601ad27361dbc2cf7da9289e"
+    "ae17ae3e6715a583032dbe654ae5e78d0a3965cb8251ef8e7c9abdc059e1bf09"
 
 typedef struct guest_event {
     semu_cpu *cpu;
@@ -174,6 +174,7 @@ static int run_once(guest_record *record)
         semu_cpu_guest_destroy(&guest);
         return 0;
     }
+    guest.stop_pc = SEMU_RTOS_GUEST_STOP_PC;
     status = semu_cpu_guest_run(&guest, INSTRUCTION_LIMIT, TIME_LIMIT);
     ok = status == SEMU_OK && capture_record(&guest, record);
     semu_cpu_guest_destroy(&guest);
@@ -189,7 +190,7 @@ static int check_record(const guest_record *record)
     };
     unsigned index;
 
-    if (record->stop_reason != SEMU_STOP_HALT || record->tcb_a != 0x6f58u ||
+    if (record->stop_reason != SEMU_STOP_NONE || record->tcb_a != 0x6f58u ||
         record->tcb_b != TASK_B_CONTEXT || record->switch_count != 2u ||
         record->task_flag != 2u || record->state.s[0] != 0x40000000u ||
         record->state.psp != 0x7020u ||

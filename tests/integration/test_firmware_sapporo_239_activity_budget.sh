@@ -80,15 +80,16 @@ grep -F -q 'operation=close path=actitmln/ongoing.bin result=1 size=152 cursor=2
 run updated 610700000 3 --snapshot-load "$run_dir/logo_first.sems"
 run resumed 932397949 3 --snapshot-load "$run_dir/updated.sems"
 cmp "$run_dir/first.sems" "$run_dir/resumed.sems"
-run halted 932397950 0 --snapshot-load "$run_dir/first.sems"
+run halted 932397950 3 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=932397950 virtual_time_ns=11388431927' \
+    'stop=budget pc=0x00079e1e instructions=932397950 virtual_time_ns=11388431927' \
     "$run_dir/halted.log"; then
-    echo "error: native GPS assertion halt changed" >&2
+    echo "error: native GPS assertion no-op stop changed" >&2
+    cat "$run_dir/halted.log" >&2
     exit 1
 fi
 if [ "$(hash "$full_flash")" != "$flash_hash" ]; then
     echo "error: source flash was modified" >&2
     exit 1
 fi
-echo "PASS sapporo-2.39.20 post-logo activity, deterministic resume and native GPS halt"
+echo "PASS sapporo-2.39.20 post-logo activity, deterministic resume and native GPS assertion no-op"

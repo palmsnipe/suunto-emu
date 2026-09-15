@@ -1,8 +1,8 @@
 # Ticket 250 bounded SysTick contract seeds. Register transactions are driven
 # by the focused C99 test because the vector format has no MMIO-operation field.
 vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
-systick.reload-zero | E-CPU-0003:B3.3 SysTick | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | SEMU_STOP_HALT | 0x102 | 0x01000000 | - | - | none
-systick.reload-one-countflag | E-CPU-0003:B3.3 SysTick | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | SEMU_STOP_HALT | 0x102 | 0x01000000 | - | - | none
+systick.reload-zero | E-CPU-0003:B3.3 SysTick;E-ULS-0041 BKPT-nop | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | none | 0x102 | 0x01000000 | - | - | none
+systick.reload-one-countflag | E-CPU-0003:B3.3 SysTick;E-ULS-0041 BKPT-nop | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | none | 0x102 | 0x01000000 | - | - | none
 systick.reload-maximum-mask | E-CPU-0003:B3.3 SysTick | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 1 | SEMU_OK | none | 0x100 | 0x01000000 | - | - | none
 systick.external-clock-refusal | E-CPU-0003:B3.3 SysTick | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 1 | SEMU_ERR_UNSUPPORTED | none | 0x100 | 0x01000000 | - | - | emulator-refusal:external-clock-source
 systick.calib-write-refusal | E-CPU-0003:B3.3 SysTick | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 1 | SEMU_ERR_UNSUPPORTED | none | 0x100 | 0x01000000 | - | - | emulator-refusal:read-only-calib

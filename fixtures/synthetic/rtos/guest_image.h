@@ -4,6 +4,13 @@
 #include <stdint.h>
 
 #define SEMU_RTOS_GUEST_IMAGE_SIZE 0x1600u
+/* Address of the golden terminal `bkpt #0` sentinel (0x14a6, the task-b
+ * completion check that ends the recorded golden transcript). BKPT retires
+ * as a no-op without a debug session (E-ULS-0040), so the guest harness
+ * stops as soon as this sentinel executes; the retirement point, PC
+ * (0x14a8), and instruction/time totals (268/344) match the original
+ * halt-era golden exactly. */
+#define SEMU_RTOS_GUEST_STOP_PC 0x14a6u
 #define SEMU_RTOS_GUEST_IMAGE_SHA256 \
     "9bac7397f493f3ebe48ba03913f133e6430dae5a55986c85dae887bea77b77c2"
 

@@ -2,9 +2,9 @@
 # transactions are driven by the focused C99 tests, not encoded as instructions.
 vector_id | evidence_id:section | instruction_bytes | initial_pc | initial_xpsr | initial_registers | initial_memory | max_steps | expected_status | expected_stop | final_pc | final_xpsr | final_registers | final_memory | expected_exception
 sleep.wfi-masked-wake | E-CPU-0003:Chapter 2 power management;B3.2 SCR | 30 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100,primask=1 | - | 4 | SEMU_OK | none | 0x102 | 0x01000000 | - | - | none
-sleep.wfe-pre-signaled | E-CPU-0003:Chapter 2 power management;B3.2 WFE | 20 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | SEMU_STOP_HALT | 0x104 | 0x01000000 | - | - | none
+sleep.wfe-pre-signaled | E-CPU-0003:Chapter 2 power management;B3.2 WFE;E-ULS-0041 BKPT-nop | 20 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 2 | SEMU_OK | none | 0x104 | 0x01000000 | - | - | none
 sleep.sev-one-shot | E-CPU-0003:Chapter 2 power management;B3.2 SEV | 20 bf 20 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 3 | SEMU_OK | SEMU_STOP_WFI_DEADLOCK | 0x104 | 0x01000000 | - | - | none
-sleep.scheduled-wake | E-CPU-0003:Chapter 2 power management;B3.2 WFE | 20 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 3 | SEMU_OK | SEMU_STOP_HALT | 0x104 | 0x01000000 | - | - | none
+sleep.scheduled-wake | E-CPU-0003:Chapter 2 power management;B3.2 WFE;E-ULS-0041 BKPT-nop | 20 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 3 | SEMU_OK | none | 0x104 | 0x01000000 | - | - | none
 sleep.sleeponexit | E-CPU-0003:B3.2 SCR;B1.5 exception return | 00 bf 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 4 | SEMU_OK | SEMU_STOP_WFI_DEADLOCK | 0x102 | 0x01000000 | - | - | none
 sleep.unprivileged-scs-refusal | E-CPU-0003:B3.2 privilege rules | 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100,control=1 | - | 1 | SEMU_ERR_UNSUPPORTED | none | 0x100 | 0x01000000 | - | - | emulator-refusal:unprivileged-scs
-sleep.svc-pendsv-order | E-CPU-0003:B1.5;B3.2 ICSR | 01 df 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 16 | SEMU_OK | SEMU_STOP_HALT | 0x102 | 0x01000000 | - | - | none
+sleep.svc-pendsv-order | E-CPU-0003:B1.5;B3.2 ICSR;E-ULS-0041 BKPT-nop | 01 df 00 be | 0x100 | 0x01000000 | r13=0x800,r15=0x100 | - | 16 | SEMU_OK | none | 0x104 | 0x01000000 | - | - | none

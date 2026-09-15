@@ -56,15 +56,15 @@ run_once()
 
 if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
     --full-flash "$full_flash" --until normal-frame \
-    --max-instructions 500000000 --max-time 30000000000 \
+    --max-instructions 72774982 --max-time 30000000000 \
     >"$run_dir/layer-off.log" 2>&1;
 then
     layer_off_status=0
 else
     layer_off_status=$?
 fi
-if [ "$layer_off_status" -ne 0 ] || ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+if [ "$layer_off_status" -ne 3 ] || ! grep -F -x -q \
+    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/layer-off.log";
 then
     echo "error: Sapporo 2.39 layer-off checkpoint changed" >&2

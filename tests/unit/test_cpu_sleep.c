@@ -84,7 +84,7 @@ static void test_wfe_event_forms_and_scheduled_wake(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      !semu_cpu_get_state(fixture.cpu)->waiting_for_interrupt);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
 
@@ -116,7 +116,7 @@ static void test_wfe_event_forms_and_scheduled_wake(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      !semu_cpu_get_state(fixture.cpu)->waiting_for_interrupt);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     SEMU_TEST_EQ_U64(context, 5u, semu_scheduler_now(fixture.scheduler));
     semu_cpu_fixture_destroy(&fixture);
@@ -141,7 +141,7 @@ static void test_sevonpend_sleeponexit_and_refusal(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_ASSERT(context, !state->waiting_for_interrupt);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
 

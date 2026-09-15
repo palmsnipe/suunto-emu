@@ -316,9 +316,9 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_snapshot_deserialize(loaded, buffer, length, &error));
         limits.max_instructions = 4u;
-        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
                          semu_machine_run(first, &limits, &error));
-        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
                          semu_machine_run(second, &limits, &error));
         SEMU_TEST_EQ_U64(context, semu_machine_instructions(first), semu_machine_instructions(second));
         SEMU_TEST_EQ_U64(context, semu_machine_virtual_time(first), semu_machine_virtual_time(second));

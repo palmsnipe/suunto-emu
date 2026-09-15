@@ -36,10 +36,11 @@ run_once()
 {
     output=$1
     expected_status=$2
-    shift 2
+    budget=$3
+    shift 3
     if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
         --full-flash "$full_flash" --until normal-frame \
-        --max-instructions 500000000 --max-time 30000000000 "$@" \
+        --max-instructions "$budget" --max-time 30000000000 "$@" \
         >"$output" 2>&1;
     then
         run_status=0
@@ -53,9 +54,9 @@ run_once()
     fi
 }
 
-run_once "$run_dir/layer-off.log" 0
+run_once "$run_dir/layer-off.log" 3 72774982
 if ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/layer-off.log";
 then
     echo "error: Sapporo 2.39 layer-off checkpoint changed" >&2
@@ -63,8 +64,8 @@ then
     exit 1
 fi
 
-run_once "$run_dir/first.log" 3 --layer sapporo-2.39-synthetic-wbsto
-run_once "$run_dir/second.log" 3 --layer sapporo-2.39-synthetic-wbsto
+run_once "$run_dir/first.log" 3 500000000 --layer sapporo-2.39-synthetic-wbsto
+run_once "$run_dir/second.log" 3 500000000 --layer sapporo-2.39-synthetic-wbsto
 if ! cmp -s "$run_dir/first.log" "$run_dir/second.log"; then
     echo "error: Sapporo 2.39 WbStorage cache runs differ" >&2
     diff -u "$run_dir/first.log" "$run_dir/second.log" >&2 || true

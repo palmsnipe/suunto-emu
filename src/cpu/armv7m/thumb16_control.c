@@ -123,8 +123,19 @@ static semu_status miscellaneous(semu_cpu *cpu, uint16_t instruction,
         return SEMU_OK;
     }
     if ((instruction & 0xff00u) == 0xbe00u) {
-        cpu->state.halted = 1;
-        cpu->stop_reason = SEMU_STOP_HALT;
+        /*
+         * BKPT #imm retires as a no-op while no debug session asserts
+         * DBGEN (ARMv7-M: BKPT is a NOP in that state), and this
+         * emulator never presents a debugger. The lane agrees on
+         * machine evidence: a direct Renode 1.16.1 probe (BKPT #0 stub
+         * with a NOP sled, RunFor) logs nothing at NOISY level and the
+         * CPU advances through the sled, and the Ulsan 2.35.36 lane
+         * log keeps servicing 194 interrupt acknowledgements plus
+         * deep-sleep/wake cycles after the guest assert that ends in
+         * BKPT #0 at 0x0006bda8 (E-ULS-0040). Halting here previously
+         * stopped both Ulsan epochs before the lane-observed steady
+         * era and every Sapporo production run at its BKPT sentinel.
+         */
         return SEMU_OK;
     }
     if ((instruction & 0xff00u) == 0xbf00u) {

@@ -57,7 +57,10 @@ static void test_svc_pendsv_order_and_return(semu_test_context *context)
             order[count++] = 11u;
         if ((state->xpsr & 0x1ffu) == 14u && count == 1u)
             order[count++] = 14u;
-        if (state->halted) break;
+        /* BKPT at 0x102 retires as a no-op; break at the advanced PC
+         * so virtual time matches the retired-instruction count. */
+        if (state->r[15] == 0x104u) break;
+        if (semu_cpu_stop_reason(fixture.cpu) != SEMU_STOP_NONE) break;
     }
     SEMU_TEST_EQ_U64(context, 2u, count);
     SEMU_TEST_EQ_U64(context, 11u, order[0]);
@@ -67,7 +70,7 @@ static void test_svc_pendsv_order_and_return(semu_test_context *context)
                                    &fixture.error) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, 42u, marker);
     SEMU_TEST_EQ_U64(context, 11u, semu_scheduler_now(fixture.scheduler));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     (void)fprintf(stdout, "transcript SVC(11)->PendSV(14), virtual_time=11ns\n");
     semu_cpu_fixture_destroy(&fixture);

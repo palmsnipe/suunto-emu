@@ -176,13 +176,13 @@ static void test_repeated_reset_and_source_guard(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
 
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
         semu_machine_run(machine, &limits, &error));
     first_instructions = semu_machine_instructions(machine);
     first_time = semu_machine_virtual_time(machine);
     first_pc = semu_machine_program_counter(machine);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_BUDGET,
         semu_machine_run(machine, &limits, &error));
     SEMU_TEST_EQ_U64(context, first_instructions,
                      semu_machine_instructions(machine));
@@ -250,8 +250,14 @@ static void test_requested_reset_retains_ram_explicit_clears(
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
 
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
-        semu_machine_run(machine, &limits, &error));
+    /*
+     * The terminal BKPT sentinel now retires as a no-op (E-ULS-0040), so
+     * this synthetic program falls off the code region into its literal
+     * pool; the 32-bit halfwords there decode as coprocessor accesses the
+     * tree refuses fail-closed. The reset-request pin below is unchanged.
+     */
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_UNSUPPORTED_INSTRUCTION,
+                     semu_machine_run(machine, &limits, &error));
     SEMU_TEST_EQ_U64(context, 1u, count_reset_requests(log_stream));
     SEMU_TEST_ASSERT(context,
         reset_log_contains(log_stream,
@@ -260,8 +266,16 @@ static void test_requested_reset_retains_ram_explicit_clears(
             "r3=0x00000000 xpsr=0x21000000 reset_count=1 "
             "compat_hits=0 instructions=9 virtual_time_ns=9"));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    /*
+     * Retained marker path after the machine reset: the sentinel BKPT at
+     * 0x34 retires as a no-op (E-ULS-0040) and the fallthrough into the
+     * literal pool refuses on the coprocessor prefix at 0x3c, matching the
+     * first run exactly (same stop, PC, and instruction count).
+     */
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_UNSUPPORTED_INSTRUCTION,
         semu_machine_run(machine, &limits, &error));
+    SEMU_TEST_EQ_U64(context, 0x40u, semu_machine_program_counter(machine));
+    SEMU_TEST_EQ_U64(context, 19u, semu_machine_instructions(machine));
     SEMU_TEST_EQ_U64(context, 2u, count_reset_requests(log_stream));
     SEMU_TEST_ASSERT(context,
         reset_log_contains(log_stream, "reset_count=2"));
@@ -352,7 +366,12 @@ static void test_button_input_polarity_and_refusal(
         };
         SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                          semu_machine_input(machine, &event, &error));
-        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        /*
+         * Released-button path: the released-side BKPT sentinel retires as
+         * a no-op without a debug session (E-ULS-0040), so the guest
+         * reaches the following WFI with no wake source scheduled.
+         */
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_WFI_DEADLOCK,
                          semu_machine_run(machine, &limits, &error));
 
         SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -373,8 +392,17 @@ static void test_button_input_polarity_and_refusal(
         event.value = 1;
         SEMU_TEST_EQ_U64(context, SEMU_OK,
                          semu_machine_input(machine, &event, &error));
-        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+        /*
+         * Value 1 releases the middle button, so the guest walks the
+         * released path; the sentinel BKPT at 0x2e retires as a no-op
+         * (E-ULS-0040) and the following WFI waits with no scheduled
+         * wake source. The pressed-path polarity stays pinned by the
+         * scheduled-wake scenario above (virtual time 20).
+         */
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_WFI_DEADLOCK,
                          semu_machine_run(machine, &limits, &error));
+        SEMU_TEST_EQ_U64(context, 0x32u,
+                         semu_machine_program_counter(machine));
         semu_machine_destroy(machine);
     }
     (void)remove(path);

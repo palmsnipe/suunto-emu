@@ -8,6 +8,8 @@ typedef struct semu_cpu_guest {
     semu_scheduler *scheduler;
     semu_cpu *cpu;
     semu_error error;
+    uint32_t image_size;
+    uint32_t stop_pc;
 } semu_cpu_guest;
 
 int semu_cpu_guest_init(semu_cpu_guest *guest, const uint8_t *image,

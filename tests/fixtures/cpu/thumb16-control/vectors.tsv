@@ -14,5 +14,5 @@ thumb16.sev-wfe | E-CPU-0002:A5.2.6/A7.7 SEV/WFE | 40 bf 20 bf 00 be | 0x100 | 0
 thumb16.wfi-deadlock | E-CPU-0002:A5.2.6/A7.7 WFI | 30 bf 00 be | 0x100 | 0x01000000 | - | - | 2 | SEMU_OK | SEMU_STOP_WFI_DEADLOCK | 0x102 | 0x01000000 | - | - | none
 thumb16.cps-privileged | E-CPU-0002:A5.2.6/A7.7 CPS | 72 b6 62 b6 71 b6 61 b6 73 b6 63 b6 00 be | 0x100 | 0x01000000 | - | - | 6 | SEMU_OK | none | 0x10c | 0x01000000 | primask=0,faultmask=0 | - | none
 thumb16.reverse-extend | E-CPU-0002:A5.2.6/A7.7 REV/SXTB/UXTH | 08 ba 5a ba ec ba 4e b2 1f b2 e9 b2 bb b2 00 be | 0x100 | 0x01000000 | r1=0x12345680,r3=0x00008001,r5=0x123480ff | - | 7 | SEMU_OK | none | 0x10e | 0x01000000 | r0=0x80563412,r2=0x180,r4=0xffffff80,r6=0xffffff80,r7=0xffff8001,r1=0xff,r3=0x8001 | - | none
-thumb16.bkpt-halt | E-CPU-0002:A5.2.6/A7.7 BKPT | 00 be | 0x100 | 0x01000000 | - | - | 1 | SEMU_OK | SEMU_STOP_HALT | 0x102 | 0x01000000 | - | - | none
+thumb16.bkpt-nop-no-debug | E-ULS-0040:A7.7 BKPT DBGEN-not-asserted | 00 be | 0x100 | 0x01000000 | - | - | 1 | SEMU_OK | none | 0x102 | 0x01000000 | - | - | none
 thumb16.udf-refusal | E-CPU-0002:A5.2.6/A7.7 UDF | 00 de 00 be | 0x100 | 0x01000000 | r0=0x13579bdf | - | 1 | SEMU_ERR_UNSUPPORTED | SEMU_STOP_UNSUPPORTED_INSTRUCTION | 0x102 | 0x01000000 | r0=0x13579bdf | - | emulator-refusal:unsupported-instruction

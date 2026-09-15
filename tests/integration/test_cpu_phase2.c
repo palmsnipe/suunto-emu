@@ -56,7 +56,7 @@ static int phase_run_thumb16(void)
     if (!semu_cpu_fixture_init(&fixture, program, sizeof(program))) return 0;
     status = semu_cpu_fixture_run(&fixture, 2u);
     ok = status == SEMU_OK && semu_cpu_stop_reason(fixture.cpu) ==
-             SEMU_STOP_HALT && semu_cpu_get_state(fixture.cpu)->r[0] == 7u &&
+             SEMU_STOP_NONE && semu_cpu_get_state(fixture.cpu)->r[0] == 7u &&
          semu_cpu_get_state(fixture.cpu)->instructions == 2u;
     semu_cpu_fixture_destroy(&fixture);
     return ok;
@@ -203,7 +203,7 @@ static int phase_run_unmapped_fault(void)
     if (ok) {
         status = semu_cpu_fixture_step(&fixture);
         ok = status == SEMU_OK &&
-             semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_HALT;
+             semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_NONE;
     }
     semu_cpu_fixture_destroy(&fixture);
     return ok;
@@ -221,7 +221,7 @@ static int phase_run_irq_boundary(void)
     semu_cpu_set_irq(fixture.cpu, 255u, 1);
     status = semu_cpu_fixture_step(&fixture);
     ok = status == SEMU_OK && semu_cpu_stop_reason(fixture.cpu) ==
-             SEMU_STOP_HALT && semu_cpu_get_state(fixture.cpu)->instructions == 1u;
+             SEMU_STOP_NONE && semu_cpu_get_state(fixture.cpu)->instructions == 1u;
     semu_cpu_fixture_destroy(&fixture);
     return ok;
 }

@@ -323,8 +323,11 @@ static void test_hints_sleep_and_bkpt(semu_test_context *context)
     state = semu_cpu_get_state(fixture.cpu);
     SEMU_TEST_ASSERT(context, !state->waiting_for_interrupt);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    /* BKPT #0 with no debug session retires as a no-op (E-ULS-0040). */
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
+    SEMU_TEST_ASSERT(context, !state->halted);
+    SEMU_TEST_EQ_U64(context, 0x10au, state->r[15]);
     semu_cpu_fixture_destroy(&fixture);
 
     SEMU_TEST_ASSERT(context, semu_cpu_fixture_init(&fixture, wfe_program,

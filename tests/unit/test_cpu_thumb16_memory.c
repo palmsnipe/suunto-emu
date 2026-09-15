@@ -291,7 +291,8 @@ static void test_refusals_and_partial_fault(semu_test_context *context)
     /*
      * LDR from unmapped address takes a BusFault (escalated to HardFault
      * since SHCSR.BUSFAULTENA is clear) instead of halting.  The HardFault
-     * handler at 0x200 contains a BKPT that halts the CPU.
+     * handler at 0x200 contains a BKPT that retires as a no-op with no debug
+     * session (E-ULS-0040); the stop reason and fault address are pinned below.
      */
     SEMU_TEST_ASSERT(context,
         semu_cpu_fixture_init(&fixture,
@@ -301,7 +302,7 @@ static void test_refusals_and_partial_fault(semu_test_context *context)
     state->r[1] = 0x1000u;
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     SEMU_TEST_ASSERT(context, semu_cpu_fault_address(fixture.cpu, &value));
     SEMU_TEST_EQ_U64(context, 0x1000u, value);
@@ -323,7 +324,7 @@ static void test_refusals_and_partial_fault(semu_test_context *context)
                                              &fixture.error) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, 0xaaaaaaaau, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
     /*
@@ -341,7 +342,7 @@ static void test_refusals_and_partial_fault(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0x604u, state->r[13]);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&fixture));
-    SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT,
+    SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE,
                      semu_cpu_stop_reason(fixture.cpu));
     semu_cpu_fixture_destroy(&fixture);
 }

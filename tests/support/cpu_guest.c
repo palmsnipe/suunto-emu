@@ -38,6 +38,8 @@ int semu_cpu_guest_init(semu_cpu_guest *guest, const uint8_t *image,
         semu_cpu_guest_destroy(guest);
         return 0;
     }
+    guest->image_size = (uint32_t)image_size;
+    guest->stop_pc = UINT32_MAX; /* no sentinel unless the test sets one */
     semu_cpu_reset(guest->cpu, 0u, &guest->error);
     if (guest->error.code != SEMU_OK) {
         semu_cpu_guest_destroy(guest);
@@ -81,13 +83,26 @@ semu_status semu_cpu_guest_run(semu_cpu_guest *guest,
     semu_error_clear(&guest->error);
     while (!semu_cpu_get_state(guest->cpu)->halted) {
         const semu_cpu_state *state = semu_cpu_get_state(guest->cpu);
+        uint32_t executed_pc;
 
         if (state->instructions >= instruction_limit ||
             semu_scheduler_now(guest->scheduler) >= virtual_time_limit) {
             return SEMU_ERR_STATE;
         }
+        executed_pc = state->r[15];
         status = semu_cpu_step(guest->cpu, &guest->error);
         if (status != SEMU_OK) return status;
+
+        /*
+         * Synthetic guests end with a BKPT sentinel. BKPT retires as a
+         * no-op without a debug session (E-ULS-0040), so the run ends
+         * deterministically as soon as the sentinel at stop_pc has
+         * been executed, reproducing the exact retire point of the
+         * former halt semantics.
+         */
+        if (executed_pc == guest->stop_pc) {
+            break;
+        }
     }
     return SEMU_OK;
 }

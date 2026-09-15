@@ -24,7 +24,7 @@ thumb16	IT-lengths-and-condition-inversion	implemented	E-CPU-0002	A5.2.6;A7.7 IT
 thumb16	hints-SEV-WFE-WFI-NOP-YIELD	implemented	E-CPU-0002	A5.2.6;A7.7 hints	test_hints_and_sleep	positive	Event consumption and deterministic sleep/deadlock are covered.
 thumb16	CPSIE-CPSID-privilege-fields	implemented	E-CPU-0002	A5.2.6;A7.7 CPS	test_cps_and_reserved_refusals	positive	Privileged I/F/IF enable and disable fields round-trip to masks.
 thumb16	REV-REV16-REVSH-and-extensions	implemented	E-CPU-0002	A5.2.6;A7.7 REV/SXTB/UXTH	test_reverse_and_extend	positive	Byte/halfword reversal and signed/unsigned extension are exact.
-thumb16	BKPT-halt	implemented	E-CPU-0002	A5.2.6;A7.7 BKPT	test_hints_and_sleep	positive	BKPT retires and records the exact halt stop.
+thumb16	BKPT-nop-no-debug	implemented	E-ULS-0040	A5.2.6;A7.7 BKPT	test_hints_sleep_and_bkpt	positive	BKPT retires as a no-op while no debug session asserts DBGEN; records no stop reason.
 thumb16	control-reserved-and-target-refusals	implemented	E-CPU-0002	A5.2.3;A5.2.6;A7.7	test_cps_and_reserved_refusals	refusal	Reserved hints/IT/CPS/reverse/high-register forms, even BX, and UDF fail closed without retirement.
 thumb32	MOV.W-r0-sp	implemented	E-CPU-0001	A7.7.77	test_mov_w_sp_regression	positive	Exact memory-order bytes are 4f ea 0d 00.
 thumb32	STMDB-sp-r3-r8-lr	implemented	E-CPU-0001	A5.3.5;A7.7 STMDB	test_stmdb_sp_regression	positive	Exact decrement-before layout; no family-completeness claim.

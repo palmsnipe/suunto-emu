@@ -77,7 +77,7 @@ static void test_guest_gpu_store_precise_fault(semu_test_context *context)
             SEMU_TEST_ASSERT(context, memcmp(before.data, after.data, before.size) == 0);
         }
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_cpu_fixture_step(&f));
-        SEMU_TEST_EQ_U64(context, SEMU_STOP_HALT, semu_cpu_stop_reason(f.cpu));
+        SEMU_TEST_EQ_U64(context, SEMU_STOP_NONE, semu_cpu_stop_reason(f.cpu));
         SEMU_TEST_EQ_U64(context, 2u, semu_cpu_get_state(f.cpu)->instructions);
         semu_snapshot_writer_destroy(&before); semu_snapshot_writer_destroy(&after);
         semu_nema_gpu_destroy(gpu); semu_nema_backend_destroy(backend);

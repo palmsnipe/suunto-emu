@@ -9,7 +9,7 @@ instruction-limit	100000
 virtual-time-limit	1000000
 expected-instructions	268
 expected-virtual-time	344
-expected-state-sha256	e4497c731b9ad944edefa89b36e75bf8ab9d6c25601ad27361dbc2cf7da9289e
+expected-state-sha256	ae17ae3e6715a583032dbe654ae5e78d0a3965cb8251ef8e7c9abdc059e1bf09
 external-events	IRQ0 pulse at 200ns (released at 201ns); IRQ2 at 300ns; IRQ1 is guest-pended inside IRQ0
 fp-policy	S0-S15/FPSCR use hardware exception frames; S16-S31 and R4-R11 use guest PendSV saves
 unsupported	No double precision, copied RTOS source, firmware, compatibility hit, or host runtime

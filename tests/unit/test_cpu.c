@@ -45,8 +45,9 @@ static int test_reset_arithmetic_and_branch(void)
     CHECK(state->r[0] == 3u);
     CHECK(state->r[1] == 7u);
     CHECK(state->instructions == 7u);
-    CHECK(state->halted);
-    CHECK(semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_HALT);
+    CHECK(!state->halted);
+    CHECK(semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_NONE);
+    CHECK(state->r[15] == 0x110u); /* BKPT retired as a no-op (E-ULS-0040) */
     fixture_destroy(&fixture);
     return 1;
 }
@@ -173,8 +174,9 @@ static int test_svc_exception_return(void)
     CHECK((semu_cpu_get_state(fixture.cpu)->xpsr & 0x1ffu) == 0u);
     CHECK(semu_cpu_get_state(fixture.cpu)->r[2] == 0u);
     CHECK(semu_cpu_get_state(fixture.cpu)->r[15] == 0x102u);
-    CHECK(step_ok(&fixture));
-    CHECK(semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_HALT);
+    CHECK(step_ok(&fixture)); /* BKPT #0 is a no-op without a debug session */
+    CHECK(semu_cpu_stop_reason(fixture.cpu) == SEMU_STOP_NONE);
+    CHECK(semu_cpu_get_state(fixture.cpu)->r[15] == 0x104u);
     fixture_destroy(&fixture);
     return 1;
 }

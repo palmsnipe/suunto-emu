@@ -36,14 +36,14 @@ run_once()
     output=$1
     if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
         --full-flash "$full_flash" --until normal-frame \
-        --max-instructions 500000000 --max-time 30000000000 \
+        --max-instructions 72774982 --max-time 30000000000 \
         >"$output" 2>&1;
     then
         run_status=0
     else
         run_status=$?
     fi
-    if [ "$run_status" -ne 0 ]; then
+    if [ "$run_status" -ne 3 ]; then
         echo "error: Sapporo 2.39 combined CTIMER INTEN run returned $run_status" >&2
         cat "$output" >&2
         exit 1
@@ -63,7 +63,7 @@ if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/first.log";
 then
     echo "error: Sapporo 2.39 combined CTIMER INTEN checkpoint changed" >&2
