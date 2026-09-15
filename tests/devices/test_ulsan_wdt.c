@@ -106,10 +106,14 @@ static void test_unobserved_transactions_refused(semu_test_context *context)
 /*
  * Boot frontier: with the watchdog control, reload and InterruptEnable
  * registers answering, the observed
- * boot continues past the former panic frontier; PC at
- * instruction 13,000,000 is 0x000dabcc with SP 0x10029e40
- * (reproducing twice across a reset). Ticket 730 frontier; later
- * instances extend this pin. */
+ * boot continues past the former panic frontier; the first boot run now ends in
+ * the machine reset applied after the guest's HardFault handler stores
+ * SYSRESETREQ: the TIMER0 comparator wake releases the WFI at instruction
+ * 12,650,485, the sleep-deepening path reads the still-unmodelled RTC
+ * counter word 0x40004820 (precise bus fault at PC 0x0007aa66), and the
+ * reset takes effect; a budget of 12,715,657 stops at the first post-reset
+ * boot instruction PC 0x001e1b4c, SP 0x1005ffc0 (reproduced twice). Ticket
+ * 730 frontier; later instances extend this pin. */
 static void test_boot_passes_wdt(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
@@ -144,7 +148,7 @@ static void test_boot_passes_wdt(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(13000000), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(12715657), UINT64_C(4000000000) };
         semu_stop_reason reason;
         const semu_cpu_state *state;
         semu_error_clear(&error);
@@ -155,13 +159,13 @@ static void test_boot_passes_wdt(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_WFI_DEADLOCK,
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(12611224),
+        SEMU_TEST_EQ_U64(context, UINT64_C(12715657),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffc0), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

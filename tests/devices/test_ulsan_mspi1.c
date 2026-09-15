@@ -105,7 +105,7 @@ static void test_interrupt_plane_and_seam(semu_test_context *context)
     semu_error_clear(&error);
     bus = semu_bus_create(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
-    semu_ulsan_board_attach_irq_sink(record_sink, NULL);
+    semu_ulsan_board_attach_irq_sink(record_sink, NULL, NULL);
     irq_count = 0u;
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));

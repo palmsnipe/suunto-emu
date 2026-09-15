@@ -3,6 +3,7 @@
 
 #include "semu/apollo4.h"
 #include "semu/bus.h"
+#include "semu/scheduler.h"
 
 /*
  * Ulsan (Suunto Race S) 2.35.36 reset board for the Apollo4 Plus variant
@@ -20,11 +21,14 @@
 semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error);
 
 /* Machine-side IRQ wiring (integrator seam, E-ULS-0030): pass the
- * machine irq_sink through to the Ulsan devices that assert lines -
- * today only the IOM4 command-complete line at NVIC IRQ 10. Calling
- * this is the one remaining machine.c change for the WFI wake. */
+ * machine irq_sink (and, for the TIMER comparator, the machine
+ * scheduler) through to the Ulsan devices that assert lines: IOM4 at
+ * IRQ 10, MSPI1 at IRQ 21, TIMER1 comparator at IRQ 14 and IRQ 68.
+ * Calling this from machine.c is the integrator seam for the WFI
+ * wake. */
 void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
-                                      void *context);
+                                      void *context,
+                                      semu_scheduler *scheduler);
 
 /* Accepts only the one evidence-eligible Ulsan profile (board plus id). */
 int semu_ulsan_board_accepted(const char *board, const char *profile_id);

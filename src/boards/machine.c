@@ -50,7 +50,17 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error);
 static semu_status map_board(semu_machine *machine, semu_error *error)
 {
     if (known_ulsan_profile(&machine->profile)) {
-        return semu_ulsan_board_map(machine->bus, error);
+        /* Integrator seam (precedent: map_sapporo passes irq_sink):
+         * one line sink and scheduler for every evidence-wired Ulsan
+         * interrupt (IOM4 IRQ 10, MSPI1 IRQ 21, TIMER1 comparator
+         * IRQ 14/68). Device maps reset and detach the wiring, so the
+         * attach follows the map; machine resets preserve it. */
+        if (semu_ulsan_board_map(machine->bus, error) != SEMU_OK) {
+            return SEMU_ERR_STATE;
+        }
+        semu_ulsan_board_attach_irq_sink(irq_sink, machine,
+                                         machine->scheduler);
+        return SEMU_OK;
     }
     return map_sapporo(machine, error);
 }

@@ -1,10 +1,12 @@
 /*
  * Ulsan TIMER block tests (ticket 730, E-ULS-0021).
  *
- * The seven registers boot touches store writes; the three with
- * observed reads answer from the store (lane silent = framework-
- * handled). Reads of write-only-observed registers, other addresses and
- * widths refuse. The boot case is manifest-gated.
+ * The registers boot touches store writes; the four with observed reads
+ * (0x10, 0x60, 0x64, 0x220) answer from the store or the observed-zero
+ * dictionary (lane silent = framework-handled; E-ULS-0035). Reads of
+ * write-only-observed registers, other addresses and widths refuse.
+ * Comparator wake edges live in test_ulsan_timer0wake.c. The boot case
+ * is manifest-gated.
  */
 
 #include <stdio.h>
@@ -84,7 +86,7 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
     semu_error error;
     uint32_t value = 0u;
     const uint32_t offsets[] = {0x40008000u, 0x40008014u, 0x4000805Cu,
-                                0x40008064u, 0x4000806Cu, 0x400080F0u,
+                                0x4000806Cu, 0x400080F0u,
                                 0x40008224u, 0x40008300u, 0x400087FCu};
     const uint32_t write_only_reads[4] = {0x40008068u, 0x40008228u,
                                           0x4000822cu, 0x40008230u};
@@ -117,15 +119,33 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      semu_bus_read(bus, 0x40008010u, 2u, &value, &error) !=
                          SEMU_OK);
+    /* E-ULS-0035: the IRQ 68 service routine reads 0x64 (lane answers 0
+     * at 1.0 s and 1.003 s, run twice). The lane never faults writes to
+     * its registered interrupt registers, so 0x64 is a plain store like
+     * its neighbours rather than a write refusal. */
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40008064u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40008064u, 4u, UINT32_C(0x5A5),
+                                    &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40008064u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x5A5), value);
     semu_bus_destroy(bus);
 }
 
 /*
- * Boot frontier: with the TIMER block registers answering, the observed
- * boot continues past the former panic frontier; PC at
- * instruction 13,000,000 is 0x000dabcc with SP 0x10029e40
- * (reproducing twice across a reset). Ticket 730 frontier; later
- * instances extend this pin. */static void test_boot_passes_timer0(semu_test_context *context)
+ * Boot frontier: with the TIMER block registers answering and the comparator
+ * wake wired, the observed boot reaches the WFI release at instruction
+ * 12,650,485; the first run then ends in the machine reset applied after
+ * the HardFault handler stores SYSRESETREQ (precise bus fault at PC
+ * 0x0007aa66 against the still-unmodelled RTC counter word 0x40004820); a
+ * budget of 12,715,657 stops at PC 0x001e1b4c, SP 0x1005ffc0 (reproduced
+ * twice). Ticket 730 frontier; later instances extend this pin. */
+static void test_boot_passes_timer0(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_ULSAN_FIRMWARE_MANIFEST");
     FILE *probe;
@@ -159,7 +179,7 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
     machine = semu_machine_create(&options, &error);
     SEMU_TEST_ASSERT(context, machine != NULL);
     for (pass = 0u; pass < 2u; ++pass) {
-        semu_run_limits limits = { UINT64_C(13000000), UINT64_C(4000000000) };
+        semu_run_limits limits = { UINT64_C(12715657), UINT64_C(4000000000) };
         semu_stop_reason reason;
         const semu_cpu_state *state;
         semu_error_clear(&error);
@@ -170,13 +190,13 @@ static void test_unobserved_timer_accesses_refused(semu_test_context *context)
         semu_error_clear(&error);
         reason = semu_machine_run(machine, &limits, &error);
         state = semu_cpu_get_state(machine->cpu);
-        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_WFI_DEADLOCK,
+        SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(12611224),
+        SEMU_TEST_EQ_U64(context, UINT64_C(12715657),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x001e1b4c),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x1005ffc0), state->r[13]);
     }
     semu_machine_destroy(machine);
 }

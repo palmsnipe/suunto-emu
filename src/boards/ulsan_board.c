@@ -147,11 +147,15 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
 }
 
 void semu_ulsan_board_attach_irq_sink(semu_apollo4_irq_fn sink,
-                                      void *context)
+                                      void *context,
+                                      semu_scheduler *scheduler)
 {
     /* One machine sink for every Ulsan device interrupt the evidence
      * has wired: IOM4 at IRQ 10 (E-ULS-0030), MSPI1 at IRQ 21
-     * (E-ULS-0031). */
+     * (E-ULS-0031), and the TIMER1 comparator line at IRQ 14 and
+     * IRQ 68 (E-ULS-0035), which additionally needs the machine
+     * scheduler for its compare events. */
     semu_ulsan_iom4_set_irq_sink(sink, context);
     semu_ulsan_mspi1_set_irq_sink(sink, context);
+    semu_ulsan_timer0_attach(scheduler, sink, context);
 }
