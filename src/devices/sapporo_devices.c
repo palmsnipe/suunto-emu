@@ -288,7 +288,8 @@ semu_status semu_sapporo_devices_select_profile(
     }
     is_239 = strcmp(profile_id, "sapporo-2.39.20") == 0;
     if (!is_239 && strcmp(profile_id, "sapporo-2.22.60") != 0 &&
-        strcmp(profile_id, "sapporo-2.33.16") != 0) {
+        strcmp(profile_id, "sapporo-2.33.16") != 0 &&
+        strcmp(profile_id, "sapporo-2.35.34") != 0) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Sapporo device profile %s is unsupported", profile_id);
         return SEMU_ERR_UNSUPPORTED;

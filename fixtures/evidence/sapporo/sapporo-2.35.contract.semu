@@ -81,12 +81,15 @@ resources_same_sha256=false
 resident_same_reset_vector=true
 
 [bounded_traces]
-status=blocked
-reason=No profile exists for Sapporo 2.35; profile creation is ticket 705 scope
-reset_mmio_traces=not captured
-startup_stop=not captured
+status=observed
+profile=sapporo-2.35.34
+reset_mmio_traces=E-SAP-0031
+reset_trace_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+startup_stop=budget pc=0x000e1862 instructions=100000000
+park_first_hit=89405875
+run_log_pair_sha256=87ea1ca817cb3375ab35463cfe45c266a89b96a8ea4d82ac2bf25efb1dc07600
 
 [limitations]
 cache_interventions=unknown
 logical_storage_interventions=unknown
-description=Component contracts are exact; emulator run traces require a version-specific profile
+description=Component contracts are exact; bounded run traces recorded via the in-tree sapporo-2.35.34 profile (E-SAP-0031); the startup idle WFI park matches the reference lane park PC (E-SAP-0030); no wake source has been identified yet

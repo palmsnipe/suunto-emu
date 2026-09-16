@@ -12,6 +12,7 @@
 #include "../devices/sapporo_flash.h"
 #include "input_replay.c"
 #include "cli_checkpoint.c"
+#include "cli_profiles.c"
 #include "cli_snapshot.c"
 
 #include <errno.h>
@@ -63,20 +64,6 @@ static void usage(FILE *stream)
             "[--trace PATH] [--input-replay PATH] [--headless] "
             "[--report PATH] [--snapshot-load PATH] [--snapshot-save PATH] "
             "[--trace-capacity N] [--trace-overflow stop|truncate]\n");
-}
-
-static const char *profile_path(const char *argument)
-{
-    if (argument != NULL && strcmp(argument, "sapporo-2.22.60") == 0) {
-        return "profiles/sapporo/2.22.60/profile.semu";
-    }
-    if (argument != NULL && strcmp(argument, "sapporo-2.33.16") == 0) {
-        return "profiles/sapporo/2.33.16/profile.semu";
-    }
-    if (argument != NULL && strcmp(argument, "sapporo-2.39.20") == 0) {
-        return "profiles/sapporo/2.39.20/profile.semu";
-    }
-    return argument;
 }
 
 static int load_profile(const char *argument, semu_profile *profile,
@@ -181,14 +168,6 @@ static int parse_options(int argc, char **argv, int start,
         return 0;
     }
     return 1;
-}
-
-static int command_list(void)
-{
-    puts("sapporo-2.22.60  Sapporo  2.22.60.3383-P  interpreter-bring-up");
-    puts("sapporo-2.33.16  Sapporo  2.33.16.17428-P  evidence-contract");
-    puts("sapporo-2.39.20  Sapporo  2.39.20.22297-P  evidence-contract");
-    return 0;
 }
 
 static int command_show(const char *path)

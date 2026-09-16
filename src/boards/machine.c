@@ -34,6 +34,7 @@ static int known_sapporo_profile(const semu_profile *profile)
     return strcmp(profile->board, "sapporo") == 0 &&
            (strcmp(profile->id, "sapporo-2.22.60") == 0 ||
             strcmp(profile->id, "sapporo-2.33.16") == 0 ||
+            strcmp(profile->id, "sapporo-2.35.34") == 0 ||
             strcmp(profile->id, "sapporo-2.39.20") == 0);
 }
 

@@ -1898,4 +1898,24 @@ IRQ18 (E-ULS-0048), IRQ37 + steady-era re-run (E-ULS-0049), panel era
 gate to the flush/panel eras is the integrator-owned E-ULS-0047
 cadence-law disposition. A comment-only defect was noted for the
 integrator: the `src/boards/ulsan_board.c` header still lists the
-display controller and MSPI1 as unmapped.
+display controller and MSPI1 as unmapped. (fixed in the follow-up maintenance commit).
+
+Sapporo 2.35.34 profile dispatch (2026-09-16, ticket 705 2.35 dispatch
+authorized by the E-SAP-0030 next-instance order, recorded as
+E-SAP-0031): `profiles/sapporo/2.35.34` is registered (board registry,
+CLI listing/selection via the new included `src/frontends/cli_profiles.c`,
+and the non-2.39 device group in
+`src/devices/sapporo_devices.c` - the 2.33 device snapshot applies per
+E-SAP-0018/E-SAP-0030), validated against the private bundle
+(`validate` rc=0, three components), and its bounded reset run reached
+the recorded stop twice byte-identically: `stop=budget pc=0x000e1862
+instructions=89405875 virtual_time_ns=36373760383` (log pair sha256
+`87ea1ca8...`). That park PC is exactly the reference-lane startup idle
+WFI park of E-SAP-0030, the boot passed every lane-missing component
+(RSTGEN, PWRCTRL PWREN, the resource map) without a single refusal, and
+unlike 2.33 no SYSRESETREQ cycle occurs (the trace pair is empty
+twice). The contract fixture `[bounded_traces]` is now `status=observed`.
+The park's wake source is unidentified - identifying it is the first
+candidate gap for a ticket 710 implementation instance against this
+profile. Focused test `sapporo_profile_235` green; existing profile
+code paths untouched, so no era pin can drift.
