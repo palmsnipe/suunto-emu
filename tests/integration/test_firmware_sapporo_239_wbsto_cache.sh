@@ -11,7 +11,14 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=b1156669803cbd2c09e16599fa3719ff2adeecb493eb3749e20fcec34b8f37c0
+# E-ULS-0047 (ticket 777) re-derivation from two byte-identical runs. The
+# former advanced checkpoint pinned a run-ending unmapped write to 0x0f676e34
+# (E-SAP-COMPAT-WBSTO-239-001). Ticket 729's logical writable-files layer
+# (E-SAP-COMPAT-FILES-239-001, this gate's dependency) removed that FAT
+# underflow as accepted behavior, so the cache-layer era now runs fault-free
+# to the full 500,000,000-instruction budget cap; that cap stop line is the
+# re-derived advanced checkpoint and the underflow is now asserted absent.
+expected_log_hash=6682af6ef5457a2155866229c29e25dda161cbb787e4c140619d79358d379d2d
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 WbStorage cache runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -90,8 +97,9 @@ if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=unmapped-access pc=0x0007038c instructions=78496951 virtual_time_ns=526979533 detail=unmapped write at 0x0f676e34' \
-    "$run_dir/first.log";
+    'stop=budget pc=0x00070f3e instructions=500000000 virtual_time_ns=2038956542' \
+    "$run_dir/first.log" ||
+   grep -F -q '0x0f676e34' "$run_dir/first.log";
 then
     echo "error: Sapporo 2.39 WbStorage advanced checkpoint changed" >&2
     cat "$run_dir/first.log" >&2

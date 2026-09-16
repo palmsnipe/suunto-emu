@@ -10,8 +10,15 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=2223de22981528b7cd2df049be68ea2e4022627763da13aab9293ef1fbbf7e16
-snapshot_hash=74e45df965216d809cf41e090ee0fc56b740affbc6d32aec35413dd65db1aa0c
+# E-ULS-0047 (ticket 777) re-derivation. The era drift recorded by E-ULS-0041
+# (accepted integration batch d311da0..6555d38) replaced guest instructions with
+# equal-count paths: the instruction, virtual-time, and 76258-intervention
+# anchors below are unchanged from the original pins; only the PC at the budget
+# cap and the artifact bytes moved, each re-derived from two byte-identical runs.
+# The next-instruction run is pinned as a budget-cap continuation (exit code 3)
+# per the E-ULS-0041 BKPT-to-NOP precedent (ctimer_combined_inten.sh).
+log_hash=372fdabe855d55b25e5129eb0b2587e27f1f709e40a67b40011ca04ea8b1f365
+snapshot_hash=7df7e4064dff38c1bfd6918efc01d8329036694d16ed3d074973601ccd6cb54e
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 Timer13 INTEN: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -56,7 +63,7 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x00079e1c instructions=608140266 virtual_time_ns=2147096849' \
+    'stop=budget pc=0x00093bdc instructions=608140266 virtual_time_ns=2147096849' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
@@ -67,8 +74,8 @@ fi
 
 # Preserve ticket 751 before its now-superseded exact INTEN refusal.
 run prefix 607105617 3
-if [ "$(hash "$run_dir/prefix.log")" != 740750cbc6460fe8b9c3b420a5509d992dc0757e50de9102da316df7d21be1ec ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19 ]; then
+if [ "$(hash "$run_dir/prefix.log")" != aca8415854f8b93f71bdfd58f265ce171a742741696c84e36e9fb3abbccf67c5 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != b17a3b485f89779a3dc8191f1417c6d225a65fdcc41f0681d1cb068c1ad24d90 ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi
@@ -78,12 +85,13 @@ if ! cmp -s "$run_dir/first.sems" "$run_dir/resumed.sems"; then
     exit 1
 fi
 
-# Execute the real firmware BKPT, without a fatal-status translation.
-run halt 608140267 0 --snapshot-load "$run_dir/first.sems"
+# Execute the next guest instruction at the pinned boundary; it runs as recorded
+# and stops at the budget cap with exit code 3 (E-ULS-0041 BKPT-to-NOP precedent).
+run halt 608140267 3 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=608140267 virtual_time_ns=2147096850' \
+    'stop=budget pc=0x00093bde instructions=608140267 virtual_time_ns=2147096850' \
     "$run_dir/halt.log"; then
-    echo "error: next firmware breakpoint changed" >&2
+    echo "error: next-instruction continuation changed" >&2
     cat "$run_dir/halt.log" >&2
     exit 1
 fi
@@ -91,4 +99,4 @@ if [ "$(hash "$full_flash")" != "$flash_hash" ]; then
     echo "error: source flash was modified" >&2
     exit 1
 fi
-echo "PASS sapporo-2.39.20 combined Timer13 INTEN, old prefix, resume and native halt"
+echo "PASS sapporo-2.39.20 combined Timer13 INTEN, old prefix, resume and boundary continuation"

@@ -11,8 +11,13 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=f61318b9a56255656473779a779a2eba973d98120520c61c319f0df031b285b2
-expected_snapshot_hash=3d94e3517488f4d672d6542cad14db0866610483c90b2b0d16f8ab22a080b301
+# E-ULS-0047 (ticket 777) re-derivation of the artifact hashes only, from two
+# byte-identical runs. The era drift recorded by E-ULS-0041 (accepted
+# integration batch d311da0..6555d38) changed log bytes at unpinned per-event
+# fields; the boundary stop line, 118-intervention census, trigger counts,
+# retained-file events, and the snapshot-resume continuation are unchanged.
+expected_log_hash=4b96c1ba019787054179ee691e5a2ac2535f6e18111111f432113f20d0338591
+expected_snapshot_hash=c1ea5c288fa6be6f6e1adbb60376fb7a74cbf7f4bc2db50a795edd04363c26ba
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical-files runner: set SEMU_SAPPORO_239_FULL_FLASH"

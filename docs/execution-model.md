@@ -175,6 +175,25 @@ All CPU and DMA accesses pass through the same registered address-space API. Acc
 
 Validated component bytes are loaded from read-only source files into immutable emulator-owned bases before mapping. Guest program/erase updates a sparse overlay; reads merge overlay and base. Reset policy controls whether a session overlay persists, but source files are never opened writable or modified.
 
+## Era Gates
+
+Era scripts under `tests/integration/` pin complete deterministic executions
+(stop reason, PC, instruction count, virtual time, compatibility hit counts,
+and SHA-256 of the full execution log and snapshot) for a named firmware
+era. They are opt-in through `TEST_PROFILE` — for example the Sapporo 2.39
+scripts require `TEST_PROFILE=sapporo-2.39.20`, a readable private manifest,
+and the hash-pinned full-flash fixture — so the default `make check` never
+runs them. That opt-in makes them invisible to the normal gate, and engine
+changes that legitimately move an era boundary turn them red only when
+somebody runs them by hand. `make check-era` aggregates the Sapporo 2.39 era
+set into one gate: it skips cleanly when the private manifest or flash
+fixture is absent, and fails when the fixtures are present and any era script
+is red. It stays out of `check` because a full era pass costs roughly twenty
+minutes with fixtures present; behavior-change acceptance for the affected
+profile must run it explicitly. When an era script is red, the drift is first
+attributed against `docs/migration-evidence.md`; only a recorded two-run
+re-derivation of the moved pins may re-pin a script, never a silent update.
+
 ## Reproducibility Record
 
 A deterministic comparison uses the ordered tuple of stop reason, virtual time, instruction count, checkpoint identifiers, frame generations and hashes, compatibility hit counts, and normalized device transcripts. Host paths, pointer values, and wall-clock timestamps are excluded from comparison output.

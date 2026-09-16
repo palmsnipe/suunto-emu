@@ -37,7 +37,7 @@ TEST_BINS = $(patsubst tests/unit/%.c,$(BUILD_DIR)/tests/%,$(UNIT_TEST_SOURCES))
 INTEGRATION_TEST_BINS = $(patsubst tests/integration/%.c,$(BUILD_DIR)/tests/%,$(INTEGRATION_TEST_SOURCES))
 
 .PHONY: all sdl bench check-sdl3-required test check check-lines \
-	check-task-contracts check-sdl check-sdl-quick test-firmware \
+	check-task-contracts check-sdl check-sdl-quick check-era test-firmware \
 	test-differential sanitize clean bench
 
 BENCH_BINS = $(BUILD_DIR)/bench_cpu
@@ -170,6 +170,49 @@ check-sdl:
 	else \
 		echo "check-sdl: SKIPPED entirely - SDL3 was not found by pkg-config" >&2; \
 	fi
+
+# Era gate for the opt-in Sapporo 2.39 era scripts (ticket 777). The
+# tests/integration/test_firmware_sapporo_239_*.sh scripts only run under
+# TEST_PROFILE=sapporo-2.39.20, so `make check` never sees them and their
+# deterministic pins can drift silently. This target runs the whole era set
+# so that drift turns the target red. It skips cleanly (rc 0) when the
+# private manifest or the exact full-flash fixture is unavailable, and fails
+# when the fixtures are present and any era script is red. The loop continues
+# past failures and prints one ERA-FAIL line plus a summary count, so a
+# partially drifted set reports the full census in one run rather than stopping
+# at the first red script. It is NOT wired
+# into `check`: the full era set costs roughly twenty minutes on a fixture
+# machine, mirroring how the slow firmware-gated `check-sdl` stays separate
+# from `check-sdl-quick`. Behavior-change acceptance runs must execute this
+# target for the affected profile, as AGENTS.md requires.
+check-era: all
+	@manifest="$${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.39.20.22297/firmware.semu}"; \
+	if [ ! -r "$$manifest" ]; then \
+		echo "check-era: SKIPPED - no readable private manifest at $$manifest"; \
+		exit 0; \
+	fi; \
+	if [ -z "$$SEMU_SAPPORO_239_FULL_FLASH" ]; then \
+		echo "check-era: SKIPPED - set SEMU_SAPPORO_239_FULL_FLASH to the verified full flash"; \
+		exit 0; \
+	fi; \
+	failed=0; total=0; \
+	for script in tests/integration/test_firmware_sapporo_239_*.sh; do \
+		total=$$((total+1)); \
+		echo "ERA $$script"; \
+		if ! TEST_PROFILE=sapporo-2.39.20 \
+			SEMU_EMULATOR="$(BUILD_DIR)/suunto-emu" \
+			SEMU_FIRMWARE_MANIFEST="$$manifest" \
+			sh "$$script"; \
+		then \
+			echo "ERA-FAIL $$script"; \
+			failed=$$((failed+1)); \
+		fi; \
+	done; \
+	if [ $$failed -ne 0 ]; then \
+		echo "check-era: $$failed of $$total Sapporo 2.39 era scripts FAILED"; \
+		exit 1; \
+	fi; \
+	echo "check-era: all $$total Sapporo 2.39 era scripts passed"
 
 test-firmware: all
 	@SEMU_EMULATOR="$(BUILD_DIR)/suunto-emu" \

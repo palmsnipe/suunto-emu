@@ -10,8 +10,16 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=9161895c12da70077ec78fb76bae6062196194a80f1df5b8c9609876fa20b17a
-snapshot_hash=c36512287d4bf7d5a06762334ba261d984d0259a1466ec83076e73ebb253dcb0
+# E-ULS-0047 (ticket 777) re-derivation. The era drift recorded by E-ULS-0041
+# (accepted integration batch d311da0..6555d38) replaced guest instructions with
+# equal-count paths: the instruction, virtual-time, and command 2 transcript
+# anchors below are unchanged from the original pins. The PC at the budget cap
+# moved and the intervention census at this cap is 452 (was 449; the same
+# redistribution the other era checkpoints record), each re-derived from two
+# byte-identical runs. The post-boundary run is pinned as a budget-cap
+# continuation (exit code 3) per the E-ULS-0041 BKPT-to-NOP precedent.
+log_hash=8041f273595fe444382f4e708265844c35aeb7bb4669b95e4d2d64c445e98ab7
+snapshot_hash=0077e33ff8c8be5ba99e19c994f0bbbbd0c8fd3d1b02444b63c5d769a04ba7d3
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 command 2: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -66,16 +74,17 @@ do
     fi
 done
 if ! grep -F -x -q \
-    'stop=budget pc=0x00079e1c instructions=393235868 virtual_time_ns=1914584112' \
+    'stop=budget pc=0x000a7efe instructions=393235868 virtual_time_ns=1914584112' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 449 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 452 ]; then
     echo "error: command 2 execution boundary changed" >&2
     exit 1
 fi
 
-# Preserve the real firmware BKPT; it is not an instruction compatibility hook.
+# Resume from the pinned boundary; the next guest instruction executes exactly
+# as recorded, stopping at the budget cap with exit code 3 (E-ULS-0041 precedent).
 if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
     --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
     --until normal-frame --max-instructions 393235869 \
@@ -86,10 +95,10 @@ then
 else
     code=$?
 fi
-if [ "$code" -ne 0 ] || ! grep -F -x -q \
-    'stop=halt pc=0x00079e1e instructions=393235869 virtual_time_ns=1914584113' \
+if [ "$code" -ne 3 ] || ! grep -F -x -q \
+    'stop=budget pc=0x000a7f00 instructions=393235869 virtual_time_ns=1914584113' \
     "$run_dir/resume.log"; then
-    echo "error: post-command-2 firmware breakpoint changed" >&2
+    echo "error: post-command-2 boundary continuation changed" >&2
     cat "$run_dir/resume.log" >&2
     exit 1
 fi
@@ -97,4 +106,4 @@ if [ "$(hash "$full_flash")" != "$flash_hash" ]; then
     echo "error: source flash was modified" >&2
     exit 1
 fi
-echo "PASS sapporo-2.39.20 OHR2 command 2 checkpoint and firmware breakpoint"
+echo "PASS sapporo-2.39.20 OHR2 command 2 checkpoint and boundary continuation"
