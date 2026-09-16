@@ -1819,3 +1819,39 @@ accepting the instruction-cost cadence law is core-scope, era-wide integrator
 decision territory. The remaining ticket-730 census queue is unchanged:
 IRQ18/line-2, IRQ37 +10 pairs, the panel-era census, and the post-adoption
 steady-era IRQ census re-run.
+
+Census close + adoption (2026-09-16, ticket 730 IRQ18/line-2 instance,
+E-ULS-0048): the three lane IRQ18 pulses are the RTC one-second alarm.
+The lane wiring is `rtc: Timers.AmbiqApollo4_RTC @ sysbus 0x40004800 ->
+nvic@2` (bundled ambiq-apollo4.repl lines 142-143; the class is
+Suunto-fork-only, so its source is unavailable and behavior came from
+lane logs plus tree probes). The retained log lp34b was re-derived twice
+(lp50) and the timestamp-stripped IRQ18/rtc stream is three-way
+byte-identical; its census shows the guest sets the clock once, arms the
+alarm once via the boot stores 0x200=1 and 0x208=1 ("First alarm set to:
+epoch+1 s, alarm repeat interval: Second"), and the model itself repeats
+every second; the line drops at the NVIC acknowledge with NO RTC MMIO
+involved. Tree scratch probe77 v1 exposed the guest service (0x208
+rewrite at pc 0x0009bf1e, clock dance + `+0x20=0x100` + `+0x24=20230101`
+stores at PCs 0x0009be38-0x0009beb6, then the E-ULS-0036 seqlock reads;
+no status-register access in 1.85M+ re-service iterations with the line
+held high), so the E-ULS-0036 counter-word write refusal was superseded
+by the observed service stores and the model uses the E-ULS-0035
+momentary-pulse convention (61,035 ns). v2 (twice x two passes
+byte-identical) and probe79 against the committed engine (twice
+byte-identical, zero refusals) confirmed: exact 1-second IRQ2 cadence
+from the boot pair-store anchor, each service consuming exactly the
+61,035-instruction wake-service invariant so the drop lands at service
+end like the lane's across-acknowledge shape, the boot era byte-identical
+through the 4th wake pair up to inst 16667327 (= the old E-ULS-0046
+frontier instruction - the alarm simply outran the overflow park), and
+the TIMER0 overflow re-arm persisting after every service: the alarm
+gives the tree guest its per-second wakes but does NOT fix the TIMER0
+steady-era cadence (that stays the E-ULS-0047 core cadence-law
+attribution). The committed engine now parks at alarm occurrences (4e9
+budget: inst 16853480 pc 0x000dabcc vt 4012595271 = anchor + 4x1e9), the
+12 device-test frontier blocks were re-pinned with old pins cited, no
+era script exists for the ULSAN profile (era drift surface zero), and
+`make check`/`make check-lines`/`make sanitize` are green. The remaining
+ticket-730 census queue is: IRQ37 +10 pairs, the panel-era census, and
+the post-adoption steady-era IRQ census re-run.

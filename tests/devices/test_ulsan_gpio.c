@@ -92,15 +92,19 @@ static void test_padkey_then_pin_configuration_accepted(semu_test_context *conte
  * Renode 1.16.1 silent continuation plus the lp34b post-assert
  * interrupt census), so both epochs walk past the AM_DEBUG_LOG_ERROR
  * assert at 0x0006bda8 into the scheduler era. Both passes now run to
- * budget: a wake-overflow WFI jump parks virtual time at
- * 262143351559124 ns (about 2^32 timer ticks) past the 4e9 ns cap
- * after 16,667,327 instructions (frontier re-pinned by E-ULS-0046
- * with the read-pure virtual-time STTMR; both passes converge on PC
- * 0x000dabcc, SP 0x10029e40, LR 0x0009760b, XPSR 0x61000000;
+ * budget: with the RTC alarm adopted (E-ULS-0048) the guest parks in
+ * WFI from one one-second RTC alarm (IRQ 2) to the next and stops at
+ * the fourth occurrence, vt 4012595271 ns (anchor 12595271 ns = the
+ * boot alarm-pair store) past the 4e9 ns cap, after 16,853,480
+ * instructions (frontier re-pinned by E-ULS-0048; both passes converge
+ * on PC 0x000dabcc, SP 0x10029e40, LR 0x0009760b, XPSR 0x61000000 -
+ * same pins as the E-ULS-0046 wake-overflow park except inst/vt;
  * reproduced twice; dump sha256
- * c5a90475530e4890693ce7bf89871208ef9e2f0c664b4fd379c23130867648b3;
- * old E-ULS-0041 pins PC 0x000b359c/0x000b3598, SP 0x1002a7ec, LR
- * 0x0009c65b measured the read-advance counter). The
+ * 56f4b2b8f752ce555af266d9d816948c95a30fcb0dc0d7442cc765e41ddc892e;
+ * old E-ULS-0046 pins inst 16667327 vt 262143351559124 - the
+ * wake-overflow park about 2^32 timer ticks past the cap on the
+ * pre-alarm engine; the old E-ULS-0041 pins PC 0x000b359c/0x000b3598,
+ * SP 0x1002a7ec, LR 0x0009c65b measured the read-advance counter). The
  * lane's final 440 ms show 141 IRQ30/IRQ84 pairs, 49 deep-sleep/wake
  * cycles, and two more IRQ18 acknowledgements with no IRQ26/37/45 in
  * this era; matching the lane's steady-era census (panel era, MSPI2,
@@ -154,7 +158,7 @@ static void test_boot_passes_pad_setup_step(semu_test_context *context)
         SEMU_TEST_ASSERT(context, machine != NULL);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(16667327),
+        SEMU_TEST_EQ_U64(context, UINT64_C(16853480),
                          semu_machine_instructions(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));

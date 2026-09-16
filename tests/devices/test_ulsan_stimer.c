@@ -295,13 +295,18 @@ static void test_unobserved_registers_refused(semu_test_context *context)
  * Renode 1.16.1 silent continuation plus the lp34b post-assert
  * interrupt census), so both epochs walk past the AM_DEBUG_LOG_ERROR
  * assert at 0x0006bda8 into the scheduler era. Both passes now run to
- * budget: a wake-overflow WFI jump parks virtual time at
- * 262143351559124 ns (about 2^32 timer ticks) past the 4e9 ns cap
- * after 16,667,327 instructions; PC 0x000dabcc, SP 0x10029e40, LR
- * 0x0009760b, XPSR 0x61000000, identical in both passes (reproduced
- * twice; dump sha256
- * c5a90475530e4890693ce7bf89871208ef9e2f0c664b4fd379c23130867648b3).
- * The old pins (PC 0x000b359c/0x000b3598, SP 0x1002a7ec, LR
+ * budget: with the RTC alarm adopted (E-ULS-0048) the guest parks in
+ * WFI from one one-second RTC alarm (IRQ 2) to the next and stops at
+ * the fourth occurrence, vt 4012595271 ns (anchor 12595271 ns = the
+ * boot alarm-pair store) past the 4e9 ns cap, after 16,853,480
+ * instructions; PC 0x000dabcc, SP 0x10029e40, LR 0x0009760b,
+ * XPSR 0x61000000, identical in both passes (reproduced twice; dump
+ * sha256
+ * 56f4b2b8f752ce555af266d9d816948c95a30fcb0dc0d7442cc765e41ddc892e).
+ * The old E-ULS-0046 pins (inst 16667327, vt 262143351559124 - the
+ * wake-overflow park about 2^32 timer ticks past the cap) measured the
+ * pre-alarm engine; the old pins (PC 0x000b359c/0x000b3598,
+ * SP 0x1002a7ec, LR
  * 0x0009c65b) were the E-ULS-0041 frontier of the read-advance
  * counter; the interim 200M frontier (PC 0x0009c3ae at 203844874 ns,
  * dump sha256
@@ -359,7 +364,7 @@ static void test_boot_passes_stimer(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(16667327),
+        SEMU_TEST_EQ_U64(context, UINT64_C(16853480),
                          semu_machine_instructions(machine));
         SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));
