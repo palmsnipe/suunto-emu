@@ -136,6 +136,34 @@ Every device or protocol change needs both a successful case and a refusal
 case. Every bug fix starts with the narrowest regression that fails before the
 fix. Do not weaken a golden, expected stop reason, or hash.
 
+## Local LLM / Agent Concurrency
+
+This project may use Qwen3.8-Flash-Next running locally on a single
+NVIDIA DGX Spark through `dgx-spark-qwen38`.
+
+The model supports a 262K context window per request, but KV cache
+capacity is shared between all concurrent requests.
+
+When spawning sub-agents:
+
+- Prefer 3-4 concurrent sub-agents for normal development work.
+- Avoid unnecessary parallel agents when tasks require large context.
+- Give each sub-agent only the files/context relevant to its task.
+- Reuse shared project context where possible instead of independently
+  loading the entire repository in every agent.
+- Do not assume that the 262K context window is available independently
+  to every concurrent agent.
+
+The server may use:
+
+- `FLASH_TIER=context`: up to 4 simultaneous requests, optimized for
+  long context.
+- `FLASH_TIER=concurrency`: up to 8 simultaneous requests, with the
+  shared KV cache distributed across more active sessions.
+
+For long-running coding or repository-analysis tasks, favor fewer,
+focused agents over maximum concurrency.
+
 ## Handoff
 
 Report:
