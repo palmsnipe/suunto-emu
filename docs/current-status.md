@@ -1798,3 +1798,24 @@ IRQ26/IRQ45 match, +10 IRQ37 pairs, IRQ30/84 over-fire at 2.25x, and no
 tree source for the lane's three IRQ18 pulses) measured the
 pre-adoption per-read-advance engine and need a post-adoption re-run;
 that census re-derivation is tracked as ticket-730 work.
+
+Census close (2026-09-16, ticket 730 wake-overflow census, E-ULS-0047): the
+wake-PARK/wake-reprogram overflow is closed as bounded and self-sustaining -
+the guest wakes once at the wrapped 0xffffffbe arm (one full 2^32-tick count
+cycle later at the calibrated 61,035 ns TIMER0 tick), runs one bounded
+BASEPRI-ladder catch-up of 127,926,510 iterations (383,777,306 ns of pure CPU
+at 0x000c320c-0x000c3228), rewrites CMP0 0x20 via the wake tail, recomputes a
+second negative arm 0xffffcfa9 that fires one further count cycle later, and
+repeats - a deterministic ~262,143 s virtual-time wake cadence, not a
+livelock and not a refused stop; the recorded next stop is the second ladder
+in flight at the 700M-instruction walk bound. The boot-epoch divergence is
+confirmed at 0.5 ms lane granularity (the lane arms 0x20/0x34/0x20/0x64/0x20
+exactly like the tree and never arms a 32-bit-negative compare), and the root
+is the core CPU cadence law (1 ns charged per executing instruction) versus
+the lane's real-time-derived virtual time inside CPU-bound code - every
+byte-exact wake observation is already implemented in-tree, so no ticket-730
+controller change is authorized by this census. Adopting or formally
+accepting the instruction-cost cadence law is core-scope, era-wide integrator
+decision territory. The remaining ticket-730 census queue is unchanged:
+IRQ18/line-2, IRQ37 +10 pairs, the panel-era census, and the post-adoption
+steady-era IRQ census re-run.
