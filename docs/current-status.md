@@ -1877,3 +1877,25 @@ gap, so no ticket-730 src change is authorized. The remaining ticket-730
 census queue is the panel-era census (including the IRQ45 intervals
 28-30 cluster); the E-ULS-0047 cadence-law disposition stays
 integrator-owned.
+
+Census close (2026-09-16, ticket 730 panel-era census, E-ULS-0050): the
+panel era is nine display-PLAY frame launches on IRQ45
+(`Apollo4DisplayController @ 0x400A0000 -> nvic@29`; the class source is
+readable and fully documents the law: PLAY +0x00 raises VSYNC bit 4 of
++0xF8 and the line, a +0xF8 write without bit 4 clears it, +0xF4 =
+0x87452365, +0xEC = 0x77, Size 0x9000, TraceWrites off in this profile),
+filtered twice byte-identically as 9T/9F/9 acks in wake intervals
+28/29/30 (5/3/1) with 5 arm lines starting at interval 28.
+`src/devices/ulsan_disp.c` matches the class law and was edge-verified
+18-vs-18 (E-ULS-0039/0042); p79 shows zero line-29 edges because the era
+is two downstream of the persistence flush, both behind the E-ULS-0047
+park. MSPI2 is not loaded in the Ulsan lane profile at all (External IRQ
+38 zero occurrences) and the loaded SDIO endpoint has no IRQ wiring and
+zero activity - both tree fail-closed holes are lane-consistent. The
+ticket-730 census queue is now fully closed: wake-overflow (E-ULS-0047),
+IRQ18 (E-ULS-0048), IRQ37 + steady-era re-run (E-ULS-0049), panel era
+(E-ULS-0050). No census named an engine-seam gap; the only remaining
+gate to the flush/panel eras is the integrator-owned E-ULS-0047
+cadence-law disposition. A comment-only defect was noted for the
+integrator: the `src/boards/ulsan_board.c` header still lists the
+display controller and MSPI1 as unmapped.
