@@ -46,9 +46,14 @@
  *   0x18000000..0x1803ffff  device-specific first 256 KiB, permanently
  *       absent without hardware and never synthesized (E-ULS-0006).
  *   0x1a000000 and above    outside the recorded XIP aperture.
- *   every other 0x400xxxxx block  IOM, MSPI1 registers, display
- *       controller and NVIC-adjacent SoC blocks are observed-only in the
- *       reference lane; no register behavior is claimed here yet.
+ *   every other 0x400xxxxx block  any SoC block not listed above or mapped
+ *       by the attach functions below is observed-only or absent in the
+ *       reference lane; no register behavior is claimed here yet. Notable
+ *       examples, both lane-consistent per E-ULS-0050: MSPI2 at 0x40062000
+ *       (its repl is sapporo-only and never loaded by the Ulsan lane
+ *       machine; External IRQ 38 never occurs in the retained capture) and
+ *       the SDIO endpoint at 0x40070000 (loaded without IRQ wiring, zero
+ *       guest activity in the retained capture).
  *
  * No semantic input wiring is registered: the Ulsan reset evidence names no
  * button, crown, or touch pin, so semu_machine_input still refuses every
