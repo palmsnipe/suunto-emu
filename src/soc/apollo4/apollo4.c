@@ -427,3 +427,20 @@ int semu_apollo4_get_gpio_input(const semu_apollo4 *soc, unsigned pin)
                ? soc->gpio_level[pin] != 0
                : -1;
 }
+
+semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
+                                        const char *profile_id,
+                                        semu_error *error)
+{
+    if (soc == NULL || profile_id == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Apollo4 profile selection requires soc and id");
+        return SEMU_ERR_ARGUMENT;
+    }
+    /* E-SAP-0032/E-SAP-0033: only the 2.35.34 startup path arms the
+     * one-second RTC alarm before parking; all other verified Sapporo
+     * profiles keep the auxiliary register stub byte-for-byte. */
+    soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ? 1 : 0;
+    semu_error_clear(error);
+    return SEMU_OK;
+}

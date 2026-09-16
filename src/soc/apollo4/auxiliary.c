@@ -1,6 +1,8 @@
 #include "auxiliary.h"
 
 #include "adc.h"
+#include "apollo4_internal.h"
+#include "../../devices/sapporo_rtc.h"
 
 #include <stddef.h>
 
@@ -147,6 +149,12 @@ static const semu_bus_device_ops sync_read_ops = {
 static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
                             uint32_t *value, semu_error *error)
 {
+    semu_apollo4 *soc = (semu_apollo4 *)context;
+
+    if (soc != NULL && soc->rtc_live != 0) {
+        return semu_sapporo_rtc_ops()->read(NULL, offset, width, value,
+                                            error);
+    }
     if (context == NULL || value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Apollo4 RTC read requires context and value");
@@ -167,6 +175,12 @@ static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
 static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
                              uint32_t value, semu_error *error)
 {
+    semu_apollo4 *soc = (semu_apollo4 *)context;
+
+    if (soc != NULL && soc->rtc_live != 0) {
+        return semu_sapporo_rtc_ops()->write(NULL, offset, width, value,
+                                             error);
+    }
     (void)value;
     if (context == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
@@ -185,7 +199,11 @@ static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
 
 static void rtc_reset(void *context)
 {
-    (void)context;
+    semu_apollo4 *soc = (semu_apollo4 *)context;
+
+    if (soc != NULL && soc->rtc_live != 0) {
+        semu_sapporo_rtc_ops()->reset(NULL);
+    }
 }
 
 static const semu_bus_device_ops rtc_ops = {
@@ -257,6 +275,9 @@ semu_status semu_apollo4_auxiliary_map(semu_bus *bus, void *context,
                        "Apollo4 auxiliary devices require bus and context");
         return SEMU_ERR_ARGUMENT;
     }
+    /* Machine-create detach of the Sapporo live RTC seams
+     * (ulsan_rtc map-reset analogue, E-SAP-0032). */
+    semu_sapporo_rtc_detach();
     status = semu_apollo4_adc_map(bus, context, error);
     if (status != SEMU_OK) {
         return status;

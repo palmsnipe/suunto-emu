@@ -83,13 +83,14 @@ resident_same_reset_vector=true
 [bounded_traces]
 status=observed
 profile=sapporo-2.35.34
-reset_mmio_traces=E-SAP-0031
-reset_trace_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-startup_stop=budget pc=0x000e1862 instructions=100000000
-park_first_hit=89405875
-run_log_pair_sha256=87ea1ca817cb3375ab35463cfe45c266a89b96a8ea4d82ac2bf25efb1dc07600
+reset_mmio_traces=E-SAP-0033
+reset_trace_sha256=0628133afeb6512b7bc77eab490789baf116bbc07c524f43c1755bab573ea523
+startup_stop=budget pc=0x000ccb1a instructions=100000000
+wake_alarm_irq=E-SAP-0032 line 2, occurrence at virtual_time_ns=1011860573
+reset_request_pc=0x000cdf5a
+run_log_pair_sha256=d8029b6b1fa61cead6fe37cccff254c836e4418103e088b99a62d7f56d2dc03a
 
 [limitations]
 cache_interventions=unknown
 logical_storage_interventions=unknown
-description=Component contracts are exact; bounded run traces recorded via the in-tree sapporo-2.35.34 profile (E-SAP-0031); the startup idle WFI park matches the reference lane park PC (E-SAP-0030); the wake source is identified as the inert one-second RTC alarm (E-SAP-0032); the in-tree RTC replacement is held for the profile-gated integration seam named there
+description=Component contracts are exact; the startup idle WFI park matched the reference lane park PC (E-SAP-0030/E-SAP-0031) until the identified one-second RTC alarm (E-SAP-0032) was attached for this profile only (E-SAP-0033); the boot now wakes, issues its footer-validation AIRCR reset at 0x000cdf5a (the native boundary the lane 2.35 resc registers a reset macro for), and the second boot runs to the recorded budget stop; 2.22/2.33/2.39 keep the inert RTC stub

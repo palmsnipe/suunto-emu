@@ -25,6 +25,7 @@
 struct semu_apollo4 {
     semu_bus *bus;
     int initialized;
+    int rtc_live; /* set by semu_apollo4_select_profile (E-SAP-0032) */
     semu_apollo4_irq_fn irq_sink;
     void *irq_context;
     uint8_t gpio_level[SEMU_APOLLO4_GPIO_COUNT];

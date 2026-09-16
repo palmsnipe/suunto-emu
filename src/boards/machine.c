@@ -16,6 +16,7 @@
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
+#include "../devices/sapporo_rtc.h"
 #include "ulsan_board.h"
 
 #include <stdlib.h>
@@ -117,6 +118,13 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
             machine->devices, machine->profile.id, error) != SEMU_OK) {
         return error->code;
     }
+    if (semu_apollo4_select_profile(machine->soc, machine->profile.id,
+                                    error) != SEMU_OK) {
+        return error->code;
+    }
+    /* Seams survive as no-ops unless the profile selection enabled
+     * the live RTC block (ticket 710, E-SAP-0032/E-SAP-0033). */
+    semu_sapporo_rtc_attach(machine->scheduler, irq_sink, machine);
     semu_sapporo_devices_set_logger(machine->devices, machine->logger);
     if (semu_sapporo_devices_bind_bus(machine->devices, machine->bus,
                                       error) != SEMU_OK) {

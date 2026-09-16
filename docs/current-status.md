@@ -1939,3 +1939,27 @@ the SoC create path are outside ticket 710's Allowed Files, so per the
 contract's stop rule the census ships with the smallest integration ask
 instead of a private workaround; a follow-up 710 instance attaches the
 law and re-records the bounded stop.
+
+Ticket 710 instance-3 (integrator-authorized seam from E-SAP-0032): the
+Sapporo 2.35.34 park now wakes (E-SAP-0033). `semu_apollo4_select_profile`
+(new in `include/semu/apollo4.h`) enables the live RTC block from the new
+`src/devices/sapporo_rtc.c` for `sapporo-2.35.34` only - the E-ULS-0048
+law (framework stores, BCD-hundredths counter at +0x20, the observed
+`0x200=1 && 0x208=1` pair arming a one-second IRQ-2 alarm with the
+61,035 ns acknowledge pulse and occurrence-scheduled repeat); the 2.22/
+2.33/2.39 stubs and Ulsan paths are dispatch-guarded and byte-for-byte.
+Recorded post-wake stop (twice byte-identical, CLI pair):
+`stop=budget pc=0x000ccb1a instructions=100000000
+virtual_time_ns=1033322780` (log sha256 `d8029b6b...`); the trace pair
+(`0628133a...`) carries the wake's follow-on native boundary: the boot's
+footer-validation AIRCR reset at `pc=0x000cdf5a`
+(`r0=0x05fa0004`, `virtual_time_ns=1011860573`, `reset_count=1`) - the
+same boundary the lane 2.35 resc registers its reset macro for, the
+2.35 analogue of 2.33's startup SYSRESETREQ (E-SAP-0015). The contract
+fixture `[bounded_traces]` is re-pinned to this stop (E-SAP-0031's park
+stop stays on record in the ledger). Focused
+`make test TEST_FILTER=sapporo_rtc` 7/7 green twice; `make check-lines`,
+`make check`, `make sanitize`, and the full-flash era gate
+(`SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin`,
+sha256 `37134845...`) green. Next observation: the next distinct stop
+past the AIRCR boot cycle is the following 710 instance's census.
