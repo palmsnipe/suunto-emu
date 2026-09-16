@@ -1855,3 +1855,25 @@ era script exists for the ULSAN profile (era drift surface zero), and
 `make check`/`make check-lines`/`make sanitize` are green. The remaining
 ticket-730 census queue is: IRQ37 +10 pairs, the panel-era census, and
 the post-adoption steady-era IRQ census re-run.
+
+Census close (2026-09-16, ticket 730 post-adoption IRQ census re-run,
+E-ULS-0049): the IRQ37 +10-pair item and the steady-era re-run item are
+closed on the already-pinned twice-byte-identical artifacts (lane lp50
+per-IRQ stream re-derived twice, sha 2abca39c...; tree committed-engine
+census p79). The lane's 2184 IRQ37 ack pairs are NOT a steady cadence:
+2159 fall in the wake1-to-wake2 interval, 20 in interval 21, 5 in
+interval 65 - the E-ULS-0031 persistence lifecycle as three discrete
+flush bursts. The steady wake profile is {IRQ30:3, IRQ84:3} every
+interval plus one IRQ26 doorbell in 22 of 113 intervals; IRQ45 occurs
+only in intervals 28-30 (panel-era scope). The committed engine shows
+zero line-21 edges with zero refusals across 16.9M instructions and 4
+alarm wakes: the guest's alarm wake re-arms 0x228 with 0x20, recomputes
+0xffffffbf and WFI-s to the next alarm without ever entering the
+MSPI1/IOM4/display work, so every post-boot lane edge stream sits behind
+the E-ULS-0047 negative-compare park. The E-ULS-0042 +10-pair micro-
+divergence belonged to the retired read-advance engine era (E-ULS-0046)
+and is void under the current engine; the census names no engine-seam
+gap, so no ticket-730 src change is authorized. The remaining ticket-730
+census queue is the panel-era census (including the IRQ45 intervals
+28-30 cluster); the E-ULS-0047 cadence-law disposition stays
+integrator-owned.
