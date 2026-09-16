@@ -1919,3 +1919,23 @@ The park's wake source is unidentified - identifying it is the first
 candidate gap for a ticket 710 implementation instance against this
 profile. Focused test `sapporo_profile_235` green; existing profile
 code paths untouched, so no era pin can drift.
+
+Ticket 710 instance-2 census: the Sapporo 2.35.34 park wake source is now
+identified as the Apollo4 one-second RTC alarm (E-SAP-0032). A lane probe
+pair (scratchpad resc re-including `sapporo-2.35.resc` with the upstream
+`AmbiqApollo4_RTC` replaced by an access-logging peripheral, 10 s runs)
+captured two byte-identical 13-transaction RTC init blocks per run:
+`+0x00` control writes 0 and 0xE, `+0x30` write 0, the E-ULS-0048 alarm
+stores `+0x208=1` and `+0x200=1`, then `+0x20/+0x24` counter reads that
+never advance - the guest then WFI-parks waiting for IRQ 2 (`rtc ->
+nvic@2` in the upstream platform repl), which the lane class never
+asserts. The in-tree stub in `src/soc/apollo4/auxiliary.c` accepts
+exactly the observed offsets, answers zero, and raises nothing, so the
+tree swallows the same arm and parks at the same PC (E-SAP-0031). The
+RTC replacement (E-ULS-0048 law for `sapporo-2.35.34` only; stubs kept
+byte-for-byte for 2.22/2.33/2.39) needs a profile-selection seam on
+`semu_apollo4` that `src/boards/machine.c` could use - `auxiliary.c` and
+the SoC create path are outside ticket 710's Allowed Files, so per the
+contract's stop rule the census ships with the smallest integration ask
+instead of a private workaround; a follow-up 710 instance attaches the
+law and re-records the bounded stop.
