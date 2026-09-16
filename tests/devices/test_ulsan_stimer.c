@@ -1,10 +1,15 @@
 /*
- * Ulsan SystemTimer tests (ticket 730, E-ULS-0014/0020/0038).
+ * Ulsan SystemTimer tests (ticket 730, E-ULS-0014/0020/0038 law
+ * superseded in part by E-ULS-0045/E-ULS-0046).
  *
- * LOAD/CTL hold the observed writes (bit-31 mask proven by the lane
- * read-back); CNT advances monotonically per read; the +0x50..+0x5c
- * NVRAM plane stores and reads back and survives the machine reset
- * (lane Apollo4RetainedSystemTimer). The boot case is manifest-gated.
+ * CONFIG is a plain store, reset 0x80000000 (lane lp48); STTMR is
+ * virtual-time derived at the CLKSEL rate (3 = 32000 Hz, lp47:
+ * +0xA0 per 5 ms), reads equal at equal virtual time (the guest's
+ * PRIMASK-scoped triple-read at 0xc2bc8 must see the stable branch),
+ * and holds while gated. The +0x50..+0x5c NVRAM plane stores, reads
+ * back, and survives the machine reset (lane Apollo4RetainedSystem-
+ * Timer). Without a scheduler attach the virtual-time registers
+ * refuse. The boot case is manifest-gated.
  */
 
 #include <stdio.h>
@@ -13,72 +18,175 @@
 
 #include "semu/bus.h"
 #include "semu/machine.h"
+#include "semu/scheduler.h"
 #include "semu/manifest.h"
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/boards/ulsan_board.h"
 #include "../../src/devices/ulsan_stimer.h"
 
+#define STIMER_CONFIG 0x40008800u
+#define STIMER_COUNT  0x40008804u
+#define STIMER_CTL    0x40008900u
+
 static void test_registers_hold_lane_behavior(semu_test_context *context)
 {
     semu_bus *bus;
+    semu_scheduler *scheduler;
     semu_error error;
     uint32_t value = 0xdeadbeefu;
-    uint32_t first;
+    uint32_t triple[3];
+    uint32_t last;
+    unsigned i;
+    unsigned ticks_seen = 0u;
 
     semu_error_clear(&error);
     bus = semu_bus_create(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
     semu_error_clear(&error);
+    scheduler = semu_scheduler_create(&error);
+    SEMU_TEST_ASSERT(context, scheduler != NULL);
+    semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+    semu_ulsan_stimer_attach(scheduler);
 
-    /* Boot's OR-constants accumulate in LOAD, but bit 31 is not stored
-     * (the lane read 0x303 back after the 0x80000000 write). */
+    /* CONFIG resets to FREEZE with CLKSEL=NOCLK (lp48 at vt=0) and the
+     * gated counter answers 0. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008800u, 4u, UINT32_C(0x303),
-                                    &error));
+                     semu_bus_read(bus, STIMER_CONFIG, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x80000000), value);
+    value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008800u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x303), value);
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+
+    /* Boot sequence as static RE pins it (0xc2b52/0xc2b60 via 0x9bf38):
+     * store 0x80000000, then RMW (old & 0x7FFF00F0) | 0x303. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008800u, 4u,
-                                    UINT32_C(0x80000303), &error));
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x80000000), &error));
     value = 0u;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008800u, 4u, &value, &error));
+                     semu_bus_read(bus, STIMER_CONFIG, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x80000000), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x303), &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_CONFIG, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0x303), value);
+
+    /* CLKSEL=3 enables 32000 Hz: three consecutive reads at the same
+     * virtual time are equal (the getter's stable branch), then exact
+     * lp47 rates - one tick per 31250 ns and +0xA0 per 5 ms. */
+    for (i = 0u; i < 3u; ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, STIMER_COUNT, 4u, &triple[i],
+                                       &error));
+    }
+    SEMU_TEST_EQ_U64(context, triple[0], triple[1]);
+    SEMU_TEST_EQ_U64(context, triple[1], triple[2]);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(31250),
+                                            &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), value);
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(5000000),
+                                            &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(161), value);
+    /* The lane models XTAL_32KHZ as exactly 32000, not silicon 32768:
+     * one whole second of counting lands on 32000 ticks. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler,
+                                            UINT64_C(994968750), &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(32000), value);
+
+    /* FREEZE holds the counter across further time (upstream Enabled
+     * gate; no lane evidence of clear-on-regate), and re-enable
+     * resumes from the held value. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x80000000), &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(1000000),
+                                            &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(32000), value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x303), &error));
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(62500),
+                                            &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(32002), value);
+
+    /* Freeze regression (found by the E-ULS-0046 in-era probe): the
+     * wake loop calls the counter getter every ~170 ns of virtual time.
+     * A fold that re-anchored on every read truncated each sub-tick
+     * remainder and pinned STTMR forever (the probe froze at 184).
+     * Upstream derives Value from a fixed origin, so dense monotone
+     * reads must keep crossing ticks: 400 reads spaced 100 ns apart
+     * span 40000 ns = exactly one tick plus an 8750 ns remainder. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x80000000), &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u,
+                                    UINT32_C(0x303), &error));
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    last = value;
+    for (i = 0u; i < 400u; ++i) {
+        uint32_t seen = 0u;
+        semu_error_clear(&error);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_scheduler_advance(scheduler, UINT64_C(100),
+                                                &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+                         semu_bus_read(bus, STIMER_COUNT, 4u, &seen,
+                                       &error));
+        SEMU_TEST_ASSERT(context, seen >= last);
+        SEMU_TEST_ASSERT(context, seen - last <= 1u);
+        ticks_seen += (unsigned)(seen - last);
+        last = seen;
+    }
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), ticks_seen);
+
     /* CTL stores; boot's clear lands on 0. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008900u, 4u, UINT32_C(0),
+                     semu_bus_write(bus, STIMER_CTL, 4u, UINT32_C(7),
                                     &error));
     value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008900u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* NVRAM words (E-ULS-0038): wrapper-backed plane; reads answer the
-     * per-word store, all four readable and writable (lane wrapper
-     * intercepts 0x50..0x5c ahead of the upstream SystemTimer). */
-    value = 0xdeadbeefu;
+                     semu_bus_read(bus, STIMER_CTL, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(7), value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008858u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x4000885cu, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008854u, 4u, UINT32_C(0),
+                     semu_bus_write(bus, STIMER_CTL, 4u, UINT32_C(0),
                                     &error));
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008854u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
-    /* Full NVRAM plane stores and reads back; the words survive the
-     * machine reset (guest's startup-mode carry across AIRCR). */
-    value = 0xdeadbeefu;
-    SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008850u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+
+    /* NVRAM plane (E-ULS-0038): stores read back, survive the reset;
+     * CONFIG resets to FREEZE and the counter restarts gated at 0. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x40008850u, 4u,
                                     UINT32_C(0x13579bdf), &error));
@@ -88,6 +196,11 @@ static void test_registers_hold_lane_behavior(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x4000885cu, 4u,
                                     UINT32_C(0x3579bdf1), &error));
+    semu_bus_reset(bus);
+    value = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, STIMER_CONFIG, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x80000000), value);
     value = 0u;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40008850u, 4u, &value, &error));
@@ -100,35 +213,15 @@ static void test_registers_hold_lane_behavior(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x4000885cu, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0x3579bdf1), value);
-    {
-        uint32_t control_before = 0u;
-        SEMU_TEST_EQ_U64(context, SEMU_OK,
-                         semu_bus_write(bus, 0x40008900u, 4u, UINT32_C(7),
-                                        &error));
-        semu_bus_reset(bus);
-        SEMU_TEST_EQ_U64(context, SEMU_OK,
-                         semu_bus_read(bus, 0x40008900u, 4u,
-                                       &control_before, &error));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0), control_before);
-    }
     value = 0u;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008850u, 4u, &value, &error));
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x13579bdf), value);
-    /* CNT is monotonic and never repeats while being read. */
+                     semu_bus_read(bus, STIMER_CTL, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    value = 0xdeadbeefu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_read(bus, 0x40008804u, 4u, &first, &error));
-    {
-        unsigned i;
-        for (i = 0u; i < 8u; ++i) {
-            uint32_t next = 0u;
-            SEMU_TEST_EQ_U64(context, SEMU_OK,
-                             semu_bus_read(bus, 0x40008804u, 4u, &next,
-                                           &error));
-            SEMU_TEST_ASSERT(context, next != first);
-            first = next;
-        }
-    }
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), value);
+    semu_scheduler_destroy(scheduler);
     semu_bus_destroy(bus);
 }
 
@@ -146,6 +239,16 @@ static void test_unobserved_registers_refused(semu_test_context *context)
     SEMU_TEST_ASSERT(context, bus != NULL);
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+    /* The map detaches the scheduler: the virtual-time registers
+     * (CONFIG write, STTMR read) refuse instead of guessing a clock. */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, STIMER_CONFIG, 4u, UINT32_C(0x303),
+                                    &error) != SEMU_OK);
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_read(bus, STIMER_COUNT, 4u, &value, &error) !=
+                         SEMU_OK);
 
     for (index = 0u; index < sizeof(offsets) / sizeof(offsets[0]); ++index) {
         semu_error_clear(&error);
@@ -161,6 +264,12 @@ static void test_unobserved_registers_refused(semu_test_context *context)
     SEMU_TEST_ASSERT(context,
                      semu_bus_read(bus, 0x40008802u, 4u, &value, &error) !=
                          SEMU_OK);
+    /* STTMR is read-only: the lane drops guest writes there and the
+     * era never sends one (E-ULS-0045 census); the engine refuses. */
+    semu_error_clear(&error);
+    SEMU_TEST_ASSERT(context,
+                     semu_bus_write(bus, STIMER_COUNT, 4u, UINT32_C(1),
+                                    &error) != SEMU_OK);
     /* The NVRAM plane is doubleword-only like the lane wrapper: sub-word
      * and unaligned accesses refuse. */
     {
@@ -186,10 +295,18 @@ static void test_unobserved_registers_refused(semu_test_context *context)
  * Renode 1.16.1 silent continuation plus the lp34b post-assert
  * interrupt census), so both epochs walk past the AM_DEBUG_LOG_ERROR
  * assert at 0x0006bda8 into the scheduler era. Both passes now run to
- * the instruction budget: 200,000,000 instructions each, PC
- * 0x000b359c (pass zero) / 0x000b3598 (pass one, after the harness
- * reset with retained STIMER NVRAM and MSPI1 planes), SP 0x1002a7ec,
- * LR 0x0009c65b, XPSR 0x61000000 in both (reproduced twice). The
+ * budget: a wake-overflow WFI jump parks virtual time at
+ * 262143351559124 ns (about 2^32 timer ticks) past the 4e9 ns cap
+ * after 16,667,327 instructions; PC 0x000dabcc, SP 0x10029e40, LR
+ * 0x0009760b, XPSR 0x61000000, identical in both passes (reproduced
+ * twice; dump sha256
+ * c5a90475530e4890693ce7bf89871208ef9e2f0c664b4fd379c23130867648b3).
+ * The old pins (PC 0x000b359c/0x000b3598, SP 0x1002a7ec, LR
+ * 0x0009c65b) were the E-ULS-0041 frontier of the read-advance
+ * counter; the interim 200M frontier (PC 0x0009c3ae at 203844874 ns,
+ * dump sha256
+ * ae279d6361c523e68d4c9e6f665e223ee352d18e7920ebe3b3d16f1991bc9a26)
+ * measured the first fold, which froze dense getter reads. The
  * lane's final 440 ms show 141 IRQ30/IRQ84 pairs, 49 deep-sleep/wake
  * cycles, and two more IRQ18 acknowledgements with no IRQ26/37/45 in
  * this era; matching the lane's steady-era census (panel era, MSPI2,
@@ -242,13 +359,12 @@ static void test_boot_passes_stimer(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(200000000),
+        SEMU_TEST_EQ_U64(context, UINT64_C(16667327),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x000b359c)
-                                              : UINT64_C(0x000b3598),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1002a7ec), state->r[13]);
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x0009c65b), state->r[14]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x0009760b), state->r[14]);
         SEMU_TEST_EQ_U64(context, UINT64_C(0x61000000), state->xpsr);
     }
     semu_machine_destroy(machine);

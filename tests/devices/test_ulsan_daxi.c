@@ -105,10 +105,15 @@ static void test_narrow_or_misaligned_refused(semu_test_context *context)
  * Renode 1.16.1 silent continuation plus the lp34b post-assert
  * interrupt census), so both epochs walk past the AM_DEBUG_LOG_ERROR
  * assert at 0x0006bda8 into the scheduler era. Both passes now run to
- * the instruction budget: 200,000,000 instructions each, PC
- * 0x000b359c (pass zero) / 0x000b3598 (pass one, after the harness
- * reset with retained STIMER NVRAM and MSPI1 planes), SP 0x1002a7ec,
- * LR 0x0009c65b, XPSR 0x61000000 in both (reproduced twice). The
+ * budget: a wake-overflow WFI jump parks virtual time at
+ * 262143351559124 ns (about 2^32 timer ticks) past the 4e9 ns cap
+ * after 16,667,327 instructions (frontier re-pinned by E-ULS-0046
+ * with the read-pure virtual-time STTMR; both passes converge on PC
+ * 0x000dabcc, SP 0x10029e40, LR 0x0009760b, XPSR 0x61000000;
+ * reproduced twice; dump sha256
+ * c5a90475530e4890693ce7bf89871208ef9e2f0c664b4fd379c23130867648b3;
+ * old E-ULS-0041 pins PC 0x000b359c/0x000b3598, SP 0x1002a7ec, LR
+ * 0x0009c65b measured the read-advance counter). The
  * lane's final 440 ms show 141 IRQ30/IRQ84 pairs, 49 deep-sleep/wake
  * cycles, and two more IRQ18 acknowledgements with no IRQ26/37/45 in
  * this era; matching the lane's steady-era census (panel era, MSPI2,
@@ -161,13 +166,12 @@ static void test_boot_passes_daxi_probe(semu_test_context *context)
         state = semu_cpu_get_state(machine->cpu);
         SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                          (uint64_t)reason);
-        SEMU_TEST_EQ_U64(context, UINT64_C(200000000),
+        SEMU_TEST_EQ_U64(context, UINT64_C(16667327),
                          semu_machine_instructions(machine));
-        SEMU_TEST_EQ_U64(context, pass == 0u ? UINT64_C(0x000b359c)
-                                              : UINT64_C(0x000b3598),
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x000dabcc),
                          semu_machine_program_counter(machine));
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x1002a7ec), state->r[13]);
-        SEMU_TEST_EQ_U64(context, UINT64_C(0x0009c65b), state->r[14]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x10029e40), state->r[13]);
+        SEMU_TEST_EQ_U64(context, UINT64_C(0x0009760b), state->r[14]);
         SEMU_TEST_EQ_U64(context, UINT64_C(0x61000000), state->xpsr);
     }
     semu_machine_destroy(machine);

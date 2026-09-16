@@ -1778,12 +1778,23 @@ re-derivation of the six drifted Sapporo 2.39 opt-in era scripts plus a
 and `wbsto_cache` were proven to fail September pins independently of the
 engine semantics change (bisect attribution in E-ULS-0041).
 
-Ulsan frontier state after E-ULS-0041/0042: BKPT #0 executes as a no-op per
+Ulsan frontier state after E-ULS-0046: BKPT #0 executes as a no-op per
 the lane and ARMv7-M (halt-era expectations fully migrated, goldens
-re-pinned with cited evidence); both Ulsan epochs now run to a
-4,000,000,000-instruction budget with zero refusals, deadlocks, or resets
-(pass 0 pc 0x000b359c / pass 1 pc 0x000b3598, reproduced byte-identically,
-E-ULS-0042). The steady-era census vs lane lp34b shows exact IRQ26/IRQ45
-match, +10 IRQ37 pairs, IRQ30/84 over-fire at 2.25x (era/gating, the tree
-tick rate is exactly the guest-programmed period), and no tree source for the
-lane's three IRQ18 pulses; those are the next ticket-730 instances.
+re-pinned with cited evidence). The engine's STTMR law changed from the
+E-ULS-0014 per-read advance counter to the lane's live virtual-time
+counter, so the frontier and wake-era claims were re-derived: both Ulsan
+epochs now stop at the 4e9 ns virtual-time cap after a wake-overflow WFI
+jump (wrapped TIMER0 re-arm 0xffffffbe, about 2^32 timer ticks) parks the
+epoch at virtual time 262,143,351,559,124 ns with 16,667,327 instructions
+executed, zero refusals (pass 0 = pass 1: pc 0x000dabcc, SP 0x10029e40,
+LR 0x0009760b, XPSR 0x61000000, reproduced byte-identically, E-ULS-0046).
+Under the same law and frontier the per-pass wake census (probe72x, run
+twice byte-identically) is 5 IRQ14 wakes with computed TIMER0 re-arms
+0x20/0x3f/0x20/0x65/0x20 and a final 0xffffffbe wrap 66 ns after a wake -
+the first wake-era gap the real-tick law exposed; the wake-reprogram
+overflow is the next ticket-730 instance. The E-ULS-0042-era claims (the
+4,000,000,000-instruction frontier at pc 0x000b359c/0x000b3598; exact
+IRQ26/IRQ45 match, +10 IRQ37 pairs, IRQ30/84 over-fire at 2.25x, and no
+tree source for the lane's three IRQ18 pulses) measured the
+pre-adoption per-read-advance engine and need a post-adoption re-run;
+that census re-derivation is tracked as ticket-730 work.
