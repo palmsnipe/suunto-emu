@@ -51,6 +51,7 @@ typedef struct {
     semu_event_id clear_event;
     int clear_event_valid;
     int line_high;
+    uint64_t now_high_water; /* max scheduler now observed (E-SAP-0034) */
 } sapporo_rtc_state;
 
 static sapporo_rtc_state rtc_instance;
@@ -121,7 +122,9 @@ static void rtc_alarm_event(void *context, uint64_t now_ns)
     sapporo_rtc_state *s = (sapporo_rtc_state *)context;
     semu_error error;
 
-    (void)now_ns;
+    if (now_ns > s->now_high_water) {
+        s->now_high_water = now_ns;
+    }
     s->alarm_event_valid = 0;
     rtc_set_line(s, 1);
     if (semu_scheduler_schedule(s->scheduler, RTC_PULSE_FALL_NS,
@@ -139,8 +142,27 @@ static void rtc_alarm_event(void *context, uint64_t now_ns)
 static void rtc_alarm_arm(sapporo_rtc_state *s)
 {
     semu_error error;
+    uint64_t now;
 
-    if (s->scheduler == NULL || s->alarm_event_valid ||
+    if (s->scheduler == NULL) {
+        return;
+    }
+    now = semu_scheduler_now(s->scheduler);
+    if (now < s->now_high_water) {
+        /* The engine's software-reset path (machine reset with SRAM
+         * retention, E-SAP-0034) zeroes the scheduler and drops every
+         * pending event without a device bus reset. A regressed clock
+         * therefore proves our recorded ids are stale, not pending:
+         * drop them (and the possibly stuck line) so the guest's
+         * post-reset re-arm of this re-initialised boot can take. */
+        s->alarm_event_valid = 0;
+        s->clear_event_valid = 0;
+        rtc_set_line(s, 0);
+    }
+    if (now > s->now_high_water) {
+        s->now_high_water = now;
+    }
+    if (s->alarm_event_valid ||
         s->regs[2] != RTC_ALARM_VALUE || s->regs[3] != RTC_ALARM_VALUE) {
         return;
     }
@@ -224,6 +246,7 @@ static void rtc_reset(void *context)
     s->regs[1] = 0u;
     s->regs[2] = 0u;
     s->regs[3] = 0u;
+    s->now_high_water = 0u;
 }
 
 static const semu_bus_device_ops rtc_ops = {
@@ -252,6 +275,25 @@ void semu_sapporo_rtc_detach(void)
     rtc_instance.regs[1] = 0u;
     rtc_instance.regs[2] = 0u;
     rtc_instance.regs[3] = 0u;
+    rtc_instance.now_high_water = 0u;
+}
+
+void semu_sapporo_rtc_probe(uint32_t regs[4], int *armed, int *line_high)
+{
+    /* Pure observation for the E-SAP-0034 boot-cycle census; touches
+     * nothing, so it is safe to call between machine runs. */
+    if (regs != NULL) {
+        regs[0] = rtc_instance.regs[0];
+        regs[1] = rtc_instance.regs[1];
+        regs[2] = rtc_instance.regs[2];
+        regs[3] = rtc_instance.regs[3];
+    }
+    if (armed != NULL) {
+        *armed = rtc_instance.alarm_event_valid != 0 ? 1 : 0;
+    }
+    if (line_high != NULL) {
+        *line_high = rtc_instance.line_high != 0 ? 1 : 0;
+    }
 }
 
 void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
@@ -263,3 +305,4 @@ void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
     rtc_instance.irq_sink = sink;
     rtc_instance.irq_context = context;
 }
+

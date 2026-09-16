@@ -1963,3 +1963,27 @@ stop stays on record in the ledger). Focused
 (`SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin`,
 sha256 `37134845...`) green. Next observation: the next distinct stop
 past the AIRCR boot cycle is the following 710 instance's census.
+
+Ticket 710 instance-4 (E-SAP-0034): the attached 2.35.34 alarm survived
+its first software reset. Extending the E-SAP-0033 budgets showed the
+boot cycle dying in a permanent second park
+(`stop=budget pc=0x000e1862 instructions=169620897
+virtual_time_ns=37382080363`, pair-identical): the engine's
+SRAM-retaining software-reset path zeroes the scheduler - dropping the
+pending alarm repeat without any device bus reset - while the guest's
+new boot re-arms and the module's sticky pending flag vetoed the
+re-arm. The module now tracks the scheduler-clock high-water mark; an
+arm-time regression proves the flush (the clock is otherwise
+monotonic), the stale state falls, and the re-arm takes - public
+scheduler API only, no engine change. Post-fix census (pairs
+byte-identical): 500M ends `pc=0x000a6c58 vt=5461709873` with 8 reset
+requests, 1000M ends `pc=0x000a7036 vt=10646636623` with 18 - a stable
+~1.01186 s boot-wake-reset cycle with ~21.3 ms alternate second
+resets, no refusals; the first-boot record and the 100M-budget stop
+are byte-preserved. `make test TEST_FILTER=sapporo_rtc` 8/8 green
+twice (new `test_software_reset_flush_rearms`); check-lines/check/
+sanitize green; full-flash era gate red set identical to the
+pre-change baseline (the 16 known drift-red scripts, integrator's
+era re-derivation queue). Next observation: cycle escape (the footer
+validation apparently never passes without the full-flash preload the
+2.39 era uses) is the next 710 instance's census.

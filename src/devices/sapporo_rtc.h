@@ -34,4 +34,11 @@ void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
  * and the saved seams without touching a possibly-freed sink. */
 void semu_sapporo_rtc_detach(void);
 
+/* Read-only observation of the module instance for focused tests
+ * (E-SAP-0034 boot-cycle census): regs lists the four stored slots in
+ * bus-offset order (+0x00, +0x30, +0x200, +0x208); armed is the
+ * pending-alarm flag and line_high the IRQ line state. Any argument
+ * may be NULL. */
+void semu_sapporo_rtc_probe(uint32_t regs[4], int *armed, int *line_high);
+
 #endif

@@ -316,6 +316,62 @@ static void test_reset_cancels_pending_alarm(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_software_reset_flush_rearms(semu_test_context *context)
+{
+    semu_scheduler *scheduler;
+    semu_bus *bus;
+    semu_error error;
+    uint32_t regs[4];
+    int armed = -1;
+    int line_high = -1;
+    const uint64_t period_ns = UINT64_C(1000000000);
+
+    /* E-SAP-0034: the machine's SRAM-retaining software reset zeroes
+     * the scheduler and drops the pending alarm without any device
+     * bus reset. The guest re-arms in its new boot; the sticky
+     * pending flag must not veto that re-arm (the recorded pre-fix
+     * boot parked forever with armed=1 and a stuck line). */
+    g_alarm_count = 0u;
+    semu_error_clear(&error);
+    bus = live_bus(&scheduler, &error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40004A08u, 4u, UINT32_C(1),
+                                    &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40004A00u, 4u, UINT32_C(1),
+                                    &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, period_ns, &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), g_alarm_count); /* rise */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(30000),
+                                            &error));
+    semu_scheduler_reset(scheduler); /* engine software reset flush */
+    semu_sapporo_rtc_probe(regs, &armed, &line_high);
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), (uint64_t)armed);
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), (uint64_t)line_high);
+    /* The post-reset boot completes the pair: the clock regression
+     * drops the stale state (fall edge) and re-arms at the new now. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40004A00u, 4u, UINT32_C(1),
+                                    &error));
+    semu_sapporo_rtc_probe(regs, &armed, &line_high);
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), (uint64_t)armed);
+    SEMU_TEST_EQ_U64(context, UINT64_C(0), (uint64_t)line_high);
+    SEMU_TEST_EQ_U64(context, UINT64_C(2), g_alarm_count); /* flush fall */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, period_ns - 1u,
+                                            &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(2), g_alarm_count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_scheduler_advance(scheduler, UINT64_C(1), &error));
+    SEMU_TEST_EQ_U64(context, UINT64_C(3), g_alarm_count);
+    SEMU_TEST_EQ_U64(context, UINT64_C(1), g_alarm_level[2]);
+    semu_bus_destroy(bus);
+    semu_scheduler_destroy(scheduler);
+}
+
 static void test_boot_recorded_stop(semu_test_context *context)
 {
     const char *manifest_path = getenv("SEMU_SAPPORO_235_FIRMWARE_MANIFEST");
@@ -401,6 +457,8 @@ int main(void)
           test_unobserved_values_do_not_arm },
         { "test_reset_cancels_pending_alarm",
           test_reset_cancels_pending_alarm },
+        { "test_software_reset_flush_rearms",
+          test_software_reset_flush_rearms },
         { "test_boot_recorded_stop", test_boot_recorded_stop }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
