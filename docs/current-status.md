@@ -1987,3 +1987,33 @@ pre-change baseline (the 16 known drift-red scripts, integrator's
 era re-derivation queue). Next observation: cycle escape (the footer
 validation apparently never passes without the full-flash preload the
 2.39 era uses) is the next 710 instance's census.
+
+Ticket 710 instance-5 (E-SAP-0035): full RTC register-law rewrite, cycle
+escape. The in-tree guest-access census (pair-identical; 30 accesses to
+the first reset) proved the E-SAP-0034 loop fault-driven: the single
+refusing access was the post-wake counter restore `W20=0x100`. The
+module now mirrors the lane `Timers.AmbiqApollo4_RTC` law end to end
+(upstream source plus the twice-identical rb3 and law probe pairs):
+CTRL stores bits 4:0; WRTC gates whole counter writes; the CNTL/CNTU
+pair commits the epoch clock with WriteBusy/CTERR flow; fields store raw
+validated hex through the lane's hex-compare BCD (`0x00252500` and
+`0x003F3F3F` probe-pinned); cold counters read `0`/`0x14700101`;
+IRQ2 = Enable && Status until InterruptClear; the cadence comes from RPT
+with the lane's true-unit repeats, first-occurrence search, and
+`Limit == Value` firing; unmodelled in-window offsets read 0 and writes
+drop; the window ends at 0x210 and non-4 widths refuse. Boot escapes:
+100M/30s parks at `pc=0x000e1862 instructions=89441522
+vt=30000000000`, 100M/300s reaches `pc=0x000a7022 vt=85159975078`, and
+1B/300s keeps the guest through two full ~120.148 s intervals (AIRCR
+helper at `t=120150672935`/`t=240298801495`, period 120148128560 ns)
+before `pc=0x000e1862 instructions=299057602 vt=300310661417`; every run
+pair byte-identical. The E-SAP-0032/0033/0034 conventions (61035 ns
+pulse, fixed +1s arm delay, refuse-unobserved-in-window, cycle pins) are
+retired as an evidence-driven law correction; the fixture
+`[bounded_traces]` carries the re-pins and the retirement note. Tests
+8/8 twice (module split with `src/devices/sapporo_rtc_time.c`, module at
+the 500-line cap), check-lines/check/sanitize green; full-flash era gate
+red set identical to the pre-change baseline (the 16 known drift-red
+scripts, integrator's era re-derivation queue). Next observation: the
+~120.148 s AIRCR cadence is guest logic beyond RTC - its blocker census
+belongs to the following instance.

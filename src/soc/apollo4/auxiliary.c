@@ -298,6 +298,8 @@ semu_status semu_apollo4_auxiliary_map(semu_bus *bus, void *context,
     if (status != SEMU_OK) {
         return status;
     }
-    return semu_bus_map_device(bus, "apollo4.rtc", RTC_BASE, 0x20cu, &rtc_ops,
-                               context, error);
+    /* 0x210 = the lane peripheral's IKnownSize (E-SAP-0035); the
+     * previous 0x20c cut off InterruptSet at +0x20c. */
+    return semu_bus_map_device(bus, "apollo4.rtc", RTC_BASE, 0x210u,
+                               &rtc_ops, context, error);
 }

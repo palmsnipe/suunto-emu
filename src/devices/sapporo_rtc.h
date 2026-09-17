@@ -6,21 +6,22 @@
 #include "semu/scheduler.h"
 
 /*
- * Sapporo 2.35.34 RTC block semantics at 0x40004800 (ticket 710
- * instance-3, E-SAP-0032; law source E-ULS-0048/E-ULS-0036): the live
- * one-second RTC alarm the startup path arms with the stores
- * +0x208=1 and +0x200=1 before WFI-parking (E-SAP-0032 lane probe),
- * pulsing IRQ line 2 (lane repl "rtc -> nvic@2") momentarily once a
- * second, repeat scheduled at each occurrence. Reads at +0x20 answer
- * the scheduler's virtual time as BCD hundredths (guest seqlock retry
- * reads +0x20 twice); +0x24 answers the constant 0 the stub answers.
+ * Sapporo-2.35.34 live RTC block at 0x40004800 (E-SAP-0035): the
+ * register law mirrors the lane oracle peripheral
+ * Timers.AmbiqApollo4_RTC (Control/Status/Counters/Alarms/Interrupt*,
+ * WRTC gating, per-field BCD validation, 100 Hz epoch clock, RPT
+ * repeat occurrences, IRQ = Enable && Status until Clear). Backed by
+ * three byte-identical lane probe pairs and the in-tree access
+ * census recorded in E-SAP-0035; it retires the approximate
+ * E-SAP-0033/0034 alarm-pair law with that evidence.
+ *
  * Bus ops for the sapporo-2.35.34 profile only: the auxiliary stub
- * dispatches here when the SoC profile selection says so, so the
- * 2.22/2.33/2.39 stub stays byte-for-byte. The accepted offset/width
- * set is exactly the stub's (E-SAP-0032 census offsets); service-time
- * stores beyond that set refuse, fail-closed, and the refusal site is
- * the recorded next stop. Counter reads need the attached scheduler
- * (no scheduler: refuse).
+ * dispatches here when profile selection says so, so the
+ * 2.22/2.33/2.39 stub stays byte-for-byte. Reads inside the 0x210
+ * window answer the law (unmodelled offsets read 0, unmodelled writes
+ * drop, as on the lane); widths other than 4 and offsets at or beyond
+ * 0x210 refuse fail-closed. Counter/alarm timing needs the attached
+ * scheduler (no scheduler: no scheduling, reads use time 0).
  */
 
 const semu_bus_device_ops *semu_sapporo_rtc_ops(void);
@@ -34,11 +35,10 @@ void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
  * and the saved seams without touching a possibly-freed sink. */
 void semu_sapporo_rtc_detach(void);
 
-/* Read-only observation of the module instance for focused tests
- * (E-SAP-0034 boot-cycle census): regs lists the four stored slots in
- * bus-offset order (+0x00, +0x30, +0x200, +0x208); armed is the
- * pending-alarm flag and line_high the IRQ line state. Any argument
- * may be NULL. */
-void semu_sapporo_rtc_probe(uint32_t regs[4], int *armed, int *line_high);
+/* Read-only observation for focused tests: register value at offset
+ * (exactly what a guest read answers, counter fields included);
+ * pending/line state via the return and out parameter. */
+uint32_t semu_sapporo_rtc_probe(uint32_t offset);
+int semu_sapporo_rtc_probe_pending(int *line_high);
 
 #endif

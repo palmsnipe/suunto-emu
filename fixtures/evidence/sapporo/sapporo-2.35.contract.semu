@@ -83,17 +83,15 @@ resident_same_reset_vector=true
 [bounded_traces]
 status=observed
 profile=sapporo-2.35.34
-reset_mmio_traces=E-SAP-0033
-reset_trace_sha256=0628133afeb6512b7bc77eab490789baf116bbc07c524f43c1755bab573ea523
-startup_stop=budget pc=0x000ccb1a instructions=100000000
-wake_alarm_irq=E-SAP-0032 line 2, occurrence at virtual_time_ns=1011860573
-reset_request_pc=0x000cdf5a
-run_log_pair_sha256=d8029b6b1fa61cead6fe37cccff254c836e4418103e088b99a62d7f56d2dc03a
-boot_cycle_reset_requests_at_500m=8 (E-SAP-0034 cadence ~1.01186s, pc 0x000cdf5a)
-boot_cycle_500m_stop=budget pc=0x000a6c58 instructions=500000000 virtual_time_ns=5461709873 run_pair_sha256=0a893e46d5261cf6c5387de82b270b5e59f2cc8d7350cce5c9fc0cf9d4b7fb0a
-boot_cycle_1000m_stop=budget pc=0x000a7036 instructions=1000000000 virtual_time_ns=10646636623 resets=18 run_pair_sha256=3909ae53ea9026e10101a18b08286f7e4ff69d20d9878b8e8a4480a19364e338
+law=E-SAP-0035 register-law rewrite (retires the E-SAP-0032/0033/0034 pinned cycle numbers below; every new pin is a two-run byte-identical pair)
+startup_stop=budget pc=0x000e1862 instructions=89441522 virtual_time_ns=30000000000 (100M/30s budget, guest WFI park, run_pair_sha256=8d4f5694161ea5bd77423226310d84cf58cccf8e6f9c6872d139697219965179)
+startup_stop_300s=budget pc=0x000a7022 instructions=100000000 virtual_time_ns=85159975078 (100M/300s, instruction budget first, run_pair_sha256=9100c14b13c4d6d571b59c1f6512e8f82064a70a24bf3d7cc740137c7a908b00)
+wake_alarm_irq=E-SAP-0035: IRQ2 rises at every whole-second alarm occurrence (RPT=Second, ALML=0, clock epoch 1970-01-01), first wake at virtual_time_ns=1000000000; pinned by tests/devices/test_sapporo_rtc.c (test_second_alarm_law)
+reset_request_pc=0x000cdf5a (guest AIRCR helper; now reached ~120 s apart, no longer fault-driven)
+boot_cycle_1b300s=machine-reset-request t=120150672935 and t=240298801495 ns (period 120148128560 ns, pc=0x000cdf5a lr=0xffffffed xpsr=0x21000003); stop=budget pc=0x000e1862 instructions=299057602 virtual_time_ns=300310661417 (1B/300s, run_pair_sha256=932fecab40e6b780a6309ecb33b2d526a471f2ded2526bb6a72d6d970ab8396f)
+retired_pins=E-SAP-0033/0034: startup_stop pc=0x000ccb1a, wake occurrence 1011860573 ns, run_log_pair_sha256=d8029b6b..., boot_cycle_reset_requests_at_500m=8 (~1.01186 s cadence), boot_cycle_500m_stop pc=0x000a6c58 sha256=0a893e46..., boot_cycle_1000m_stop pc=0x000a7036 sha256=3909ae53..., reset_trace_sha256=0628133a...; those numbers described the HardFault loop caused by the refused W +0x20 counter store and are superseded by the lane register law (volatile logs; new pair hashes recorded above and in docs/migration-evidence.md E-SAP-0035)
 
 [limitations]
 cache_interventions=unknown
 logical_storage_interventions=unknown
-description=Component contracts are exact; the startup idle WFI park matched the reference lane park PC (E-SAP-0030/E-SAP-0031) until the identified one-second RTC alarm (E-SAP-0032) was attached for this profile only (E-SAP-0033); the boot now wakes, issues its footer-validation AIRCR reset at 0x000cdf5a (the native boundary the lane 2.35 resc registers a reset macro for), and the second boot runs to the recorded budget stop; 2.22/2.33/2.39 keep the inert RTC stub; the boot now cycles (E-SAP-0034): after the AIRCR boundary the new boot re-arms and wakes again on a ~1.01186 s cadence, and the pre-fix dead park at instruction 169620897 is superseded by the flush-detection re-arm
+description=Component contracts are exact; the live RTC dispatch (this profile only) implements the lane Timers.AmbiqApollo4_RTC register law since E-SAP-0035: WRTC-gated CNTL/CNTU pair commits the epoch clock, RPT drives the alarm cadence, IRQ2 = Enable && Status until InterruptClear. The W +0x20 refusal that drove the E-SAP-0034 ~1.01186 s HardFault/AIRCR cycle is gone and the boot escapes the cycle: the guest wakes at second occurrences, runs past 100 M instructions in 85 s of virtual time, parks in WFI (pc 0x000e1862), and only re-enters its own AIRCR helper (pc 0x000cdf5a, lr 0xffffffed) every ~120.148 s; the remaining 120 s-cadence guest-level blocker is not RTC-derived (next census territory). 2.22/2.33/2.39 keep the inert RTC stub; window access beyond 0x210 and non-4 widths stay fail-closed refusals
