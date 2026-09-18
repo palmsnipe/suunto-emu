@@ -2017,3 +2017,50 @@ red set identical to the pre-change baseline (the 16 known drift-red
 scripts, integrator's era re-derivation queue). Next observation: the
 ~120.148 s AIRCR cadence is guest logic beyond RTC - its blocker census
 belongs to the following instance.
+
+Ticket 710 instance-6 (E-SAP-0036): IOM4 lane mirror at `0x40054000`, the
+second fault driver of the boot removed. What instance-5 left as the next
+census turned out to be a fault and not a policy: the 2.35 startup path
+takes a BusFault (`cfsr=0x8200`) on its very first IOM4 command write
+`0x38000212` (read, device `0x28`, offset 3, size 2) because the shared
+E-A4-IOM-001 law refuses that window, and the fault handler re-enters the
+guest AIRCR helper every ~120.148 s. The new engine `src/devices/sapporo_iom4.c`
+with its register access handlers in `src/devices/sapporo_iom4_regs.c` and
+the gauge device in `src/devices/sapporo_iom4_gauge.c` mirrors the lane
+`Miscellaneous.SapporoApollo4Iom4` end to end behind the
+`strcmp(profile_id, "sapporo-2.35.34") == 0` gate in `apollo4.c` (IRQ 10):
+two 8-word rings at `0x100`-`0x114` with the reconstructing size word and
+the split thresholds `thr_read = value & 0x3f` and `thr_write = (value >> 8) & 0x3f`,
+the command at `0x120` with its raw type and its status word at `0x12c` as
+`(active & 0x1f) | (cmdstat << 5) | (size_left << 8)`, the interrupts at
+`0x200`-`0x20c`, the DMA engine at `0x210`-`0x248` with its target gate, and
+the device-config gate at `0x2c4` that admits the observed `0x28` device and
+the `0x36` MAX17050 gauge with its probe-pinned register map. Overflow sets
+bit 3 and discards, underflow returns zero and sets bit 2, and both return
+before the threshold is evaluated, so the threshold is updated only on a
+`0x104` write, after a push, and after a pop; an invalid target raises
+`DMA_ERR | CMD` while completion bails out unloaded, and an unregistered
+device records `Error << 5` yet still completes the command. Six lane probe
+scripts, each executed at least twice byte-identically from the read-only
+lane, pinned the eighteen readouts (census hashes and the excluded
+host-side canaries in `docs/migration-evidence.md` E-SAP-0036). Boot after
+the mirror, all pairs re-tested on the final tree: 100M/30s parks at
+`pc=0x000e1862 instructions=89441684 vt=30000000000`, 100M/300s reaches the
+instruction budget at `pc=0x000a6c06 vt=85159974844`, 1B/125s now runs the
+whole former window to the time budget at `instructions=104283521`, and
+1B/300s ends at `instructions=122878688 vt=300000000000` - no
+`machine-reset-request` any more, and the `--trace` logs of both 300 s runs
+are empty, so the guest provokes no refusal and no warning anywhere in the
+window. Tests: nine cases in `tests/devices/test_sapporo_iom4.c`, four
+successful and five covering the error and refusal paths, byte-identical
+twice; `tests/devices/test_sapporo_rtc.c` re-pinned its three-pass record
+(89441684/85778971/85778979, uniformly +162 because the command write no
+longer takes the fault vector) and stays 8/8; the seam moved to
+`src/soc/apollo4/iom_live235.c` so that `iom.c` stays at 497 lines and the
+shared IOM law keeps its byte-for-byte behaviour while `live235` is NULL.
+check-lines, `make check` (927 passes, exit 0), and `make sanitize` (exit 0)
+are green, and the full-flash era gate ran all 43 scripts with a red set
+diff-identical to the 16-name drift baseline - no silent era drift. Next
+observation: beyond the WFI park at `0x000e1862` the boot advances only to
+122878688 instructions in 300 s of virtual time, so what the guest waits for
+there is the following instance's census.

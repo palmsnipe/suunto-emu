@@ -22,6 +22,7 @@
 #define SEMU_APOLLO4_IOM6_IRQ 12u
 
 typedef struct semu_apollo4_iom semu_apollo4_iom;
+struct semu_sapporo_iom4;
 
 typedef void (*semu_apollo4_iom_irq_fn)(void *context, unsigned irq,
                                          int level);
@@ -33,6 +34,11 @@ semu_apollo4_iom *semu_apollo4_iom_create(
     semu_scheduler *scheduler, semu_error *error);
 void semu_apollo4_iom_destroy(semu_apollo4_iom *iom);
 void semu_apollo4_iom_reset(void *context);
+/* E-SAP-0036: profile selection routes the 0x40054000 window of the
+ * sapporo-2.35.34 machine to the lane-mirror engine; NULL restores the
+ * shared E-A4-IOM-001 law. */
+void semu_apollo4_iom_set_live235(semu_apollo4_iom *iom,
+                                  struct semu_sapporo_iom4 *live);
 
 semu_status semu_apollo4_iom_attach_endpoint(
     semu_apollo4_iom *iom, const semu_serial_endpoint *endpoint,

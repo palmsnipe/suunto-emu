@@ -25,7 +25,17 @@ struct semu_apollo4_iom {
     uint32_t dma_status;
     uint32_t device_config;
     int irq_level;
+    struct semu_sapporo_iom4 *live235;
     uint32_t observed_registers[SEMU_APOLLO4_IOM_OBSERVED_REGISTER_COUNT];
 };
+
+/*
+ * E-SAP-0036 lane-mirror seam, defined in iom_live235.c.  Both entry
+ * points are inert while live235 is NULL, which is every profile other
+ * than sapporo-2.35.34, so the shared E-A4-IOM-001 law keeps its
+ * byte-for-byte behaviour there.
+ */
+int semu_apollo4_iom_live_owns(const semu_apollo4_iom *iom);
+void semu_apollo4_iom_live_reset(semu_apollo4_iom *iom);
 
 #endif

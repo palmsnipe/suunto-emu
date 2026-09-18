@@ -1,5 +1,7 @@
 #include "iom_internal.h"
 
+#include "../../devices/sapporo_iom4.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -275,6 +277,7 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
 static void reset_state(semu_apollo4_iom *iom)
 {
     int old_irq_level = iom->irq_level;
+    semu_apollo4_iom_live_reset(iom); /* E-SAP-0036 mirror seam. */
     iom->inten = 0u;
     iom->intstat = 0u;
     iom->dma_trig_en = 0u;
@@ -353,6 +356,12 @@ semu_status semu_apollo4_iom_attach_endpoint(
                        "IOM attach requires iom and endpoint");
         return SEMU_ERR_ARGUMENT;
     }
+    if (semu_apollo4_iom_live_owns(iom)) {
+        /* E-SAP-0036: the mirror owns the 2.35 endpoints, so the shared
+         * device-hub endpoint seam stays unarmed. */
+        semu_error_clear(error);
+        return SEMU_OK;
+    }
     if (iom->endpoint_attached) {
         semu_error_set(error, SEMU_ERR_CONFLICT,
                        "Apollo4 IOM endpoint already attached");
@@ -372,6 +381,10 @@ semu_status semu_apollo4_iom_read(void *context, uint32_t offset,
     if (iom == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "IOM context required");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_apollo4_iom_live_owns(iom)) {
+        return semu_sapporo_iom4_read(iom->live235, offset, width, value,
+                                      error);
     }
     if (width != 4u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -412,6 +425,10 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
     if (iom == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "IOM context required");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (semu_apollo4_iom_live_owns(iom)) {
+        return semu_sapporo_iom4_write(iom->live235, offset, width, value,
+                                       error);
     }
     if (width != 4u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,

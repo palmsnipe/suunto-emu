@@ -424,16 +424,20 @@ static void test_boot_recorded_stop(semu_test_context *context)
         semu_run_limits limits = { UINT64_C(100000000),
                                    UINT64_C(30000000000) };
         semu_stop_reason reason;
-        static const uint64_t instr[3] = { UINT64_C(89441522),
-                                           UINT64_C(85778809),
-                                           UINT64_C(85778817) };
+        static const uint64_t instr[3] = { UINT64_C(89441684),
+                                           UINT64_C(85778971),
+                                           UINT64_C(85778979) };
         unsigned pass;
         /* E-SAP-0035: the RTC register-law module removes the W +0x20
          * refusal that drove the HardFault/AIRCR loop. Boot now wakes
          * at the 1 s alarm occurrences, runs through the old cycle
          * point, and parks in the WFI wait; the 100 M/30 s budget is
          * met by the time cap with the guest at the WFI park pc.
-         * Pins are the byte-identical CLI pair and machine-API runs. */
+         * E-SAP-0036 re-pins the three counts (uniform +162): the first
+         * IOM4 command write is served by the lane mirror instead of
+         * taking the fault vector. Stop reason, park pc and the time
+         * cap are unchanged; pins are the byte-identical CLI pair
+         * (98e1a162..) and machine-API pair (2cae3ad5..). */
         for (pass = 0u; pass < 3u; ++pass) {
             semu_error_clear(&error);
             if (pass != 0u) {
