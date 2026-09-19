@@ -2064,3 +2064,43 @@ diff-identical to the 16-name drift baseline - no silent era drift. Next
 observation: beyond the WFI park at `0x000e1862` the boot advances only to
 122878688 instructions in 300 s of virtual time, so what the guest waits for
 there is the following instance's census.
+
+Ticket 710 instance-7 (E-SAP-0037): input-driven phase records beyond the
+WFI park, the census delivered. Driving the machine through the public API
+with the 4096-instruction input poll and a pinned eight-press timeline
+(lower, middle, upper at 20/21/22 s, 30/31/32 s, lower and middle at
+60/61 s, 300 ms holds, sixteen queue entries), slice-driven at 200000
+instructions and 100000000 ns per call: the no-timeline control reproduces
+the E-SAP-0036 300 s record byte-identically (927 slices, the observer is
+neutral), while under the timeline the park share collapses from 336/927 to
+25/2023 - presses do release the park. At the 400M/300s caps the run ends
+`stop=budget pc=0x000bdc10 instructions=400000000 vt=30891199362` with
+eight entries delivered, and at the 1B/300s caps `pc=0x000a72cc
+instructions=1000000000 vt=49836877598` with twelve; the busy regime runs
+at 1 ns per instruction against the alarm-driven park's 1-second 1e9-ns
+steps. The eighteen counters the control never reaches are named from the
+pristine disassembly: the drain at 0xa6bea serves the one-deep depth
+counter at struct offset `+0x74` (pushed at 0xa6bb6, popped at 0xa6c04,
+loop while non-zero) and its sibling at `+0x4`, the event bitmap at
+`+0x54` takes the OR of `1 << index`, the callback table is indexed at
+`0x14` bytes per entry, the queue-emptiness predicate at 0xa7042 answers
+through `+0x00`, `+0x60`, and the head/capacity pair `+0x38`/`+0x4c`, the
+64-bit now-stamp commits to `+0x6c`/`+0x70` with carry at 0xa754e, an
+exclusive LDREX/STREX add runs at 0xa7b32, a `cpsid i` seqlock section at
+0xccb1a-0xccb2e, the wake path tests SCR bit 4 and the low-power timer bit
+20 at 0xe1826, and the cold frame-decode site 0x197a70 takes one hit. The
+`--input-replay` record keeps its own 100000-instruction chunk
+quantization (`instructions=135757218 vt=300000000000`, +12878530 over the
+control) - a different pump-boundary configuration of the same deterministic
+engine, both quantizations recorded. The logger census at `SEMU_LOG_TRACE`
+holds zero records in both runs, matching the empty `--trace` logs: the
+2.35 boot provokes no refusal and no warning anywhere. Tests: new module
+`tests/devices/test_sapporo_235_input.c`, four cases - the parser's
+grammar refusals (missing separator, unknown button letter, empty value,
+junk number, wrong separator; the trailing comma tolerated) and the three
+machine records re-taken through the public API - green 4/4 twice
+byte-identically; no engine edits, so check-lines, `make check`,
+`make sanitize`, and the full-flash era gate at the 16-name drift baseline
+stand as recorded in instance-6. Next observations: the 60/61 s press pair
+lies beyond the 1B-cap frontier of the slice census, and the
+`0x0800009e`-style bootrom-vector fetch-alias counters await naming.
