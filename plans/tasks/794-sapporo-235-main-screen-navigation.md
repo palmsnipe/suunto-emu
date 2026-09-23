@@ -44,6 +44,21 @@ not through any of the eight direct policy-reboot callers of `0xcdf48`
 reset is therefore a second, as-yet-unnamed faulting access ~2.4 s after
 Done, not authentic post-wizard behavior.
 
+RESOLVED 2026-09-23 (probe pair `/tmp/sap233-fault/235_a.log`=`235_b.log`,
+rc 3 both): at the reset `HFSR=0x40000000 CFSR=0x00008200
+BFAR=0x400900ec` and the denied access is `write [0x400900ec] w=4
+val=0x101437fc pc=0x000c1934 lr=0x000cb087 status=unsupported
+text="nema_tsc6a: unsupported resolve state"` — a **second post-Done
+TSC6A submit whose state tuple falls outside the accepted ticket-793
+tuple**, refused by the fail-closed resolve path, converted by the guest
+into the analyzer reset. Not authentic behavior and not a settling
+artifact: once that state's law is evidenced and supported (likely one of
+the 57 aux-bit set format-17 assets — A3 territory), the reset should
+disappear the way the crosshair refusal did. Next census: instrument the
+resolve refusal to dump the full refused tuple (src format, stride, w/h,
+size, matrix, clip, target geometry, colors) on this trajectory,
+twice-identical.
+
 ## Allowed Files
 
 `src/compat/`, `src/boards/`, `src/devices/`, `src/display/` (only if a new
