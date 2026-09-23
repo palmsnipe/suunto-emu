@@ -6840,3 +6840,24 @@ writes). Blending reuses the lane-observed SRC_OVER path of
 E-NEMA-RGBA4444-001. This entry authorizes no per-asset guessing, no
 non-identity-matrix sampling, and no behavior beyond what the pinned
 firmware exhibits. Runtime integration is ticket 793.
+
+Addendum (2026-09-23, integrator): an independent strict-container re-walk of
+the same pinned `resources.raw` was run twice identically
+(`/tmp/sap235-pxb2-assets/run-{1,2}.txt`,
+`b8fb477edd15c00a7538e64982f54f214146d506f7bd8ebe58febd70b55e0f62`; walker
+`/tmp/sap235-pxb2-assets/walk.py` `f3295f06b0e4af95e3284e318cbedc4a4bff5a20ca5014c88a39d652946f6a0e`).
+Its greedy validator (magic + panel-bounded w,h + `size ==
+ceil(w/4)·ceil(h/4)·12` for format `0x11`, non-overlapping forward scan)
+validated 59 format-`0x11`, 285 format-`0x05`, 19 `0x0f`, 28 `0x10`, 20
+`0x13` hits (plus 9 constraint-rejected magic hits); the counts differ from
+the original §3 walk because the two walkers use different acceptance
+heuristics over the same byte stream — both are self-consistent, and only the
+TSC6A aux-plane conclusion below is used as planning evidence. Result: of the
+59 format-`0x11` assets, exactly 2 have all blocks auxiliary-zero (total
+3654 px — including the 60x60 crosshair); 57 contain at least one block with
+bits 75..95 set (324402 px). Consequence, recorded as planning fact: the
+ticket-793 aux-zero-gated expansion unblocks the observed main-entry crosshair
+draw and nothing richer; main will fail closed again on the next compressed
+asset it attempts. Full main rendering therefore requires the auxiliary-plane
+law (ambiguity A3), whose discriminating probes are the PXB2-loader
+disassembly and the patent's multi-color block arrangement.
