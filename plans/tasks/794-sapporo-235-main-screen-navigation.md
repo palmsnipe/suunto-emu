@@ -51,7 +51,15 @@ val=0x101437fc pc=0x000c1934 lr=0x000cb087 status=unsupported
 text="nema_tsc6a: unsupported resolve state"` — a **second post-Done
 TSC6A submit whose state tuple falls outside the accepted ticket-793
 tuple**, refused by the fail-closed resolve path, converted by the guest
-into the analyzer reset. Not authentic behavior and not a settling
+into the analyzer reset. The submit path is the ring-kick helper pair
+(`movs r0,#0xec; bl #0xc1930` at `0xcb080`, `str r1,[r2,r0]` at `0xc1932`,
+register `0x400900ec`), and the refusal text names
+`src/display/nema_tsc6a_raster.c:265` (`tsc6a_resolve_state` accepted set)
+— FINDINGS §6, `/tmp/sap233-fault/FINDINGS.md`, pair sha `861ec177…`, no
+drift against the E-EMU-SAP235-COMPRESSED-001 pins. Later in the same run
+a second refusal (IOM2 `0x40052120`, 59-byte OHR write) is logged with no
+second reset; the run then stops at the known OHR boundary. Not authentic
+behavior and not a settling
 artifact: once that state's law is evidenced and supported (likely one of
 the 57 aux-bit set format-17 assets — A3 territory), the reset should
 disappear the way the crosshair refusal did. Next census: instrument the

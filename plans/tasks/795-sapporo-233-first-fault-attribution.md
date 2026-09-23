@@ -72,7 +72,16 @@ sapporo-apollo4-max17050-boundary.trace`, trace sha `8a7b565f…`) shows the
 same 0x36 request stream with a 320 ms poll cadence but is payload-free by
 policy, so closure needs a payload-bearing lane re-run via a /tmp wrapper
 resc (lane stays read-only) recording the lane model's answer for `0xF4`
-and continued boot. The PWRCTRL hypothesis (E-SAP-0050) is DISCONFIRMED
+and continued boot. LANED 2026-09-23 (payload-bearing wrapper resc pair
+`/tmp/sap233-fault/f4v2_1.norm`=`f4v2_2.norm`, normalized sha `9119ef13…`):
+the lane boot **never issues `0xF4`** — its gauge fixture answers register
+`0x19` (AvgVCell) with `0xC000` while the tree pins `0x0000`
+(`MAX_AVERAGE_VCELL_VAL`), and that single fixture difference routes the
+driver's branch away from the `0xF4` read entirely. Fixture values are
+host-side by the device header's own law, so the current lane model is the
+oracle for them; selectors remain pinned to the authentic command census.
+Secondary unexplained divergence (lane reads `0x06` early) stays open.
+The PWRCTRL hypothesis (E-SAP-0050) is DISCONFIRMED
 for the first fault.
 
 Reference located (read-only, `shasum -a 256` `b1d1dc8ee41ed84a…`):
