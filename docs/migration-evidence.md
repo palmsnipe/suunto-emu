@@ -6865,3 +6865,63 @@ draw and nothing richer; main will fail closed again on the next compressed
 asset it attempts. Full main rendering therefore requires the auxiliary-plane
 law (ambiguity A3), whose discriminating probes are the PXB2-loader
 disassembly and the patent's multi-color block arrangement.
+
+## E-RE-SAP235-PXB2LOADER-001 — PXB2 loader is a GPU descriptor builder; no software TSC6A decode
+
+**Status:** verified static RE probe, 2026-09-23 (offline-RE class, owner
+decision 2026-09-23). Single probe execution; the two claims the integrator
+reproduced independently are marked as such. Authorizes no implementation
+value by itself; it constrains what later probes must examine.
+
+Input: `component-04-type-4-v2.raw` SHA-256
+`36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`
+(the pinned 2.35.34 application, size `0x182ffe`, loaded VA base `0x40000`
+per E-SAP-0030). Tooling: GNU objdump (Binutils 2.47.20260726,
+`arm-none-eabi-objdump`, force-thumb, `--adjust-vma=0x40000`) full dump
+`/tmp/sap235-pxb2/full-force-thumb.lst` `d7e726bc059d92872da2ef37ba3a7b3a3aa8608e03276704b02b38b47a041e70`,
+plus capstone 5.0.7 PC-relative/immediate scans; report
+`/tmp/sap235-pxb2/FINDINGS.md` `d22b3593029cfa999b1359b9c5c1c11a6f779c96e4b4885452af745b1eeaadaa`
+and six spot listings (`uiCache_magic_chain_7fc60.txt`
+`e0182124b6e55dd2…`, `tex_setup_packer_ca9c0.txt` `6471a67d5c72e529…`,
+`tex_pack2_cab12.txt` `28b17f5aaab73b81…`, `nema_reg_helpers_c1900.txt`
+`bf24533107c19d6b…`, `ring_writer_caea0.txt` `fe17e40f676d0b7a…`,
+`sha256.txt` `f09afe8dbb01f2f7…`; volatile). Correction of the tasking
+slip: the container magic word sits at VA `0x8039c` (file `0x4039c`).
+
+Census (probe): the byte sequence `32 42 58 50` (PXB2 magic) occurs exactly
+once in the application and is never referenced — no PC-relative load
+resolves to `0x8039c`, no absolute pointer word, no `movw/movt` forms its
+halves; the nearby `uiCache.cpp` compare chain at `0x7fc76..0x7fcbe` tests
+three sibling pool words and skips it. The application contains zero
+software TSC6A decode: no `ceil(/4)` block-walk pattern, no ×17 nibble
+expansion, no divide-by-3/×2047 reciprocal constants (the `0x7FF` clusters
+are soft-float exponent math), zero immediate `0x17`, and no format-byte
+compare chain. Texture format reaches the GPU as **data**: packers at
+`0xcaacc`/`0xcab52` (`orr.w r2,r2,rX,lsl #24` with `rX = [texstruct+8]`)
+compose the descriptor word, command words are written into an SRAM ring
+(`0x10143xxx`, init `0xc1954..0xc1968`), and the ring pointer is kicked to
+NEMA `+0xec/+0xf0/+0xf4` through MMIO helper `0xc1930` — whose sibling
+`0xc1932` is exactly the refused STR of E-EMU-SAP235-MAIN-TSC6A-001. The
+strings `%s%s.pxb` (`0x82d48`) and `pxBlitC64.cpp` (`0xDDD74`) have zero
+code references (compiled-out literals); no sibling partition contains the
+magic.
+
+Integrator independent re-runs (`/tmp/sap235-pxb2/reverify.py`, capstone
+5.0.7, input hash above): magic occurrences = 1; PC-relative loads with
+EA `0x8039c` = 0. The `movw/movt`-absence, immediate-`0x17`-absence, and
+format-dispatch negatives are probe-reported (their exhaustive scan is
+linear-disassembly-based; a naive all-offset rescan produces only
+mid-instruction artifacts and was not treated as a census).
+
+Consequences, scoped: ambiguity A1 (RGBA4444 vs RGB565 endpoint unpack)
+stays UNRESOLVED — the unpack is NEMA1280 hardware-internal and no
+software path exists in the pinned application to disambiguate; the
+capture-verified RGBA4444 law of E-RE-SAP235-TSC6A-001 remains the only
+observed-behavior basis, and its golden remains the check. Bits 75..95:
+no new evidence; fail-closed stands. Positive fact for the model: since
+the guest only builds GPU descriptors and the hardware decodes natively,
+in-tree decoding in the renderer (ticket 793) is the architecturally
+correct placement, mirroring the semantic-shadow precedent. The next
+discriminating probe for A1/A3 is a scan of `resources.raw` for descriptor
+templates pairing byte `0x17` with PXB2 asset offsets, and the patent's
+multi-color block arrangement (pair-plane) reading.
