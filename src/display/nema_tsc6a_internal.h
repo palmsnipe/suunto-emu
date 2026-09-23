@@ -53,6 +53,13 @@ int64_t tsc6a_edge(int64_t ax, int64_t ay, int64_t bx, int64_t by,
 uint32_t tsc6a_blend_argb(uint32_t source, uint32_t destination,
                           uint32_t coverage);
 
+/* Pure TSC6A format-17 block expansion (nema_tsc6a_expand.c, ticket 793).
+ * Returns 0 (fail closed, output untouched) when any auxiliary bit
+ * 75..95 of the block is nonzero; otherwise writes 16 RGBA8888 texels
+ * (pixel p = 4*r + c, row 0 first) and returns 1.  Law:
+ * E-RE-SAP235-TSC6A-001. */
+int tsc6a_expand_block(const uint8_t blk[12], uint8_t out[16][4]);
+
 semu_status tsc6a_draw_triangle(nema_tsc6a *surface,
                                 const nema_draw_snapshot *snapshot,
                                 semu_error *error);

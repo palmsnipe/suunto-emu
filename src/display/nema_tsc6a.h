@@ -40,8 +40,14 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
                                uint8_t *rgb565_le, uint32_t stride,
                                semu_error *error);
 
-/* Resolve the observed DRAW_CMD=5 TSC6A mask/quad form. */
+/* Resolve the observed DRAW_CMD=5 TSC6A mask/quad form.
+ * bus supplies the memory-only source reads required by the single
+ * compressed-asset acceptance state (ticket 793, E-RE-SAP235-TSC6A-001);
+ * the 480x480 semantic-shadow state never dereferences it, so callers
+ * that can only ever hit shadow state may pass NULL (fail-closed: a
+ * compressed-shaped draw with bus == NULL keeps refusing). */
 semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
+                                    semu_bus *bus,
                                     const nema_draw_snapshot *snapshot,
                                     uint8_t *rgb565_le, uint32_t stride,
                                     semu_error *error);

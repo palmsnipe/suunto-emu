@@ -84,6 +84,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
         semu_error err;
         semu_status st = nema_tsc6a_resolve_mask(
             backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a,
+            draw_context->bus,
             snap, target.pixels, target.stride, &err);
         if (st != SEMU_OK) {
             backend->draw_error = err;

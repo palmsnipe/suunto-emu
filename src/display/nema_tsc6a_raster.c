@@ -1,6 +1,9 @@
 /*
  * Integer raster and resolve loops for the evidence-gated TSC6A model.
- * Compressed guest TSC6A storage is never decoded here.
+ * Compressed guest TSC6A blocks are never decoded here: the single
+ * capture-pinned compressed acceptance state (ticket 793) validates the
+ * full tuple, then delegates each block to the pure law function in
+ * nema_tsc6a_expand.c before any target write.
  */
 
 #include "nema_tsc6a_internal.h"
@@ -9,6 +12,7 @@
 #include "nema_texture.h"
 
 #include <stddef.h>
+#include <string.h>
 
 semu_status tsc6a_draw_triangle(nema_tsc6a *surface,
                                 const nema_draw_snapshot *s,
@@ -288,7 +292,158 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
     return SEMU_OK;
 }
 
+/*
+ * Ticket 793: the single observed native compressed draw — the 60x60
+ * compass crosshair refusing at 2.35 main entry (E-EMU-SAP235-MAIN-
+ * TSC6A-001 descriptor, accepted per E-RE-SAP235-TSC6A-001).  Every
+ * constant below is that capture: source format 0x17, sampling 1, stride
+ * 180, 60x60 (15 block rows of 180 B = 2700 B span); target RGB565,
+ * stride 480, 240x240 (115200 B span); codeptr 0x941e8000 with matmult 0;
+ * IMEM (0,004e0002,804b1286); matrix bits (3f800000,0,c32b0001;
+ * 0,3f800000,c2b40000); observed ordered clip (0,81)-(240,162); observed
+ * 60x60 axis-aligned quad (171,90)-(231,150); tint 0xffffffff; draw
+ * color 0xff555555.  The mapping and clip use the existing helpers; no
+ * value here is invented.
+ */
+#define TSC6A_CROSSHAIR_W 60u
+#define TSC6A_CROSSHAIR_H 60u
+#define TSC6A_CROSSHAIR_SRC_BYTES 2700u
+#define TSC6A_TARGET_RGB_BYTES (480u * 240u * 2u)
+#define TSC6A_TINT_IDENTITY UINT32_C(0xffffffff)
+#define TSC6A_CROSSHAIR_DRAW_COLOR UINT32_C(0xff555555)
+#define TSC6A_MATRIX_ONE UINT32_C(0x3f800000)
+#define TSC6A_MATRIX_TX0 UINT32_C(0xc32b0001)
+#define TSC6A_MATRIX_TY0 UINT32_C(0xc2b40000)
+
+/* Second accepted state of this resolve: the capture-pinned compressed
+ * tuple.  bus must be present because the source bytes are read from
+ * bounded guest SRAM; NULL bus fails closed into the existing refusal. */
+static int tsc6a_compressed_asset_state(const nema_draw_snapshot *s,
+                                        semu_bus *bus, int *x0, int *y0,
+                                        int *x1, int *y1)
+{
+    if (bus == NULL || !s->src_present || s->draw_cmd != NEMA_DRAW_QUAD ||
+        s->src_format != NEMA_FMT_TSC6A || s->src_sampling != 1u ||
+        s->src_stride != 180u || s->src_width != TSC6A_CROSSHAIR_W ||
+        s->src_height != TSC6A_CROSSHAIR_H ||
+        !tsc6a_bounded_sram(s->src_base, TSC6A_CROSSHAIR_SRC_BYTES) ||
+        s->target_format != NEMA_FMT_RGB565 || s->target_stride != 480u ||
+        s->target_width != 240u || s->target_height != 240u ||
+        !tsc6a_bounded_sram(s->target_base, TSC6A_TARGET_RGB_BYTES) ||
+        /* Refuse span overlap before any read (nema_rgba4444.c style).
+         * Both spans are inside the bounded SRAM window at this point,
+         * so neither sum can overflow. */
+        (s->src_base < s->target_base + TSC6A_TARGET_RGB_BYTES &&
+         s->target_base < s->src_base + TSC6A_CROSSHAIR_SRC_BYTES) ||
+        s->codeptr != TSC6A_RESOLVE_CODE || s->matmult != 0u ||
+        s->imem_addr != TSC6A_IMEM_ADDRESS ||
+        s->imem_datah != TSC6A_IMEM_DATAH ||
+        s->imem_datal != TSC6A_IMEM_DATAL ||
+        !s->matrix_present || s->mm00 != TSC6A_MATRIX_ONE ||
+        s->mm01 != 0u || s->mm02 != TSC6A_MATRIX_TX0 || s->mm10 != 0u ||
+        s->mm11 != TSC6A_MATRIX_ONE || s->mm12 != TSC6A_MATRIX_TY0 ||
+        !tsc6a_ordered_clip(s, 240u, 240u) ||
+        s->tex_color != TSC6A_TINT_IDENTITY ||
+        s->draw_color != TSC6A_CROSSHAIR_DRAW_COLOR ||
+        !tsc6a_rectangle(s, x0, y0, x1, y1) ||
+        (*x1 - *x0) != (int)TSC6A_CROSSHAIR_W ||
+        (*y1 - *y0) != (int)TSC6A_CROSSHAIR_H) {
+        return 0;
+    }
+    return 1;
+}
+
+/* Execute the accepted compressed state.  Validate fully before mutating
+ * (nema_rgba4444.c rule): the bounded source span is read byte-by-byte
+ * with the memory-only bus API the shadow mask draws already use, then
+ * all 225 blocks expand into a local buffer; any read or expansion
+ * failure refuses with SEMU_ERR_UNSUPPORTED and zero target writes.
+ * Target pixels map through the pinned matrix with the existing helpers
+ * at pixel centers (the mapping form of nema_tsc6a_resolve above, which
+ * makes the captured identity-scale matrix cover the 60x60 quad 1:1),
+ * range-check into the asset, and SRC_OVER through the existing shadow
+ * blend with tex_color as the identity tint. */
+static semu_status tsc6a_resolve_compressed_asset(
+    semu_bus *bus, const nema_draw_snapshot *s, uint8_t *rgb565_le,
+    uint32_t stride, int x0, int y0, int x1, int y1, semu_error *error)
+{
+    uint8_t source[TSC6A_CROSSHAIR_SRC_BYTES];
+    uint8_t texels[TSC6A_CROSSHAIR_H][TSC6A_CROSSHAIR_W][4];
+    tsc6a_fixed_matrix matrix;
+    unsigned by, bx, py, px, offset;
+    int x, y;
+    semu_status st;
+
+    for (offset = 0u; offset < TSC6A_CROSSHAIR_SRC_BYTES; ++offset) {
+        st = semu_bus_copy_out(bus, s->src_base + offset,
+                               &source[offset], 1u, error);
+        if (st != SEMU_OK) {
+            return st; /* zero writes: refusal before mutation */
+        }
+    }
+    for (by = 0u; by < TSC6A_CROSSHAIR_H / 4u; ++by) {
+        for (bx = 0u; bx < TSC6A_CROSSHAIR_W / 4u; ++bx) {
+            uint8_t block[16][4];
+            if (!tsc6a_expand_block(source + (size_t)by * 180u +
+                                    (size_t)bx * 12u, block)) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                    "nema_tsc6a: compressed TSC6A block %u,%u sets the "
+                    "unverified auxiliary bits; refusing with zero writes",
+                    bx, by);
+                return SEMU_ERR_UNSUPPORTED;
+            }
+            for (py = 0u; py < 4u; ++py) {
+                for (px = 0u; px < 4u; ++px) {
+                    memcpy(texels[by * 4u + py][bx * 4u + px],
+                           block[py * 4u + px], 4u);
+                }
+            }
+        }
+    }
+    st = tsc6a_snapshot_matrix(s, &matrix, error);
+    if (st != SEMU_OK) {
+        return st;
+    }
+    if (x0 < (int)s->clip_min_x) x0 = (int)s->clip_min_x;
+    if (y0 < (int)s->clip_min_y) y0 = (int)s->clip_min_y;
+    if (x1 > (int)s->clip_max_x) x1 = (int)s->clip_max_x;
+    if (y1 > (int)s->clip_max_y) y1 = (int)s->clip_max_y;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > 240) x1 = 240;
+    if (y1 > 240) y1 = 240;
+    for (y = y0; y < y1; ++y) {
+        for (x = x0; x < x1; ++x) {
+            int64_t cx = (int64_t)x * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
+            int64_t cy = (int64_t)y * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
+            int64_t u = ((int64_t)matrix.mm00 * cx) / TSC6A_FP16_ONE +
+                        ((int64_t)matrix.mm01 * cy) / TSC6A_FP16_ONE +
+                        matrix.mm02;
+            int64_t v = ((int64_t)matrix.mm10 * cx) / TSC6A_FP16_ONE +
+                        ((int64_t)matrix.mm11 * cy) / TSC6A_FP16_ONE +
+                        matrix.mm12;
+            int64_t sx = tsc6a_floor_div_fp16(u);
+            int64_t sy = tsc6a_floor_div_fp16(v);
+            uint32_t argb;
+
+            if (sx < 0 || sy < 0 || sx >= (int64_t)TSC6A_CROSSHAIR_W ||
+                sy >= (int64_t)TSC6A_CROSSHAIR_H) {
+                continue;
+            }
+            argb = ((uint32_t)texels[sy][sx][3] << 24u) |
+                   ((uint32_t)texels[sy][sx][0] << 16u) |
+                   ((uint32_t)texels[sy][sx][1] << 8u) |
+                   (uint32_t)texels[sy][sx][2];
+            blend_shadow_pixel(argb, s->tex_color,
+                               rgb565_le + (size_t)y * stride +
+                               (size_t)x * 2u);
+        }
+    }
+    return SEMU_OK;
+}
+
 semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
+                                    semu_bus *bus,
                                     const nema_draw_snapshot *s,
                                     uint8_t *rgb565_le, uint32_t stride,
                                     semu_error *error)
@@ -301,6 +456,14 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "nema_tsc6a: null mask resolve argument");
         return SEMU_ERR_ARGUMENT;
+    }
+    /* The compressed state writes with the captured 480 B pitch and no
+     * other caller pitch (the shadow branch keeps its stride >= 480 form
+     * inside the existing cascade below). */
+    if (stride == 480u &&
+        tsc6a_compressed_asset_state(s, bus, &x0, &y0, &x1, &y1)) {
+        return tsc6a_resolve_compressed_asset(bus, s, rgb565_le, stride,
+                                              x0, y0, x1, y1, error);
     }
     if (!tsc6a_bounded_sram(s->src_base, 1u) ||
         !tsc6a_bounded_sram(s->target_base, 480u * 240u * 2u) ||

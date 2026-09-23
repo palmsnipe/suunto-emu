@@ -133,13 +133,20 @@ static void test_compressed_asset_refusal_diagnostic(semu_test_context *context)
     uint8_t panel[480u * 240u];
     uint8_t before[sizeof(panel)];
 
-    /* E-EMU-SAP235-MAIN-TSC6A-001: native main-entry descriptor only.
+    /* E-EMU-SAP235-MAIN-TSC6A-001 descriptor, one near-miss away from the
+     * ticket-793 acceptance tuple (stride 181 instead of the captured
+     * 180), resolved with bus == NULL.  Ticket 793 accepted the exact
+     * compressed tuple in nema_tsc6a_resolve_mask; a null bus is
+     * fail-closed, and any compressed-shaped state that is not the exact
+     * tuple keeps the specialized diagnostic.  The exact-tuple acceptance
+     * and the zero-write auxiliary refusal are pinned in
+     * test_nema_tsc6a_expand.c with a real bus.
      * No compressed firmware bytes or private frame pixels are needed. */
     resolve.src_base = UINT32_C(0x100a490c);
     resolve.src_present = 1u;
     resolve.src_width = 60u;
     resolve.src_height = 60u;
-    resolve.src_stride = 180u;
+    resolve.src_stride = 181u;
     resolve.target_base = UINT32_C(0x10121d40);
     resolve.clip_min_y = 81u;
     resolve.clip_max_x = 240u;
@@ -158,14 +165,14 @@ static void test_compressed_asset_refusal_diagnostic(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      nema_tsc6a_create(&surface, &error));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+        nema_tsc6a_resolve_mask(surface, NULL, &resolve, panel, 480u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, error.code);
     SEMU_TEST_ASSERT(context, strcmp(error.text,
-        "nema_tsc6a: compressed source 60x60 stride 180 is unsupported; "
+        "nema_tsc6a: compressed source 60x60 stride 181 is unsupported; "
         "only the 480x480 semantic shadow is modeled") == 0);
     SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, NULL));
+        nema_tsc6a_resolve_mask(surface, NULL, &resolve, panel, 480u, NULL));
     SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
 
     /* A supported shadow descriptor still resolves; its invalid shader
@@ -174,11 +181,11 @@ static void test_compressed_asset_refusal_diagnostic(semu_test_context *context)
     resolve.src_height = NEMA_TSC6A_HEIGHT;
     resolve.src_stride = FSTRIDE_TSC & 0xffffu;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+        nema_tsc6a_resolve_mask(surface, NULL, &resolve, panel, 480u, &error));
     SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
     resolve.codeptr = UINT32_C(0x12345678);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+        nema_tsc6a_resolve_mask(surface, NULL, &resolve, panel, 480u, &error));
     SEMU_TEST_ASSERT(context, strcmp(error.text,
         "nema_tsc6a: unsupported mask resolve state") == 0);
     SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
