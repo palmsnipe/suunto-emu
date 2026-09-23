@@ -20,7 +20,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/frame-1.log" "$run_dir/frame-2.log"
 [ "$(shasum -a 256 "$run_dir/frame-1.log" | awk '{print $1}')" = \
-    2d479fc3f6c4f059037e39c139cf939315e8bfdf3b5574166727e5f5dfcb37f8 ]
+    cb6a878a47ebefb97d94b355337475809aac30adfa1f586356553b838328ab11 ]
 grep -Fqx 'stop=user pc=0x000a6bbe instructions=864000000 virtual_time_ns=3782156506' "$run_dir/frame-1.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-ohr-startup' "$run_dir/frame-1.log")" -eq 8 ]
 if grep -Eq 'machine-reset-request|status=refuse' "$run_dir/frame-1.log"; then

@@ -23,7 +23,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/startup-1.log" "$run_dir/startup-2.log"
 [ "$(shasum -a 256 "$run_dir/startup-1.log" | awk '{print $1}')" = \
-    7627f2125bbd7d5ebf644ec551b125c049b50f6f3d589a5922352ebb15fe7994 ]
+    7059536e45cb7e720608ac4a92f0cac9c46442b7b9c88de0cd05d7c524bda9ad ]
 grep -Fqx 'stop=budget pc=0x00093222 instructions=500000000 virtual_time_ns=3343660033' "$run_dir/startup-1.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-startup' "$run_dir/startup-1.log")" -eq 2 ]
 if grep -Eq 'machine-reset-request|status=refuse' "$run_dir/startup-1.log"; then
@@ -41,7 +41,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/boundary-1.log" "$run_dir/boundary-2.log"
 [ "$(shasum -a 256 "$run_dir/boundary-1.log" | awk '{print $1}')" = \
-    d00ed24b150258249f030451d427247b6ce2226779b6f2de0ab79e1869ba46dd ]
+    072ad35ba59b9a8d49c8f0546dcd0fefbd11917cb1c62755a17e1fdfb6717229 ]
 grep -Fqx 'stop=compat-refused pc=0x001254ec instructions=1059785208 virtual_time_ns=14811876715 detail=2.35 GPS startup fixture disabled, exhausted or unexpected state/request' "$run_dir/boundary-1.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-startup' "$run_dir/boundary-1.log")" -eq 2 ]
 echo 'PASS sapporo-2.35.34 initial GPS status/version exchange'

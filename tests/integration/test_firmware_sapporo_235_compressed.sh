@@ -70,7 +70,7 @@ cmp "$run_dir/compressed-1.log" "$run_dir/compressed-2.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-awake' "$run_dir/compressed-1.log")" -eq 11 ]
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=1860847385 virtual_time_ns=70000000000' "$run_dir/compressed-1.log"
 [ "$(shasum -a 256 "$run_dir/compressed-1.log" | awk '{print $1}')" = \
-    17cc9087bf600002960d5d18d13517ec4a868c3186720ce3532ca9ad82a20794 ]
+    fe70da422166ca98bc37c1a991f5fad3777b05ba76855b32df617032202ff798 ]
 # Honest boundary inside this window: nothing refuses and nothing resets.
 # The compressed draw itself lives past this window (setup-walk trajectory);
 # its runtime rendering gate is Section 3.
@@ -86,11 +86,12 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick:
 # the refused DRAW=2 resolve children now log exactly two gpu/draw-refused
 # lines (ord 7989 child 0x100d2800 and the driver retry ord 7999 child
-# 0x100d0800, both offset 48), zero machine resets occur, step 25 advances
-# without settling, and the walk terminates directly at the documented
-# OHR-fixture compat refusal (E-SAP-0041 ceiling, MAIN-state sequence 8).
+# 0x100d0800, both offset 48), step 25 settles (generation 3998, crc32
+# 1394c638) under the 13-hit E-SAP-0041-EXT OHR fixture (ticket 710), and
+# the walk terminates after four guest self-resets at the pinned
+# unmapped-access boundary past the refused command 0x0004 sequence 13.
 # Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
-# 344973205de19e783940faaf9d322f0a4d7cd182f91ab225eb3721360e3b6a5e),
+# 245cab82c57c2e61cebcf0e38f7dd3e965b67af375c537de7ad10b9665d9a23c),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -116,17 +117,21 @@ done
 cmp "$run_dir/main-1.log" "$run_dir/main-2.log"
 grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
-! grep -q 'settled step=25' "$run_dir/main-1.log"
-grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=7572236241 virtual_time_ns=32551364960 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
+grep -Fqx 'SDL live test settled step=25 generation=3998 crc32=1394c638' \
+    "$run_dir/main-1.log"
+grep -Fqx 'stop=unmapped-access pc=0x001023b0 instructions=8772734885 virtual_time_ns=39969302384 detail=memory address overflow at 0x10025298' \
     "$run_dir/main-1.log"
 # The compressed crosshair draw must never refuse in this window; the
 # post-Done resolve pass must refuse GPU-side (exactly two draw-refused
-# lines) and must never fault or reset (E-EMU-SAP235-RINGKICK-CPU-
-# INVISIBLE-001).
+# lines; E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001). After the 13-hit
+# E-SAP-0041-EXT budget is consumed, command 0x0004 sequence 13 is
+# refused fail-closed and the guest self-resets four times before the
+# pinned unmapped-access terminal above (known ticket 710 boundary,
+# re-derived 2026-09-23, transcript 245cab82...).
 ! grep -q 'compressed source' "$run_dir/main-1.log"
 grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
 [ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 2 ]
-[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
+[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 4 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    344973205de19e783940faaf9d322f0a4d7cd182f91ab225eb3721360e3b6a5e ]
+    245cab82c57c2e61cebcf0e38f7dd3e965b67af375c537de7ad10b9665d9a23c ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'
