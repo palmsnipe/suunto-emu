@@ -167,6 +167,85 @@ static void test_unknown_register_refusal(semu_test_context *context)
     semu_sapporo_max17050_destroy(sensor);
 }
 
+/*
+ * Unobserved selectors stay refused fail-closed even when the guest asks:
+ * the 2.33.16 boot's 21st gauge transaction reads 0xF4, but under the
+ * current lane fixture (E-SAP-MAX17050-001 lane table, pair
+ * 9119ef13…, normalized sha in E-EMU-SAP233-GAUGE-FIXTURE-001) the boot
+ * never issues that read; 0xF4 remains outside the pinned observed set.
+ */
+static void test_unobserved_f4_and_ff_refuse(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_max17050 *sensor;
+    semu_serial_endpoint ep;
+    uint8_t rx[2] = { 0xaau, 0xbbu };
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_max17050_create(0x36u, &error);
+    ep = semu_sapporo_max17050_endpoint(sensor);
+
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0x36u, 0xf4u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0xaau, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0xbbu, rx[1u]);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     do_read(&ep, 0x36u, 0xffu, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0xaau, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0xbbu, rx[1u]);
+
+    semu_sapporo_max17050_destroy(sensor);
+}
+
+/*
+ * Every selector in the pinned observed set must answer with the value of
+ * the CURRENT lane fixture table (SapporoApollo4Iom4.cs:SapporoMax17050
+ * Reset(), read-only lane sha b1d1dc8e…, reproduced twice via the
+ * payload-bearing class-log census, pair normalized sha256
+ * 9119ef13e60dbe71483f28bf02a962997252d7c476b4444a47f3fab9f06b6d76):
+ * 0x00=0x0000 0x05=0x0000 0x06=0x3200 0x08=0x1900 0x09=0xC000
+ * 0x0b=0x0000 0x10=0x0000 0x19=0xC000 0x1a=0x0000 0x21=0x0000
+ * 0x28=0x0000 0x54=0x0000 0xec=0x0000.
+ * This is the narrowest regression for the 2.33.16 first-fault fixture
+ * divergence: 0x19 (AvgVCell) was pinned 0x0000 in-tree while the current
+ * lane fixture answers 0xC000.
+ */
+static void test_lane_fixture_table(semu_test_context *context)
+{
+    semu_error error;
+    semu_sapporo_max17050 *sensor;
+    semu_serial_endpoint ep;
+    const uint8_t registers[] = {
+        0x00u, 0x05u, 0x06u, 0x08u, 0x09u, 0x0bu, 0x10u,
+        0x19u, 0x1au, 0x21u, 0x28u, 0x54u, 0xecu
+    };
+    const uint16_t values[] = {
+        0x0000u, 0x0000u, 0x3200u, 0x1900u, 0xC000u, 0x0000u, 0x0000u,
+        0xC000u, 0x0000u, 0x0000u, 0x0000u, 0x0000u, 0x0000u
+    };
+    uint8_t rx[2];
+    size_t i;
+
+    semu_error_clear(&error);
+    sensor = semu_sapporo_max17050_create(0x36u, &error);
+    SEMU_TEST_ASSERT(context, sensor != NULL);
+    ep = semu_sapporo_max17050_endpoint(sensor);
+    for (i = 0u; i < sizeof(registers) / sizeof(registers[0]); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                         do_read(&ep, 0x36u, registers[i], rx, 2u, &error));
+        SEMU_TEST_EQ_U64(context, (uint8_t)values[i], rx[0u]);
+        SEMU_TEST_EQ_U64(context, (uint8_t)(values[i] >> 8u), rx[1u]);
+    }
+
+    semu_sapporo_max17050_reset(sensor);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     do_read(&ep, 0x36u, 0x19u, rx, 2u, &error));
+    SEMU_TEST_EQ_U64(context, 0x00u, rx[0u]);
+    SEMU_TEST_EQ_U64(context, 0xC0u, rx[1u]);
+
+    semu_sapporo_max17050_destroy(sensor);
+}
+
 static void test_observed_later_registers(semu_test_context *context)
 {
     semu_error error;
@@ -176,7 +255,7 @@ static void test_observed_later_registers(semu_test_context *context)
         0x05u, 0x0bu, 0x10u, 0x19u, 0x1au, 0x21u, 0x28u, 0x54u, 0xecu
     };
     const uint16_t values[] = {
-        0x0000u, 0x0000u, 0x0000u, 0x0000u, 0x0000u,
+        0x0000u, 0x0000u, 0x0000u, 0xC000u, 0x0000u,
         0x0000u, 0x0000u, 0x0000u, 0x0000u
     };
     uint8_t rx[2];
@@ -316,6 +395,8 @@ int main(void)
         SEMU_TEST_CASE(test_reset),
         SEMU_TEST_CASE(test_wrong_address),
         SEMU_TEST_CASE(test_unknown_register_refusal),
+        SEMU_TEST_CASE(test_unobserved_f4_and_ff_refuse),
+        SEMU_TEST_CASE(test_lane_fixture_table),
         SEMU_TEST_CASE(test_observed_later_registers),
         SEMU_TEST_CASE(test_byte_order),
         SEMU_TEST_CASE(test_write_and_shape_refusals),

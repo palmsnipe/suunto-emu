@@ -18,10 +18,15 @@
  *          pairs with auto-increment.
  *   FinishTransmission: resets byte index and expects new register byte.
  *   Reset: Status 0x00=0x0000 (POR=0), RepSOC 0x06=0x3200 (50%),
- *          Temperature 0x08=0x1900, VCell 0x09=0xC000 (3.84V).
+ *          Temperature 0x08=0x1900, VCell 0x09=0xC000 (3.84V),
+ *          AvgVCell 0x19=0xC000 (same fixture cell as VCell).
  *
  * Register values are deterministic host-side battery fixtures, not physical
- * gauge evidence. The public datasheet has a 256-word map, but this endpoint
+ * gauge evidence; the current lane fixture table is the oracle for the
+ * values (E-EMU-SAP233-GAUGE-FIXTURE-001 records the payload-bearing
+ * lane-table census and supersedes the earlier 0x19=0x0000 pin, which
+ * traced to a payload-free trace of a different register census). The
+ * public datasheet has a 256-word map, but this endpoint
  * promotes only the selectors observed in the authentic Sapporo startup
  * command trace: 0x00, 0x05, 0x06, 0x09, 0x0b, 0x10, 0x19, 0x1a, 0x21,
  * 0x28, 0x54, and 0xec.
@@ -40,7 +45,7 @@ enum {
     MAX_OBSERVED_ZERO_05_REG = 0x05u,
     MAX_OBSERVED_ZERO_10_REG = 0x10u,
     MAX_AVERAGE_VCELL_REG = 0x19u,
-    MAX_AVERAGE_VCELL_VAL = 0x0000u,
+    MAX_AVERAGE_VCELL_VAL = 0xC000u,
     MAX_OBSERVED_ZERO_1A_REG = 0x1au,
     MAX_OBSERVED_ZERO_REG = 0x0bu,
     MAX_OBSERVED_LATER_REG = 0x21u,
