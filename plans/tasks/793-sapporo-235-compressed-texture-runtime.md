@@ -43,15 +43,27 @@ extended, not replaced.
 `src/display/nema_tsc6a.h` or `nema_tsc6a_internal.h` (declaration only),
 `tests/unit/test_nema_tsc6a_expand.c` (new),
 `tests/integration/test_firmware_sapporo_235_compressed.sh` (new).
+Integrator scope add (2026-09-23, answer to the reported interface gap — the
+smallest required integration change, no private-API workaround):
+`src/display/nema_tsc6a.h` (add `semu_bus *bus` as the second parameter of
+`nema_tsc6a_resolve_mask` — nothing else in this header),
+`src/display/nema_backend_draw.c` (one line: pass `draw_context->bus` at the
+existing call site), and `tests/unit/test_nema_tsc6a.c` (mechanical call-site
+update; shadow cases pass NULL bus; convert the exact-tuple compressed
+diagnostic pin into an out-of-tuple refusal pin, e.g. stride 181, keeping the
+diagnostic message asserted). No other edits outside the original list.
 `Makefile`, registries, profiles and `plans/index.tsv` are integration-owned
 and must not be edited by this ticket.
 
 ## Frozen Interfaces
 
-Existing 480x480 semantic-shadow acceptance, the ordered-clip and matrix
-helpers, the completion (clid, IRQ) condition, strict refusal for all other
-states, deterministic checkpoints, and firmware safety remain. No new public
-include API beyond one internal expansion declaration.
+Existing 480x480 semantic-shadow acceptance (accepts with NULL bus exactly as
+today), the ordered-clip and matrix helpers, the completion (clid, IRQ)
+condition, strict refusal for all other states, deterministic checkpoints,
+and firmware safety remain. The single `semu_bus *bus` parameter addition to
+`nema_tsc6a_resolve_mask` is the authorized interface change of this ticket;
+the compressed acceptance state must additionally refuse (zero writes) when
+bus is NULL or any bounded read fails. No further public API changes.
 
 ## Evidence Inputs
 

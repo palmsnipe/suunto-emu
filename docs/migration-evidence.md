@@ -6792,7 +6792,11 @@ capture stride 180 = 15·12 ✓; bit0 = LSB of byte0):
   nonzero in ~63% of corpus blocks; semantics UNVERIFIED — any decoder built
   on this entry must fail closed when it is nonzero.
 - colors: four quantized points in thirds, idx0=E0, idx1=(2E0+E1)/3,
-  idx2=(E0+2E1)/3, idx3=E1 (patent eqs. 12-19 four-point mode).
+  idx2=(E0+2E1)/3, idx3=E1 (patent eqs. 12-19 four-point mode). The
+  reference decoder's exact integer operation (authoritative for golden
+  matching, verified in `decoder.py` after this entry was written):
+  `(2*E0.ch + E1.ch + 1) // 3` and `(E0.ch + 2*E1.ch + 1) // 3` per channel —
+  round-to-nearest integer division, not floor.
 
 Derived census (twice reproduced; independent re-run by the integrator):
 `decoder.py` on the capture's first 2700 B twice →
