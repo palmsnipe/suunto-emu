@@ -58,6 +58,23 @@ IOM4 `0x120` write law (value semantics, response) and the matching
 in-tree behavior in `src/soc/apollo4/iom*`/`sapporo_iom4_regs`; the PWRCTRL
 hypothesis is retired by observation.
 
+RESOLVED ROOT CAUSE (probe pairs through `run_k.log`=`run_l.log`,
+sha256 `06310f15bad309847fea512b5b3738ef3733bb8e5c337487a42d4e099e7e3a14`):
+the `0x120` write is the IOM4 **DMA command** starting a 2-byte read from
+the MAX17050 gauge (devaddr `0x36`) of register **`0xF4`**; the endpoint
+chain routes correctly, and `sapporo_max17050.c` refuses fail-closed
+("unsupported read register or length" — `0xF4` is outside the pinned
+observed set `00,05,06,08,09,0b,10,19,1a,21,28,54,ec`), which `iom.c`
+converts into the precise BusFault on the command write. Guest boot gauge
+sequence pre-fault: `0x00, 0x09, 0x21-poll, 0x19, 0x06, 0xF4→refuse`.
+The existing lane boundary capture (`emulator/results/
+sapporo-apollo4-max17050-boundary.trace`, trace sha `8a7b565f…`) shows the
+same 0x36 request stream with a 320 ms poll cadence but is payload-free by
+policy, so closure needs a payload-bearing lane re-run via a /tmp wrapper
+resc (lane stays read-only) recording the lane model's answer for `0xF4`
+and continued boot. The PWRCTRL hypothesis (E-SAP-0050) is DISCONFIRMED
+for the first fault.
+
 Reference located (read-only, `shasum -a 256` `b1d1dc8ee41ed84a…`):
 `../suunto-firmware/emulator/renode/iom4/SapporoApollo4Iom4.cs` models
 offset `0x120` as **`CommandOffset`** — the IOM4 DMA command register
