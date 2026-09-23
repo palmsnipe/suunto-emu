@@ -66,6 +66,138 @@ static semu_transaction_result exchange(semu_serial_endpoint ep,
     return ep.transfer(ep.context, &t, error);
 }
 
+static size_t parse_hex(const char *hex, uint8_t *out, size_t max)
+{
+    size_t i;
+    for (i = 0u; i < max && hex[i * 2u] != '\0' && hex[i * 2u + 1u] != '\0'; ++i) {
+        unsigned byte = 0u, j;
+        for (j = 0u; j < 2u; ++j) {
+            const char ch = hex[i * 2u + j];
+            unsigned digit;
+            if (ch >= '0' && ch <= '9') digit = (unsigned)(ch - '0');
+            else if (ch >= 'a' && ch <= 'f') digit = (unsigned)(ch - 'a') + 10u;
+            else return 0u;
+            byte = (byte << 4u) | digit;
+        }
+        out[i] = (uint8_t)byte;
+    }
+    return i;
+}
+
+/* E-SAP-0041-EXT: the post-Done MAIN-state query round. The five request
+ * frames below are the byte-exact packets an in-tree OHR2 byte census
+ * captured from the five-layer 2.35.34 setup-walk at the point where the
+ * eight-hit startup budget was exhausted, and each listed response frame was
+ * reproduced twice byte-identically by the read-only lane endpoint. Only the
+ * eight pinned startup frames plus these five may be answered: the sixth
+ * post-Done request (command 0x0004 sequence 13, the first payload-carrying
+ * command outside the observed set) must keep refusing. */
+static const char *const ext_requests[] = {
+    /* command 0x0010 sequence 8 */
+    "001000080001ffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffffb7e4559f",
+    /* command 0x0000 sequence 9 */
+    "0000000900ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff4a8afad8",
+    /* command 0x000e sequence 10 */
+    "000e000a00ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff59365f6a",
+    /* command 0x0006 sequence 11 */
+    "0006000b003ad7e883d50100000000ffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff88f916fe",
+    /* command 0x0002 sequence 12 */
+    "0002000c00ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff5ed33fce",
+};
+
+static const char *const ext_responses[] = {
+    /* command 0x0010 sequence 8 */
+    "1000080000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000771a7cd7",
+    /* command 0x0000 sequence 9 */
+    "0000090000000000004d41494e00000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000440b375d",
+    /* command 0x000e sequence 10 */
+    "0e000a0000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000009c14f16",
+    /* command 0x0006 sequence 11 */
+    "06000b003ad7e883d50100000000ffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffff88f916fe",
+    /* command 0x0002 sequence 12 */
+    "02000c0000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000e242fb2",
+};
+
+static const char *const ext_unknown_request =
+    /* command 0x0004 sequence 13 */
+    "0004000d00230000000000000000000000000000ffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff276ae026";
+
+static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
+{
+    const unsigned commands[] = {16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u};
+    const uint8_t selector = 0x3cu;
+    uint8_t packet[59], response[58], expected[59];
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint ep;
+    fixture f;
+    unsigned i, j;
+    char log[8192];
+    SEMU_TEST_ASSERT(c, setup(&f));
+    device = semu_sapporo_ohr2_create(signal_ready, &f,
+        semu_sapporo_235_ohr_body_provider, &f.context, &f.error);
+    SEMU_TEST_ASSERT(c, device != NULL);
+    ep = semu_sapporo_ohr2_endpoint(device);
+    for (i = 0u; i < 8u; ++i) {
+        if (i == 2u) {
+            frame(packet, 3u, 2u);
+            SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+                exchange(ep, packet, 59u, NULL, 0u, &f.error));
+        }
+        frame(packet, commands[i], i);
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, packet, 59u, NULL, 0u, &f.error));
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, &selector, 1u, response, 58u, &f.error));
+    }
+    SEMU_TEST_EQ_U64(c, 8u, f.layer.hits);
+    for (i = 0u; i < 5u; ++i) {
+        SEMU_TEST_EQ_U64(c, 59u, parse_hex(ext_requests[i], packet, 59u));
+        SEMU_TEST_EQ_U64(c, 58u, parse_hex(ext_responses[i], expected, 58u));
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, packet, 59u, NULL, 0u, &f.error));
+        SEMU_TEST_EQ_U64(c, 1u, f.ready);
+        SEMU_TEST_EQ_U64(c, 9u + i, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, &selector, 1u, response, 58u, &f.error));
+        SEMU_TEST_EQ_U64(c, 0u, f.ready);
+        SEMU_TEST_ASSERT(c, memcmp(expected, response, 58u) == 0);
+    }
+    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
+    SEMU_TEST_EQ_U64(c, 26u, f.edges);
+    rewind(f.log);
+    j = (unsigned)fread(log, 1u, sizeof(log) - 1u, f.log); log[j] = '\0';
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=13 maximum=13") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=12") != NULL);
+
+    /* Refusal case: the next observed post-Done request is outside the
+     * pinned round, so it fails closed without consuming budget. */
+    SEMU_TEST_EQ_U64(c, 59u, parse_hex(ext_unknown_request, packet, 59u));
+    SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
+        exchange(ep, packet, 59u, NULL, 0u, &f.error));
+    SEMU_TEST_EQ_U64(c, 0u, f.ready);
+    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
+    SEMU_TEST_EQ_U64(c, 26u, f.edges);
+    /* A known command out of its turn refuses too, again without a hit. */
+    frame(packet, 2u, 13u);
+    SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
+        exchange(ep, packet, 59u, NULL, 0u, &f.error));
+    SEMU_TEST_EQ_U64(c, 0u, f.ready);
+    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
+    semu_sapporo_ohr2_destroy(device);
+    fclose(f.log);
+}
+
 static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
 {
     const unsigned commands[] = {16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u};
@@ -115,7 +247,7 @@ static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
     SEMU_TEST_ASSERT(c, f.context.refusal.code != SEMU_OK);
     rewind(f.log);
     j = (unsigned)fread(log, 1u, sizeof(log)-1u, f.log); log[j] = '\0';
-    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=8") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=13") != NULL);
     SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=7") != NULL);
     semu_sapporo_ohr2_destroy(device);
     fclose(f.log);
@@ -140,13 +272,13 @@ static void test_sapporo_235_ohr_atomic_body_refusals(semu_test_context *c)
         case 4: body[4] = 2u; break;
         case 5: body[53] = 0u; break;
         case 6: body[1] = 1u; break;
-        case 7: f.layer.hits = 8u; break;
+        case 7: f.layer.hits = 13u; break;
         }
         SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
             semu_sapporo_235_ohr_body_provider(&f.context,
                 (semu_sapporo_ohr2_command)command, (uint16_t)sequence,
                 state, body, response, &f.error));
-        SEMU_TEST_EQ_U64(c, i == 7u ? 8u : 0u, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, i == 7u ? 13u : 0u, f.layer.hits);
         for (j = 0u; j < 54u; ++j) SEMU_TEST_EQ_U64(c, 0xa5u, response[j]);
         fclose(f.log);
     }
@@ -233,6 +365,7 @@ int main(void)
         SEMU_TEST_CASE(test_sapporo_235_ohr_startup_transport),
         SEMU_TEST_CASE(test_sapporo_235_ohr_atomic_body_refusals),
         SEMU_TEST_CASE(test_sapporo_235_ohr_pins_and_owners),
+        SEMU_TEST_CASE(test_sapporo_235_ohr_post_done_queries),
         SEMU_TEST_CASE(test_sapporo_235_ohr_machine_refusal_and_reset)
     };
     return semu_test_run(cases, sizeof(cases)/sizeof(cases[0]));

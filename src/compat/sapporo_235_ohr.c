@@ -8,6 +8,19 @@ static const char *const hashes[] = {
     "f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22"
 };
 
+/* E-SAP-0041 pins the eight ordered synthetic startup responses.
+ * E-SAP-0041-EXT adds the five ordered MAIN-state queries the guest repeats
+ * after the Done screen (command 0x0010 sequence 8, 0x0000/9, 0x000e/10,
+ * 0x0006/11, 0x0002/12). Each of those five request frames was captured
+ * byte-exactly by the in-tree OHR2 byte census of the five-layer 2.35.34
+ * setup-walk at the moment the eight-hit budget was exhausted, and each
+ * response was reproduced twice byte-identically by the read-only lane
+ * endpoint under the same three body laws the lane applies (zero body with
+ * command/sequence echoed, "MAIN"/"BSL" identity at body offset 9, request
+ * body echoed). Requests past the thirteenth, out of this order, or outside
+ * the pinned payload padding still fail closed. */
+#define SAP235_OHR_RESPONSES 13u
+
 /* E-SAP-0041: synthetic identities/zero startup data, never measurements.
  * The response budget and order belong to each machine's layer state. */
 const semu_layer_descriptor semu_sapporo_235_ohr_layer = {
@@ -17,7 +30,7 @@ const semu_layer_descriptor semu_sapporo_235_ohr_layer = {
     .evidence = "E-SAP-0041",
     .component_hashes = hashes,
     .component_hash_count = 3u,
-    .maximum_hits = 8u
+    .maximum_hits = SAP235_OHR_RESPONSES
 };
 
 static semu_transaction_result refuse(semu_sapporo_235_ohr_context *ctx,
@@ -39,14 +52,16 @@ semu_transaction_result semu_sapporo_235_ohr_body_provider(
     semu_sapporo_ohr2_state state, const uint8_t request[54],
     uint8_t response[54], semu_error *error)
 {
-    static const uint16_t commands[] = { 16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u };
+    static const uint16_t commands[SAP235_OHR_RESPONSES] = {
+        16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u, 16u, 0u, 14u, 6u, 2u
+    };
     semu_sapporo_235_ohr_context *ctx = context;
     size_t index, first = 4u;
     uint8_t body[54];
     char effect[112];
     if (ctx == NULL || ctx->state == NULL || ctx->logger == NULL ||
         !ctx->state->enabled || ctx->state->descriptor != &semu_sapporo_235_ohr_layer ||
-        ctx->state->hits >= 8u || ctx->refusal.code != SEMU_OK ||
+        ctx->state->hits >= SAP235_OHR_RESPONSES || ctx->refusal.code != SEMU_OK ||
         request == NULL || response == NULL) return refuse(ctx, error);
     index = (size_t)ctx->state->hits;
     if ((unsigned)command != commands[index] || sequence != index ||
