@@ -27,13 +27,19 @@ every near-miss state, all other compressed shapes.
 Ticket 794's first scope is landed: E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-
 001 (lane census `c575c2dc`, replay pair `417c2983`) retired the
 refused-kick BusFault — post-Done the two refused DRAW=2 resolve passes
-log `gpu/draw-refused` lines with zero resets, and the walk advances to
-the E-SAP-0041 OHR-fixture ceiling (`pc=0x001be85a` OHR-fixture stop, MAIN-
-state sequence 8) ~3.5 s earlier than the old post-reset path. Ticket
-794 remains open for the remaining main-screen boundary: OHR-fixture
-budget extension evidence for MAIN-state transactions, the resolve-law
-extension (witness detail: accent color `0xff55aaff`, IMEM already
-matching), and button navigation across the settled main screen.
+log `gpu/draw-refused` lines with zero resets. Ticket 710 then landed
+E-SAP-0041-EXT: the OHR fixture answers thirteen ordered startup plus
+MAIN-state post-Done queries (lane byte-pinned responses), step 25 now
+SETTLES on the main screen (`generation=3998 crc32=1394c638`), and the
+walk reaches `stop=unmapped-access pc=0x001023b0
+instructions=8772734885 virtual_time_ns=39969302384` (transcript
+`245cab82…`) after command `0x0004` sequence 13 refuses and four guest
+self-resets. Open boundaries: admitting `0x0004` (lane answer already
+pre-captured: zero body `b72d3ede…`), the unmapped-access terminal
+(inside the pinned SRAM aperture — a CPU address-arithmetic question),
+the resolve-law extension (witness detail: accent color `0xff55aaff`,
+IMEM already matching), and button navigation acceptance across the
+now-settling main screen (tickets 710/794).
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment

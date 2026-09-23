@@ -26,7 +26,7 @@ For the pinned 2.35.34 OTA, `--layer sapporo-2.35-production-data` explicitly
 supplies synthetic manufacturing records and reaches normal boot mode. This
 is a bring-up option: startup now passes the two absent pressure-sensor
 probes and haptic initialization. Add `--layer sapporo-2.35-ohr-startup`
-to supply the lane's eight synthetic OHR startup responses. This avoids the
+to supply the lane's thirteen synthetic OHR responses — eight startup (E-SAP-0041) plus five MAIN-state post-Done queries (E-SAP-0041-EXT). This avoids the
 OHR reset. Correct 64 KiB flash erases now let the firmware create and reopen
 its logbook, then render the native “Select language” prompt. A later GPS-driver
 assertion still prevents a stable session. A bounded middle-button run opens

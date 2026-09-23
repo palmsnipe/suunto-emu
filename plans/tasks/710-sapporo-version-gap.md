@@ -1,6 +1,6 @@
 # 710 — One Later Sapporo Observed Gap
 
-**Status:** ready
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 705
 
@@ -81,3 +81,19 @@ Integrator decision (2026-09-15, delegated): status set `ready` — the
 remaining work is the offline RE derivation named above, which needs no
 physical device; the first instance must record its derivation as an evidence
 entry before any behavior change.
+
+Instance 12 (2026-09-23, `sap235-710-ohr-main`, integrator-reproduced):
+E-SAP-0041-EXT landed — the 2.35 OHR startup fixture grew from eight to
+thirteen ordered MAIN-state responses (post-Done queries seq 8..12,
+lane byte-pinned 14/14 shim verification + twice-identical lane replay
+`4dff3a4e…`/`4d6309fc…`; tree pair `245cab82…`). Step 25 SETTLES
+(3998/1394c638). REMAINING named gaps for the next instance: (1) command
+0x0004 sequence 13 — outside the pinned command set; the lane's zero-
+body answer `b72d3ede…` is already pre-captured twice; admission needs a
+decision on extending the command census beyond the startup trace;
+(2) the terminal `unmapped-access pc=0x001023b0` / `memory address
+overflow at 0x10025298` — the address lies INSIDE the pinned SRAM
+aperture, so investigate the CPU address-arithmetic/exception-frame path
+first (suspected tree defect class: every bug fix starts red-test-first);
+(3) after (1)/(2): button navigation acceptance (ticket 794's remaining
+scope) across the settling main screen.

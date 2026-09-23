@@ -7207,3 +7207,78 @@ the lane (§9.4). The boot witness fails the resolve law at the ACCENT
 predicate (color `0xff55aaff` not in the accepted set) while IMEM
 matches — first detail of a future resolve-law extension, recorded,
 unimplemented.
+### E-SAP-0041-EXT — 2.35 synthetic OHR MAIN-state post-Done queries
+
+Status/claim: the E-SAP-0041 startup fixture's eight ordered responses are
+extended to thirteen: after the Done screen the unchanged 2.35.34 guest
+repeats five MAIN-state OHR2 queries, and the lane's read-only transport
+answers each with its existing three body laws. Requests past the
+thirteenth, out of order, or outside the pinned padding still refuse fail-
+closed. The layer's log label remains `E-SAP-0041` (the base law); this
+entry names the extension so no log string moves.
+
+Observation (2026-09-23, ticket 710 instance `sap235-710-ohr-main`, all
+pairs byte-identical): in-tree byte census at HEAD `4793852` with
+behaviour-neutral probes (clean binary `70acc307…`/`9f9abf11…`; probe
+binary `55948af7…` reproducing the pinned transcript `344973205de1…`
+unchanged, rc 3): refused-request census `51f68e1e…` (exactly one refused
+request latches the stop) then shim census `900707c6…` + `7e6e8bc1…`
+(15 requests / 14 responses; every shim answer lane-verified 14/14
+byte-for-byte BEFORE use). Lane side: monitor-side reflection into the
+read-only platform's own transport (`emulator/renode/ohr/
+SapporoOhr2Transport.cs` sha `f35e6a69c86fba8142d94c835db4958d238b7cc042f58e67a0606d5a0d2b96f0`,
+unchanged from E-SAP-0041), CPU never run, pre-state rebuilt honestly by
+first replaying the nine authentic startup packets; scripts
+`/tmp/sap235-710ohr/lane-replay.resc` `b9c936a7…` and
+`lane-replay-extended.resc` `8e6b802b…`, normalised logs twice identical
+`4dff3a4e…` and `4d6309fc…`; all eight pinned startup responses reproduced
+byte-for-byte (8/8 cross-check vs the bytes the tree consumes).
+
+Derived table (extension rows only; base rows stay in E-SAP-0041):
+
+| Command | Sequence | State | Response body after header | req CRC | resp CRC |
+| --- | --- | --- | --- | --- | --- |
+| 0010 boot mode | 8 | MAIN | zero | b7e4559f | 771a7cd7 |
+| 0000 identity | 9 | MAIN | MAIN at body offset 9, otherwise zero | 4a8afad8 | 440b375d |
+| 000e result | 10 | MAIN | zero | 59365f6a | 09c14f16 |
+| 0006 echo | 11 | MAIN | request body bytes 4..53 echoed | 88f916fe | 88f916fe |
+| 0002 result | 12 | MAIN | zero | 5ed33fce | 0e242fb2 |
+
+NOT admitted: command `0x0004` sequence 13 (first payload-carrying
+request: byte 4 = 0x23, zeros to byte 18, ff tail; req CRC `276ae026`).
+The lane transport answers it with a zero body (`b72d3ede…`, twice) — but
+it is outside the pinned command set, so the tree refuses it and this
+fixture does not grow a command the startup trace never exhibited.
+Recorded as the next ticket-710 gap with its lane answer pre-captured.
+
+Implementation (ticket 710, commit at `655e3cd`-era HEAD; files
+src/compat/sapporo_235_ohr.c, tests/devices/test_sapporo_235_ohr.c):
+`commands[13] = 16,0,16,0,13,14,6,2 | 16,0,14,6,2`, budget
+`SAP235_OHR_RESPONSES`=13, three body laws unchanged, refusal path
+untouched; RED-first `test_sapporo_235_ohr_post_done_queries` (all five
+58-byte responses byte-pinned to the lane CRCs) plus retained refusal
+cases (observed `0x0004/13` and an out-of-turn known command both refuse
+without consuming budget).
+
+Gates: ohr filter 47/0; make check 1002 PASS (was 1001); sanitize zero;
+both 2.22 SDL gates byte-identical; era drift fully classified — metadata-
+only (`maximum=8`→`13` label row; proved by normalising
+`maximum=13`→`8` re-hashing to every old pin): block_erase `cb6a878a…`,
+ohr-enabled `de26f3f1…` (disabled control `b452c566…` UNCHANGED),
+gps_startup `7059536e…`/`072ad35b…`, gps_reopen `bd3b718f…`, gps_awake +
+compressed Sec-2 `fe70da42…`, SDL startup `087e6025…`, scroll
+`c4162738…`; genuinely moved: compressed Sec-3 only, re-pinned to
+transcript `245cab82c57c2e61cebcf0e38f7dd3e965b67af375c537de7ad10b9665d9a23c`
+integrator-reproduced twice on a fresh build: step 25 SETTLES
+(`generation=3998 crc32=1394c638`), then the `0x0004/13` refusal, four
+guest self-resets, terminal `stop=unmapped-access pc=0x001023b0
+instructions=8772734885 virtual_time_ns=39969302384 detail=memory address
+overflow at 0x10025298` — note `0x10025298` lies INSIDE the pinned SRAM
+aperture (`0x10000000`+`0x180000`), so that terminal is a CPU-side
+address-arithmetic/exception-frame question, not a missing aperture;
+named for the next 710 slice.
+
+Confidence/limits: the five responses are lane-model outputs for
+requests the authentic guest provably issued (captured byte-exactly
+in-tree); no physical device. The `0x0004` refusal-vs-lane-answer gap and
+the unmapped-access terminal are open boundaries, recorded not smoothed.
