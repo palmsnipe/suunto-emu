@@ -9,6 +9,36 @@ already exist.
 ## Implemented Baseline
 
 
+### Sapporo 2.35 sustained GPS-awake cadence — ticket 710 instance-9, 2026-09-23
+
+Two longer read-only lane probes (same E-SAP-0048 script, admission ceilings
+16 and 64, caps 120 s and 430 s) reproduce twice as identical censuses. All
+64 admissions keep the invariant `state=12 pending=10 flags=1,0,0 config=93`
+and the fixed 5500 ms rearm; exhaustion at the observed ceiling reproduces the
+known retry/assert path. The `sapporo-2.35-gps-awake` layer budget therefore
+grows 8 → 64 with predicates, refusal, reset and unit coverage unchanged; the
+65th admission still refuses fail-closed. E-SAP-0049 records scripts, log and
+census hashes.
+
+The bounded awake firmware gate now ends `stop=budget` at 70 s with eleven
+healthy polls (transcript `17cc9087…`); the old ninth-admission refusal pin is
+superseded by observation, not weakened. The SDL scroll gate transcript
+re-pins to `1d44ea98…`; the only diff against the pre-change transcript is
+three `layer-hit` metadata rows (`maximum=8→64`, `E-SAP-0048→E-SAP-0049`) —
+frames, generations, CRC and stop tuple are byte-identical, attributed by a
+control build that reproduces the old bytes.
+
+New frontier: paired 26B/400 s cold runs stay cadence-invariant through the
+55th admission at 306.7 s virtual time, then a high-rate region at PC
+`0x000ccac4` burns about 13B instructions per 13 s of guest time until the
+instruction budget ends the run at 328.7 s. No reset/assert/refusal occurs;
+the lane census is clean at the 430 s cap. Naming that region is the next
+ticket-710 instance; no throttling or clock guessing is authorized.
+
+`make check` passes 989 cases; the focused awake module passes 4/4; the
+re-derived awake and scroll gates pass. 2.39 era gates are unaffected by
+construction (only the profile-pinned fixture budget changed).
+
 ### Renderer snapshot integration — ticket 791, 2026-09-22
 
 Version-2 snapshots now preserve the renderer as well as guest/device state:

@@ -6639,3 +6639,106 @@ its host UI proof does not establish untested watch functions or 2.35 main.
 | `lines-final.log` | `ae723a501293fc63635625edd043a22c876a3c8172dd93382d399ea3e8a22d6b` |
 | `contracts-final.log` | `9a518e8984ccd42e9a0c0e752c0c6cc0f92f4c93e2349266f0e747021a34b904` |
 | `sdl-final.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+
+## E-SAP-0049 — lane-observed GPS awake cadence extends to 64 admissions
+
+2026-09-23, ticket 710 instance-9 (2.35.34 sustained-session push, owner-directed).
+E-SAP-0048 observed nine poll boundaries with eight injected pulses at a
+60-second virtual cap. The next observed frontier is that boundary itself: the
+zero-pulse control's retry/assert path and the positive probe's untested ninth
+admission. This instance's probes are E-SAP-0048's exact script (same
+`0x1259fe` awake-poll hook, same four status responses, same controlled-flash
+experiment, no firmware instruction/register/state write and no source-lane
+edit) with the admission ceiling `n < 8` raised to `n < 16` and `n < 64` and
+the virtual cap raised to 120 s and 430 s.
+
+Commands from `/Users/cyril/projects/suunto-firmware` (needs the .NET bundle
+cache and Renode's `config.lock`; both are host-tool artifacts, not lane state):
+
+```sh
+.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt \
+  /tmp/sap235-awake2/pulse-16.resc
+.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt \
+  /tmp/sap235-awake2/pulse-64.resc
+```
+
+E-SAP-0048's normalizer law (its `census.py`, unmodified regex) is applied
+here as `census16.py`/`census64.py`. External artifacts, SHA-256:
+
+| Artifact | SHA-256 |
+|---|---|
+| `pulse-16.resc` | `ea19e085748617b057600a3f550147fde0de440c619d0722b57240de6aeb50f8` |
+| `pulse-64.resc` | `5630d9df97a593ad50123cbcbbc9f99586b445a9942ccbbb1806f18291ddf1e3` |
+| `pulse-16-1.log` | `7f0386d970334d5f770bc579180a93dfceb59938f1eec2d0b1f5a7702d555f8c` |
+| `pulse-16-2.log` | `e27cdcebb682f145049228205bb06a0d0a1f694eb1e42accfa9f4a2ab1333d0a` |
+| `pulse-16-1.census` | `9325efbe914140d1867a9178c4d88946dec25c1fcb03c7fd1fbafe2b36edbc69` |
+| `pulse-16-2.census` | `9325efbe914140d1867a9178c4d88946dec25c1fcb03c7fd1fbafe2b36edbc69` |
+| `pulse-64-1.log` | `5f29837ff352dda55ca4e1c6ce4d1f5c9ccb646729935ed03a75944a441efadf` |
+| `pulse-64-2.log` | `8c7b79519492840b6b3459208e01d02e456b663173a0fcd2260488248e852eac` |
+| `pulse-64-1.census` | `20d856ad1ed65caa80365206747063d4461666564d20521b45cd7ac75333a782` |
+| `pulse-64-2.census` | `20d856ad1ed65caa80365206747063d4461666564d20521b45cd7ac75333a782` |
+| `census16.py` | `a0a4cae41045227b6271825c8c0ec83b4fe07eadaea306c94a32bc7b516bf3bd` |
+| `census64.py` | `2665484b669c5ad769d77734479025d6c3d6a991134bc69f4bf053ca34425797` |
+
+Derived census. 16-run (222 rows, pair identical): sixteen successful
+`AWAKE_INJECT ordinal=1..16` admissions, each with the invariant
+`state=12 pending=10 flags=1,0,0 config=00000093` and the fixed
+`GPS_SCHEDULE delay=5500` cadence; after the sixteenth admission the native
+poll boundary re-enters three times (`ordinal=17` rows) with `flags=0,0,0`
+and state descending 12 to 4, the driver arms with `state=4 pending=2`,
+transmit grows to exactly `@VER @GSR @GSTP @GSR` (25 TX bytes) and the run
+ends at the 120-second cap with PC `0xe1862`, no assertion. 64-run (564 rows,
+pair identical): sixty-four admitted admissions with the same per-poll
+invariant and the same 5500 ms cadence through ordinal 64; after the
+sixty-fourth, `ordinal=65` re-enters with `flags=1,0,0` then `flags=0,0,0`
+and state 12 then 4, the retry cycle reaches
+`SAP_ASSERT_DETAIL file=CXD5610GF-driver.cpp line=894` with the same
+`00079424 / 0012572d / 1002f7d0` tuple as E-SAP-0048's negative control.
+There is no state, cadence, or register difference between admission 9 and
+admissions 10 through 64; the observed law is cadence-invariant across the
+whole observed range, and exhaustion behavior at 65 equals the E-SAP-0048
+nine-boundary exhaustion path.
+
+Interpreter integration (this instance): `sapporo-2.35-gps-awake`
+`maximum_hits` 8 → 64 with the predicate and refusal paths unchanged; the
+budget 64 is a hash-pinned observed ceiling, not a recurring timer or a
+physical-cadence claim. Unit module asserts sixty-four admits plus refusal on
+the sixty-fifth, hit/level/time preservation, the 36-case refusal matrix at
+`hits=64`, reset cancellation, and the machine-level stop. Bounded firmware
+runner `tests/integration/test_firmware_sapporo_235_gps_awake.sh` re-derived:
+the bounded 3B/70s window now ends `stop=budget pc=0x000e1862
+instructions=1860847385 virtual_time_ns=70000000000` with eleven hits and
+transcript SHA-256 `17cc9087bf600002960d5d18d13517ec4a868c3186720ce3532ca9ad82a20794`
+(paired `cmp` identical); the old ninth-admission refusal pin
+(`1638733422 / 54660679480`) is superseded by observation, not weakened: the
+65-admission refusal remains fail-closed in the unit module. SDL scroll gate
+`tools/test_sdl_sapporo_235_scroll.sh` transcript pin re-derived to
+`1d44ea9814417241f8a66f604c093edad61545c4947856b6eb8af915d7b7e23a`; a
+paired run with only the old layer file differs solely in three `layer-hit`
+metadata rows (`maximum=8`/`E-SAP-0048` versus `maximum=64`/`E-SAP-0049`);
+guest pixels, generations, `crc32=f0ff828c`, stop
+`4961334596 / 22000000000` and every other row are byte-identical.
+
+New observed frontier (records the next gap; no behavior authorized yet):
+paired cold 5-layer runs to 26B instructions / 400 seconds
+(`/tmp/sap235-awake-impl/extended2-{1,2}.log`, transcript
+`0cd3308a5242038fca5dbee520e7ee06f1b4ffa2551720c9af9386c1eeff3ea5`, pair
+identical) now deliver fifty-five admissions with invariant cadence through
+`virtual_time_ns=306707503135`, then the session becomes instruction-bound
+at PC `0x000ccac4` at `26000000000 / 328673254682`. After the last awake
+admission the guest executes about thirteen billion instructions — half the
+whole 26-billion budget — across the next twenty-two virtual seconds, roughly
+14 times the mean rate of the first 307 virtual seconds; the scheduler keeps
+advancing virtual time with no reset, no assertion, and no device refusal. The lane's
+paired `pulse-64` census shows the same clock state clean at the 430-second
+cap, so this is an interpreter-side high-rate region to name with a bounded
+slice census (next ticket-710 instance), not an awake-cadence gap and no
+throttling, park, or clock guessing is authorized by this entry.
+
+Verification: `make check` 989 PASS / 0 FAIL; focused awake module 4/4;
+awake firmware runner passes its re-derived pins; the scroll pair passes with
+the attributed metadata-only diff. 2.39 era gates were not re-run here (no CPU,
+scheduler, bus or device law changed; only this profile-pinned fixture
+budget); their pins are unaffected by this change by construction and ticket
+783/777 remain the owners of any real era drift.

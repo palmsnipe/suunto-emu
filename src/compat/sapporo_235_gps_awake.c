@@ -9,10 +9,10 @@ const semu_layer_descriptor semu_sapporo_235_gps_awake_layer = {
     .id = "sapporo-2.35-gps-awake",
     .kind = SEMU_LAYER_DEVICE_FIXTURE,
     .profile_id = "sapporo-2.35.34",
-    .evidence = "E-SAP-0048",
+    .evidence = "E-SAP-0049",
     .component_hashes = hashes,
     .component_hash_count = 3u,
-    .maximum_hits = 8u
+    .maximum_hits = 64u
 };
 
 static semu_status refuse(semu_sapporo_235_gps_awake_context *c, semu_error *error)
@@ -34,7 +34,7 @@ static int ready(const semu_sapporo_235_gps_awake_context *c)
     const semu_sapporo_235_gps_context *s;
     if (c == NULL || c->state == NULL || c->logger == NULL ||
         !c->state->enabled || c->state->descriptor != &semu_sapporo_235_gps_awake_layer ||
-        c->state->hits >= 8u || c->refusal.code != SEMU_OK) return 0;
+        c->state->hits >= 64u || c->refusal.code != SEMU_OK) return 0;
     r = c->reopen;
     if (r == NULL || r->state == NULL || r->logger != c->logger ||
         !r->state->enabled || r->state->descriptor != &semu_sapporo_235_gps_reopen_layer ||
@@ -69,8 +69,8 @@ semu_status semu_sapporo_235_gps_awake_poll(semu_sapporo_235_gps_awake_context *
         driver[0x272] != 12u || driver[0x273] != 10u ||
         flags[0] != 1u || flags[1] != 0u || flags[2] != 0u || config != 0x93u)
         return refuse(c, error);
-    /* E-SAP-0048: finite synthetic GPIO edges through the real IRQ path.
-     * No instruction/state patch, location data or recurring timer. */
+    /* E-SAP-0048/E-SAP-0049: finite synthetic GPIO edges through the real
+     * IRQ path. No instruction/state patch, location data or recurring timer. */
     status = semu_sapporo_cxd5610_pulse_awake_after(gps, UINT64_C(100000000), &failure);
     if (status != SEMU_OK) {
         c->refusal = failure;

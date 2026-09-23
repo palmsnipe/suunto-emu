@@ -16,7 +16,7 @@ static void test_sapporo_235_gps_awake_activation(semu_test_context *context)
     unsigned i;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_profile_load("profiles/sapporo/2.35.34/profile.semu", &profile, &error));
-    SEMU_TEST_EQ_U64(context, 8u, d->maximum_hits);
+    SEMU_TEST_EQ_U64(context, 64u, d->maximum_hits);
     for (i = 0u; i < 3u; ++i) hashes[i] = d->component_hashes[i];
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_layer_enable_checked(&state, d, profile.id, hashes, 3u, &error));
@@ -109,7 +109,7 @@ static void test_sapporo_235_gps_awake_timing_and_budget(semu_test_context *cont
     SEMU_TEST_ASSERT(context, init(&a, 1, &e));
     SEMU_TEST_ASSERT(context, init(&b, 1, &e));
     cpu = a.cpu;
-    for (i = 0u; i < 8u; ++i) {
+    for (i = 0u; i < 64u; ++i) {
         uint64_t now = semu_scheduler_now(a.scheduler);
         SEMU_TEST_EQ_U64(context, SEMU_OK, poll(&a, &e));
         SEMU_TEST_EQ_U64(context, i + 1u, a.states[2].hits);
@@ -124,19 +124,19 @@ static void test_sapporo_235_gps_awake_timing_and_budget(semu_test_context *cont
         SEMU_TEST_EQ_U64(context, 0u, a.level);
         SEMU_TEST_EQ_U64(context, now + 101000000u, a.signal_time);
     }
-    SEMU_TEST_EQ_U64(context, 8u, a.highs);
+    SEMU_TEST_EQ_U64(context, 64u, a.highs);
     SEMU_TEST_EQ_U64(context, 0u, b.highs);
     SEMU_TEST_EQ_U64(context, 0u, b.states[2].hits);
     SEMU_TEST_ASSERT(context, memcmp(&cpu, &a.cpu, sizeof(cpu)) == 0);
     SEMU_TEST_ASSERT(context, poll(&a, &e) != SEMU_OK);
-    SEMU_TEST_EQ_U64(context, 8u, a.states[2].hits);
+    SEMU_TEST_EQ_U64(context, 64u, a.states[2].hits);
     SEMU_TEST_EQ_U64(context, 0u, semu_scheduler_event_count(a.scheduler));
     {
-        char log[4096]; size_t count;
+        static char log[131072]; size_t count;
         rewind(a.log); count = fread(log, 1u, sizeof(log)-1u, a.log); log[count] = '\0';
-        SEMU_TEST_ASSERT(context, strstr(log, "hit=8 maximum=8") != NULL);
+        SEMU_TEST_ASSERT(context, strstr(log, "hit=64 maximum=64") != NULL);
         SEMU_TEST_ASSERT(context, strstr(log, "delay-ns=100000000 width-ns=1000000") != NULL);
-        SEMU_TEST_ASSERT(context, strstr(log, "evidence=E-SAP-0048") != NULL);
+        SEMU_TEST_ASSERT(context, strstr(log, "evidence=E-SAP-0049") != NULL);
         SEMU_TEST_EQ_U64(context, 0u, ftell(b.log));
     }
     destroy(&a); destroy(&b);
@@ -156,7 +156,7 @@ static void test_sapporo_235_gps_awake_atomic_refusals(semu_test_context *contex
         SEMU_TEST_ASSERT(context, init(&f, 1, &e));
         if (mode == 0u) f.states[2].enabled = 0;
         if (mode == 1u) f.states[2].descriptor = NULL;
-        if (mode == 2u) f.states[2].hits = 8u;
+        if (mode == 2u) f.states[2].hits = 64u;
         if (mode == 3u) f.cpu.r[8]++;
         if (mode == 4u) f.cpu.r[8] = 0x1017ff00u;
         if (mode == 5u) f.cpu.r[8] = 0x40010000u;

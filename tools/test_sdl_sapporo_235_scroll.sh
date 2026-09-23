@@ -34,7 +34,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/run-1.log" "$run_dir/run-2.log"
 [ "$(shasum -a 256 "$run_dir/run-1.log" | awk '{print $1}')" = \
-    77402db41d8dc1260cb4226ce37edd618bd654a6b37c6c4dfd5f6be6c1b5c696 ]
+    1d44ea9814417241f8a66f604c093edad61545c4947856b6eb8af915d7b7e23a ]
 grep -Fqx 'SDL live test settled step=15 generation=1756 crc32=f0ff828c' "$run_dir/run-1.log"
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=4961334596 virtual_time_ns=22000000000' "$run_dir/run-1.log"
 if grep -Eq 'machine-reset-request|status=refuse|stop=compat-refused' "$run_dir/run-1.log"; then

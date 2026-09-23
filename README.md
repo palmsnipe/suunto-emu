@@ -73,10 +73,13 @@ make test-firmware TEST_PROFILE=sapporo-2.35.34 \
   SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu
 ```
 
-The optional `--layer sapporo-2.35-gps-awake` supplies eight synthetic GPIO24
-pulses through native interrupt handling. It requires both GPS layers above
-and extends the cold run to about54.6 virtual seconds before a ninth-admission
-refusal. Button-driven runs reach weight, height and phone-pairing instructions.
+The optional `--layer sapporo-2.35-gps-awake` supplies up to 64 lane-observed
+synthetic GPIO24 pulses (E-SAP-0049) through native interrupt handling. It
+requires both GPS layers above; the bounded awake gate now ends at a 70-second
+budget stop with eleven healthy polls, and paired long cold runs keep the
+invariant cadence through the 55th admission near 307 virtual seconds before a
+high-rate instruction-bound region at PC `0xccac4`, recorded in E-SAP-0049 as
+the next gap. Button-driven runs reach weight, height and phone-pairing instructions.
 It supplies no GPS fix or phone connection. The RGBA4444 pairing strip now
 renders, and Down scrolls the phone instructions without the former GPU fault
 and reset. The bounded 22-second regression repeats exactly. A longer button sequence
