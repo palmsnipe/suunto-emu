@@ -26,6 +26,6 @@ done
 cmp "$run_dir/reopen-1.log" "$run_dir/reopen-2.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-awake' "$run_dir/reopen-1.log")" -eq 11 ]
 [ "$(shasum -a 256 "$run_dir/reopen-1.log" | awk '{print $1}')" = \
-    fe70da422166ca98bc37c1a991f5fad3777b05ba76855b32df617032202ff798 ]
+    16e3d4d3bb88b27e669c73bdb254d5621fa6fcc35a5ed3b6998e4407dd64540b ]
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=1860847385 virtual_time_ns=70000000000' "$run_dir/reopen-1.log"
 echo 'PASS sapporo-2.35.34 bounded GPS awake sequence'

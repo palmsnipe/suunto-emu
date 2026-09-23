@@ -32,7 +32,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/run-1.log" "$run_dir/run-2.log"
 [ "$(shasum -a 256 "$run_dir/run-1.log" | awk '{print $1}')" = \
-    087e6025fcc66e2caa037b0b5d222ef01494018dd417bd0d503177537f821c7b ]
+    67d391adc633bf6f72b72f99a5f4b30196d80fb16930c881e2a5a0c184c1ee69 ]
 grep -Fqx 'SDL live test settled step=1 generation=3 crc32=4979f432' "$run_dir/run-1.log"
 grep -Fqx 'SDL live test settled step=2 generation=6 crc32=3bd12ac8' "$run_dir/run-1.log"
 grep -Fqx 'SDL live test settled step=3 generation=79 crc32=405422e1' "$run_dir/run-1.log"

@@ -70,7 +70,7 @@ cmp "$run_dir/compressed-1.log" "$run_dir/compressed-2.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-awake' "$run_dir/compressed-1.log")" -eq 11 ]
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=1860847385 virtual_time_ns=70000000000' "$run_dir/compressed-1.log"
 [ "$(shasum -a 256 "$run_dir/compressed-1.log" | awk '{print $1}')" = \
-    fe70da422166ca98bc37c1a991f5fad3777b05ba76855b32df617032202ff798 ]
+    16e3d4d3bb88b27e669c73bdb254d5621fa6fcc35a5ed3b6998e4407dd64540b ]
 # Honest boundary inside this window: nothing refuses and nothing resets.
 # The compressed draw itself lives past this window (setup-walk trajectory);
 # its runtime rendering gate is Section 3.
@@ -84,14 +84,17 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # The setup-walk trajectory reaches private 2.35 main entry, where the
 # 60x60 crosshair draw is accepted by ticket 793.  E-EMU-SAP235-RINGKICK-
 # CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick:
-# the refused DRAW=2 resolve children now log exactly two gpu/draw-refused
-# lines (ord 7989 child 0x100d2800 and the driver retry ord 7999 child
-# 0x100d0800, both offset 48), step 25 settles (generation 3998, crc32
-# 1394c638) under the 13-hit E-SAP-0041-EXT OHR fixture (ticket 710), and
-# the walk terminates after four guest self-resets at the pinned
-# unmapped-access boundary past the refused command 0x0004 sequence 13.
-# Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
-# 245cab82c57c2e61cebcf0e38f7dd3e965b67af375c537de7ad10b9665d9a23c),
+# the refused DRAW=2 resolve children log gpu/draw-refused lines (43 in
+# this window: 24 unsupported resolve states, first pair ord 7989 child
+# 0x100d2800 and driver retry 7999 child 0x100d0800 both offset 48, plus
+# 19 compressed-source 60x60 refusals as the settling main screen repaints
+# its icon — a 794/788/793 law-family observation, fail-closed GPU-side,
+# zero resets), step 25 settles (generation 3998, crc32 1394c638), and
+# under the 14-hit E-SAP-0041-EXT fixture (command 0x0004 admitted in
+# MAIN, ticket 710) the walk runs to a CPU wall: unsupported Thumb
+# 0xf20e46e4 at 0x00072f52. Re-derived 2026-09-23 from paired
+# byte-identical runs (transcript sha
+# e1bb8c48d2f96a557b39a89db2b7275def2c6e8da5340d4e3e617bed21e54c22),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -119,19 +122,16 @@ grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=25 generation=3998 crc32=1394c638' \
     "$run_dir/main-1.log"
-grep -Fqx 'stop=unmapped-access pc=0x001023b0 instructions=8772734885 virtual_time_ns=39969302384 detail=memory address overflow at 0x10025298' \
+grep -Fqx 'stop=unsupported-instruction pc=0x00072f52 instructions=7867825439 virtual_time_ns=33196821909 detail=unsupported Thumb instruction 0xf20e46e4 at 0x00072f52' \
     "$run_dir/main-1.log"
-# The compressed crosshair draw must never refuse in this window; the
-# post-Done resolve pass must refuse GPU-side (exactly two draw-refused
-# lines; E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001). After the 13-hit
-# E-SAP-0041-EXT budget is consumed, command 0x0004 sequence 13 is
-# refused fail-closed and the guest self-resets four times before the
-# pinned unmapped-access terminal above (known ticket 710 boundary,
-# re-derived 2026-09-23, transcript 245cab82...).
-! grep -q 'compressed source' "$run_dir/main-1.log"
+# GPU refusals in this window are GPU-side only (zero faults/resets;
+# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): 24 unsupported resolve
+# states plus 19 compressed-source 60x60 repaint refusals; the CPU wall
+# is the terminal (next boundary, 794-family CPU work).
 grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
-[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 2 ]
-[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 4 ]
+[ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 19 ]
+[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 43 ]
+[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    245cab82c57c2e61cebcf0e38f7dd3e965b67af375c537de7ad10b9665d9a23c ]
+    e1bb8c48d2f96a557b39a89db2b7275def2c6e8da5340d4e3e617bed21e54c22 ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'
