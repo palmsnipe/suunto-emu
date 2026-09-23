@@ -7156,3 +7156,54 @@ environment-blocked scripts needing a quiesced-tree re-run, and ONE
 green-to-red flip (`timer_pattern`, -62 instructions) awaiting
 rebuild-bisect attribution before any re-pin. All 2.39 re-pins are tracked
 in ticket 777 (in-progress), not applied silently here.
+
+### E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001 — refused ring-kick draw state is CPU-invisible
+
+Status/claim: on Sapporo 2.35.34 a CMDRINGSTOP store whose execution
+meets an unsupported draw state commits at bus level with zero
+device-visible failure: no fault, no IRQ, register advance; the GPU
+renders nothing for the refused child, emits no completion, and the tree
+logs exactly one named `subsystem=gpu event=draw-refused` line per
+refused child (guest words only, per-init ordinal).
+
+Law source (twice byte-identical each): lane Q4 faultproof census
+`c575c2dce1b1566405aadca096f8d04d43920394812eb72ba0b63b76ab2194cc`
+(guest store of the refused value leaves CFSR=HFSR=SHCSR=0, no pending
+IRQ, core advances); lane replay of the authentic refused submit (pair
+`417c2983…`: REFUSED_AT_TUPLE, one `NEMA_DRAW_STATE` DRAW=2 row at word
+12, in-machine zero-write span hashes `de2f2560…`/`17ff4b59…`, no
+completion row); refusal ladder (FINDINGS §7, sha `b792cc8f…`); the
+tree-side census (`f18b2ad5…`, 4 identical runs) proving the refused
+child is A2LE glyph quads + a DRAW=2 resolve with ZERO fmt-0x17 assets;
+against the previously-modeled-and-now-superseded BusFault chain (pair
+`861ec177…`, E-EMU-SAP235-MAIN-TSC6A-001 residual-boundary text).
+
+In-tree acceptance (twice on final tree, integrator-reproduced on a
+fresh build): device tests `test_nema_gpu` 10/10 (3 new, RED recorded
+pre-change); five-layer setup-walk pair byte-identical transcript
+`344973205de19e783940faaf9d322f0a4d7cd182f91ab225eb3721360e3b6a5e`:
+ZERO machine-reset-request, `pc=0x000cdf5a` gone, refusal lines
+`ord=7989 child=0x100d2800 offset=48` and `ord=7999 child=0x100d0800`
+(driver retry), step 24 settles `3991/1c1f9064` unchanged, step 25
+advances WITHOUT settling, terminal `stop=compat-refused pc=0x001be85a
+instructions=7572236241 virtual_time_ns=32551364960` (the E-SAP-0041
+OHR-fixture ceiling, MAIN-state sequence 8, now reached ~3.5 s earlier
+than the old post-reset path). The compressed era runner re-pinned to
+this state (green twice: 78736e1-era script at 655e3cd).
+
+Gates: nema filter 134/0; make check 1001 PASS / 0 FAIL (998 + 3); make
+sanitize zero findings; 2.35 era 8/8 green (7 byte-identical, compressed
+re-pinned above); 2.35 SDL startup + scroll gates byte-identical; BOTH
+2.22 SDL gates byte-identical (unchanged); check-lines advisory-only.
+
+Confidence/limits: draw-state refusals only. CONFLICT, argument, range,
+framing, and PARSE-level refusals keep precise-fault propagation even
+though the lane ladder shows parse-level refusals are likewise
+CPU-invisible — deliberately outside this named scope, recorded here as
+a KNOWN remaining divergence for a future lane-cited correction. The
+refused resolve still renders NOTHING (fail-closed preserved at the
+drawing layer); its pixel law remains unsupported and unobservable in
+the lane (§9.4). The boot witness fails the resolve law at the ACCENT
+predicate (color `0xff55aaff` not in the accepted set) while IMEM
+matches — first detail of a future resolve-law extension, recorded,
+unimplemented.

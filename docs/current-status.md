@@ -24,9 +24,16 @@ renderer output byte-identical to an independent law re-composite of the
 real capture). Everything else still refuses: any auxiliary-bit block,
 every near-miss state, all other compressed shapes.
 
-Residual honest boundary: ~2.4 s after Done the guest self-resets at
-`0xcdf5a` and the run ends at the exhausted OHR-fixture compat refusal —
-attribution and main-screen button navigation are ticket 794 (`ready`).
+Ticket 794's first scope is landed: E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-
+001 (lane census `c575c2dc`, replay pair `417c2983`) retired the
+refused-kick BusFault — post-Done the two refused DRAW=2 resolve passes
+log `gpu/draw-refused` lines with zero resets, and the walk advances to
+the E-SAP-0041 OHR-fixture ceiling (`pc=0x001be85a` OHR-fixture stop, MAIN-
+state sequence 8) ~3.5 s earlier than the old post-reset path. Ticket
+794 remains open for the remaining main-screen boundary: OHR-fixture
+budget extension evidence for MAIN-state transactions, the resolve-law
+extension (witness detail: accent color `0xff55aaff`, IMEM already
+matching), and button navigation across the settled main screen.
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment

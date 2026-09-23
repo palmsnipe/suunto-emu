@@ -199,6 +199,23 @@ census (`c494b014…`): five A2LE quads, code `0x941E8000`, inst
 pointer anywhere. Control skipped as not representable from captured
 bytes (three named blockers; no fabricated renders).
 
+
+Implementation landed (2026-09-23, commit `655e3cd`, E-EMU-SAP235-
+RINGKICK-CPU-INVISIBLE-001): refused ring-kick draw states are now
+GPU-side only; the setup-walk shows ZERO resets, two `gpu/draw-refused`
+lines, and terminates at the E-SAP-0041 OHR-fixture ceiling
+(MAIN-state sequence 8, `pc=0x001be85a instructions=7572236241 vt=
+32551364960`, transcript `344973205de1…`, integrator-reproduced on a
+fresh build; compressed era runner re-pinned green twice). REMAINING
+scope for this ticket (still in-progress): (1) OHR-fixture budget/
+evidence for post-Done MAIN-state transactions (the terminal refusal);
+(2) the DRAW=2 resolve-law extension — witness detail recorded (accent
+`0xff55aaff` fails the predicate, IMEM triple matches), pixels lane-
+unobservable, requires an owner-decision evidence route; (3) button
+navigation acceptance across the settled main screen once (1) opens;
+(4) parse-level refusal CPU-invisibility known-divergence recorded in
+the ledger, deliberately out of this change's scope.
+
 ## Acceptance
 
 A ledger entry attributes the `0xcdf5a` reset (fault-path closure or
