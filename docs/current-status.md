@@ -36,7 +36,12 @@ pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment
 issued; every frame CRC unchanged) and were re-derived twice with
 control-build attribution in that entry. Open items kept honest: the
 0x06-early lane-order divergence is unexplained, HFSR escalation-bit
-fidelity is open, and 0xF4 stays a refused unobserved selector.
+fidelity is open, and 0xF4 stays a refused unobserved selector. The 2.39
+era set (same-day ticket-777 audit on a from-pin rebuilt full-flash
+fixture): 12 gates pin-held, 25 timing-only re-pin candidates, 0
+unexplained failures, 6 environment-blocked re-runs owed, and one
+green-to-red flip (`timer_pattern`) awaiting rebuild-bisect — re-pins
+tracked in ticket 777, none applied silently.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with

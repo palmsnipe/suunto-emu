@@ -7146,6 +7146,13 @@ hold their pins; 2.33 boot advances; 2.22 gates green on the re-derived
 pins above. Unchanged open items: the 0x06-early lane-order divergence is
 still unexplained; HFSR escalation-bit fidelity (bit30 vs FORCED bit1,
 `src/cpu/armv7m/scb.c`) remains open pending a lane-observable scenario;
-2.39 era pins could not be exercised on this host (full-flash fixture
-absent) — 2.39 shares this gauge endpoint, tracked in the 2.39 era-
-re-derivation tickets (777/783).
+2.39 era (same-day follow-up audit at this HEAD, ticket 777): the
+full-flash fixture was rebuilt to its pin from read-only inputs and the
+full 43-runner era set ran twice — 12 pin-held, 25 re-pin candidates whose
+dominant delta is a timing-only vt shift at unchanged instruction counts
+(the same fixture-value signature; cold log `47e8aaa7…`, Δvt
+-1,556,396 ns across the `0x0014e8ea` family), 0 unexplained failures, 6
+environment-blocked scripts needing a quiesced-tree re-run, and ONE
+green-to-red flip (`timer_pattern`, -62 instructions) awaiting
+rebuild-bisect attribution before any re-pin. All 2.39 re-pins are tracked
+in ticket 777 (in-progress), not applied silently here.

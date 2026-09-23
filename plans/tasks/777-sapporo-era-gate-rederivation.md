@@ -1,6 +1,6 @@
 # 777 — Sapporo Opt-in Era Gate Re-derivation
 
-**Status:** ready
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 729
 
@@ -63,6 +63,30 @@ halt binary; bisect log hashes above); the retained era-run logs of the
 E-ULS-0041 session; E-ULS-0040/E-ULS-0041 rows of
 `docs/migration-evidence.md`. Re-derived pins must cite the fresh two-run
 evidence recorded during this ticket.
+
+Full-set audit 2026-09-23 (read-only instance, HEAD `ab791ea`, report
+`/tmp/sap239-era/REPORT.md`, 43 scripts x 2 serial rounds, emulator
+`a765d3bd…6ff45` sha-stable across the run): the synthetic full-flash fixture
+is REPRODUCIBLE from read-only inputs per this ticket's recovered recipe
+(component-05 `49a3936f…` FF-padded to 16 MiB, lane
+`tools/build_production_data_fixture.py` manufacturing sector `c0881606…`,
+patched at `0x00FFF000`, FF upper half) and hashes exactly to the script pin
+`37134845…c4cb`. Census: 12 PASS-pin-held / 25 new-pin candidates (shared
+deltas: cold log `47e8aaa7…` for `ctimer13_inten`/`ongoing`/`quiet_read`/
+`zip_read`; Δvt -1,556,396 ns at unchanged instruction counts across the
+`0x0014e8ea` cap family; `activity_budget`+`widgets` share
+`stop=compat-refused pc=0x000920b4@442856246/2176971322`) / 0 unexplained
+failures / 6 environment-blocked (`gps_awake`/`gps_reopen`/`gps_startup`/
+`gps_five`/`general_budget`/`personal_budget` — stale inspector binaries and
+`libsemu.a` coupling under a concurrent build owner; need a quiesced-tree
+re-run, not re-pins). One green-to-red flip vs the E-SAP-0045 census:
+`timer_pattern` (same park PC `0x000e955a`, -62 instructions, -62 ns) —
+attribution open (candidates `cd1de52`/`2f22137`/`d8bfba9`), requires a
+rebuild-bisect on a quiesced tree before any re-pin; this is exactly the
+E-ULS-0041 drift-class question this ticket exists to settle. The audit also
+records a structural coupling: 7 of 43 gates (and `make check-era`) run
+in-tree `make` or link `$(dirname SEMU_EMULATOR)/libsemu.a` and are unsafe
+under a concurrent build owner.
 
 ## Implementation
 
