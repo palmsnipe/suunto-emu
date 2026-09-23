@@ -145,6 +145,7 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
     if (semu_nema_gpu_attach(machine->nema_gpu, error) != SEMU_OK) {
         return error->code;
     }
+    semu_nema_gpu_set_logger(machine->nema_gpu, machine->logger);
     return SEMU_OK;
 }
 static semu_status load_file(semu_bus *bus, const semu_component *component,

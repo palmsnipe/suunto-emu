@@ -5,6 +5,7 @@
 #include "semu/bus.h"
 #include "semu/display.h"
 #include "semu/frame.h"
+#include "semu/log.h"
 #include "semu/scheduler.h"
 #include "semu/types.h"
 #include "../core/scheduler_internal.h"
@@ -41,6 +42,10 @@ semu_status semu_nema_gpu_reset(semu_nema_gpu *gpu);
 int semu_nema_gpu_busy(const semu_nema_gpu *gpu);
 
 semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error);
+/* Borrow a logger for the named GPU-side draw-refusal line (ticket 794,
+ * E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001). NULL disables the lines. The
+ * logger is transient host wiring: never serialized in snapshots. */
+void semu_nema_gpu_set_logger(semu_nema_gpu *gpu, semu_logger *logger);
 semu_status semu_nema_gpu_snapshot_write(
     const semu_nema_gpu *gpu, semu_snapshot_writer *writer, semu_error *error);
 semu_status semu_nema_gpu_snapshot_read(

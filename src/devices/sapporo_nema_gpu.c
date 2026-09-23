@@ -134,6 +134,7 @@ static void nema_gpu_reset_impl(void *context)
         gpu->initialization_complete = 0;
         gpu->previous_ring_stop = 0u;
         gpu->frame_generation = 0u;
+        gpu->submission_ordinal = 0u;
     }
 }
 
@@ -210,4 +211,9 @@ semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error)
     }
     return semu_bus_map_device(gpu->bus, "sapporo.nema_gpu",
         NEMA_GPU_BASE, NEMA_GPU_SIZE, &nema_gpu_ops, gpu, error);
+}
+
+void semu_nema_gpu_set_logger(semu_nema_gpu *gpu, semu_logger *logger)
+{
+    if (gpu != NULL) gpu->logger = logger;
 }

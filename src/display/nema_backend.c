@@ -1,5 +1,6 @@
 #include "nema_backend_internal.h"
 #include <stdlib.h>
+#include <string.h>
 
 semu_nema_backend *semu_nema_backend_create(semu_error *error)
 {
@@ -56,6 +57,7 @@ semu_status semu_nema_backend_reset(semu_nema_backend *b)
     nema_tsc6a_reset(b->pending_tsc6a);
     b->tsc6a_dirty = 0;
     semu_error_clear(&b->draw_error);
+    b->draw_refusal_valid = 0;
     semu_surface_clear(b->surface, 0u);
     b->published_valid = 0;
     return SEMU_OK;
@@ -72,6 +74,24 @@ static semu_status refuse(semu_nema_backend *b, nema_diag_category category,
     (void)nema_diagnostics_record(b->diag, category, 0u, address,
         reg, value, NULL, 0u, NULL);
     return error->code;
+}
+
+/* Record the bounded draw-state refusal event (ticket 794).  Exactly one
+ * event survives per refused transaction: the render loop stops at the
+ * first encounter, so this is called at most once per prepare. */
+static void record_draw_refusal(semu_nema_backend *b,
+    const semu_display_list *list, uint32_t offset_bytes)
+{
+    size_t n = strlen(b->draw_error.text);
+    if (n >= sizeof(b->draw_refusal.reason))
+        n = sizeof(b->draw_refusal.reason) - 1u;
+    memset(&b->draw_refusal, 0, sizeof(b->draw_refusal));
+    b->draw_refusal.child_address = list->address;
+    b->draw_refusal.offset_bytes = offset_bytes;
+    b->draw_refusal.snapshot = b->refusal_snapshot;
+    memcpy(b->draw_refusal.reason, b->draw_error.text, n);
+    b->draw_refusal.reason[n] = '\0';
+    b->draw_refusal_valid = 1;
 }
 
 semu_status nema_backend_render_list(semu_nema_backend *b, semu_bus *bus,
@@ -97,6 +117,7 @@ semu_status nema_backend_render_list(semu_nema_backend *b, semu_bus *bus,
             return refuse(b, NEMA_DIAG_UNKNOWN_REGISTER, address + 4u, reg, value, error);
         if (b->draw_error.code != SEMU_OK) {
             *error = b->draw_error;
+            record_draw_refusal(b, list, i * 4u);
             return refuse(b, NEMA_DIAG_UNSUPPORTED_DRAW, address + 4u, reg, value, error);
         }
     }
@@ -122,4 +143,11 @@ const semu_frame *semu_nema_backend_frame(semu_nema_backend *backend)
 const nema_diagnostics *semu_nema_backend_diagnostics(semu_nema_backend *backend)
 {
     return backend != NULL ? backend->diag : NULL;
+}
+
+const nema_draw_refusal *semu_nema_backend_draw_refusal(
+    const semu_nema_backend *backend)
+{
+    return backend != NULL && backend->draw_refusal_valid != 0
+        ? &backend->draw_refusal : NULL;
 }

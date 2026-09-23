@@ -61,6 +61,31 @@ const semu_frame *semu_nema_backend_frame(semu_nema_backend *backend);
 const nema_diagnostics *semu_nema_backend_diagnostics(
     semu_nema_backend *backend);
 
+/*
+ * Ring-kick draw-state refusal (ticket 794, E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001).
+ * When list execution encounters a draw command whose state lies outside
+ * the accepted state-law set, the encounter is recorded as one bounded
+ * refusal event carrying the refused child address, the byte offset of the
+ * refused word pair, the draw-state snapshot, and the refusal reason text.
+ * The transaction itself still refuses exactly like any other refusal (zero
+ * committed pixel/frame/state writes); only the recorded event distinguishes
+ * a draw-state encounter from hard parse/framing/range refusals, so the
+ * submitter can convert it into a CPU-invisible result.  The event is set by
+ * the render path on a draw-state encounter and cleared at the start of the
+ * next prepare call and by reset.
+ */
+typedef struct {
+    uint32_t child_address;
+    uint32_t offset_bytes;
+    nema_draw_snapshot snapshot;
+    char reason[SEMU_ERROR_TEXT_MAX];
+} nema_draw_refusal;
+
+/* Borrow the refusal recorded by the most recent prepare on this backend,
+ * or NULL when that prepare recorded none.  Read-only. */
+const nema_draw_refusal *semu_nema_backend_draw_refusal(
+    const semu_nema_backend *backend);
+
 /* Internal: increment surface generation on physical publication.
  * Defined in surface.c; declared here for backend use. */
 void semu_surface_publish(semu_surface *surface);

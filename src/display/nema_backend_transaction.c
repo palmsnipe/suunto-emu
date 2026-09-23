@@ -25,6 +25,10 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "backend prepare: null");
         return SEMU_TRANSACTION_REFUSE;
     }
+    /* Submission-level diagnostic: the previous prepare's draw-refusal
+     * event never survives into this prepare, whatever this one returns
+     * (a CONFLICT refuse carries no new encounter). */
+    b->draw_refusal_valid = 0;
     if (b->phase != NEMA_BACKEND_IDLE) {
         semu_error_set(error, SEMU_ERR_CONFLICT, "backend: transaction already active");
         return SEMU_TRANSACTION_REFUSE;

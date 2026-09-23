@@ -19,6 +19,11 @@ struct semu_nema_backend {
     void *frame_context;
     int phase, tsc6a_dirty;
     semu_error draw_error;
+    /* Draw-state refusal event (ticket 794): the snapshot captured at the
+     * refused draw plus the bounded event record. */
+    nema_draw_snapshot refusal_snapshot;
+    nema_draw_refusal draw_refusal;
+    int draw_refusal_valid;
 };
 typedef struct { semu_nema_backend *backend; semu_bus *bus; } nema_draw_context;
 void nema_backend_draw(void *context, const nema_draw_snapshot *snapshot);

@@ -13,6 +13,17 @@ static int is_observed_display_target(uint32_t base)
            base == UINT32_C(0x10139140);
 }
 
+/* First renderer error wins; the snapshot at the refused draw is retained
+ * for the bounded draw-refusal event (ticket 794). */
+static void set_draw_error(semu_nema_backend *backend,
+    const nema_draw_snapshot *snap, const semu_error *error)
+{
+    if (backend->draw_error.code == SEMU_OK) {
+        backend->draw_error = *error;
+        backend->refusal_snapshot = *snap;
+    }
+}
+
 static int is_observed_black_clear(const nema_draw_snapshot *snap)
 {
     /*
@@ -53,7 +64,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
         st = nema_tsc6a_draw_target(backend->pending_tsc6a, draw_context->bus,
                                     snap, &draw_error);
         if (st != SEMU_OK) {
-            backend->draw_error = draw_error;
+            set_draw_error(backend, snap, &draw_error);
         }
         return;
     }
@@ -74,7 +85,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
             backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a,
             snap, target.pixels, target.stride, &err);
         if (st != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
         return;
     }
@@ -87,7 +98,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
             draw_context->bus,
             snap, target.pixels, target.stride, &err);
         if (st != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
         return;
     }
@@ -100,7 +111,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
             NEMA_BACKEND_PANEL_HEIGHT, target.stride,
             snap->draw_cmd == NEMA_DRAW_TRI_AA, &err);
         if (st != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
         return;
     }
@@ -108,13 +119,15 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
     if (snap->src_format == NEMA_FMT_RGBA4444 && !is_observed_black_clear(snap)) {
         semu_error err;
         if (nema_rgba4444_draw(draw_context->bus, snap, target.pixels,
-            target.stride, &err) != SEMU_OK) backend->draw_error = err;
+            target.stride, &err) != SEMU_OK) set_draw_error(backend, snap, &err);
         return;
     }
 
     if (snap->target_format != NEMA_FMT_RGB565) {
-        semu_error_set(&backend->draw_error, SEMU_ERR_UNSUPPORTED,
+        semu_error fmt_err;
+        semu_error_set(&fmt_err, SEMU_ERR_UNSUPPORTED,
             "backend: unsupported target format 0x%02x", snap->target_format);
+        set_draw_error(backend, snap, &fmt_err);
         return;
     }
 
@@ -137,7 +150,7 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
         semu_error err;
         if (raster_rect(&target, &clip, dst_x, dst_y, w, h, 0u, NULL,
                         &err) != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
     } else if (snap->src_present) {
         nema_texture_desc src;
@@ -173,19 +186,20 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
                                snap->tex_color, NULL, &err);
             }
         } else {
-            semu_error_set(&backend->draw_error, SEMU_ERR_UNSUPPORTED,
+            semu_error_set(&err, SEMU_ERR_UNSUPPORTED,
                 "backend: unsupported source format 0x%02x", snap->src_format);
+            set_draw_error(backend, snap, &err);
             return;
         }
         if (st != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
     } else {
         uint16_t color = (uint16_t)(snap->draw_color & 0xFFFFu);
         semu_error err;
         if (raster_rect(&target, &clip, dst_x, dst_y, w, h,
                          color, NULL, &err) != SEMU_OK) {
-            backend->draw_error = err;
+            set_draw_error(backend, snap, &err);
         }
     }
 }

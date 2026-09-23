@@ -82,13 +82,16 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 
 # --- Section 3: main-entry setup-walk trajectory (positive render gate) ---
 # The setup-walk trajectory reaches private 2.35 main entry, where the
-# 60x60 crosshair draw is accepted by ticket 793.  Pre-change this window
-# refused and faulted (E-EMU-SAP235-MAIN-TSC6A-001); post-change it shows
-# the main-entry settled frame (generation 3994, crc32 6a446900), no
-# compressed refusal anywhere, and the known residual self-reset boundary
-# (0xcdf5a, ~2.4 s post-Done, owned by the follow-up main-screen ticket)
-# ending at the documented OHR-fixture compat refusal.  Derived 2026-09-23
-# from paired byte-identical runs (transcript sha b2820edf...).
+# 60x60 crosshair draw is accepted by ticket 793.  E-EMU-SAP235-RINGKICK-
+# CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick:
+# the refused DRAW=2 resolve children now log exactly two gpu/draw-refused
+# lines (ord 7989 child 0x100d2800 and the driver retry ord 7999 child
+# 0x100d0800, both offset 48), zero machine resets occur, step 25 advances
+# without settling, and the walk terminates directly at the documented
+# OHR-fixture compat refusal (E-SAP-0041 ceiling, MAIN-state sequence 8).
+# Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
+# 344973205de19e783940faaf9d322f0a4d7cd182f91ab225eb3721360e3b6a5e),
+# integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
     echo 'SKIP main-entry compressed gate: suunto-emu-sdl not built'
@@ -111,15 +114,19 @@ for pass in 1 2; do
     if [ "$rc" -ne 3 ]; then cat "$run_dir/main-$pass.log"; exit 1; fi
 done
 cmp "$run_dir/main-1.log" "$run_dir/main-2.log"
-grep -Fqx 'SDL live test settled step=25 generation=3994 crc32=6a446900' \
+grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
-grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=8135889023 virtual_time_ns=36070752064 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
+! grep -q 'settled step=25' "$run_dir/main-1.log"
+grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=7572236241 virtual_time_ns=32551364960 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
     "$run_dir/main-1.log"
-# The compressed draw must never refuse in this window; the only reset is
-# the pinned residual self-reset boundary (exactly one).
+# The compressed crosshair draw must never refuse in this window; the
+# post-Done resolve pass must refuse GPU-side (exactly two draw-refused
+# lines) and must never fault or reset (E-EMU-SAP235-RINGKICK-CPU-
+# INVISIBLE-001).
 ! grep -q 'compressed source' "$run_dir/main-1.log"
-! grep -q 'nema_tsc6a' "$run_dir/main-1.log"
-[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 1 ]
+grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
+[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 2 ]
+[ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    b2820edff0e119bc18796079c87128aa9f250997c0b73fd05db93ad15699c286 ]
+    344973205de19e783940faaf9d322f0a4d7cd182f91ab225eb3721360e3b6a5e ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'

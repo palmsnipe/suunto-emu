@@ -1,6 +1,7 @@
 #ifndef SEMU_SAPPORO_NEMA_GPU_INTERNAL_H
 #define SEMU_SAPPORO_NEMA_GPU_INTERNAL_H
 #include "sapporo_nema_gpu.h"
+#include "semu/log.h"
 #include "../display/nema_completion.h"
 
 /* Register offsets (SapporoNemaP.cs lines 2197-2208) */
@@ -35,6 +36,12 @@ struct semu_nema_gpu {
     uint32_t previous_ring_stop;
     uint32_t frame_generation;
     int submitting;
+    /* Transient, non-serialized diagnostic state (ticket 794,
+     * E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): the logger borrowed at
+     * wiring time and the count of committed CMDRINGSTOP submissions since
+     * initialization/reset, used as the stable ordinal in refusal lines. */
+    semu_logger *logger;
+    uint32_t submission_ordinal;
 };
 
 
