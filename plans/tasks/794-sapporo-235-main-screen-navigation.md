@@ -144,6 +144,38 @@ address; completion-marker presence; child TEX1 base/format/stride/
 resolution words. Artifacts go to `/tmp/sap235-794census/` (volatile)
 with shas.
 
+
+Ring-span census (2026-09-23, tree-side instance, `/tmp/sap235-794census/`,
+pair `f18b2ad5…` twice + pre-regen pair = 4 identical runs, clean-build
+provenance chain, pristine rebuild re-reproducing the pinned `b2820edf…`
+transcript and reset tuple uninstrumented): the refused kick (ord 7989 of
+7989, ctrl=4) executes ring words 92..95 of CMDADDR `0x10143678`
+(CMDSIZE `0x400`, previous accepted stop `0x101437EC`) = ONE child-list
+push, child `0x100d2800` 250 words (raw `child_100d2800.bin`
+`5cd9e2cb…`), NO completion marker in the span. All 125 child pairs are
+prefix-clean, 4-aligned, INSIDE the 34-register lane whitelist — lane
+verdict is REFUSED_AT_TUPLE, not parse refusal. The child is FIVE DRAW=5
+quads over A2LE glyph masks (fmt 0x28, SRAM runtime glyph buffers — NO
+content match in the resources partition, NO PXB2 header, ZERO fmt-0x17
+textures) plus ONE DRAW=2 TSC6A resolve whose quad coordinates
+(`0x005a00ab`..`0x009600e7` = (171,90)-(231,150)) equal the accepted 793
+crosshair quad: the post-Done work is a text-glyph pass + a framebuffer
+re-compression pass, NOT compressed-asset staging. HONEST NEGATIVE: the
+A3/aux-asset hypothesis is FALSE for this tuple (0-of-0 drawn blocks carry
+aux bits); A3 stays open and non-blocking. Both models refuse the same
+DRAW=2 tuple family; the tree's conversion of that refusal into a
+BusFault-on-the-kick-store is contradicted by the lane Q4 proof (guest
+store of the same value: CFSR/HFSR zero, core advances, irq=0).
+INTEGRATOR RULING (evidence-backed, this round): ring-kick execution
+failures become GPU-side only — the 0xEC write commits, the refused child
+renders nothing, schedules no completion IRQ, and logs one deterministic
+`gpu/draw-refused` line; true argument/range errors still refuse at the
+write. Fail-closed is preserved at the DRAWING layer (no pixel is invented
+for unsupported states); the CPU-visible fault was the unsupported
+behavior, not the fail-closed law. Implementation instance dispatched;
+the reset tuple `pc=0x000cdf5a` and the 793 setup-walk pins become
+re-derivation candidates for the integrator after review.
+
 ## Acceptance
 
 A ledger entry attributes the `0xcdf5a` reset (fault-path closure or
