@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "semu/cpu.h"
+#include "semu/fpu_math.h"
 
 #define ARMV7M_FPSCR_DN (UINT32_C(1) << 25)
 #define ARMV7M_FPSCR_FZ (UINT32_C(1) << 24)
@@ -15,19 +16,9 @@
 #define ARMV7M_FPSCR_DZC (UINT32_C(1) << 1)
 #define ARMV7M_FPSCR_IOC UINT32_C(1)
 
-typedef struct semu_fpu_eval {
-    uint32_t bits;
-    uint32_t fpscr;
-} semu_fpu_eval;
-
 uint32_t semu_fpu_abs_bits(uint32_t operand);
 uint32_t semu_fpu_neg_bits(uint32_t operand);
-semu_fpu_eval semu_fpu_add_bits(uint32_t left, uint32_t right,
-                                uint32_t fpscr);
-semu_fpu_eval semu_fpu_sub_bits(uint32_t left, uint32_t right,
-                                uint32_t fpscr);
-semu_fpu_eval semu_fpu_mul_bits(uint32_t left, uint32_t right,
-                                uint32_t fpscr);
+
 semu_fpu_eval semu_fpu_div_bits(uint32_t left, uint32_t right,
                                 uint32_t fpscr);
 semu_fpu_eval semu_fpu_mul_add_bits(uint32_t addend, uint32_t left,
@@ -36,10 +27,7 @@ semu_fpu_eval semu_fpu_sqrt_bits(uint32_t operand, uint32_t fpscr);
 uint32_t semu_fpu_compare_flags(uint32_t left, uint32_t right,
                                 unsigned quiet_nan_exception,
                                 uint32_t *fpscr);
-uint32_t semu_fpu_to_int_bits(uint32_t operand, unsigned is_unsigned,
-                              unsigned round_zero, uint32_t *fpscr);
-uint32_t semu_fpu_from_int_bits(uint32_t operand, unsigned is_unsigned,
-                                uint32_t *fpscr);
+
 uint32_t semu_fpu_to_fixed_bits(uint32_t operand, unsigned size,
                                 unsigned fraction_bits, unsigned is_unsigned,
                                 uint32_t *fpscr);

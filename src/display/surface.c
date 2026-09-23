@@ -57,6 +57,11 @@ void semu_surface_publish(semu_surface *surface)
     }
 }
 
+void semu_surface_restore_generation(semu_surface *surface, uint64_t generation)
+{
+    if (surface != NULL) surface->frame.generation = generation;
+}
+
 uint8_t *semu_surface_pixels(semu_surface *surface, uint32_t *out_stride)
 {
     if (surface == NULL) {

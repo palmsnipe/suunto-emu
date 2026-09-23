@@ -58,6 +58,7 @@
 #define NEMA_DRAW_TSC6A_RESOLVE 0x00000002u
 
 /* Texture format constants (from FSTRIDE high byte). */
+#define NEMA_FMT_RGBA4444      0x06u
 #define NEMA_FMT_RGB565        0x04u
 #define NEMA_FMT_A2LE           0x28u
 #define NEMA_FMT_TSC6A         0x17u

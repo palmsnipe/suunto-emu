@@ -20,25 +20,25 @@
  * 2.22/2.33/2.39 stub stays byte-for-byte. Reads inside the 0x210
  * window answer the law (unmodelled offsets read 0, unmodelled writes
  * drop, as on the lane); widths other than 4 and offsets at or beyond
- * 0x210 refuse fail-closed. Counter/alarm timing needs the attached
- * scheduler (no scheduler: no scheduling, reads use time 0).
+ * 0x210 refuse fail-closed. Counter/alarm timing uses the owning SoC's
+ * scheduler and never another machine's clock or interrupt sink.
  */
 
 const semu_bus_device_ops *semu_sapporo_rtc_ops(void);
 
-/* Same attach seam as src/devices/ulsan_rtc.c: the machine attaches
- * after the board map; device resets preserve the seams. */
-void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
-                             semu_apollo4_irq_fn sink, void *context);
+typedef struct semu_sapporo_rtc semu_sapporo_rtc;
 
-/* Machine-create detach (ulsan_rtc map-reset analogue): clears state
- * and the saved seams without touching a possibly-freed sink. */
-void semu_sapporo_rtc_detach(void);
+/* SoC-owned instance. Bus callbacks receive this object as their context.
+ * The scheduler must outlive it; destroy cancels only this owner's event.
+ * Reset preserves the scheduler and IRQ bindings. */
+semu_sapporo_rtc *semu_sapporo_rtc_create(semu_scheduler *scheduler,
+    semu_apollo4_irq_fn sink, void *context, semu_error *error);
+void semu_sapporo_rtc_destroy(semu_sapporo_rtc *rtc);
 
 /* Read-only observation for focused tests: register value at offset
  * (exactly what a guest read answers, counter fields included);
  * pending/line state via the return and out parameter. */
-uint32_t semu_sapporo_rtc_probe(uint32_t offset);
-int semu_sapporo_rtc_probe_pending(int *line_high);
+uint32_t semu_sapporo_rtc_probe(semu_sapporo_rtc *rtc, uint32_t offset);
+int semu_sapporo_rtc_probe_pending(const semu_sapporo_rtc *rtc, int *line_high);
 
 #endif

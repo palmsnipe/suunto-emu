@@ -192,6 +192,9 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
     uint8_t offset_byte = 0u;
     semu_transaction_result result;
 
+    if (iom->pressure235 &&
+        (iom->device_config == 0x5cu || iom->device_config == 0x5du))
+        return semu_apollo4_iom_pressure235_command(iom, value, error);
     if (op != CMD_OP_WRITE && op != CMD_OP_READ) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 IOM command op %u is unsupported", op);
@@ -473,7 +476,7 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
         iom->dma_trig_en = value & DMA_TRIG_EN_MASK;
         break;
     case REG_DMA_CONFIG:
-        iom->dma_config = value & DMA_CONFIG_MASK;
+        iom->dma_config = value & (iom->pressure235 ? UINT32_C(0x103) : DMA_CONFIG_MASK);
         break;
     case REG_DMA_COUNT:
         iom->dma_count = value & DMA_COUNT_MASK;

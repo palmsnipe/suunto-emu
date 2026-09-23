@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "semu/machine.h"
 #include "test.h"
@@ -76,12 +77,18 @@ static size_t parse_timeline(const char *text)
     if (text == NULL || text[0] == '\0') {
         return 0u;
     }
-    while (*cursor != '\0' && count < (size_t)INPUT_TIMELINE_MAX) {
+    while (*cursor != '\0') {
         char *end;
-        unsigned long ms;
+        unsigned long long ms;
         int button;
-        ms = strtoul(cursor, &end, 10);
-        if (end == cursor || *end != ':') {
+        if (count >= (size_t)INPUT_TIMELINE_MAX / 2u ||
+            *cursor < '0' || *cursor > '9') {
+            return (size_t)-1;
+        }
+        errno = 0;
+        ms = strtoull(cursor, &end, 10);
+        if (errno == ERANGE || end == cursor || *end != ':' ||
+            ms > (UINT64_MAX - (uint64_t)HOLD_NS) / UINT64_C(1000000)) {
             return (size_t)-1;
         }
         button = timeline_button_of(end[1]);
@@ -142,6 +149,11 @@ static semu_machine *open_235(const char *timeline, semu_error *error,
     }
     probe = fopen(manifest_path, "rb");
     if (probe == NULL) {
+        const char *configured = getenv("SEMU_SAPPORO_235_FIRMWARE_MANIFEST");
+        if (errno != ENOENT || (configured != NULL && configured[0] != '\0')) {
+            semu_error_set(error, SEMU_ERR_IO,
+                           "cannot open Sapporo 2.35 fixture: %s", manifest_path);
+        }
         return NULL;
     }
     fclose(probe);
@@ -154,6 +166,7 @@ static semu_machine *open_235(const char *timeline, semu_error *error,
     }
     *presses = parse_timeline(timeline);
     if (*presses == (size_t)-1) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "invalid Sapporo input timeline");
         return NULL;
     }
     g_queue_cursor = 0u;
@@ -182,8 +195,23 @@ static void run_sliced(semu_machine *machine, uint64_t cap_instructions,
             (SLICE_INSTRUCTIONS < left_i) ? SLICE_INSTRUCTIONS : left_i;
         limits.max_virtual_time_ns =
             (SLICE_VIRTUAL_TIME_NS < left_v) ? SLICE_VIRTUAL_TIME_NS : left_v;
-        semu_machine_run(machine, &limits, error);
+        if (semu_machine_run(machine, &limits, error) != SEMU_STOP_BUDGET) {
+            return;
+        }
+        if (semu_machine_instructions(machine) == done_i &&
+            semu_machine_virtual_time(machine) == done_v) {
+            semu_error_set(error, SEMU_ERR_STATE, "Sapporo input run made no progress");
+            return;
+        }
     }
+}
+
+static void test_input_run_refusal_returns(semu_test_context *context)
+{
+    semu_error error;
+    semu_error_clear(&error);
+    run_sliced(NULL, 1u, 1u, &error);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_ARGUMENT, error.code);
 }
 
 static void test_input_timeline_refusals(semu_test_context *context)
@@ -219,6 +247,34 @@ static void test_input_timeline_refusals(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, (uint64_t)parse_timeline(""));
 }
 
+static void test_input_timeline_capacity(semu_test_context *context)
+{
+    char timeline[192] = "";
+    size_t i;
+    for (i = 0u; i < INPUT_TIMELINE_MAX / 2u; ++i) {
+        (void)strcat(timeline, "1000:l,");
+    }
+    SEMU_TEST_EQ_U64(context, INPUT_TIMELINE_MAX / 2u,
+                     parse_timeline(timeline));
+    SEMU_TEST_EQ_U64(context, INPUT_TIMELINE_MAX, g_queue_count);
+    (void)strcat(timeline, "2000:m");
+    SEMU_TEST_EQ_U64(context, (size_t)-1, parse_timeline(timeline));
+}
+
+static void test_input_timeline_time_overflow(semu_test_context *context)
+{
+    SEMU_TEST_EQ_U64(context, (size_t)-1, parse_timeline("-1:m"));
+    SEMU_TEST_EQ_U64(context, (size_t)-1,
+                     parse_timeline("18446744073709551616:l"));
+    SEMU_TEST_EQ_U64(context, (size_t)-1,
+                     parse_timeline("18446744073710:l"));
+    SEMU_TEST_EQ_U64(context, 1u, parse_timeline("18446744073409:l"));
+    SEMU_TEST_EQ_U64(context, UINT64_C(18446744073709000000),
+                     g_queue[1].time_ns);
+    SEMU_TEST_EQ_U64(context, (size_t)-1,
+                     parse_timeline("18446744073410:l"));
+}
+
 static void test_input_timeline_boot_record(semu_test_context *context)
 {
     const char *timeline =
@@ -229,6 +285,8 @@ static void test_input_timeline_boot_record(semu_test_context *context)
     semu_error_clear(&error);
     machine = open_235(timeline, &error, &presses);
     if (machine == NULL) {
+        if (error.code != SEMU_OK) fprintf(stderr, "%s\n", error.text);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, error.code);
         printf("SKIP sapporo 2.35.34 private fixture unavailable\n");
         return;
     }
@@ -263,16 +321,16 @@ static void test_input_timeline_full_record(semu_test_context *context)
     semu_error_clear(&error);
     machine = open_235(timeline, &error, &presses);
     if (machine == NULL) {
+        if (error.code != SEMU_OK) fprintf(stderr, "%s\n", error.text);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, error.code);
         printf("SKIP sapporo 2.35.34 private fixture unavailable\n");
         return;
     }
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
     run_sliced(machine, UINT64_C(1000000000), UINT64_C(300000000000),
                &error);
-    /* At the 1000000000-instruction budget the drain is still in flight
-     * at the 300 s boundary of the 31 s region: twelve entries are in
-     * (through the release at 32300 ms) and the last observed counter is
-     * inside the 64-bit now-stamp commit. */
+    /* The instruction budget arrives at 49.84 s, before the 300 s time
+     * limit: twelve entries are in (through the release at 32300 ms). */
     SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET,
                      (uint64_t)semu_machine_stop_reason(machine));
     SEMU_TEST_EQ_U64(context, UINT64_C(1000000000),
@@ -293,6 +351,8 @@ static void test_input_timeline_neutral_control(semu_test_context *context)
     semu_error_clear(&error);
     machine = open_235("", &error, &presses);
     if (machine == NULL) {
+        if (error.code != SEMU_OK) fprintf(stderr, "%s\n", error.text);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, error.code);
         printf("SKIP sapporo 2.35.34 private fixture unavailable\n");
         return;
     }
@@ -318,6 +378,9 @@ int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_input_timeline_refusals", test_input_timeline_refusals },
+        SEMU_TEST_CASE(test_input_run_refusal_returns),
+        SEMU_TEST_CASE(test_input_timeline_capacity),
+        SEMU_TEST_CASE(test_input_timeline_time_overflow),
         { "test_input_timeline_boot_record",
           test_input_timeline_boot_record },
         { "test_input_timeline_full_record",

@@ -125,11 +125,72 @@ static void test_refuses_unobserved_state(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_compressed_asset_refusal_diagnostic(semu_test_context *context)
+{
+    semu_error error;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot resolve = resolve_state();
+    uint8_t panel[480u * 240u];
+    uint8_t before[sizeof(panel)];
+
+    /* E-EMU-SAP235-MAIN-TSC6A-001: native main-entry descriptor only.
+     * No compressed firmware bytes or private frame pixels are needed. */
+    resolve.src_base = UINT32_C(0x100a490c);
+    resolve.src_present = 1u;
+    resolve.src_width = 60u;
+    resolve.src_height = 60u;
+    resolve.src_stride = 180u;
+    resolve.target_base = UINT32_C(0x10121d40);
+    resolve.clip_min_y = 81u;
+    resolve.clip_max_x = 240u;
+    resolve.clip_max_y = 162u;
+    resolve.draw_cmd = NEMA_DRAW_QUAD;
+    resolve.draw_color = UINT32_C(0xff555555);
+    resolve.tex_color = UINT32_C(0xffffffff);
+    resolve.point0_x = resolve.point3_x = 171u << 16u;
+    resolve.point1_x = resolve.point2_x = 231u << 16u;
+    resolve.point0_y = resolve.point1_y = 90u << 16u;
+    resolve.point2_y = resolve.point3_y = 150u << 16u;
+    resolve.mm02 = UINT32_C(0xc32b0001);
+    resolve.mm12 = UINT32_C(0xc2b40000);
+    memset(panel, 0xa5, sizeof(panel));
+    memcpy(before, panel, sizeof(panel));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_create(&surface, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, error.code);
+    SEMU_TEST_ASSERT(context, strcmp(error.text,
+        "nema_tsc6a: compressed source 60x60 stride 180 is unsupported; "
+        "only the 480x480 semantic shadow is modeled") == 0);
+    SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, NULL));
+    SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
+
+    /* A supported shadow descriptor still resolves; its invalid shader
+     * retains the existing generic state diagnostic. */
+    resolve.src_width = NEMA_TSC6A_WIDTH;
+    resolve.src_height = NEMA_TSC6A_HEIGHT;
+    resolve.src_stride = FSTRIDE_TSC & 0xffffu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+    SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
+    resolve.codeptr = UINT32_C(0x12345678);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        nema_tsc6a_resolve_mask(surface, &resolve, panel, 480u, &error));
+    SEMU_TEST_ASSERT(context, strcmp(error.text,
+        "nema_tsc6a: unsupported mask resolve state") == 0);
+    SEMU_TEST_ASSERT(context, memcmp(before, panel, sizeof(panel)) == 0);
+    nema_tsc6a_destroy(surface);
+}
+
 int main(void)
 {
     const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_target_triangle_and_resolve),
         SEMU_TEST_CASE(test_refuses_unobserved_state),
+        SEMU_TEST_CASE(test_compressed_asset_refusal_diagnostic),
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

@@ -153,6 +153,10 @@ static semu_status apply_sections(semu_machine *machine,
     status = semu_nema_gpu_snapshot_read(machine->nema_gpu, &reader, error);
     if (status == SEMU_OK) DONE("NEMA");
     else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
+    SECTION(SEMU_SNAPSHOT_SECTION_DISPLAY);
+    status = semu_machine_snapshot_read_display(machine, &reader, error);
+    if (status == SEMU_OK) DONE("display");
+    else { semu_machine_snapshot_free_scheduler_image(&scheduler_image); return status; }
     status = semu_machine_snapshot_validate_event_links(
         machine, scheduler_image.events, scheduler_image.count, error);
     if (status != SEMU_OK) {
@@ -203,7 +207,8 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
         SEMU_SNAPSHOT_SECTION_VIRTUAL_TIME, SEMU_SNAPSHOT_SECTION_STOP_REASON,
         SEMU_SNAPSHOT_SECTION_SCHEDULER, SEMU_SNAPSHOT_SECTION_SOC_STATE,
         SEMU_SNAPSHOT_SECTION_DEVICES, SEMU_SNAPSHOT_SECTION_STORAGE,
-        SEMU_SNAPSHOT_SECTION_NEMA, SEMU_SNAPSHOT_SECTION_MACHINE
+        SEMU_SNAPSHOT_SECTION_NEMA, SEMU_SNAPSHOT_SECTION_MACHINE,
+        SEMU_SNAPSHOT_SECTION_DISPLAY
     };
     size_t index;
     semu_status status;
@@ -253,6 +258,7 @@ semu_status semu_machine_snapshot_save(const semu_machine *machine,
     BEGIN(); status = write_storage(machine, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_STORAGE);
     BEGIN(); status = semu_nema_gpu_snapshot_write(machine->nema_gpu, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_NEMA);
     BEGIN(); status = semu_machine_snapshot_write_layers(machine, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_MACHINE);
+    BEGIN(); status = semu_machine_snapshot_write_display(machine, &writer, error); if (status != SEMU_OK) goto fail_writer; FINISH(SEMU_SNAPSHOT_SECTION_DISPLAY);
     semu_snapshot_reset(snapshot);
     for (index = 0u; index < SEMU_ARRAY_LEN(ids); ++index) {
         const uint8_t *data;
@@ -310,5 +316,11 @@ semu_status semu_machine_snapshot_load(semu_machine *machine,
         *error = original;
     }
     semu_snapshot_destroy(backup);
+    if (status == SEMU_OK && machine->frame_callback != NULL &&
+        machine->display_snapshot.backend_id != 0u) {
+        const semu_frame *frame = machine->display_snapshot.published_frame(
+            machine->display_backend_context);
+        if (frame != NULL) machine->frame_callback(machine->frame_context, frame);
+    }
     return status;
 }

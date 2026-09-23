@@ -23,13 +23,14 @@
 #include "semu/scheduler.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 #define RTC_WINDOW_SIZE 0x210u /* lane IKnownSize */
 #define SRTC_TICK_NS UINT64_C(10000000) /* 100 Hz peripheral clock */
 #define SRTC_SEC_TICKS UINT64_C(100)
 #define SRTC_DAY_TICKS UINT64_C(8640000)
 
-typedef struct {
+struct semu_sapporo_rtc {
     semu_scheduler *scheduler;
     semu_apollo4_irq_fn irq_sink;
     void *irq_context;
@@ -50,9 +51,8 @@ typedef struct {
     int alarm_pending;
     uint64_t high_water;
     int stat, inten, line_high, init_done;
-} sapporo_rtc_state;
-
-static sapporo_rtc_state rtc_instance;
+};
+typedef semu_sapporo_rtc sapporo_rtc_state;
 
 static uint64_t rtc_clock_t(const sapporo_rtc_state *s, uint64_t now)
 {
@@ -250,7 +250,8 @@ static void rtc_update_alarm(sapporo_rtc_state *s, uint64_t now)
         s->high_water = now;
     }
     if (s->alarm_pending) {
-        if (semu_scheduler_cancel(s->scheduler, s->alarm_event) != 0) {
+        if (semu_scheduler_cancel_owned(s->scheduler, s->alarm_event,
+                                        rtc_alarm_cb, s) != 0) {
             s->alarm_pending = 0; /* vanished via a scheduler flush */
         }
     }
@@ -258,7 +259,7 @@ static void rtc_update_alarm(sapporo_rtc_state *s, uint64_t now)
 }
 
 static void rtc_reset(void *context);
-static void rtc_ensure_init(void);
+static void rtc_ensure_init(sapporo_rtc_state *s);
 
 static uint32_t rtc_read_reg(sapporo_rtc_state *s, uint32_t offset,
                              uint64_t now)
@@ -296,17 +297,16 @@ static uint32_t rtc_read_reg(sapporo_rtc_state *s, uint32_t offset,
 static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
                             uint32_t *value, semu_error *error)
 {
-    sapporo_rtc_state *s = &rtc_instance;
+    sapporo_rtc_state *s = context;
     uint64_t now;
 
-    (void)context;
-    if (value == NULL || width != 4u || offset >= RTC_WINDOW_SIZE ||
+    if (s == NULL || value == NULL || width != 4u || offset >= RTC_WINDOW_SIZE ||
         (offset & 3u) != 0u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Sapporo RTC read is not evidenced");
         return SEMU_ERR_UNSUPPORTED;
     }
-    rtc_ensure_init();
+    rtc_ensure_init(s);
     now = s->scheduler != NULL ? semu_scheduler_now(s->scheduler) : 0u;
     *value = rtc_read_reg(s, offset, now);
     return SEMU_OK;
@@ -315,17 +315,17 @@ static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
 static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
                              uint32_t value, semu_error *error)
 {
-    sapporo_rtc_state *s = &rtc_instance;
+    sapporo_rtc_state *s = context;
     uint64_t now;
     unsigned year, yr;
 
-    (void)context;
-    if (width != 4u || offset >= RTC_WINDOW_SIZE || (offset & 3u) != 0u) {
+    if (s == NULL || width != 4u || offset >= RTC_WINDOW_SIZE ||
+        (offset & 3u) != 0u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Sapporo RTC write is not evidenced");
         return SEMU_ERR_UNSUPPORTED;
     }
-    rtc_ensure_init();
+    rtc_ensure_init(s);
     now = s->scheduler != NULL ? semu_scheduler_now(s->scheduler) : 0u;
     switch (offset) {
     case 0x000u: /* Control */ {
@@ -414,37 +414,36 @@ static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
     return SEMU_OK;
 }
 
-static void rtc_init_state(void)
+static void rtc_init_state(sapporo_rtc_state *s)
 {
-    memset(&rtc_instance, 0, sizeof(rtc_instance));
-    rtc_instance.running = 1;
-    rtc_instance.refresh_tick = UINT64_MAX;
-    rtc_instance.f_day = 1u; rtc_instance.f_mon = 1u;
-    rtc_instance.f_yr = 70u; rtc_instance.f_wd = 4u; /* 1970-01-01, Thu */
-    rtc_instance.cb = 1;
+    memset(s, 0, sizeof(*s));
+    s->running = 1;
+    s->refresh_tick = UINT64_MAX;
+    s->f_day = 1u; s->f_mon = 1u;
+    s->f_yr = 70u; s->f_wd = 4u; /* 1970-01-01, Thu */
+    s->cb = 1;
 }
 
 /* The bus map does not dispatch ops->reset, so the cold field state
- * is established lazily on the first access (attach happens after the
- * map; the seams are preserved exactly as across a reset). */
-static void rtc_ensure_init(void)
+ * is established lazily on the first access. Instance bindings survive
+ * this initialization exactly as they survive an explicit reset. */
+static void rtc_ensure_init(sapporo_rtc_state *s)
 {
-    if (!rtc_instance.init_done) { rtc_reset(NULL); }
+    if (!s->init_done) { rtc_reset(s); }
 }
 
 static void rtc_reset(void *context)
 {
-    int was_high = rtc_instance.line_high;
-    sapporo_rtc_state *s = &rtc_instance;
+    sapporo_rtc_state *s = context;
+    int was_high = s->line_high;
     semu_scheduler *sched = s->scheduler;
     semu_apollo4_irq_fn sink = s->irq_sink;
     void *ctx = s->irq_context;
 
-    (void)context;
     if (sched != NULL && s->alarm_pending) {
-        (void)semu_scheduler_cancel(sched, s->alarm_event);
+        (void)semu_scheduler_cancel_owned(sched, s->alarm_event, rtc_alarm_cb, s);
     }
-    rtc_init_state();
+    rtc_init_state(s);
     s->scheduler = sched;
     s->irq_sink = sink;
     s->irq_context = ctx;
@@ -466,35 +465,47 @@ const semu_bus_device_ops *semu_sapporo_rtc_ops(void)
     return &rtc_ops;
 }
 
-void semu_sapporo_rtc_detach(void)
+semu_sapporo_rtc *semu_sapporo_rtc_create(semu_scheduler *scheduler,
+    semu_apollo4_irq_fn sink, void *context, semu_error *error)
 {
-    /* Map-side seam (ulsan_rtc.c analogue): forget the seams and the
-     * state without touching a possibly-freed sink. */
-    memset(&rtc_instance, 0, sizeof(rtc_instance));
+    sapporo_rtc_state *s;
+    if (scheduler == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Sapporo RTC requires a scheduler");
+        return NULL;
+    }
+    s = calloc(1u, sizeof(*s));
+    if (s == NULL) {
+        semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate Sapporo RTC");
+        return NULL;
+    }
+    s->scheduler = scheduler;
+    s->irq_sink = sink;
+    s->irq_context = context;
+    semu_error_clear(error);
+    return s;
 }
 
-void semu_sapporo_rtc_attach(semu_scheduler *scheduler,
-                             semu_apollo4_irq_fn sink, void *context)
+void semu_sapporo_rtc_destroy(semu_sapporo_rtc *s)
 {
-    /* The machine attaches after the board map (ulsan_rtc.c seam):
-     * device maps reset detach; device resets keep the seams. */
-    rtc_instance.scheduler = scheduler;
-    rtc_instance.irq_sink = sink;
-    rtc_instance.irq_context = context;
+    if (s == NULL) return;
+    if (s->alarm_pending) {
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->alarm_event,
+                                          rtc_alarm_cb, s);
+    }
+    free(s);
 }
 
-uint32_t semu_sapporo_rtc_probe(uint32_t offset)
+uint32_t semu_sapporo_rtc_probe(semu_sapporo_rtc *s, uint32_t offset)
 {
-    sapporo_rtc_state *s = &rtc_instance;
     uint64_t now = s->scheduler != NULL ? semu_scheduler_now(s->scheduler)
                                         : 0u;
     return rtc_read_reg(s, offset, now);
 }
 
-int semu_sapporo_rtc_probe_pending(int *line_high)
+int semu_sapporo_rtc_probe_pending(const semu_sapporo_rtc *s, int *line_high)
 {
     if (line_high != NULL) {
-        *line_high = rtc_instance.line_high;
+        *line_high = s->line_high;
     }
-    return rtc_instance.alarm_pending != 0 ? 1 : 0;
+    return s->alarm_pending != 0 ? 1 : 0;
 }

@@ -19,8 +19,9 @@ semu_nema_backend *semu_nema_backend_create(semu_error *error)
         semu_nema_backend_destroy(b);
         return NULL;
     }
+    b->published_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
     b->working_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
-    if (b->working_pixels == NULL) {
+    if (b->working_pixels == NULL || b->published_pixels == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate staging pixels");
         semu_nema_backend_destroy(b);
         return NULL;
@@ -32,6 +33,7 @@ void semu_nema_backend_destroy(semu_nema_backend *b)
 {
     if (b == NULL || b->phase == NEMA_BACKEND_PREPARING ||
         b->phase == NEMA_BACKEND_COMMITTING) return;
+    free(b->published_pixels);
     free(b->frames);
     free(b->working_pixels);
     nema_tsc6a_destroy(b->pending_tsc6a);
@@ -55,6 +57,7 @@ semu_status semu_nema_backend_reset(semu_nema_backend *b)
     b->tsc6a_dirty = 0;
     semu_error_clear(&b->draw_error);
     semu_surface_clear(b->surface, 0u);
+    b->published_valid = 0;
     return SEMU_OK;
 }
 

@@ -34,6 +34,7 @@ enum {
 #define FIFO_WORDS 8u
 #define ADDR_OBSERVED 0x28u
 #define ADDR_GAUGE 0x36u
+#define ADDR_HAPTIC 0x50u
 
 struct semu_sapporo_iom4 {
     semu_bus *bus;
@@ -56,6 +57,8 @@ struct semu_sapporo_iom4 {
     int loaded_dma;
     uint32_t dma_active_count;
     semu_sapporo_iom4_gauge gauge;
+    uint8_t haptic_registers[0x44];
+    uint8_t haptic_selected;
 };
 
 void update_irq(semu_sapporo_iom4 *m);
@@ -63,6 +66,12 @@ void int_set(semu_sapporo_iom4 *m, uint32_t bit, int value);
 void update_threshold(semu_sapporo_iom4 *m);
 int out_push(semu_sapporo_iom4 *m, uint32_t word);
 uint32_t in_pop(semu_sapporo_iom4 *m);
-void command_write(semu_sapporo_iom4 *m, uint32_t value);
+semu_status command_write(semu_sapporo_iom4 *m, uint32_t value,
+                          semu_error *error);
+
+semu_status haptic_validate(const semu_sapporo_iom4 *m, uint32_t command,
+                            const uint8_t *source, semu_error *error);
+void haptic_write(semu_sapporo_iom4 *m, const uint8_t *data, uint32_t n);
+void haptic_read(semu_sapporo_iom4 *m, uint8_t *bytes, uint32_t n);
 
 #endif

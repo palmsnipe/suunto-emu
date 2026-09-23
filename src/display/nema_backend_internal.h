@@ -7,6 +7,9 @@ enum { NEMA_BACKEND_IDLE, NEMA_BACKEND_PREPARING, NEMA_BACKEND_PREPARED,
        NEMA_BACKEND_COMMITTING };
 struct semu_nema_backend {
     semu_surface *surface;
+    semu_frame published;
+    uint8_t *published_pixels;
+    int published_valid;
     nema_state *state, *pending_state;
     nema_diagnostics *diag;
     nema_tsc6a *tsc6a, *pending_tsc6a;

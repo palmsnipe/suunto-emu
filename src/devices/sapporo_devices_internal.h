@@ -13,6 +13,10 @@
 #include "sapporo_opt3007.h"
 #include "sapporo_tli493d.h"
 #include "../compat/sapporo_222.h"
+#include "../compat/sapporo_235_ohr.h"
+#include "../compat/sapporo_235_gps.h"
+#include "../compat/sapporo_235_gps_reopen.h"
+#include "../compat/sapporo_235_gps_awake.h"
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
 #include "../compat/sapporo_239_gps_awake.h"
@@ -60,6 +64,11 @@ struct semu_sapporo_devices {
     semu_sapporo_239_gps_awake_context gps_awake_context;
     int profile_selected;
     int ohr2_profile_239;
+    int ohr2_profile_235;
+    semu_sapporo_235_ohr_context ohr_235_context;
+    semu_sapporo_235_gps_context gps_235_context;
+    semu_sapporo_235_gps_reopen_context gps_235_reopen_context;
+    semu_sapporo_235_gps_awake_context gps_235_awake_context;
 };
 
 semu_status semu_sapporo_devices_snapshot_write(

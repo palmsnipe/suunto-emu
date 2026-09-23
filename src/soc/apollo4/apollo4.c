@@ -1,6 +1,7 @@
 #include "apollo4_internal.h"
 
 #include "../../devices/sapporo_iom4.h"
+#include "../../devices/sapporo_rtc.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -197,6 +198,7 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
         return SEMU_ERR_CONFLICT;
     }
     soc->irq_sink = irq_sink;
+    soc->scheduler = scheduler;
     soc->irq_context = irq_context;
 
     soc->reset_ctrl = semu_apollo4_reset_controller_create(
@@ -393,6 +395,7 @@ void semu_apollo4_destroy(semu_apollo4 *soc)
         semu_apollo4_clock_destroy(soc->clock);
         semu_apollo4_reset_controller_destroy(soc->reset_ctrl);
     }
+    semu_sapporo_rtc_destroy(soc->rtc);
     free(soc);
 }
 
@@ -446,6 +449,12 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
      * one-second RTC alarm before parking; all other verified Sapporo
      * profiles keep the auxiliary register stub byte-for-byte. */
     soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ? 1 : 0;
+    semu_apollo4_iom_set_pressure235(soc->iom2, soc->rtc_live);
+    if (soc->rtc_live != 0 && soc->rtc == NULL) {
+        soc->rtc = semu_sapporo_rtc_create(soc->scheduler,
+                                          irq_sink_dispatch, soc, error);
+        if (soc->rtc == NULL) return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
     /* E-SAP-0036: the 2.35 startup path replaces the shared IOM4 law
      * with the lane-mirror engine at 0x40054000 (IRQ 10); no other
      * profile reaches this seam. */

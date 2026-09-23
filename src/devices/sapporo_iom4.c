@@ -14,7 +14,8 @@
  * window (the delegated controller never sees those offsets), command
  * completion is synchronous inside the 0x120 write, and the endpoints
  * are the 2.35 machine's observed device 0x28 (deterministic zeros)
- * plus MAX17050 fuel gauge 0x36. Register dispatch lives in
+ * plus MAX17050 fuel gauge 0x36 and E-SAP-0040 scoped haptic startup
+ * at 0x50. Register dispatch lives in
  * sapporo_iom4_regs.c.
  */
 
@@ -54,6 +55,8 @@ static void ep_write(semu_sapporo_iom4 *m, uint32_t value, uint32_t n,
     }
     if (m->devconf == ADDR_GAUGE) {
         semu_sapporo_iom4_gauge_write(&m->gauge, bytes, n);
+    } else if (m->devconf == ADDR_HAPTIC) {
+        haptic_write(m, bytes, n);
     }
 }
 
@@ -89,6 +92,8 @@ static int recv_data(semu_sapporo_iom4 *m)
     n = m->size_left < 4u ? m->size_left : 4u;
     if (m->devconf == ADDR_GAUGE) {
         semu_sapporo_iom4_gauge_read(&m->gauge, buf, n);
+    } else if (m->devconf == ADDR_HAPTIC) {
+        haptic_read(m, buf, n);
     }
     m->in_words[(m->in_tail + m->in_count) % FIFO_WORDS] =
         (uint32_t)buf[0] | ((uint32_t)buf[1] << 8) |
@@ -153,12 +158,44 @@ static int target_valid(semu_sapporo_iom4 *m, int m2p, unsigned kind)
            (m2p && kind == 1u && a >= 0x00040000u && a < 0x001c0000u);
 }
 
-static void prepare_dma(semu_sapporo_iom4 *m, uint32_t command)
+/* The execution-model DMA contract requires whole-transfer admission before
+ * changing the command, FIFO, endpoint, IRQ or memory. Inspect bytes so that
+ * even a one-byte MMIO overlay refuses without invoking its callbacks.
+ * Keep the evidenced invalid-target register/interrupt path in prepare_dma;
+ * this preflight handles unsafe mappings inside the admitted address windows.
+ * Source bytes are staged once, before any command/IRQ callback can run. */
+static semu_status validate_dma(semu_sapporo_iom4 *m, uint32_t command,
+                                uint8_t *source, semu_error *error)
+{
+    unsigned kind = (unsigned)(command & 0xfu);
+    int m2p = (m->dma_cfg & 2u) != 0u;
+    uint32_t size = (command >> 8) & 0xfffu;
+    uint32_t count = m->dma_total < size ? m->dma_total : size;
+    uint32_t i;
+    if ((m->dma_cfg & 1u) == 0u ||
+        (kind != 1u && kind != 2u) || !target_valid(m, m2p, kind) ||
+        (m2p && kind != 1u) || (!m2p && kind != 2u)) {
+        return SEMU_OK;
+    }
+    if (count != 0u && m->dma_target > UINT32_MAX - (count - 1u)) {
+        semu_error_set(error, SEMU_ERR_RANGE, "Sapporo IOM4 DMA span overflows");
+        return SEMU_ERR_RANGE;
+    }
+    for (i = 0u; i < count; ++i) {
+        semu_status status = m2p ?
+            semu_bus_copy_out(m->bus, m->dma_target + i, source + i, 1u, error) :
+            semu_bus_validate_write(m->bus, m->dma_target + i, 1u, error);
+        if (status != SEMU_OK) return status;
+    }
+    return SEMU_OK;
+}
+
+static void prepare_dma(semu_sapporo_iom4 *m, uint32_t command,
+                         const uint8_t *source)
 {
     unsigned kind = (unsigned)(command & 0xfu);
     uint32_t command_size = (command >> 8) & 0xfffu;
     uint32_t count, offset = 0u;
-    semu_error local;
     m->loaded_dma = 0;
     if ((m->dma_cfg & 1u) == 0u || (kind != 1u && kind != 2u)) {
         return;
@@ -176,18 +213,11 @@ static void prepare_dma(semu_sapporo_iom4 *m, uint32_t command)
     m->dma_active_count = count;
     if ((m->dma_cfg & 2u) != 0u && kind == 1u) {
         while (offset < count) {
-            uint8_t bytes[4] = { 0, 0, 0, 0 };
             uint32_t chunk = count - offset < 4u ? count - offset : 4u;
             uint32_t word = 0u;
             uint32_t i;
-            if (semu_bus_copy_out(m->bus, m->dma_target + offset, bytes,
-                                  chunk, &local) != SEMU_OK) {
-                m->dma_status = 4u;
-                int_set(m, INT_DMA_ERR, 1);
-                return;
-            }
             for (i = 0u; i < chunk; ++i) {
-                word |= (uint32_t)bytes[i] << (8u * i);
+                word |= (uint32_t)source[offset + i] << (8u * i);
             }
             out_push(m, word);
             offset += chunk;
@@ -211,8 +241,10 @@ static void complete_dma(semu_sapporo_iom4 *m, uint32_t command)
             uint32_t chunk = remaining < 4u ? remaining : 4u;
             uint32_t i;
             for (i = 0u; i < chunk; ++i) {
-                semu_bus_write(m->bus, address++, 1u,
-                               (word >> (8u * i)) & 0xffu, &local);
+                /* Every destination byte was admitted as RAM before the
+                 * command. No allocation or device callback can fail here. */
+                (void)semu_bus_write(m->bus, address++, 1u,
+                                     (word >> (8u * i)) & 0xffu, &local);
             }
             remaining -= chunk;
         }
@@ -225,25 +257,28 @@ static void complete_dma(semu_sapporo_iom4 *m, uint32_t command)
     m->dma_active_count = 0u;
 }
 
-/* The 2.35 lane machine registers only 0x28 (identity not yet proven,
- * deterministic zeros) and 0x36 (MAX17050) on this bus; the lane class
- * also builds 0x50 but no 2.35 census traffic reaches it, so it fails
- * like an unregistered peripheral until a later instance mirrors its
- * law. The SPI submodule is never registered on this instance. */
+/* E-SAP-0036 plus the E-SAP-0040 scoped haptic startup commands. */
 static int endpoint_registered(semu_sapporo_iom4 *m)
 {
-    return m->devconf == ADDR_OBSERVED || m->devconf == ADDR_GAUGE;
+    return m->devconf == ADDR_OBSERVED || m->devconf == ADDR_GAUGE ||
+           m->devconf == ADDR_HAPTIC;
 }
 
-void command_write(semu_sapporo_iom4 *m, uint32_t value)
+semu_status command_write(semu_sapporo_iom4 *m, uint32_t value,
+                          semu_error *error)
 {
+    uint8_t source[0xfffu];
     unsigned cmd = (unsigned)(value & 0xfu);
     uint32_t offset_count = (value >> 4) & 7u;
     uint32_t size = (value >> 8) & 0xfffu;
     uint32_t offset_low = (value >> 24) & 0xffu;
     int invalid = 0;
+    semu_status status = validate_dma(m, value, source, error);
+    if (status != SEMU_OK) return status;
+    status = haptic_validate(m, value, source, error);
+    if (status != SEMU_OK) return status;
     m->cmd_reg = value;
-    prepare_dma(m, value);
+    prepare_dma(m, value, source);
     /* The wrapper always delegates the command and always completes the
      * DMA afterwards, so the DMA side effects survive every early
      * return of the delegated controller (probe pair 43a639e3..). */
@@ -304,6 +339,8 @@ void command_write(semu_sapporo_iom4 *m, uint32_t value)
         }
         } while (0);
     complete_dma(m, value);
+    semu_error_clear(error);
+    return SEMU_OK;
 }
 
 void semu_sapporo_iom4_reset(semu_sapporo_iom4 *m)

@@ -120,6 +120,28 @@ static semu_status erase_full_pages(semu_storage *storage, uint64_t address,
     uint64_t first = address / STORAGE_PAGE_SIZE;
     uint64_t count = (uint64_t)size / STORAGE_PAGE_SIZE;
     uint64_t index;
+    storage_page *prepared = NULL;
+    storage_page **tail = &prepared;
+
+    /* Prepare every missing overlay before modifying existing pages. A block
+       erase may need sixteen allocations; failure must not erase a prefix. */
+    for (index = first; index < first + count; ++index) {
+        if (find_page(storage, index) == NULL &&
+            !base_page_is_erased(storage, index)) {
+            storage_page *page = allocate_page(storage, index, error);
+            if (page == NULL) {
+                while (prepared != NULL) {
+                    storage_page *next = prepared->next;
+                    free(prepared);
+                    prepared = next;
+                }
+                return SEMU_ERR_NOMEM;
+            }
+            page->next = NULL;
+            *tail = page;
+            tail = &page->next;
+        }
+    }
 
     while (*link != NULL && (*link)->index < first) {
         link = &(*link)->next;
@@ -130,9 +152,9 @@ static semu_status erase_full_pages(semu_storage *storage, uint64_t address,
             (void)memset(page->bytes, storage->erased_value,
                          STORAGE_PAGE_SIZE);
             link = &page->next;
-        } else if (!base_page_is_erased(storage, index)) {
-            page = allocate_page(storage, index, error);
-            if (page == NULL) return SEMU_ERR_NOMEM;
+        } else if (prepared != NULL && prepared->index == index) {
+            page = prepared;
+            prepared = prepared->next;
             (void)memset(page->bytes, storage->erased_value,
                          STORAGE_PAGE_SIZE);
             page->next = *link;

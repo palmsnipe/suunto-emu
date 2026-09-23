@@ -39,6 +39,8 @@ void semu_apollo4_iom_reset(void *context);
  * shared E-A4-IOM-001 law. */
 void semu_apollo4_iom_set_live235(semu_apollo4_iom *iom,
                                   struct semu_sapporo_iom4 *live);
+/* E-SAP-0039: exact negative pressure probes, gated to the 2.35 IOM2. */
+void semu_apollo4_iom_set_pressure235(semu_apollo4_iom *iom, int enabled);
 
 semu_status semu_apollo4_iom_attach_endpoint(
     semu_apollo4_iom *iom, const semu_serial_endpoint *endpoint,

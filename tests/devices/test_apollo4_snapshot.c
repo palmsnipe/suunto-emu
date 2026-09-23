@@ -2,6 +2,8 @@
 
 #include "../../src/soc/apollo4/apollo4_internal.h"
 
+#include <string.h>
+
 typedef struct apollo4_fixture {
     semu_error error;
     semu_bus *bus;
@@ -79,11 +81,49 @@ static void test_late_child_refusal_is_atomic(semu_test_context *context)
     fixture_destroy(&source);
 }
 
+/* E-SAP-0036 explicitly records the live RTC/IOM4 as absent from vmstate.
+ * Reject the unsupported profile before emitting or consuming any bytes. */
+static void test_live235_snapshot_refuses(semu_test_context *context)
+{
+    apollo4_fixture fixture;
+    semu_snapshot_writer writer;
+    semu_snapshot_reader reader;
+    uint32_t fifo_word = 0u;
+    SEMU_TEST_ASSERT(context, fixture_init(&fixture));
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_snapshot_write(fixture.soc, &writer, &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_select_profile(fixture.soc, "sapporo-2.35.34",
+                                    &fixture.error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(fixture.bus, 0x40054000u, 4u, 0x12345678u,
+                        &fixture.error));
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_apollo4_snapshot_read(fixture.soc, &reader, &fixture.error));
+    SEMU_TEST_ASSERT(context, strstr(fixture.error.text, "RTC/IOM4") != NULL);
+    SEMU_TEST_EQ_U64(context, 0u, reader.offset);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(fixture.bus, 0x40054000u, 4u, &fifo_word,
+                       &fixture.error));
+    SEMU_TEST_EQ_U64(context, 0x12345678u, fifo_word);
+    semu_snapshot_writer_destroy(&writer);
+    semu_snapshot_writer_init(&writer);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_apollo4_snapshot_write(fixture.soc, &writer, &fixture.error));
+    SEMU_TEST_ASSERT(context, strstr(fixture.error.text, "RTC/IOM4") != NULL);
+    SEMU_TEST_EQ_U64(context, 0u, writer.size);
+    semu_snapshot_writer_destroy(&writer);
+    fixture_destroy(&fixture);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_invalid_gpio_level_refuses),
-        SEMU_TEST_CASE(test_late_child_refusal_is_atomic)
+        SEMU_TEST_CASE(test_late_child_refusal_is_atomic),
+        SEMU_TEST_CASE(test_live235_snapshot_refuses)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

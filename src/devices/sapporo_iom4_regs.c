@@ -129,8 +129,7 @@ semu_status semu_sapporo_iom4_write(semu_sapporo_iom4 *m, uint32_t offset,
         }
         break;
     case R_COMMAND:
-        command_write(m, value);
-        break;
+        return command_write(m, value, error);
     case R_DCX: case R_INTSTAT: case R_TRIG_STAT: case R_DMA_STATUS:
     case R_CQ_CONF: case R_CQ_TARGET: case R_CQ_FLAG: case R_CQ_PAUSE:
     case R_CQ_CUR: case R_CQ_END: case R_MODULE_STATUS: case R_SPI_CFG:
@@ -155,6 +154,14 @@ semu_status semu_sapporo_iom4_write(semu_sapporo_iom4 *m, uint32_t offset,
     case R_DMA_TARGET:  m->dma_target = value & 0x3fffffffu; break;
     case R_I2C_CFG:     m->i2c_cfg = value & 0xff71u; break;
     case R_DEVICE_CFG:
+        /* A waiting FIFO command cannot bypass the haptic command admission
+         * by changing its endpoint after the command has begun. */
+        if (m->active_cmd != 0u &&
+            (m->devconf == ADDR_HAPTIC || (value & 0x7fu) == ADDR_HAPTIC)) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "Sapporo haptic endpoint switch during command");
+            return SEMU_ERR_UNSUPPORTED;
+        }
         m->devconf = value & 0x3ffu;
         if ((m->i2c_cfg & 1u) == 0u && m->devconf > 0x7fu) {
             m->devconf &= 0x7fu;

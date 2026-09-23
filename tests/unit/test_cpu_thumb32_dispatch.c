@@ -158,11 +158,54 @@ static void test_dispatch_refusals_are_atomic(semu_test_context *context)
     }
 }
 
+static void test_f57f_branches_are_not_barriers(semu_test_context *context)
+{
+    /* Thumb BPL.W T3 and B.W T4 encodings, previously mistaken for
+     * barriers. Targets are relative to the fixture's PC of 0x100.
+     * F57F AF87 occurs in the firmware's software double-add routine. */
+    static const struct {
+        uint16_t second;
+        uint32_t target;
+        int conditional;
+    } cases[] = {
+        {0xaf87u, 0x00000012u, 1},
+        {0xaf07u, 0xffffff12u, 1},
+        {0x9f07u, 0xff57ff12u, 0},
+        {0xbf07u, 0xffd7ff12u, 0}
+    };
+    size_t index;
+    unsigned negative;
+
+    for (index = 0u; index < SEMU_ARRAY_LEN(cases); ++index) {
+        for (negative = 0u; negative < 2u; ++negative) {
+            semu_cpu_state before = initial_state(), final, expected;
+            semu_status status;
+            semu_stop_reason stop;
+
+            before.xpsr |= negative ? UINT32_C(0x80000000) : 0u;
+            before.r[0] = 0x12345678u;
+            before.r[14] = 0x76543211u;
+            expected = before;
+            expected.r[15] = cases[index].conditional && negative ?
+                               0x104u : cases[index].target;
+            expected.instructions = 1u;
+            SEMU_TEST_ASSERT(context,
+                run_cpu(0xf57fu, cases[index].second, before, &status,
+                        &final, &stop));
+            SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+            SEMU_TEST_EQ_U64(context, expected.r[15], final.r[15]);
+            SEMU_TEST_ASSERT(context,
+                            memcmp(&expected, &final, sizeof(final)) == 0);
+        }
+    }
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_dispatches_dsp_and_preserves_system_data_owners),
-        SEMU_TEST_CASE(test_dispatch_refusals_are_atomic)
+        SEMU_TEST_CASE(test_dispatch_refusals_are_atomic),
+        SEMU_TEST_CASE(test_f57f_branches_are_not_barriers)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

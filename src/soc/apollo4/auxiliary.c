@@ -152,7 +152,7 @@ static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
     semu_apollo4 *soc = (semu_apollo4 *)context;
 
     if (soc != NULL && soc->rtc_live != 0) {
-        return semu_sapporo_rtc_ops()->read(NULL, offset, width, value,
+        return semu_sapporo_rtc_ops()->read(soc->rtc, offset, width, value,
                                             error);
     }
     if (context == NULL || value == NULL) {
@@ -178,7 +178,7 @@ static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
     semu_apollo4 *soc = (semu_apollo4 *)context;
 
     if (soc != NULL && soc->rtc_live != 0) {
-        return semu_sapporo_rtc_ops()->write(NULL, offset, width, value,
+        return semu_sapporo_rtc_ops()->write(soc->rtc, offset, width, value,
                                              error);
     }
     (void)value;
@@ -202,7 +202,7 @@ static void rtc_reset(void *context)
     semu_apollo4 *soc = (semu_apollo4 *)context;
 
     if (soc != NULL && soc->rtc_live != 0) {
-        semu_sapporo_rtc_ops()->reset(NULL);
+        semu_sapporo_rtc_ops()->reset(soc->rtc);
     }
 }
 
@@ -275,9 +275,6 @@ semu_status semu_apollo4_auxiliary_map(semu_bus *bus, void *context,
                        "Apollo4 auxiliary devices require bus and context");
         return SEMU_ERR_ARGUMENT;
     }
-    /* Machine-create detach of the Sapporo live RTC seams
-     * (ulsan_rtc map-reset analogue, E-SAP-0032). */
-    semu_sapporo_rtc_detach();
     status = semu_apollo4_adc_map(bus, context, error);
     if (status != SEMU_OK) {
         return status;

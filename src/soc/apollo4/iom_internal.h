@@ -25,6 +25,7 @@ struct semu_apollo4_iom {
     uint32_t dma_status;
     uint32_t device_config;
     int irq_level;
+    int pressure235; /* immutable profile gate; 2.35 snapshots refuse */
     struct semu_sapporo_iom4 *live235;
     uint32_t observed_registers[SEMU_APOLLO4_IOM_OBSERVED_REGISTER_COUNT];
 };
@@ -37,5 +38,7 @@ struct semu_apollo4_iom {
  */
 int semu_apollo4_iom_live_owns(const semu_apollo4_iom *iom);
 void semu_apollo4_iom_live_reset(semu_apollo4_iom *iom);
+semu_status semu_apollo4_iom_pressure235_command(semu_apollo4_iom *iom,
+    uint32_t command, semu_error *error);
 
 #endif

@@ -315,8 +315,22 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
            s->matmult == TSC6A_OBSERVED_MATMULT)) ||
         !tsc6a_ordered_clip(s, 240u, 240u) || stride < 480u ||
         !s->matrix_present || !tsc6a_rectangle(s, &x0, &y0, &x1, &y1)) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "nema_tsc6a: unsupported mask resolve state");
+        /* E-EMU-SAP235-MAIN-TSC6A-001: distinguish a compressed asset
+         * from malformed state for the supported semantic shadow.
+         * This diagnostic does not decode or read the source memory. */
+        if (s->src_format == NEMA_FMT_TSC6A &&
+            (s->src_width != NEMA_TSC6A_WIDTH ||
+             s->src_height != NEMA_TSC6A_HEIGHT ||
+             s->src_stride != 0x05a0u)) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                "nema_tsc6a: compressed source %ux%u stride %u is unsupported; "
+                "only the 480x480 semantic shadow is modeled",
+                (unsigned)s->src_width, (unsigned)s->src_height,
+                (unsigned)s->src_stride);
+        } else {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "nema_tsc6a: unsupported mask resolve state");
+        }
         return SEMU_ERR_UNSUPPORTED;
     }
     st = tsc6a_snapshot_matrix(s, &matrix, error);

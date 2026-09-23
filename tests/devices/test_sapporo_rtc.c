@@ -24,6 +24,7 @@
 #include "test.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/devices/sapporo_rtc.h"
+#include "../../src/soc/apollo4/apollo4_internal.h"
 
 static unsigned g_alarm_count;
 static unsigned g_alarm_irq[24];
@@ -32,6 +33,8 @@ static unsigned g_alarm_level[24];
 static void alarm_sink(void *context, unsigned irq, int level)
 {
     (void)context;
+    /* The SoC sink also receives unrelated controllers' reset edges. */
+    if (irq != 2u) return;
     if (g_alarm_count < 24u) {
         g_alarm_irq[g_alarm_count] = irq;
         g_alarm_level[g_alarm_count] = level != 0 ? 1u : 0u;
@@ -39,8 +42,9 @@ static void alarm_sink(void *context, unsigned irq, int level)
     ++g_alarm_count;
 }
 
-/* Live-mode bus: scheduler + SoC + explicit attach (maps reset detach). */
-static semu_bus *live_bus(semu_scheduler **scheduler, semu_error *error)
+/* Live-mode bus: the SoC owns its RTC and scheduler/IRQ bindings. */
+static semu_bus *live_bus(semu_scheduler **scheduler, semu_apollo4 **owner,
+                           semu_error *error)
 {
     semu_apollo4 *soc;
     semu_bus *bus;
@@ -54,13 +58,13 @@ static semu_bus *live_bus(semu_scheduler **scheduler, semu_error *error)
         return NULL;
     }
     soc = semu_apollo4_create(bus, error);
-    if (soc == NULL || semu_apollo4_init(soc, *scheduler, NULL, NULL,
+    if (soc == NULL || semu_apollo4_init(soc, *scheduler, alarm_sink, NULL,
                                          error) != SEMU_OK ||
         semu_apollo4_select_profile(soc, "sapporo-2.35.34",
                                     error) != SEMU_OK) {
         return NULL;
     }
-    semu_sapporo_rtc_attach(*scheduler, alarm_sink, NULL);
+    *owner = soc;
     return bus;
 }
 
@@ -108,12 +112,11 @@ static void test_stub_profiles_stay_inert(semu_test_context *context)
     soc = semu_apollo4_create(bus, &error);
     SEMU_TEST_ASSERT(context, soc != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_apollo4_init(soc, scheduler, NULL, NULL, &error));
+                     semu_apollo4_init(soc, scheduler, alarm_sink, NULL, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_select_profile(
         soc, "sapporo-2.33.16", &error));
     SEMU_TEST_ASSERT(context, semu_apollo4_select_profile(NULL, NULL,
                                                           &error) != SEMU_OK);
-    semu_sapporo_rtc_attach(scheduler, alarm_sink, NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x40004A00u, 4u, UINT32_C(1),
                                     &error));
@@ -127,6 +130,7 @@ static void test_stub_profiles_stay_inert(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, 0x40004820u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), value); /* stub answers 0 */
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -139,6 +143,7 @@ static void test_lane_write_law(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
     semu_error error;
     uint32_t value = 0u;
     size_t i;
@@ -147,7 +152,7 @@ static void test_lane_write_law(semu_test_context *context)
 
     g_alarm_count = 0u;
     semu_error_clear(&error);
-    bus = live_bus(&scheduler, &error);
+    bus = live_bus(&scheduler, &soc, &error);
     SEMU_TEST_ASSERT(context, bus != NULL);
     rd(context, bus, 0x40004800u, 0u);
     rd(context, bus, 0x40004820u, 0u);
@@ -182,6 +187,7 @@ static void test_lane_write_law(semu_test_context *context)
     wr(context, bus, 0x40004820u, 0x100u);
     rd(context, bus, 0x40004820u, 0u);
     rd(context, bus, 0x40004804u, 0u); /* Status stays not-busy */
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -192,12 +198,13 @@ static void test_access_refusals(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
     semu_error error;
     uint32_t value = 0u;
 
     g_alarm_count = 0u;
     semu_error_clear(&error);
-    bus = live_bus(&scheduler, &error);
+    bus = live_bus(&scheduler, &soc, &error);
     SEMU_TEST_ASSERT(context, bus != NULL);
     SEMU_TEST_ASSERT(context, semu_bus_read(bus, 0x40004A10u, 4u, &value,
                                              &error) != SEMU_OK);
@@ -207,6 +214,7 @@ static void test_access_refusals(semu_test_context *context)
                                             &error) != SEMU_OK);
     SEMU_TEST_ASSERT(context, semu_bus_write(bus, 0x40004800u, 1u,
                                              UINT32_C(1), &error) != SEMU_OK);
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -218,9 +226,10 @@ static void test_counter_set_pair(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
 
     g_alarm_count = 0u;
-    bus = live_bus(&scheduler, &(semu_error){0});
+    bus = live_bus(&scheduler, &soc, &(semu_error){0});
     SEMU_TEST_ASSERT(context, bus != NULL);
     wr(context, bus, 0x40004800u, 0x01u); /* WRTC, RPT=Disabled */
     rd(context, bus, 0x40004820u, 0u); /* first read refreshes fields */
@@ -239,6 +248,7 @@ static void test_counter_set_pair(semu_test_context *context)
     wr(context, bus, 0x40004800u, 0x01u); /* resume */
     adv(context, scheduler, UINT64_C(1000000000));
     rd(context, bus, 0x40004820u, 0x350u); /* continues from 2.50 + 1 */
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -251,10 +261,11 @@ static void test_second_alarm_law(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
     int line = -1;
 
     g_alarm_count = 0u;
-    bus = live_bus(&scheduler, &(semu_error){0});
+    bus = live_bus(&scheduler, &soc, &(semu_error){0});
     SEMU_TEST_ASSERT(context, bus != NULL);
     adv(context, scheduler, UINT64_C(11800000)); /* census arm timing */
     wr(context, bus, 0x40004830u, 0u);
@@ -263,7 +274,7 @@ static void test_second_alarm_law(semu_test_context *context)
     wr(context, bus, 0x40004A00u, 1u); /* enable */
     /* the occurrence is scheduled at the next whole second 1.0 */
     SEMU_TEST_EQ_U64(context, UINT64_C(1), semu_sapporo_rtc_probe_pending(
-                                       &line));
+                                       soc->rtc, &line));
     SEMU_TEST_EQ_U64(context, UINT64_C(0), (uint64_t)line);
     adv(context, scheduler, UINT64_C(1000000000) - 11800000u - 1u);
     SEMU_TEST_EQ_U64(context, UINT64_C(0), g_alarm_count);
@@ -293,6 +304,7 @@ static void test_second_alarm_law(semu_test_context *context)
     adv(context, scheduler, UINT64_C(1000000000));
     SEMU_TEST_EQ_U64(context, UINT64_C(4), g_alarm_count);
     rd(context, bus, 0x40004A04u, 1u); /* status lags, line silent */
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -304,9 +316,10 @@ static void test_reset_reinitialises(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
 
     g_alarm_count = 0u;
-    bus = live_bus(&scheduler, &(semu_error){0});
+    bus = live_bus(&scheduler, &soc, &(semu_error){0});
     SEMU_TEST_ASSERT(context, bus != NULL);
     wr(context, bus, 0x40004830u, 0u);
     wr(context, bus, 0x40004800u, 0xEu);
@@ -326,6 +339,7 @@ static void test_reset_reinitialises(semu_test_context *context)
      * now), not to zero: 999 ms + 2000 ms = 2.999 s of BCD hundredths */
     rd(context, bus, 0x40004820u, 0x299u);
     rd(context, bus, 0x40004824u, 0x14700101u);
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }
@@ -339,10 +353,11 @@ static void test_software_reset_flush_rearms(semu_test_context *context)
 {
     semu_scheduler *scheduler;
     semu_bus *bus;
+    semu_apollo4 *soc;
     int line = -1;
 
     g_alarm_count = 0u;
-    bus = live_bus(&scheduler, &(semu_error){0});
+    bus = live_bus(&scheduler, &soc, &(semu_error){0});
     SEMU_TEST_ASSERT(context, bus != NULL);
     adv(context, scheduler, UINT64_C(11800000));
     wr(context, bus, 0x40004830u, 0u);
@@ -354,13 +369,13 @@ static void test_software_reset_flush_rearms(semu_test_context *context)
     adv(context, scheduler, UINT64_C(30000));
     semu_scheduler_reset(scheduler); /* engine software reset flush */
     SEMU_TEST_EQ_U64(context, UINT64_C(1),
-                     (uint64_t)semu_sapporo_rtc_probe_pending(&line));
+                     (uint64_t)semu_sapporo_rtc_probe_pending(soc->rtc, &line));
     SEMU_TEST_EQ_U64(context, UINT64_C(1), (uint64_t)line);
     /* Boot two re-inits: the CTRL write sees the regressed clock,
      * drops the stale event, and RPT=0 leaves nothing scheduled. */
     wr(context, bus, 0x40004800u, 0u);
     SEMU_TEST_EQ_U64(context, UINT64_C(0),
-                     (uint64_t)semu_sapporo_rtc_probe_pending(&line));
+                     (uint64_t)semu_sapporo_rtc_probe_pending(soc->rtc, &line));
     SEMU_TEST_EQ_U64(context, UINT64_C(1), (uint64_t)line); /* still set */
     wr(context, bus, 0x40004A08u, 1u); /* handler-side clear */
     SEMU_TEST_EQ_U64(context, UINT64_C(2), g_alarm_count); /* fall */
@@ -384,6 +399,7 @@ static void test_software_reset_flush_rearms(semu_test_context *context)
     adv(context, scheduler, UINT64_C(1));
     SEMU_TEST_EQ_U64(context, UINT64_C(5), g_alarm_count); /* occurrence */
     SEMU_TEST_EQ_U64(context, UINT64_C(1), g_alarm_level[4]);
+    semu_apollo4_destroy(soc);
     semu_bus_destroy(bus);
     semu_scheduler_destroy(scheduler);
 }

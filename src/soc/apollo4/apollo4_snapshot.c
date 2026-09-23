@@ -38,6 +38,14 @@ semu_status semu_apollo4_snapshot_write(
                        "Apollo4 snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
+    /* E-SAP-0036: the live 2.35 RTC/IOM4 state has no snapshot codec.
+     * Never emit a seemingly complete image that silently loses it.
+     * Restore also takes this path to build its rollback image before reads. */
+    if (soc->rtc_live != 0 || soc->iom4_live != NULL) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Sapporo 2.35 RTC/IOM4 snapshots are not supported");
+        return SEMU_ERR_UNSUPPORTED;
+    }
     return write_child(soc, writer, error);
 }
 

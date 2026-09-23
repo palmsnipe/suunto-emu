@@ -31,6 +31,9 @@ typedef struct semu_machine_options {
      * restrictions. NULL permits configuration but refuses active rendering. */
     const semu_display_backend_ops *display_backend;
     void *display_backend_context;
+    /* Optional codec for display_backend_context. A configured backend without
+     * a codec can run but machine snapshot save/load refuses. */
+    const semu_display_snapshot_ops *display_snapshot;
     /* Optional validated private 32-MiB Sapporo flash image. */
     const char *external_flash_path;
     semu_machine_input_poll_fn input_poll;
@@ -47,8 +50,11 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
 semu_status semu_machine_input(semu_machine *machine,
                                const semu_input_event *event,
                                semu_error *error);
-/* Serialize or restore all mutable machine-owned state.  Firmware and other
- * immutable source images remain external and are identity-pinned. */
+/* Serialize or restore mutable machine and attached renderer state. Firmware and other
+ * immutable source images remain external and are identity-pinned. On successful
+ * load, the restored last published frame is delivered once to frame_callback
+ * after all state commits, with no guest tick/generation change. Failed loads
+ * emit no frame. The display.h callback restrictions apply. */
 semu_status semu_machine_snapshot_save(const semu_machine *machine,
                                        semu_snapshot *snapshot,
                                        semu_error *error);

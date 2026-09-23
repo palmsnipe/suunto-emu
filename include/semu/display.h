@@ -45,6 +45,24 @@ typedef struct semu_display_backend_ops {
     void (*abort)(void *context);
 } semu_display_backend_ops;
 
+/* Persistence for the same caller-owned backend context. The machine copies
+ * this table. backend_id is a stable nonzero wire identity. Save allocates a
+ * bounded buffer with malloc; ownership passes to the caller (free). Output
+ * arguments are unchanged on refusal. Load validates the entire byte image
+ * before mutation, allocates nothing, emits no callbacks and fails atomically.
+ * Both operations refuse active transactions. No host pointer is serialized.
+ * published_frame borrows the last published image, or NULL before publication;
+ * it must not expose later unpublished drawing pixels. Restore presentation
+ * reuses this frame without advancing generation or guest time. */
+typedef struct semu_display_snapshot_ops {
+    uint32_t backend_id;
+    semu_status (*save)(void *context, uint8_t **data, size_t *size,
+        semu_error *error);
+    semu_status (*load)(void *context, const uint8_t *data, size_t size,
+        semu_error *error);
+    const semu_frame *(*published_frame)(void *context);
+} semu_display_snapshot_ops;
+
 semu_surface *semu_surface_create(uint32_t width, uint32_t height,
                                   semu_error *error);
 void semu_surface_destroy(semu_surface *surface);

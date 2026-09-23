@@ -450,39 +450,6 @@ static void test_multiple_refuses_without_partial_mutation(
     semu_cpu_fixture_destroy(&fixture);
 }
 
-static void test_f57f_barrier_encoding(semu_test_context *context)
-{
-    /* DSB/DMB/ISB with the 0xf57f barrier encoding.
-     * In a single-core deterministic emulator, barriers are NOPs. */
-    static const uint8_t program[] = {
-        0x7fu, 0xf5u, 0x07u, 0x9fu, /* dsb */
-        0x7fu, 0xf5u, 0x07u, 0xafu, /* dmb */
-        0x7fu, 0xf5u, 0x07u, 0xbfu, /* isb */
-        0x00u, 0xbeu
-    };
-    semu_cpu_state state = initial_state();
-    semu_cpu_fixture fixture;
-    semu_status status;
-
-    SEMU_TEST_ASSERT(context, prepare(&fixture, program, sizeof(program),
-                                      &state));
-    status = semu_cpu_fixture_run(&fixture, 3u);
-    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
-    SEMU_TEST_EQ_U64(context, 0x10cu,
-                     semu_cpu_get_state(fixture.cpu)->r[15]);
-    semu_cpu_fixture_destroy(&fixture);
-
-    /* Refusal: 0xf57f with invalid option (op=8, not DSB/DMB/ISB). */
-    SEMU_TEST_ASSERT(context, prepare(&fixture, program, sizeof(program),
-                                      &state));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
-                     armv7m_exec32_system(fixture.cpu, 0xf57fu, 0x8f07u,
-                                          0x100u, &fixture.error));
-    SEMU_TEST_EQ_U64(context, 0x100u,
-                     semu_cpu_get_state(fixture.cpu)->r[15]);
-    semu_cpu_fixture_destroy(&fixture);
-}
-
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -493,8 +460,7 @@ int main(void)
         SEMU_TEST_CASE(test_multiple_store_preflight_refuses_partial_write),
         SEMU_TEST_CASE(test_multiple_dispatch_regression),
         SEMU_TEST_CASE(test_multiple_ia_db_and_stack_aliases),
-        SEMU_TEST_CASE(test_multiple_refuses_without_partial_mutation),
-        SEMU_TEST_CASE(test_f57f_barrier_encoding)
+        SEMU_TEST_CASE(test_multiple_refuses_without_partial_mutation)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

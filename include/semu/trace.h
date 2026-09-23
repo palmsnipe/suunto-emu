@@ -174,10 +174,11 @@ uint32_t semu_replay_version(const semu_replay *replay);
  * Atomic serialize/restore with magic, version, identity binding,
  * and named binary sections.  Restore validates the entire image
  * before mutating the target.  No pointer serialization, compression
- * dependency, or private firmware bytes.
+ * dependency, or built-in firmware bytes. Authentic machine snapshots are
+ * private artifacts and must never be committed.
  */
 #define SEMU_SNAPSHOT_MAGIC 0x53454D53u  /* "SEMS" */
-#define SEMU_SNAPSHOT_VERSION 1u
+#define SEMU_SNAPSHOT_VERSION 2u
 #define SEMU_SNAPSHOT_MAX_SECTIONS 16u
 #define SEMU_SNAPSHOT_MAX_SECTION_SIZE (4u * 1024u * 1024u)
 
@@ -192,6 +193,7 @@ uint32_t semu_replay_version(const semu_replay *replay);
 #define SEMU_SNAPSHOT_SECTION_STORAGE     7u
 #define SEMU_SNAPSHOT_SECTION_NEMA        8u
 #define SEMU_SNAPSHOT_SECTION_MACHINE     9u
+#define SEMU_SNAPSHOT_SECTION_DISPLAY    10u
 
 typedef struct semu_snapshot semu_snapshot;
 

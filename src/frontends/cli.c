@@ -367,6 +367,7 @@ static int command_run(const run_arguments *arguments,
         }
     }
     options.display_backend = &semu_nema_backend_ops;
+    options.display_snapshot = &semu_nema_backend_snapshot_ops;
     options.display_backend_context = backend;
     options.external_flash_path = arguments->full_flash;
     options.input_poll = input_poll;

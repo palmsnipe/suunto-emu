@@ -397,17 +397,24 @@ semu_status semu_apollo4_mspi_write(void *context, uint32_t offset,
                            "Apollo4 MSPI2 command control is not evidenced");
             return SEMU_ERR_UNSUPPORTED;
         }
+        if (command != 0x06u && command != 0x21u && command != 0xdcu &&
+            command != 0x35u && command != 0xb9u && command != 0xabu) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "Apollo4 MSPI2 command 0x%02x is unsupported", command);
+            return SEMU_ERR_UNSUPPORTED;
+        }
         frame[0u] = command;
-        if (command == 0x21u) {
+        if (command == 0x21u || command == 0xdcu) {
             address = *reg(mspi, M2_ADDRESS);
             frame[1u] = (uint8_t)(address >> 16u);
             frame[2u] = (uint8_t)(address >> 8u);
             frame[3u] = (uint8_t)address;
             frame_size = sizeof(frame);
         }
-        /* E-A4-MSPI-001 records command 0x35 as a controller completion
-           boundary; it does not issue a flash transaction. */
-        if (command == 0x06u || command == 0x21u) {
+        /* E-A4-MSPI-001/E-SAP-0043: setup and B9/AB power commands are
+           observed controller completions without a flash transaction.
+           This does not model additional physical sleep-state behavior. */
+        if (command == 0x06u || command == 0x21u || command == 0xdcu) {
             status = endpoint_transfer(mspi, frame, frame_size, address, error);
             if (status != SEMU_OK) return status;
         }

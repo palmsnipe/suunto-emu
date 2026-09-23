@@ -387,9 +387,8 @@ static void test_conditional_branch_t3(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK, status);
     SEMU_TEST_EQ_U64(context, 0x104u, state.r[15]);
 
-    /* BPL.W shares its first halfword with the barrier family. The
-     * dispatcher must route this non-barrier-shaped operand to the branch
-     * decoder. */
+    /* BPL.W must reach the Thumb branch decoder, including first
+     * halfwords that resemble the prefix of an A32 barrier. */
     state = initial_state();
     SEMU_TEST_ASSERT(context, run32(0xf57fu, 0xae88u, state, &status,
                                     &state));

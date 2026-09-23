@@ -3,6 +3,7 @@
 #include "sampling.h"
 #include "blend.h"
 #include "nema_texture.h"
+#include "nema_rgba4444.h"
 
 static int is_observed_display_target(uint32_t base)
 {
@@ -100,6 +101,13 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
         if (st != SEMU_OK) {
             backend->draw_error = err;
         }
+        return;
+    }
+
+    if (snap->src_format == NEMA_FMT_RGBA4444 && !is_observed_black_clear(snap)) {
+        semu_error err;
+        if (nema_rgba4444_draw(draw_context->bus, snap, target.pixels,
+            target.stride, &err) != SEMU_OK) backend->draw_error = err;
         return;
     }
 

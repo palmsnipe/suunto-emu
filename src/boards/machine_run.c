@@ -1,6 +1,10 @@
 #include "machine_internal.h"
 
 #include "../compat/sapporo_239.h"
+#include "../compat/sapporo_235_ohr.h"
+#include "../compat/sapporo_235_gps.h"
+#include "../compat/sapporo_235_gps_reopen.h"
+#include "../compat/sapporo_235_gps_awake.h"
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
 #include "../compat/sapporo_239_gps_awake.h"
@@ -81,7 +85,11 @@ static int apply_compat_hook(semu_machine *machine,
 
     for (i = 0u; i < machine->layer_count; ++i) {
         semu_layer_state *layer = &machine->layers[i];
-        if ((layer->descriptor == &semu_sapporo_222_no_device_layer &&
+        if (layer->descriptor == &semu_sapporo_235_ohr_layer ||
+            layer->descriptor == &semu_sapporo_235_gps_layer ||
+            layer->descriptor == &semu_sapporo_235_gps_reopen_layer ||
+            layer->descriptor == &semu_sapporo_235_gps_awake_layer ||
+            (layer->descriptor == &semu_sapporo_222_no_device_layer &&
              semu_sapporo_devices_compat_hook_pc(state->r[15])) ||
             (state->r[15] == SEMU_SAPPORO_239_GPS_PC &&
              semu_sapporo_239_gps_is_layer(layer->descriptor)) ||

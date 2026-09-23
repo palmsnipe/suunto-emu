@@ -182,6 +182,10 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                        "SDL presenter failed while publishing a frame");
         return SEMU_STOP_DEVICE_REFUSED;
     }
+    /* A restored frame arrives before the first input poll. Present it
+     * before the checkpoint blocks waiting for a button. */
+    if (frontend->machine == NULL && frontend->frame_count != 0u)
+        flush_present_coalescing(frontend);
     frontend->machine = machine;
     now_ns = semu_machine_virtual_time(machine);
     if (semu_live_frame_gate_settle(&frontend->live_checkpoint,
@@ -200,6 +204,8 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                           frontend->frame_count) &&
                       !semu_sdl_button_hold_waiting(&frontend->button_hold,
                                                     now_ns);
+    /* Waiting freezes guest time, so release the final held composite now. */
+    if (wait_for_button) flush_present_coalescing(frontend);
     if (!semu_sdl_live_test_queue(&frontend->live_test, wait_for_button,
             frontend->live_checkpoint.ready, frontend->viewport_height,
             frontend->last_frame_generation, frontend->last_frame_crc,
@@ -389,6 +395,13 @@ int main(int argc, char **argv)
                               parse_live_checkpoint(filtered_argc,
                                                    filtered_argv,
                                                    &frontend.live_checkpoint_label));
+    /* Restored menus need not begin at the cold-start middle-button prompt. */
+    {
+        int index;
+        for (index = 1; index + 1 < filtered_argc; ++index)
+            if (strcmp(filtered_argv[index], "--snapshot-load") == 0)
+                frontend.live_checkpoint.accept_any_button = 1;
+    }
     if (frontend.live_test.enabled && strcmp(live_test, "middle-language") == 0 &&
         frontend.live_checkpoint.required_button != SEMU_BUTTON_MIDDLE) {
         fputs("SDL live test requires --until middle-language without "

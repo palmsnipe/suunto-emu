@@ -8,6 +8,11 @@
 #include "semu/scheduler.h"
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
+#include "../compat/sapporo_235_production.h"
+#include "../compat/sapporo_235_ohr.h"
+#include "../compat/sapporo_235_gps.h"
+#include "../compat/sapporo_235_gps_reopen.h"
+#include "../compat/sapporo_235_gps_awake.h"
 #include "../compat/sapporo_239.h"
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
@@ -16,7 +21,6 @@
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
-#include "../devices/sapporo_rtc.h"
 #include "ulsan_board.h"
 
 #include <stdlib.h>
@@ -122,9 +126,6 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error)
                                     error) != SEMU_OK) {
         return error->code;
     }
-    /* Seams survive as no-ops unless the profile selection enabled
-     * the live RTC block (ticket 710, E-SAP-0032/E-SAP-0033). */
-    semu_sapporo_rtc_attach(machine->scheduler, irq_sink, machine);
     semu_sapporo_devices_set_logger(machine->devices, machine->logger);
     if (semu_sapporo_devices_bind_bus(machine->devices, machine->bus,
                                       error) != SEMU_OK) {
@@ -236,6 +237,16 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
     state = &machine->layers[machine->layer_count];
     if (strcmp(id, semu_sapporo_222_no_device_layer.id) == 0) {
         descriptor = &semu_sapporo_222_no_device_layer;
+    } else if (strcmp(id, semu_sapporo_235_production_layer.id) == 0) {
+        descriptor = &semu_sapporo_235_production_layer;
+    } else if (strcmp(id, semu_sapporo_235_ohr_layer.id) == 0) {
+        descriptor = &semu_sapporo_235_ohr_layer;
+    } else if (strcmp(id, semu_sapporo_235_gps_layer.id) == 0) {
+        descriptor = &semu_sapporo_235_gps_layer;
+    } else if (strcmp(id, semu_sapporo_235_gps_awake_layer.id) == 0) {
+        descriptor = &semu_sapporo_235_gps_awake_layer;
+    } else if (strcmp(id, semu_sapporo_235_gps_reopen_layer.id) == 0) {
+        descriptor = &semu_sapporo_235_gps_reopen_layer;
     } else if (strcmp(id, semu_sapporo_239_wbsto_layer.id) == 0) {
         descriptor = &semu_sapporo_239_wbsto_layer;
     } else if (strcmp(id, semu_sapporo_239_gps_layer.id) == 0) {
@@ -272,6 +283,15 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "machine options are incomplete");
         return NULL;
     }
+    if (options->display_snapshot != NULL &&
+        (options->display_backend == NULL ||
+         options->display_snapshot->backend_id == 0u ||
+         options->display_snapshot->save == NULL ||
+         options->display_snapshot->load == NULL ||
+         options->display_snapshot->published_frame == NULL)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "display snapshot codec is incomplete");
+        return NULL;
+    }
     if (!known_sapporo_profile(options->profile) &&
         !known_ulsan_profile(options->profile)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "board profile is not implemented");
@@ -295,6 +315,8 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
     machine->logger = options->logger;
     machine->display_backend = options->display_backend;
     machine->display_backend_context = options->display_backend_context;
+    if (options->display_snapshot != NULL)
+        machine->display_snapshot = *options->display_snapshot;
     machine->frame_callback = options->frame_callback;
     machine->frame_context = options->frame_context;
     machine->external_flash_path = options->external_flash_path;
@@ -379,6 +401,18 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
             }
             if (machine->layers[i].descriptor == &semu_sapporo_222_no_device_layer &&
                 semu_sapporo_222_install_no_device(machine->bus,
+                    &machine->layers[i], machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_235_production_layer &&
+                semu_sapporo_235_install_production(machine->bus,
+                    &machine->layers[i], machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_235_ohr_layer &&
+                semu_sapporo_devices_bind_235_ohr(machine->devices,
                     &machine->layers[i], machine->logger, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;

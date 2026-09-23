@@ -13,10 +13,10 @@ expected_first='SDL first-frame width=240 height=240 generation=1 crc32=2a01c517
 expected_step_one='SDL live test settled step=1 generation=3 crc32=4979f432'
 expected_step_two='SDL live test settled step=2 generation=5 crc32=629da47e'
 expected_step_three='SDL live test settled step=3 generation=63 crc32=d4ed66c7'
-# E-SAP-ONBOARD-EMU-012: correct haptic selection removes the old nonfatal
-# autotune timeout. Keep exact frames, stop tuple and cold-start transcript.
-expected_stop='stop=user pc=0x000bacf4 instructions=774081920 virtual_time_ns=6520939902'
-expected_cold_hash=9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c
+# E-EMU-SAPPORO-BRANCH-GATES-001 / ticket 789: architectural branch fix.
+# Frame CRCs are unchanged; the stop tuple/transcript are re-derived.
+expected_stop='stop=user pc=0x080000a0 instructions=772290112 virtual_time_ns=6520978802'
+expected_cold_hash=278cc6dbc76e7359ff217c00821b9f4b08d3a7814435b11dc02bbc589a3d4d81
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-live.XXXXXX")
 

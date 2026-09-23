@@ -114,6 +114,10 @@ static void commit(void *context)
             memcpy(pixels, b->frames + i * NEMA_BACKEND_PANEL_BYTES,
                 NEMA_BACKEND_PANEL_BYTES);
             semu_surface_publish(b->surface);
+            memcpy(b->published_pixels, pixels, NEMA_BACKEND_PANEL_BYTES);
+            b->published = *semu_surface_frame(b->surface);
+            b->published.pixels = b->published_pixels;
+            b->published_valid = 1;
             b->callback(b->frame_context, semu_surface_frame(b->surface));
         }
     }

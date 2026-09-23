@@ -4,7 +4,7 @@
  * snapshots at evidenced DRAW_CMD boundaries.
  */
 
-#include "nema_state.h"
+#include "nema_state_internal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -45,15 +45,8 @@
 #define P_CONST0        32u
 #define P_CONST1        33u
 
-#define REG_COUNT 34u
+#define REG_COUNT NEMA_STATE_REGISTER_COUNT
 #define BIT(n) (1ULL << (n))
-
-struct nema_state {
-    uint32_t values[REG_COUNT];
-    uint64_t presence;
-    uint32_t list_id;
-    size_t snapshot_count;
-};
 
 static int map_register(uint32_t offset, size_t *idx)
 {
@@ -193,6 +186,19 @@ static int validate_draw(const nema_state *st, semu_error *error)
         if ((st->presence & tex_req) != tex_req) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "nema_state: incomplete source texture state");
+            return 0;
+        }
+    }
+    /* E-NEMA-RGBA4444-001: even zero program registers must be present.
+     * A default snapshot zero cannot stand in for an observed write. */
+    if ((st->presence & BIT(P_TEX1_BASE)) != 0u &&
+        (st->values[P_TEX1_FSTRIDE] >> 24u) == NEMA_FMT_RGBA4444) {
+        uint64_t program = BIT(P_MATMULT) | BIT(P_CODEPTR) | BIT(P_IMEM_ADDR) |
+            BIT(P_IMEM_DATAH) | BIT(P_IMEM_DATAL) | BIT(P_MM00) | BIT(P_MM01) |
+            BIT(P_MM02) | BIT(P_MM10) | BIT(P_MM11) | BIT(P_MM12);
+        if ((st->presence & program) != program) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "nema_state: incomplete RGBA4444 program state");
             return 0;
         }
     }

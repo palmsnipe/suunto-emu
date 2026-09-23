@@ -24,8 +24,10 @@
 
 struct semu_apollo4 {
     semu_bus *bus;
+    semu_scheduler *scheduler;
     int initialized;
     int rtc_live; /* set by semu_apollo4_select_profile (E-SAP-0032) */
+    struct semu_sapporo_rtc *rtc;
     struct semu_sapporo_iom4 *iom4_live; /* set by select_profile (E-SAP-0036) */
     semu_apollo4_irq_fn irq_sink;
     void *irq_context;

@@ -60,6 +60,11 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error);
 
+/* Explicit E-SAP-0041 2.35 startup response fixture, cleared on reset. */
+semu_status semu_sapporo_devices_bind_235_ohr(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error);
+
 /* Explicit 2.39 binding; lifecycle is held in instance-owned layer counters. */
 semu_status semu_sapporo_devices_bind_gps_startup_fixture(
     semu_sapporo_devices *devices, semu_layer_state *state,

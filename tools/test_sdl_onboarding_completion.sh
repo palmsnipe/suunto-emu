@@ -1,24 +1,12 @@
 #!/bin/sh
 set -eu
 
-# Regression for ticket 670: the 2.22.60 onboarding completes standalone to
-# the main face through the firmware's own manual time-entry chain, driven by
-# the setup-walk plus the opt-in SEMU_SDL_SETUP_WALK_TIMELINE press schedule.
-#
-# Parser-refusal cases run unconditionally and need no firmware. The full
-# completion walk and its byte-identical disabled-case baseline are gated on
-# SEMU_FIRMWARE_MANIFEST (skipped when unset), matching test_sdl_live_input.sh.
-#
-# Determinism provenance (maintenance repin at 56c8a3c): accepted commit
-# d6b4235 ("Fix Sapporo 2.39 haptic selector transfer", ticket 732) added the
-# IOM 0x50 offset-byte transfer, a legitimate 2.39 device-protocol fix that
-# shifted device timing for every walk. `git bisect` (cdfc953..56c8a3c, this
-# walk as the predicate) identified it as the first commit to move the publish
-# generations, the timeline-press virtual time, the instruction and
-# virtual-time totals, and to settle the main face one step later. All ten
-# settled screen CRCs, the halt PC 0x000727ca, the refusal trigger, and the
-# main-face frame are byte-identical; only derived counters were re-derived
-# from the current HEAD walk, so no screen or stop-reason pin was weakened.
+# Ticket 789, E-EMU-SAPPORO-BRANCH-GATES-001: manual time entry reaches
+# the native main menu, LOWER changes its selection, and an idle continuation
+# survives beyond the former script allocation panic. A fatal halt is failure.
+# Parser-refusal checks run without firmware; private walks auto-detect the
+# conventional bundle unless SEMU_SDL_SKIP_FIRMWARE_WALKS is set.
+# The disabled manual-time control retains its bounded GPS fixture refusal.
 
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-}
@@ -81,20 +69,25 @@ if [ ! -f "$manifest" ]; then
     exit 2
 fi
 
-expected_press='SDL live test timeline press index=0 virtual_ns=30005853579'
-expected_step_22='SDL live test settled step=22 generation=3992 crc32=5321867e'
-expected_step_23='SDL live test settled step=23 generation=4074 crc32=c683e828'
-expected_step_24='SDL live test settled step=24 generation=4137 crc32=cd1b0979'
-expected_step_25='SDL live test settled step=25 generation=4194 crc32=455b603a'
-expected_step_26='SDL live test settled step=26 generation=4257 crc32=53d3f0c1'
-expected_step_27='SDL live test settled step=27 generation=4260 crc32=17e1772c'
-expected_step_28='SDL live test settled step=28 generation=4312 crc32=578e2601'
-expected_step_29='SDL live test settled step=29 generation=4318 crc32=1c62ab1a'
-expected_step_30='SDL live test settled step=30 generation=4403 crc32=fb8e0155'
-expected_main_frame='suunto-frame-fb8e0155.ppm'
-expected_stop='stop=halt pc=0x000727ca instructions=14178200857 virtual_time_ns=43790375389'
+expected_press='SDL live test timeline press index=0 virtual_ns=30003929586'
+expected_step_22='SDL live test settled step=22 generation=3991 crc32=5321867e'
+expected_step_23='SDL live test settled step=23 generation=4073 crc32=8b6879f9'
+expected_step_24='SDL live test settled step=24 generation=4136 crc32=cd1b0979'
+expected_step_25='SDL live test settled step=25 generation=4193 crc32=455b603a'
+expected_step_26='SDL live test settled step=26 generation=4256 crc32=53d3f0c1'
+expected_step_27='SDL live test settled step=27 generation=4259 crc32=17e1772c'
+expected_step_28='SDL live test settled step=28 generation=4311 crc32=578e2601'
+expected_step_29='SDL live test settled step=29 generation=4319 crc32=2a01c517'
+expected_step_30='SDL live test settled step=30 generation=4406 crc32=73d569a5'
+expected_step_31='SDL live test settled step=31 generation=4510 crc32=040ebb03'
+expected_main_frame='suunto-frame-73d569a5.ppm'
+expected_selected_frame='suunto-frame-040ebb03.ppm'
+expected_walk_hash=7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa
+snapshot="$ppmdir/after-setup.sems"
+expected_stop='stop=user pc=0x0800009e instructions=8500057344 virtual_time_ns=38818426902'
 
-# (1) Completion walk: manual time-entry chain reaches the main face.
+# (1) E-EMU-SAPPORO-BRANCH-GATES-001 / ticket 789: manual setup reaches
+# Navigation, then a native LOWER press selects Logbook. Fatal halt is failure.
 set +e
 SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
     SEMU_SDL_PPM_DIR="$ppmdir" \
@@ -102,8 +95,8 @@ SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
     SEMU_SDL_SETUP_WALK_TIMELINE='30000:l' \
     "$emulator" run --profile sapporo-2.22.60 \
     --firmware "$manifest" --layer "$layer" \
-    --until setup-next --max-instructions 40000000000 \
-    --max-time 300000000000 >"$log" 2>&1
+    --until setup-next --max-instructions 18000000000 \
+    --max-time 60000000000 --snapshot-save "$snapshot" >"$log" 2>&1
 status=$?
 set -e
 
@@ -118,16 +111,40 @@ if [ "$status" -ne 0 ] ||
    ! grep -qx "$expected_step_28" "$log" ||
    ! grep -qx "$expected_step_29" "$log" ||
    ! grep -qx "$expected_step_30" "$log" ||
+   ! grep -qx "$expected_step_31" "$log" ||
+   ! grep -qx 'SDL live test completed setup-navigation last-step=31' "$log" ||
    ! grep -qx "$expected_stop" "$log" ||
-   [ ! -f "$ppmdir/$expected_main_frame" ]; then
+   [ "$(shasum -a 256 "$log" | awk '{print $1}')" != "$expected_walk_hash" ] ||
+   [ ! -f "$ppmdir/$expected_main_frame" ] ||
+   [ ! -f "$ppmdir/$expected_selected_frame" ] ||
+   grep -Eq 'machine-reset-request|status=refuse|stop=compat-refused' "$log"; then
     cat "$log" >&2
     echo "error: onboarding completion firmware check failed" >&2
     exit 1
 fi
-echo "onboarding completion walk: reached main face ($expected_main_frame), stop=halt"
+echo "onboarding completion walk: main menu and Logbook selection, stop=user"
 
-# (2) Byte-identical disabled case: default walk must remain byte-stable to the
-#     E-SAP-ONBOARD-EMU-009 baseline (last settled step 21 + GPS-cap abort).
+# (2) Continue without input beyond the former allocation panic. This checks
+# guest execution and the renderer restored at its original generation.
+set +e
+SDL_VIDEODRIVER=dummy "$emulator" run --profile sapporo-2.22.60 \
+    --firmware "$manifest" --layer "$layer" --snapshot-load "$snapshot" \
+    --max-instructions 18000000000 --max-time 60000000000 >"$log" 2>&1
+status=$?
+set -e
+expected_idle='stop=budget pc=0x000d4a8c instructions=8807319394 virtual_time_ns=60041792981'
+expected_idle_hash=0e21563113837f9d0d27c2e13c53f8746e23f601041689542cd4c00cff16eceb
+if [ "$status" -ne 3 ] || ! grep -Fqx "$expected_idle" "$log" ||
+   [ "$(shasum -a 256 "$log" | awk '{print $1}')" != "$expected_idle_hash" ] ||
+   grep -Eq 'machine-reset-request|status=refuse|stop=compat-refused' "$log"; then
+    cat "$log" >&2
+    echo "error: post-setup idle continuation failed" >&2
+    exit 1
+fi
+echo "onboarding idle continuation: active through 60 virtual seconds"
+
+# (3) Disabled manual-time control retains its finite GPS-cap refusal.
+# Pins are re-derived after the architectural branch correction (ticket 789).
 set +e
 SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
     SEMU_SDL_SETUP_WALK_POST=mlllmlllmm \
@@ -138,18 +155,21 @@ SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
 status=$?
 set -e
 
-expected_baseline_step_21='SDL live test settled step=21 generation=1928 crc32=8362b9bc'
-expected_baseline_stop='stop=compat-refused pc=0x0010fbde instructions=13181432148 virtual_time_ns=68142804403'
+expected_baseline_step_21='SDL live test settled step=21 generation=1927 crc32=8362b9bc'
+expected_baseline_stop='stop=compat-refused pc=0x0010fbde instructions=13184192858 virtual_time_ns=68141114950 detail=layer sapporo-2.22-no-device trigger gps-awake-pulse exceeded budget'
+expected_baseline_hash=07250eea92a667f06cc4e666289cd56e54effe6ad90ff1f4f6d52466ad62f5bb
 
 # The GPS-cap abort is a compatibility refusal; the CLI reports it with exit
 # status 3 (only halt/user/wfi-deadlock stop reasons exit 0).
 if [ "$status" -ne 3 ] ||
    ! grep -qx "$expected_baseline_step_21" "$log" ||
-   ! grep -q "^$expected_baseline_stop " "$log"; then
+   ! grep -Fqx "$expected_baseline_stop" "$log" ||
+   [ "$(shasum -a 256 "$log" | awk '{print $1}')" != "$expected_baseline_hash" ] ||
+   [ "$(grep -c 'trigger=gps-awake-pulse ordinal=' "$log")" -ne 11 ]; then
     cat "$log" >&2
     echo "error: onboarding disabled-case byte-identical check failed" >&2
     exit 1
 fi
-echo "onboarding disabled-case baseline: byte-identical to E-SAP-ONBOARD-EMU-009"
+echo "onboarding disabled manual-time control: expected GPS-cap refusal"
 
 echo "onboarding completion check: passed"

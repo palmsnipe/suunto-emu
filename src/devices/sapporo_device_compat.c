@@ -2,6 +2,18 @@
 #include "sapporo_gps_compat.h"
 #include <string.h>
 
+static semu_transaction_result gps235_exchange(void *context,
+    const uint8_t *request, size_t count, semu_sapporo_cxd5610 *gps,
+    semu_error *error)
+{
+    semu_sapporo_devices *d = context;
+    if (request != NULL && count == 6u && memcmp(request, "@VER\r\n", 6u) == 0)
+        return semu_sapporo_235_gps_exchange(&d->gps_235_context,
+            request, count, gps, error);
+    return semu_sapporo_235_gps_reopen_exchange(&d->gps_235_reopen_context,
+        request, count, gps, error);
+}
+
 static semu_transaction_result gps_exchange(void *context,
     const uint8_t *request, size_t count, semu_sapporo_cxd5610 *gps,
     semu_error *error)
@@ -19,6 +31,7 @@ semu_status semu_sapporo_devices_bind_gps_layers(
     semu_logger *logger, semu_error *error)
 {
     semu_layer_state *startup = NULL, *reopen = NULL, *awake = NULL;
+    semu_layer_state *gps235 = NULL, *reopen235 = NULL, *awake235 = NULL;
     size_t i;
     if (layers == NULL && count != 0u) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "incomplete GPS layer set");
@@ -26,6 +39,9 @@ semu_status semu_sapporo_devices_bind_gps_layers(
     }
     for (i = 0u; i < count; ++i) {
         semu_layer_state **slot = NULL;
+        if (layers[i].descriptor == &semu_sapporo_235_gps_layer) slot = &gps235;
+        if (layers[i].descriptor == &semu_sapporo_235_gps_reopen_layer) slot = &reopen235;
+        if (layers[i].descriptor == &semu_sapporo_235_gps_awake_layer) slot = &awake235;
         if (semu_sapporo_239_gps_is_layer(layers[i].descriptor)) slot = &startup;
         if (semu_sapporo_239_gps_reopen_is_layer(layers[i].descriptor)) slot = &reopen;
         if (semu_sapporo_239_gps_awake_is_layer(layers[i].descriptor)) slot = &awake;
@@ -35,9 +51,38 @@ semu_status semu_sapporo_devices_bind_gps_layers(
     }
     if (reopen != NULL && startup == NULL) goto conflict;
     if (awake != NULL && (startup == NULL || reopen == NULL)) goto conflict;
+    if (reopen235 != NULL && gps235 == NULL) goto conflict;
+    if (awake235 != NULL && (gps235 == NULL || reopen235 == NULL)) goto conflict;
+    if (d != NULL && d->gps_235_awake_context.state != NULL) goto conflict;
+    if (d != NULL && d->gps_235_reopen_context.state != NULL) goto conflict;
     if (d != NULL && ((d->gps_239_context.state != NULL && startup == NULL) ||
         (d->gps_reopen_context.state != NULL && reopen == NULL) ||
         (d->gps_awake_context.state != NULL && awake == NULL))) goto conflict;
+    if (gps235 != NULL) {
+        if (d == NULL || !d->ohr2_profile_235 || logger == NULL ||
+            !gps235->enabled || gps235->hits != 0u ||
+            d->gps_235_context.state != NULL || startup != NULL ||
+            reopen != NULL || awake != NULL) goto conflict;
+        if (reopen235 != NULL && (!reopen235->enabled || reopen235->hits != 0u))
+            goto conflict;
+        if (awake235 != NULL && (!awake235->enabled || awake235->hits != 0u))
+            goto conflict;
+        d->gps_235_context.state = gps235;
+        d->gps_235_context.logger = logger;
+        semu_sapporo_cxd5610_set_exchange(d->gps,
+            semu_sapporo_235_gps_exchange, &d->gps_235_context);
+        if (reopen235 != NULL) {
+            d->gps_235_reopen_context.state = reopen235;
+            d->gps_235_reopen_context.logger = logger;
+            d->gps_235_reopen_context.startup = &d->gps_235_context;
+            semu_sapporo_cxd5610_set_exchange(d->gps, gps235_exchange, d);
+        }
+        if (awake235 != NULL) {
+            d->gps_235_awake_context.state = awake235;
+            d->gps_235_awake_context.logger = logger;
+            d->gps_235_awake_context.reopen = &d->gps_235_reopen_context;
+        }
+    } else if (d != NULL && d->gps_235_context.state != NULL) goto conflict;
     if (startup == NULL) return SEMU_OK;
     if (d == NULL || logger == NULL || !d->ohr2_profile_239 || !startup->enabled ||
         (startup->descriptor != &semu_sapporo_239_gps_layer &&
@@ -136,6 +181,23 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
     return SEMU_OK;
 }
 
+semu_status semu_sapporo_devices_bind_235_ohr(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error)
+{
+    if (devices == NULL || !devices->ohr2_profile_235 || state == NULL ||
+        logger == NULL || !state->enabled || state->hits != 0u ||
+        state->descriptor != &semu_sapporo_235_ohr_layer ||
+        devices->ohr_235_context.state != NULL) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "invalid 2.35 OHR fixture binding");
+        return SEMU_ERR_CONFLICT;
+    }
+    devices->ohr_235_context.state = state;
+    devices->ohr_235_context.logger = logger;
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 semu_status semu_sapporo_devices_apply_compat_hook(
     semu_sapporo_devices *devices, semu_bus *bus, semu_cpu_state *cpu_state,
     semu_layer_state *state, semu_logger *logger, semu_error *error)
@@ -147,6 +209,44 @@ semu_status semu_sapporo_devices_apply_compat_hook(
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Sapporo compatibility hook binding is incomplete");
         return SEMU_ERR_ARGUMENT;
+    }
+    /* Device refusals are observed at the next machine boundary. This is
+     * status propagation only: no guest instruction or CPU register changes. */
+    if (state->descriptor == &semu_sapporo_235_ohr_layer) {
+        if (devices->ohr_235_context.state != state ||
+            devices->ohr_235_context.logger != logger) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.35 OHR fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        if (error != NULL) *error = devices->ohr_235_context.refusal;
+        return devices->ohr_235_context.refusal.code;
+    }
+    if (state->descriptor == &semu_sapporo_235_gps_layer) {
+        if (devices->gps_235_context.state != state ||
+            devices->gps_235_context.logger != logger) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.35 GPS fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        return semu_sapporo_235_gps_startup(&devices->gps_235_context,
+            devices->gps, bus, cpu_state, error);
+    }
+    if (state->descriptor == &semu_sapporo_235_gps_reopen_layer) {
+        if (devices->gps_235_reopen_context.state != state ||
+            devices->gps_235_reopen_context.logger != logger) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.35 GPS reopen fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        return semu_sapporo_235_gps_reopen_start(&devices->gps_235_reopen_context,
+            devices->gps, bus, cpu_state, error);
+    }
+    if (state->descriptor == &semu_sapporo_235_gps_awake_layer) {
+        if (devices->gps_235_awake_context.state != state ||
+            devices->gps_235_awake_context.logger != logger || devices->soc == NULL) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.35 GPS awake fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        return semu_sapporo_235_gps_awake_poll(&devices->gps_235_awake_context,
+            devices->gps, bus, cpu_state, error);
     }
     if (!semu_sapporo_devices_compat_hook_pc(cpu_state->r[15])) {
         return SEMU_OK;

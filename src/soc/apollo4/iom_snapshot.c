@@ -29,6 +29,10 @@ semu_status semu_apollo4_iom_snapshot_write(
                        "IOM snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
+    if (iom->pressure235) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "2.35 IOM2 snapshots are unsupported");
+        return SEMU_ERR_UNSUPPORTED;
+    }
     if (semu_snapshot_writer_u8(writer, (uint8_t)(iom->endpoint_attached != 0), error) != SEMU_OK ||
         semu_snapshot_writer_u8(writer, (uint8_t)(iom->irq_level != 0), error) != SEMU_OK)
         return error->code;
@@ -54,6 +58,10 @@ semu_status semu_apollo4_iom_snapshot_read(
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "IOM snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (iom->pressure235) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "2.35 IOM2 snapshots are unsupported");
+        return SEMU_ERR_UNSUPPORTED;
     }
     candidate = *iom;
     if (semu_snapshot_reader_u8(reader, &attached, error) != SEMU_OK ||

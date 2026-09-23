@@ -119,6 +119,9 @@ static void test_bad_version(semu_test_context *context)
     len = semu_snapshot_serialize(s, buf, sizeof(buf));
     SEMU_TEST_ASSERT(context, len > 0u);
 
+    buf[4] = 1u; /* Version 1 lacks required renderer state. */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
+        semu_snapshot_deserialize(s, buf, len, &err));
     buf[4] = 0xFFu;  /* corrupt version */
     buf[5] = 0u;
     buf[6] = 0u;

@@ -25,6 +25,7 @@ struct semu_machine {
     semu_sapporo_239_files *sapporo_239_files;
     const semu_display_backend_ops *display_backend;
     void *display_backend_context;
+    semu_display_snapshot_ops display_snapshot;
     semu_frame_callback frame_callback;
     void *frame_context;
     const char *external_flash_path;
@@ -41,6 +42,11 @@ struct semu_machine {
     semu_layer_state layers[SEMU_MAX_LAYERS];
     size_t layer_count;
 };
+
+semu_status semu_machine_snapshot_write_display(const semu_machine *machine,
+    semu_snapshot_writer *writer, semu_error *error);
+semu_status semu_machine_snapshot_read_display(semu_machine *machine,
+    semu_snapshot_reader *reader, semu_error *error);
 
 semu_status semu_machine_snapshot_manifest_hash(
     const semu_firmware_manifest *firmware,

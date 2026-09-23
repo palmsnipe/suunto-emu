@@ -35,6 +35,7 @@ semu_status semu_nema_backend_reset(semu_nema_backend *backend);
 /* Public transactional contract; GPU/machine and the single-list convenience
  * all use these same operations. */
 extern const semu_display_backend_ops semu_nema_backend_ops;
+extern const semu_display_snapshot_ops semu_nema_backend_snapshot_ops;
 
 /*
  * The submit function matching the frozen callback signature
@@ -63,6 +64,8 @@ const nema_diagnostics *semu_nema_backend_diagnostics(
 /* Internal: increment surface generation on physical publication.
  * Defined in surface.c; declared here for backend use. */
 void semu_surface_publish(semu_surface *surface);
+/* Internal codec helper; caller validates the complete image before commit. */
+void semu_surface_restore_generation(semu_surface *surface, uint64_t generation);
 
 /* Internal: borrow writable pixel pointer and stride.
  * Defined in surface.c; declared here for backend use. */

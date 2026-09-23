@@ -22,6 +22,8 @@
 #define COMMAND_SETUP UINT8_C(0x35)
 #define COMMAND_PAGE_PROGRAM UINT8_C(0x12)
 #define COMMAND_SECTOR_ERASE UINT8_C(0x21)
+#define COMMAND_BLOCK_ERASE UINT8_C(0xdc)
+#define FLASH_BLOCK_SIZE UINT32_C(0x10000)
 
 static const uint8_t flash_id[] = { 0x20u, 0xbbu, 0x19u };
 static const uint8_t flash_vsf_magic[] = { '1', 'V', 'S', 'F' };
@@ -198,7 +200,7 @@ static semu_transaction_result program_page(
 
 static semu_transaction_result erase_sector(
     semu_sapporo_flash *flash, semu_serial_transaction *transaction,
-    semu_error *error)
+    uint32_t erase_size, semu_error *error)
 {
     uint32_t address;
     semu_status status;
@@ -208,8 +210,8 @@ static semu_transaction_result erase_sector(
                       "external flash sector-erase shape is unsupported");
     }
     address = frame_address(transaction);
-    address &= ~(flash->sector_size - 1u);
-    if (address > flash->capacity - flash->sector_size) {
+    address &= ~(erase_size - 1u);
+    if (address > flash->capacity - erase_size) {
         return refuse(error, SEMU_ERR_RANGE,
                       "external flash sector erase exceeds capacity");
     }
@@ -218,9 +220,9 @@ static semu_transaction_result erase_sector(
                       "external flash sector erase requires write-enable");
     }
     status = semu_storage_erase((semu_storage *)flash->storage, address,
-                               flash->sector_size, error);
-    flash->write_enabled = 0u;
+                               erase_size, error);
     if (status != SEMU_OK) return SEMU_TRANSACTION_REFUSE;
+    flash->write_enabled = 0u;
     semu_error_clear(error);
     return SEMU_TRANSACTION_OK;
 }
@@ -299,7 +301,10 @@ static semu_transaction_result flash_transfer(
         }
         return program_page(flash, transaction, error);
     case COMMAND_SECTOR_ERASE:
-        return erase_sector(flash, transaction, error);
+        return erase_sector(flash, transaction, flash->sector_size, error);
+    case COMMAND_BLOCK_ERASE:
+        /* E-SAP-0043: native 64 KiB request and documented four-byte opcode. */
+        return erase_sector(flash, transaction, FLASH_BLOCK_SIZE, error);
     default:
         return refuse(error, SEMU_ERR_UNSUPPORTED,
                       "external flash opcode is unsupported");
