@@ -42,10 +42,10 @@ adequate evidence input.
 
 ## Implementation
 
-List only decisions required to complete the bounded goal. New hand-written
-C/header/test files should remain below 300 lines and every hand-written file
-must remain at or below 500. Avoid materially growing existing files above the
-review threshold without splitting by responsibility.
+List only decisions required to complete the bounded goal. Prefer focused
+C/header/test files; 300 lines is an advisory review threshold and 500 lines
+is a prompt to consider splitting by responsibility. Keep cohesive code
+together when that improves clarity; neither threshold is a hard limit.
 
 ## Tests and Commands
 

@@ -10,6 +10,106 @@ exact pinned firmware through startup and native renderer traffic, publishes a
 snapshots. Hardware coverage remains evidence-scoped; physical-panel behavior,
 unobserved device commands, and unpinned firmware versions are not implied.
 
+Current stability limits (2026-09-22): a Thumb branch-decoding fix removes the
+2.22 script loop that exhausted its heap after setup. Paired button-driven
+runs now finish the setup navigation and remain active through 60 virtual
+seconds. The main menu renders and responds to a selection change; broader
+functions and restoring an interactive window still need verification. Ticket
+789 re-derives the bounded 2.22/2.35 regression checks against the corrected
+CPU, with control runs proving the cause of the changed checkpoints. The 2.35
+firmware gates pass, including their intentional unsupported boundaries.
+Later Sapporo profiles remain at different bring-up stages; they are not yet
+a uniformly passing firmware suite. See `docs/current-status.md`
+for the current audit and gaps.
+
+For the pinned 2.35.34 OTA, `--layer sapporo-2.35-production-data` explicitly
+supplies synthetic manufacturing records and reaches normal boot mode. This
+is a bring-up option: startup now passes the two absent pressure-sensor
+probes and haptic initialization. Add `--layer sapporo-2.35-ohr-startup`
+to supply the lane's eight synthetic OHR startup responses. This avoids the
+OHR reset. Correct 64 KiB flash erases now let the firmware create and reopen
+its logbook, then render the native “Select language” prompt. A later GPS-driver
+assertion still prevents a stable session. A bounded middle-button run opens
+the language menu with English selected. Both fixtures are explicit, hash-pinned bring-up options. The bounded
+display-prefix regression is:
+
+```sh
+make test-firmware TEST_PROFILE=sapporo-2.35.34 \
+  TEST_FILTER=sapporo_235_block_erase \
+  SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu
+```
+
+For the bounded 2.35 display and button regression, build SDL3 support with
+`make sdl`, then run `sh tools/test_sdl_sapporo_235.sh`. It auto-detects the
+private 2.35 bundle or accepts `SEMU_FIRMWARE_MANIFEST`; no firmware is bundled.
+To explore that prefix interactively:
+
+```sh
+build/suunto-emu-sdl run \
+  --profile sapporo-2.35.34 --firmware /path/to/2.35/firmware.semu \
+  --layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup \
+  --until middle-language --wait-for-quit \
+  --max-instructions 3000000000 --max-time 11000000000
+```
+
+Press Enter through the startup checkpoints to reach the language menu; Up,
+Down and Enter then control the watch buttons. This is a bounded preview:
+GPS startup and full onboarding remain unfinished.
+
+The opt-in `--layer sapporo-2.35-gps-startup` supplies two synthetic
+status/version responses and passes the initial GPS assertion. Add
+`--layer sapporo-2.35-gps-reopen` to supply the separately observed reopen
+status and exact GSR reply. Both layers are hash-pinned and limited to two
+hits each. With all four layers, paired button-driven runs reach the native
+Welcome, birth-year and unit-system screens. Ongoing GPS remains unsupported:
+the cold run stops on `@GSTP` at about 16.3 virtual seconds, and the scripted
+setup walk stops at about 16.0 seconds. Full onboarding is still incomplete.
+
+To reproduce the bounded reopen regression:
+
+```sh
+make test-firmware TEST_PROFILE=sapporo-2.35.34 \
+  TEST_FILTER=sapporo_235_gps_reopen \
+  SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu
+```
+
+The optional `--layer sapporo-2.35-gps-awake` supplies eight synthetic GPIO24
+pulses through native interrupt handling. It requires both GPS layers above
+and extends the cold run to about54.6 virtual seconds before a ninth-admission
+refusal. Button-driven runs reach weight, height and phone-pairing instructions.
+It supplies no GPS fix or phone connection. The RGBA4444 pairing strip now
+renders, and Down scrolls the phone instructions without the former GPU fault
+and reset. The bounded 22-second regression repeats exactly. A longer button sequence
+passes phone pairing, selects the time zone and reaches “Done,” but opening
+main currently faults on an unsupported compressed TSC6A icon. The reference
+lane also refuses it. A usable main screen and stable long sessions remain
+incomplete.
+
+To reproduce the phone-instructions scroll regression (SDL3 and private
+firmware required):
+
+```sh
+make sdl
+SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu \
+  sh tools/test_sdl_sapporo_235_scroll.sh
+```
+
+To explore this longer prefix interactively:
+
+```sh
+build/suunto-emu-sdl run \
+  --profile sapporo-2.35.34 --firmware /path/to/2.35/firmware.semu \
+  --layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup \
+  --layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen \
+  --layer sapporo-2.35-gps-awake \
+  --until setup-next --wait-for-quit \
+  --max-instructions 10000000000 --max-time 70000000000
+```
+
+The startup checkpoints pause for button input. Up, Down and Enter control
+the watch buttons; extending the run budget does not remove the unsupported
+GPS boundary.
+
 Firmware is not included. Extract a legally obtained Sapporo 2.22.60 package,
 copy `profiles/sapporo/2.22.60/firmware.example.semu`, and point its paths at
 the three expanded components.
@@ -75,7 +175,7 @@ still optional for persistence/erase coverage and is rejected if it has the
 wrong size or missing footer.
 
 For the observed 2.22 onboarding layout, the semantic upper/previous edge is
-GPIO59, middle/select is GPIO58, and lower/next is GPIO57. The mapping is kept
+GPIO57, middle/select is GPIO58, and lower/next is GPIO59. The mapping is kept
 at the board input boundary; the generic button device remains constructor-
 driven.
 
@@ -142,9 +242,11 @@ eleven-hit `gps-awake-pulse` budget (E-SAP-COMPAT-GPS-005), so the run ends
 is itself a checkpointed boundary of the layer, not a failure of this path.
 This proves the bounded language-to-phone-handoff path; it does not claim
 phone pairing, post-setup watch-face assets, or physical-panel completion.
-The fully pinned continuation through the main watch face — 30 settled
+The historical continuation through the main watch face — 30 settled
 screens, generations, halt tuple — lives in
 `tools/test_sdl_onboarding_completion.sh` and runs under `make check-sdl`.
+Its screen checkpoints still match, but its halt expectation currently fails;
+the fatal script-engine path described above prevents a passing completion gate.
 
 For fast iteration, save a machine checkpoint after reaching a useful stage
 and resume it without replaying startup. The checkpoint is identity-pinned to
@@ -167,6 +269,11 @@ When no explicit limit is supplied on a snapshot load, the CLI grants a
 bounded continuation budget from the checkpoint's current instruction and
 virtual-time totals. Use the same profile, firmware manifest, and enabled
 compatibility layers used to create the snapshot.
+
+Sapporo 2.35.34 currently supports bounded cold runs only: its live RTC and
+IOM4 state has no snapshot codec. Snapshot save and restore refuse explicitly
+instead of producing or accepting incomplete checkpoints. See
+`docs/current-status.md` for the verified boundary of each firmware version.
 
 For cold-start iteration, an opt-in LTO build is available without changing the
 normal `make` profile:
@@ -203,11 +310,41 @@ keeps a `${SNAPSHOT}.provenance` sidecar containing the manifest, selected
 binary, library, helper, profile, layer, and capture-boundary identities. A
 missing or mismatched sidecar causes a bounded refresh instead of silently
 reusing stale state.
-Machine snapshots preserve guest and NEMA state, not the SDL surface that was
-already presented; use a pre-frame boundary when the resumed session must
-immediately show the saved UI.
+Version-2 machine snapshots preserve inherited drawing registers, the TSC6A
+shadow, working pixels, and the last displayed frame with its generation.
+SDL presents the restored image before waiting for input; restored checkpoints
+accept any of the three buttons. Version-1 snapshots are refused because they
+lack renderer state: regenerate them from a cold run. This does not add the
+missing 2.35 device snapshot codecs.
 The SDL frontend reports a bounded CRC32 alongside the first-frame dimensions
 and generation, so repeated runs can be compared without storing frame pixels.
+
+To create a reusable **2.22 main-menu** checkpoint, run the bounded setup walk
+once (the cold run takes several minutes), then open it interactively:
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+  SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm \
+  SEMU_SDL_SETUP_WALK_TIMELINE=30000:l \
+  build/suunto-emu-sdl run --profile sapporo-2.22.60 \
+  --firmware /path/to/firmware.semu --layer sapporo-2.22-no-device \
+  --until setup-next --max-instructions 18000000000 --max-time 60000000000 \
+  --snapshot-save /tmp/sapporo-menu.sems
+
+build/suunto-emu-sdl run --profile sapporo-2.22.60 \
+  --firmware /path/to/firmware.semu --layer sapporo-2.22-no-device \
+  --snapshot-load /tmp/sapporo-menu.sems --until setup-next \
+  --max-instructions 18000000000 --max-time 60000000000
+```
+
+This opens the native menu with Logbook selected at generation 4510. Up,
+Return/Enter, Down and screen-third clicks provide the three watch buttons.
+The checkpoint pauses between settled screen changes. The 60-second guest
+budget and existing finite compatibility limits still apply; this is not
+full watch-function coverage. `sh tools/test_sdl_snapshot_restore.sh` checks
+immediate presentation and paired LOWER-button continuation using private
+firmware, with a 900-second wall cap per emulator run.
+
 
 For repeated interactive setup sessions, the helper creates that checkpoint
 once and reuses it:

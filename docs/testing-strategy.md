@@ -21,7 +21,7 @@ CPU vectors record initial registers/memory and expected registers, flags, memor
 - `make test`: dependency-free unit, device, and synthetic integration tests.
 - `make test TEST_FILTER=NAME`: run matching test binaries, case names, tags,
   or a declared group from `tools/test_groups.tsv`; no match is an error.
-- `make check-lines`: apply the 300-line review and 500-line hard limits.
+- `make check-lines`: report advisory 300-line review and 500-line split thresholds.
 - `make check-task-contracts`: validate the indexed ticket structure and graph.
 - `make check`: headless build, all normal tests, warnings-as-errors, source-size
   policy, task-contract validation, and CLI smoke checks.
@@ -38,7 +38,9 @@ CPU vectors record initial registers/memory and expected registers, flags, memor
 - `make test-differential`: report an explicit skip unless `RENODE` names a
   caller-provided executable. Renode remains optional and non-authoritative.
 
-`make check` warns for hand-written C/header/test files above 300 lines and fails above 500. Only declared generated data tables are exempt.
+`make check` warns for hand-written C/header/test files above 300 lines and
+suggests reviewing a responsibility split above 500. File length alone does
+not fail the check; cohesive files may exceed either advisory threshold.
 
 ## Proportional Maintenance Verification
 

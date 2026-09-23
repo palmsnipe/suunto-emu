@@ -18,11 +18,11 @@ Do not combine unrelated phases, opportunistic refactors, or inferred hardware b
 
 ## Small-File Policy
 
-New hand-written C, headers, and tests should remain under 300 lines and all
-hand-written files must remain at or below 500. Existing files above 300 may
-receive bounded changes that do not materially increase their size; split by
-responsibility before crossing the hard limit. Generated tables require a
-checked-in generator or provenance note and an explicit line-count exemption.
+Prefer focused hand-written C, headers, and tests. Review files above 300
+lines and consider splitting by responsibility above 500, but keep related
+code together when that improves clarity. Both thresholds are advisory;
+line count alone does not require a split or fail verification. Generated
+tables require a checked-in generator or provenance note.
 
 ## Delegation Flow
 

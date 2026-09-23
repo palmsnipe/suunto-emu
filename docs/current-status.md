@@ -8,6 +8,657 @@ already exist.
 
 ## Implemented Baseline
 
+
+### Renderer snapshot integration — ticket 791, 2026-09-22
+
+Version-2 snapshots now preserve the renderer as well as guest/device state:
+inherited registers, working pixels, last published frame/generation and the
+TSC6A shadow. Loading publishes the saved frame only after every machine
+component succeeds. Refused loads preserve machine and renderer byte-for-byte
+and emit no frame. Active transactions and missing/wrong codecs refuse.
+Version-1 snapshots explicitly refuse; regenerate them from cold execution.
+
+Two cold 2.22 runs retain the previous stop, instruction/time and frame pins.
+Their new snapshots are identical (5,952,483 bytes). Restoring immediately shows
+Logbook at generation 4510 / CRC `040ebb03`. Paired LOWER continuation ends at
+Media controls, generation 4610 / CRC `0cb272ba`, with identical full machine
+snapshots. Idle continuation retains the old 60-second checkpoint; only the
+initial restored-frame line changes its log pin. A live native window showed
+the menu and accepted interaction through the Logbook page.
+
+SDL accepts any first button after restoration and presents the held image
+before it waits for input. The README now includes cold menu capture and direct
+interactive restore commands. Evidence, full state/pixel hashes, API/format
+ownership and validation are recorded in E-EMU-RENDERER-SNAPSHOT-001.
+
+Validation: the regression failed before the fix and passes afterward; four
+renderer cases, all 276 snapshot-selected cases, 989 `make check` cases and
+984 sanitizer cases pass. Both full onboarding runs pass, the new cold-capture
+restore runner and its supplied-snapshot path pass, and all seven 2.35 firmware
+runners plus both paired SDL prefixes retain their existing pins. The 2.22
+SDL live-input gate also passes. All 155 task contracts validate.
+No ticket status is changed. Remaining gaps include 2.35 device/layer snapshot
+codecs, compressed main-menu icons (788), finite GPS fixture budgets and the
+existing 2.39 era drift (777/783). This is usable 2.22 menu restoration, not a
+claim of full Sapporo function coverage.
+
+### Post-branch firmware regression audit — ticket 789, 2026-09-22
+
+The seven 2.35 firmware runners now pass twice. The 2.22 live-input and both
+2.35 SDL prefixes also pass twice, preserving their frame CRCs and all
+reset/refusal/layer-budget checks. A control build with only the old F57F
+decoder restored passes all ten original gates, attributing the drift to
+E-CPU-F57F-001. Ordered device event payloads remain identical before/after.
+E-EMU-SAPPORO-BRANCH-GATES-001 records every changed pin and raw-log hash.
+
+The 2.22 onboarding regression now requires native Navigation-to-Logbook
+selection, a normal harness exit, and active execution through 60 virtual
+seconds. The old fatal halt is no longer treated as completion. Its disabled
+manual-time control retains exactly eleven GPS pulses and the expected
+compatibility refusal. The complete revised runner passes twice, completing
+all eleven ticket runners. Independent cold, idle and disabled-control captures
+also match byte-for-byte in pairs. Ticket 789 is ready for integrator review;
+its index status remains unchanged. `make check` passes 985 cases,
+`make sdl` passes, and 154 task contracts and advisory line checks pass.
+
+Nine runners change (five 2.35 firmware scripts and four SDL scripts), plus
+README/status/evidence. All 334 engine/header/profile files remain unchanged;
+pressure/production runner pins are unchanged. Sanitizers were not repeated
+for shell/documentation-only work; E-CPU-F57F-001's 980 passing cases still
+cover this engine. No ticket status is changed and no 2.39 gate is re-pinned.
+
+Snapshot restoration remains incomplete. A paired LOWER replay after restoring
+the Logbook-selected snapshot renders Media controls and remains active to
+41 seconds, but publication restarts at generation 1 and idle restoration
+publishes no initial frame. Required integration: versioned backend snapshot
+hooks, atomic machine restore and initial-frame presentation, preserving both
+the last published image and current drawing surface, inherited registers
+and TSC6A semantic shadow. The public backend interface currently lacks those
+hooks; no private workaround is added. The 2.35 compressed-icon/GPS limits,
+2.35 device/layer snapshot gaps, and other-profile validation gaps remain.
+
+### Previous Thumb branch correction clears the 2.22 heap loop, 2026-09-22
+
+Bounded CPU maintenance fixes a dispatch collision: `F57F AF87` is a Thumb
+conditional branch, but the interpreter treated it as a barrier/no-op. In
+2.22 software double addition this made `1.0 + 0.0` return zero, leaving a
+script loop counter unchanged and recursively wrapping the same menu object
+until allocation failed. E-CPU-F57F-001 records the architecture reference,
+paired lane probes, captured increment and before/after regression.
+
+The corrected increment matches Renode in 103 instructions, all 16 general
+registers and every byte of 1,441,792 bytes of copied RAM. The old decoder
+takes 127 instructions and leaves the counter at zero. No heap sizes,
+firmware bytes or compatibility layers were changed. The old test that
+incorrectly called three Thumb branches barriers is replaced by exact branch
+target/state assertions; real Thumb barrier coverage remains.
+
+Paired cold button walks now finish step 31 at `user / 0800009e /
+8500057344 / 38818426902 ns`; their logs and snapshots match byte-for-byte.
+Paired idle resumes reach `budget / 000d4a8c / 8807319394 /
+60041792981 ns` without the former fatal loop, reset or refusal. A fresh
+visual capture shows Navigation selected at step 30 and Logbook selected after the next
+button press. This verifies native main-menu rendering and one selection
+change; broader functions remain untested. Snapshot resume preserves execution
+but publishes no initial frame in this case, so the SDL input gate cannot yet
+provide a ready-to-use restored menu.
+
+Verification: `make test TEST_FILTER=cpu_thumb32` passes 34 cases; `make check`
+passes 985; `make sanitize` passes 980; `make sdl` passes. The 2.22 live-input
+runner fails historical stop pins. Of seven 2.35 era runners, pressure and
+production pass; block erase, OHR, GPS startup/reopen/awake fail their first
+transcript hash comparison; retained pairs are identical. Ticket 789 owns
+fresh paired derivation and attribution; no firmware golden was changed.
+The 2.39 era suite was not repeated after this shared CPU correction, so its
+pins may have additional drift beyond tickets 777/783. Other profiles were
+not revalidated. The 2.35 compressed-texture evidence and ongoing GPS gaps
+remain. Existing roadmap statuses are unchanged.
+
+### Previous 2.22 heap investigation, 2026-09-22
+
+E-EMU-SAP222-HEAP-001 narrows the fatal script-engine allocation failure;
+it does not fix it. The current build reproduces the historical 14-billion
+instruction checkpoint and snapshot byte-for-byte. A paired control omitting
+the final scripted Down press still reaches the fatal loop, so that press is
+not required for the failure.
+
+At the first final 80-byte allocation failure, 754 live blocks consume 64,932
+bytes of pool capacity. Only four smaller blocks remain free; every fitting
+class is exhausted. Of the live blocks, 649 were allocated between 35 and 40
+virtual seconds. Their retained capacity is 53,820 bytes. These counts are
+reconciled against the captured pool layout and free lists, not inferred from
+an incomplete free-call trace.
+
+Paired Renode replays match the interpreter's allocator scan and a synthetic
+successful allocation exactly. The first garbage-collection retry also
+matches: 364,254 instructions, all 16 registers and all 1,441,792 copied RAM
+bytes. It releases no pool capacity from this captured state. These are
+isolated comparisons using emulator-derived input, not a cold lane proof of
+the preceding allocation history. The next diagnostic target is the creation
+and retention of the live graph around 35–40 seconds. Heap inflation and
+assertion bypass remain unsupported.
+
+This maintenance changes only this status and the evidence ledger. `make
+check` passes 985 cases; no runtime, profile, golden or ticket status changes.
+Sanitizers and profile era sweeps were not repeated for documentation-only
+work. The 2.35 codec evidence blocker and other profile gaps remain.
+
+### Compressed-texture diagnostic maintenance, 2026-09-22
+
+The 2.35 main-entry refusal now identifies `compressed source 60x60 stride
+180` and explains that only the 480x480 semantic shadow is modeled. The
+acceptance predicate, unsupported status, pixels and publication behavior are
+unchanged. The synthetic descriptor regression fails before the change and
+passes afterward; paired captured-command replays preserve all 115200 bytes
+and publish zero frames. E-EMU-TSC6A-DIAGNOSTIC-001 records the results.
+
+`make check` passes 985 cases, `make sanitize` 980, and the focused NEMA
+selection 120. The SDL build passes. Full firmware walks and profile era
+sweeps were not repeated for this diagnostic-only change; previous profile
+gaps and potential era drift remain. Ticket 788 still lacks a positive codec
+reference. Vendor research found documented conversion tools, but no usable
+decoder in the inspected public repositories. The requested exception to the
+lane-only oracle rule remains pending; no decoder behavior is authorized by
+this maintenance change.
+
+### Latest 2.35 boundary — Done, then a compressed-texture refusal
+
+A longer button sequence passes phone pairing without connecting a phone,
+reaches the time-zone selector and displays `Done`. In this run 2.35 obtains
+a usable time value, so manual date/time entry is unnecessary. Its clock
+source has not been traced. Opening main triggers a graphics refusal and reset;
+the Done screen does not prove a usable watch.
+
+E-EMU-SAP235-MAIN-TSC6A-001 records paired first-fault traces and complete draw
+captures. The source is a compressed 60×60 TSC6A image (format 17, stride 180),
+not the supported 480×480 semantic transition surface. A valid CMDRINGSTOP
+store receives `unsupported mask resolve state`; HardFault occurs at
+`1be85a / 7486616865 / 32533939561 ns`, 79 instructions before reset.
+
+The read-only lane also refuses the captured command in two bounded replays
+and preserves every destination byte. It provides no compressed-pixel reference
+for this asset. Enlarging the shadow or treating it as uncompressed would
+invent pixels. Ticket 788 tracks the missing decoder evidence; no existing
+ticket status, runtime behavior or golden changed in this investigation.
+
+Verified frames: Time/date `d13391e9`, time-zone selector `13021279`,
+Done `1c1f9064`. All private captures remain outside Git. The five-layer SDL
+preview remains available for three-button input. Main rendering, ongoing
+GPS, 2.35 snapshots and other profile gaps remain. This turn adds evidence
+and planning. `make check` passes 984 cases and `make check-task-contracts`
+validates 153 tickets; the previous sanitizer verification remains applicable.
+
+
+### Previous 2.35 boundary — phone-instructions scroll (ticket 787)
+
+The format 06 fault from E-EMU-SAP235-SCROLL-001 is fixed by a bounded
+RGBA4444 strip renderer. E-NEMA-RGBA4444-001 records paired native draw
+captures and native, synthetic and refusal lane replays. The interpreter
+matches every byte of the native 115,200-byte output (SHA-256
+`ae6001a5…95ee05c`) and both synthetic outputs, including skewed fractional
+sampling and transparent borders.
+
+Only the observed 240×96 source, shader, white tint, bilinear sampler and
+240×240 RGB565 target are accepted. Existing integer software binary32
+arithmetic is shared through `include/semu/fpu_math.h`; the CPU arithmetic
+implementation and guest FPSCR are unchanged. Source bytes are checked
+individually through the memory-only bus API to reject narrow MMIO overlays.
+The draw is staged before mutation. Malformed state, missing program writes,
+mapping overflow, overlapping source/target and allocation failure refuse
+without publishing or modifying committed pixels. The existing observed
+black clear still takes precedence over inherited texture state.
+
+Two SDL walks pass LOWER on the phone instructions and match fully:
+step 15, generation 1756, CRC `f0ff828c`; endpoint `budget / 000e1862 /
+4896065682 / 22000000000 ns`. The screen shows the lower pairing directions
+and watch name. `tools/test_sdl_sapporo_235_scroll.sh` pins that bounded
+checkpoint; it does not label the walk as completed onboarding. Seven focused
+cases cover lane pixels, 33 invalid states, 11 missing-program variants,
+memory holes/overlays, later-child rollback/retry, allocation/mapping
+atomicity, signed clipping and inherited-texture clear.
+
+A further pair reaches the native `Later` button (step 17, CRC `895a642c`)
+and, after selecting it, the phone-connection recommendation (step 18,
+CRC `e0c2f63d`). Both finish at 40 seconds with 5,570,776,834 instructions
+and no reset/refusal. The next work is navigating this recommendation and
+verifying the remaining setup.
+
+The previous GPS fixture ceiling, 2.35 snapshot gaps, 2.22 onboarding
+allocation failure and 2.39 era failures remain. The full 2.39 era sweep was
+not rerun here; its pins may have drifted after this shared renderer addition.
+Ticket 783 owns the existing 30-of-43 failure audit. Physical panel behavior,
+phone pairing, ongoing GPS and full watch functionality remain unproven.
+
+Verification: 984 normal checks, 979 sanitizer checks, 119 NEMA cases,
+23 FPU cases and 152 task contracts pass. The expanded seven-case RGBA suite
+also passes separately under sanitizers. All seven 2.35 private firmware
+gates pass. Existing 2.22 and 2.35 SDL input pins are unchanged. The new paired
+22-second SDL scroll runner passes on the final build. E-NEMA-RGBA4444-001
+records exact commands, transcripts and hashes. Ticket 787 remains ready
+for integrator review.
+
+Changed files: `include/semu/fpu_math.h`; CPU private `fpu_softfloat.h`;
+display `nema_rgba4444.c/.h`, `nema_backend_draw.c`, `nema_state.c/.h`;
+`tests/unit/test_nema_rgba4444.c`; the new optional SDL runner;
+README/status/evidence; planning ticket 787 and its index row. The state
+validator scope was explicitly added before its edit to retain the lane's
+required zero-register presence. No CPU arithmetic, scheduler, GPU framing,
+MMIO, profile, old golden, snapshot format or compatibility budget changed.
+
+### Previous 2.35 boundary — bounded GPS awake support (ticket 786)
+
+`--layer sapporo-2.35-gps-awake`, requiring the explicit initial and reopen
+layers, adds eight synthetic GPIO24 pulses at the observed native poll.
+Each starts after100ms and lasts1ms. Both lane experiments reproduce twice:
+eight pulses preserve the normal polling path for60s; zero pulses lead to
+GSTP/retry and the GPS assertion. E-SAP-0048 records the provenance and exact
+censuses. This is finite bring-up support, not physical GPS cadence or fixes.
+
+The cold interpreter now reaches54.6 virtual seconds, then refuses its ninth
+admission at1259fe /1579930110 instructions /54642979249ns. Paired observer
+traces show native IRQ handling restoring awake=1 between polls. All six GPS
+layer orderings are covered by focused tests; a reversed CLI order also
+produces the identical cold transcript. Reset cancels pulse events and clears
+bindings; invalid dependencies/state and exhausted budgets remain fail-closed.
+
+The SDL setup window extends through weight and height to phone-pairing
+instructions. The generic walk's default LOWER presses merely adjust HEIGHT,
+so its31-step voluntary exit is not onboarding completion. A separate
+confirmation-button walk verifies the later phone screens. Pressing LOWER on
+the phone instructions triggers a graphics-submission fault and native reset
+at19.2s (E-EMU-SAP235-SCROLL-001). Paired diagnostics isolate unsupported
+source format06; the lane has an exact RGBA4444 pairing-strip implementation
+for the next rendering investigation. The awake fixture does not fix that
+failure. GPS acquisition,
+phone pairing, full onboarding and stable long sessions remain unproven.
+The 2.35 snapshot and earlier2.22/2.39 gaps remain open.
+
+Verification: 977 normal checks and972 sanitizer checks pass. Twelve focused
+GPS cases (four new,36 refusal variants), thirteen transport cases and151 task
+contracts pass. The old two-layer SDL language-menu transcript is unchanged.
+All seven 2.35 private firmware scripts pass. Detailed private-run results
+and hashes are in E-SAP-0048.
+
+Changed files: new awake compatibility module/header, unit test and private
+firmware runner; existing device context/reset/binding and machine
+registry/dispatch; README, status, evidence and ticket/index786. No generic
+CPU, scheduler, GPIO, UART MMIO, profile or snapshot contract changes.
+Ticket786 remains ready pending integrator review.
+
+### Previous 2.35 boundary — GPS reopen and setup controls (ticket 785)
+
+The explicit `sapporo-2.35-gps-reopen` layer requires the startup layer and
+adds exactly two delayed synthetic responses: the post-reopen status and an
+exact GSR reply. Native parsing reaches states 7,8,9,10,12 with zero retry.
+The layer validates its dependency, firmware hashes, driver state and callback;
+unknown requests, exhausted budgets and scheduling failures latch a refusal.
+Reset cancels pending RX and clears bindings. E-SAP-0047 records the paired
+lane/interpreter observations, negative control and implementation checks.
+
+All four 2.35 layers together reach the native Welcome, birth-year and
+unit-system screens under SDL button control. Two bounded setup walks match
+byte-for-byte, including the unit-system frame at generation1274 / CRC3e13459a.
+The next unsupported command is `@GSTP`: the cold run stops at
+`001be85a / 1020576082 / 16288236023`, and the input-driven walk at
+`001be85a / 3544601348 / 15965172775`, both `compat-refused`. No response,
+awake heartbeat, location/time data or instruction patch is invented.
+
+Verification: eight GPS cases (four new, including 43 refusal variants),
+thirteen transport cases, 973 normal checks and 968 sanitizer checks pass.
+All six 2.35 private firmware scripts pass. Existing initial-only and two-layer
+SDL pins remain unchanged; reversed GPS option order gives the identical cold
+transcript. 150 task contracts validate. Full onboarding, ongoing GPS,
+2.35 snapshots, the 2.22 allocation failure and the 2.39 era audit remain open.
+Ticket785 is implemented for review; its status remains unchanged.
+
+Changed files: new `src/compat/sapporo_235_gps_reopen.c/.h`, GPS unit test and
+private firmware runner; existing device context/reset/binding files and
+machine registry/dispatch; README, status, evidence and planning ticket/index.
+No generic CPU, scheduler, UART MMIO, public include API, profile or snapshot
+format changed. The prior 2.39 era failures remain; that sweep was not repeated
+for this profile-specific addition.
+
+### Previous 2.35 boundary — initial GPS exchange (ticket 784)
+
+`--layer sapporo-2.35-gps-startup` adds exactly two synthetic status lines
+through the existing UART RX/IRQ transport: unsolicited startup and the
+response to exact `@VER`. It requires the three pinned 2.35 hashes, is disabled
+by default, and owns its ordered two-hit budget per machine. The lane positive
+and wrong-prefix control each reproduce twice (E-SAP-0046).
+
+Native parsing reaches GPS states 2,14,15 and closes the UART with retry zero.
+Two interpreter observer runs match completely. The later reopen arms pending
+seven, gets no response, and retries initial startup. The layer refuses that
+extra intervention at `001254ec / 996415389 / 14881889213`, before an assertion
+or reset. This is the next unsupported lifecycle; no awake pulses, fabricated
+position/time or instruction patches are added.
+
+The 500M prefix is `budget / 000ee120 / 500000000 / 3343660033`. Existing
+two-layer firmware and SDL pins are retained. With the new layer, the SDL
+language menu still settles at generation 79, CRC32 `405422e1`; its time/PC
+change because GPS now follows the native success path. Full onboarding,
+GPS reopen/ongoing behavior, 2.35 snapshots and the earlier 2.22/2.39 gaps
+remain open. Verification details and hashes are in E-SAP-0046.
+
+Verification: four focused GPS cases (including 31 refusal variants), thirteen
+CXD transport cases, 969 normal checks and 964 sanitizer checks pass. All five
+2.35 private firmware gates pass; the new gate repeats both startup and the
+later refusal with exact hashes. Both old and new-layer SDL runs reproduce
+their own transcripts. 149 task contracts validate. E-SAP-0047 additionally
+recorded a paired lane census for the later ticket785 integration above. Other profiles retain the prior limitations, including
+the 30/43 failing 2.39 era scripts from the shared erase audit.
+
+Changed files: `src/compat/sapporo_235_gps.c` and `.h`, existing device
+factory/context/binding files, `src/boards/machine.c` and `machine_run.c`,
+`tests/unit/test_sapporo_235_gps.c`, the new GPS private firmware runner,
+README, this status, evidence ledger, and planning ticket/index 784.
+
+### Previous 2.35 boundary — storage recovery and display (ticket 782)
+
+The previously ignored 64 KiB flash erase (`DC`) now reaches the storage
+endpoint. Native 2.35 creates, closes and reopens `logs/entries.bin`; its
+read/update handles are 90/a0. The former `LogbookEntryDb.cpp:53` assertion
+is passed. With both explicit production and OHR layers, startup renders
+“Select language” (240×240 RGB565, generation 6, CRC32 `3bd12ac8`). The native renderer
+publishes it through the regular display callback.
+
+E-SAP-0043 distinguishes the unmodified lane's missing erase from the controlled
+experiment: sixteen existing 4 KiB erases recover the file in two identical
+lane censuses, corroborating the native helper's 64 KiB request and documented
+DC opcode. Source firmware and lane files remain unchanged. The controller
+now refuses unknown commands while preserving separately observed B9/AB
+completion behavior. Aligned storage erases also allocate all needed overlay
+pages before mutation, preserving bytes and ownership on allocation failure.
+
+The paired first-visible-frame checkpoint is
+`000bdd2a / 813500000 / 3733351422`, `stop=user`. The OHR gate's enabled
+500M suffix is deliberately re-derived under ticket 782 to
+`000bdc36 / 500000000 / 2719206417`. Its disabled control and the 30M,
+80M and 150M production/pressure pins remain byte-identical. All original
+no-fixture 2.35 input/idle checkpoints remain unchanged.
+
+Four focused erase/controller cases and the allocation-failure regression
+pass. `make check` passes 965 cases; `make sanitize` passes 960. All four
+bounded 2.35 firmware scripts pass; 148 task contracts validate. The optional
+`sh tools/test_sdl_sapporo_235.sh` repeats the native button sequence through
+the language menu, generation 79 / CRC `405422e1`, with an exact transcript.
+The existing 2.22 SDL live-input check also passes its exact checkpoint and transcript.
+The 2.39 sweep fails 30 of 43 scripts (previously 16): the corrected storage
+behavior changes native file paths and checkpoint state. All sixteen prior
+failures remain, with fourteen additional failing gates. Ticket 783 tracks
+the compatibility/regression audit; no 2.39 pin is changed here.
+
+Remaining boundary: a longer cold observer reaches
+`CXD5610GF-driver.cpp:894` at instruction 1022014915, assertion helper 7945e,
+then BKPT 79424 at instruction 1022015210. Continuing enters the same class
+of downstream list loop as earlier assertions. A longer middle-button
+probe opens the language menu with English selected; shorter exploratory
+budgets ended during its transition. Full onboarding, GPS startup, snapshots,
+the 2.22 allocation failure and
+2.39 compatibility/era gaps remain open.
+
+Changed files for this instance: `src/core/storage.c`,
+`src/devices/sapporo_flash.c`, `src/soc/apollo4/mspi.c`,
+`tests/unit/test_storage_erase_atomic.c`,
+`tests/devices/test_sapporo_flash_block_erase.c`,
+`tests/integration/test_firmware_sapporo_235_block_erase.sh`,
+`tests/integration/test_firmware_sapporo_235_ohr.sh`,
+`tools/test_sdl_sapporo_235.sh`, README, this status,
+the evidence ledger, and planning ticket/index 782. No public API, profile,
+firmware identity or snapshot format changed.
+
+### Previous 2.35 boundary — OHR startup (ticket 781)
+
+`--layer sapporo-2.35-ohr-startup`, together with the production-data layer,
+completes the eight E-SAP-0041 startup responses through the existing OHR
+transport. Identity strings and zero result bodies are explicitly synthetic;
+echo carries the request's ten data bytes. The layer pins all three firmware
+hashes, checks command/sequence/state/padding, logs each of eight hits, and
+owns its counters per machine. Disabled or unexpected exchanges refuse.
+A latched fixture refusal stops with `compat-refused` before a guest reset
+can renew the budget; no CPU instruction is patched.
+
+Paired 500M-instruction enabled runs reach
+`000bdcfc / 500000000 / 1805389482` with eight responses and no resets.
+The 280M disabled control retains the E-SAP-0040 reset and exact log hash.
+A longer 1B-instruction observer reaches
+`000bdcfc / 1000000000 / 2305389482`, zero frames. The PC is inside a
+firmware sorted-list insertion loop after an earlier `LogbookEntryDb.cpp:53`
+assertion: opening `logs/entries.bin` returned zero. This storage path is the
+next evidence gap.
+The lane also reaches a BKPT boundary at `79424` after its startup exchanges;
+that boundary is diagnostic evidence, not proof of a usable UI.
+
+Verification: four focused OHR cases, 960 normal-check cases and 955 sanitizer
+cases pass. All three bounded 2.35 firmware scripts pass; 146 task contracts
+validate. Exact commands, hashes and changed files are in E-SAP-0041.
+
+The production and pressure regression pins remain unchanged. Full UI stability,
+2.35 snapshots, the 2.22 allocation failure and the 2.39 era gaps remain open.
+
+### Previous 2.35 boundary — haptic integration (ticket 779)
+
+E-SAP-0040 adds scoped IOM4 haptic startup at address 0x50. The lane's 105
+startup transactions reproduce twice: two-byte configuration writes, one-byte
+autotune/calibration reads, and five-byte waveform writes. The emulator now
+completes these with the lane's four-plus-one chunking and owned reset state.
+Unsupported command shapes, registers, DMA state and endpoint switching during
+an active command refuse before mutation. Other profiles retain their existing
+controllers; 2.35 snapshots remain explicitly unsupported.
+
+The earlier pressure-only wait below is superseded. A paired 150M-instruction
+run now reaches `000cd0c8 / 150000000 / 1258826798`, no reset. At instruction
+261789155, virtual time 1567178637, firmware resets after OHR command 0010
+is refused in BSL state. Paired 280M runs reach
+`000a6bc8 / 280000000 / 1590729375` with that one reset. There is no working
+2.35 UI claim and the OHR gap needs a separate evidence-scoped instance.
+
+Ticket 779 explicitly re-derives the pressure runner's suffix while retaining
+the original 30M prefix and strict log hash/no-reset checks. The 80M production
+prefix remains unchanged. See E-SAP-0040 for exact commands and hashes.
+
+Verification: 17 focused IOM4 cases, 956 normal-check cases and 951 sanitizer
+cases pass; 145 task contracts validate. Both bounded 2.35 firmware scripts
+pass. The broader 2.22 fatal-allocation issue and 2.39 era failures remain
+unchanged and are not hidden by these passing focused gates.
+
+### Sapporo stability review — 2026-09-19
+
+The sections below include historical milestones and retired stop tuples;
+they must not be read as a claim that all Sapporo versions pass today's
+firmware gates. This review against `5980046` reproduced:
+
+| Firmware | Verified boundary | Remaining gap |
+| --- | --- | --- |
+| 2.22.60 | Short SDL input gate passes at `000bacf4 / 774081920 / 6520939902`; the long walk reaches main-menu CRC `fb8e0155`, generation 4403. | Full onboarding gate fails: an 80-byte script allocation exhausts its retries, enters the fatal handler and eventually loops at `0005a8f8`. |
+| 2.33.16 | Validated 100M-instruction run reaches `000a4c78 / 100000000 / 372326454`. | Two firmware reset requests at `000c97f2`; no working UI claim. |
+| 2.35.34 | Validated cold boot repeats `000e1862 / 122878688 / 300000000000` with empty traces. | The production-data layer selects normal mode 5; 0x5c/0x5d negative pressure probes now pass without reset. Haptic startup and the explicit OHR layer now complete. Execution then waits in a sorted-list insertion loop without UI; 2.35 snapshots unsupported. |
+| 2.39.20 | 27 of 43 era scripts pass; the 16 failures exactly match the retained baseline failure set. | The era gate fails; bounded GPS/UI limitations and unresolved checkpoint differences remain release gates. |
+
+Bounded maintenance fixed three concrete 2.35 safety defects:
+
+- IOM4 DMA now validates every mapped byte and stages source bytes before
+  touching FIFO, gauge, interrupts or destination memory. Mapping holes,
+  ROM destinations and one-byte device overlays refuse atomically; adjacent
+  readable memory regions work. The existing lane-observed invalid-target
+  status/IRQ behavior is unchanged (E-EMU-SAP235-DMA-001, E-SAP-0036).
+- Snapshot save/restore explicitly refuse live RTC/IOM4 state, which the
+  codec does not serialize. Previously a cold snapshot could be accepted
+  while omitting that state. This is a refusal guard, not full snapshot
+  support (E-EMU-SAP235-SNAPSHOT-001).
+- The live RTC is now owned by its SoC. Previously, creating a second
+  Sapporo machine cleared the first RTC and replaced its scheduler/IRQ sink.
+  Independent clocks/alarms and owned-event cancellation on destruction now
+  pass, including scheduler-reset ID reuse (E-EMU-SAP235-RTC-OWNER-001).
+
+The requested file-size policy is advisory in `AGENTS.md`, the checker,
+contributor/testing guides and task template. A synthetic 501-line file
+warns and exits zero. The README button mapping now matches the unchanged
+board wiring: upper/middle/lower = GPIO57/58/59 (E-SAP-BUTTONS-001).
+
+Verification of the runtime fixes:
+
+```sh
+make test TEST_FILTER=sapporo_iom4
+make test TEST_FILTER=apollo4_snapshot
+make test TEST_FILTER=sapporo_rtc
+make check
+make sanitize
+make check-lines
+make check-task-contracts
+git diff --check
+```
+
+The focused checks pass 13 IOM4 cases, three SoC snapshot cases and 11 RTC
+cases. At that stage, `make check` passes 939 cases (including five SDL cases),
+`make sanitize` passes 934, and 143 task contracts validate. The four DMA
+regressions, live-profile snapshot regression and three
+RTC ownership regressions fail before their respective fixes. Exact commands,
+external log hashes and before/after 300-second firmware checkpoints are
+recorded in the evidence entries.
+`make test-firmware TEST_PROFILE=sapporo-2.35.34
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`
+validates the three components but selects no 2.35 shell era script; the
+bounded CLI pairs and the private input/RTC test cases provide its actual
+runtime coverage. No firmware, checkpoint pixels, or raw private logs are
+added to Git, and no expected hash or stop reason is weakened.
+
+The broader review also ran `make check-sdl` with the automatically detected
+private 2.22 manifest. Its short input walk passes, but its long completion
+walk fails (make exit 2) at `stop=budget pc=0x0005a8f8
+instructions=40000000000 virtual_time_ns=69612174532`. The step-30 main-menu
+CRC and generation match; the historical `stop=halt` tuple does not. The
+disabled-case branch is not reached because the completion check exits first.
+This is a reproduced pre-existing failure, not a passing onboarding release
+gate. The final `sh tools/test_sdl_live_input.sh` also passes after the RTC
+ownership correction. Static inspection of the hash-pinned 2.22 application
+confirms that `0005a8f8` branches to itself. The follow-up below traces the
+allocation failure that reaches it; no expected stop was changed
+(E-EMU-SAPPORO-AUDIT-001, E-EMU-SAP222-PANIC-001).
+
+`SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make check-era`
+finishes with 16 failures out of 43 scripts (make exit 2). The failure names
+exactly match the retained E-SAP-ERA-GATES-239-001 census, with no additional failing script.
+The full derived list and log hashes are in E-EMU-SAPPORO-AUDIT-001. This is a
+single review sweep, not new lane evidence or a claim that the failures are
+harmless. Ticket 777 currently allows only six scripts, most already passing;
+repair of the full failing census needs an integrator scope update before
+re-deriving any pins.
+
+Changed runtime/test files are `src/devices/sapporo_iom4.c`,
+`src/devices/sapporo_iom4_internal.h`, `src/devices/sapporo_iom4_regs.c`,
+`src/soc/apollo4/apollo4_snapshot.c`,
+`tests/devices/test_sapporo_iom4_dma.c`, and
+`tests/devices/test_apollo4_snapshot.c`. RTC ownership additionally changes
+`src/devices/sapporo_rtc.c`, `src/devices/sapporo_rtc.h`,
+`src/soc/apollo4/apollo4.c`, `src/soc/apollo4/apollo4_internal.h`,
+`src/soc/apollo4/auxiliary.c`, `src/boards/machine.c`,
+`tests/devices/test_sapporo_rtc.c`, and
+`tests/devices/test_sapporo_rtc_ownership.c`. Supporting changes are `AGENTS.md`,
+`README.md`, `tools/check_source_size.sh`, `docs/contributing.md`,
+`docs/testing-strategy.md`, `plans/task-template.md`, this status, and the
+evidence ledger. No roadmap status or public interface changes.
+
+Full 2.35 checkpoint integration needs an explicit integration scope for
+the two codecs, scheduler ownership validation and deterministic cold/resumed
+execution. RTC ownership is now isolated; unrelated device ownership is not
+covered by that claim. Ticket 710 remains the route for
+the next evidence-backed firmware behavior; ticket 777 tracks era repair.
+
+### Follow-up: 2.35 manufacturing gap and 2.22 panic — 2026-09-19
+
+Ticket 710 instance 8 adds `sapporo-2.35-production-data`, an explicit layer
+pinned to all three 2.35 component hashes. Two lane runs per configuration
+show that absent manufacturing records select mode 2; the synthetic record
+selects normal mode 5. The integrated emitter reproduces the accepted sector
+byte for byte. Identity/calibration fields remain synthetic, with no physical
+calibration claim. Populated unrelated storage and invalid invocation refuse
+before mutation; counters belong to each machine (E-SAP-0038).
+
+The paired firmware regression reaches `000932a8 / 30000000 / 35339893`
+without a reset. Extending to 400 ms reaches the next distinct gap: an IOM2
+read at address `5c`, command `0f000112`, has no attached verified device.
+The firmware requests a fault reset at instruction 73523963, virtual time
+396214443; the bounded run ends at `000cc418 / 77309520 / 400000000`.
+Both log pairs match exactly. This advances bring-up; there is no usable 2.35
+UI claim or change to roadmap status. Pressure-sensor attachment/behavior
+needs the next ticket 710 instance, with its own lane evidence.
+
+The private input harness also now rejects an overfull timeline and time
+conversion overflow, stops on machine refusal/no progress, and fails on an
+invalid or explicitly missing firmware manifest. Before this repair it could
+write beyond its event array, hang, or report a malformed fixture as a skip.
+Three new regressions pass; existing input checkpoints are unchanged
+(E-EMU-SAP235-INPUT-HARNESS-001).
+
+The 2.22 long-walk failure is now traced: an 80-byte script allocation fails
+initially and through ten retries, then invokes the fatal handler with
+`uncaught error`. The guest asserts at `peScriptEngine.cpp:46`, retires the
+BKPT at the historical halt tuple, and returns to the self-loop at `5a8f8`.
+Two diagnostic replays are identical. The pool's allocation history still
+needs comparison with the lane; no heap expansion, assertion bypass or golden
+change has been made (E-EMU-SAP222-PANIC-001).
+
+Verification at that stage: `make check` passes 947 cases
+(including five SDL cases), `make sanitize` passes 942, `make check-lines`
+passes with advisory warnings, `make check-task-contracts` validates 143
+indexed tickets, and `git diff --check` passes. The five new production-layer
+cases and the paired 2.35 firmware runner pass. Existing full 2.22 onboarding
+and 16-of-43 2.39 era failures remain as recorded above; they are not included
+in a claim that the Sapporo release suite is green.
+
+Additional files are `src/compat/sapporo_235_production.c`, its internal header,
+`tests/unit/test_sapporo_235_production.c`,
+`tests/integration/test_firmware_sapporo_235_production.sh`, the existing
+board-layer attachment in `src/boards/machine.c`, and
+`tests/devices/test_sapporo_235_input.c`. Exact commands, log hashes and the
+derived lane/diagnostic censuses are retained in the evidence entries.
+
+### Follow-up: 2.35 negative pressure probes — 2026-09-19
+
+The lane disproves a positive LPS22 attachment for this profile: it probes
+absent sensors at 0x5c and 0x5d, obtains zero identities, and continues with
+the existing pressure sensor. E-SAP-0039 records two identical derived
+censuses and halted-controller tests. The latter overwrite an A5 sentinel
+with zero and produce INTSTAT 442, DMASTAT 2, DMACFG 100 and DMATRIGSTAT 4.
+
+Ticket 778 explicitly scopes the controller integration needed by ticket 710
+instance 9. The new module recognizes only the observed one-byte identity
+command under the 2.35 IOM2 profile. Wrong command, length, direction, state,
+ROM, hole or device overlay refuses before mutation. Other profiles retain
+their previous controller behavior. No LPS22 is attached and there is no
+arbitrary absent-device fallback. Direct IOM2 snapshots refuse, consistent
+with the already unsupported 2.35 machine snapshot.
+
+The former pressure-fault suffix is replaced by a stricter no-reset progress
+check: `000e1862 / 73528280 / 494546055`, with one production-layer hit.
+The unchanged 30M prefix still matches E-SAP-0038. The new paired three-second
+runner reaches `000e1862 / 122589556 / 3000000000`, also without a reset.
+The 400-ms requested limit ends at 494546055 ns because a sleeping CPU
+advances through a scheduled event; this is the existing run-loop granularity,
+not a precise 400-ms checkpoint claim.
+
+A longer observer pair reaches `000e1862 / 203436260 / 30000000000`, no
+reset and zero frames. Its eleven IOM2 commands match the lane's pressure and
+magnetometer sequence through the 23-byte 0x35 read; subsequent OHR traffic
+seen in the lane is not reached. That startup wait is the next diagnostic
+boundary. There is still no usable 2.35 UI or completed release-gate claim.
+
+Final checks for this step pass: `make check` has 952 PASS records,
+`make sanitize` has 947, `make check-lines` passes with advisory warnings,
+`make check-task-contracts` validates 144 tickets, and `git diff --check`
+passes. The five pressure regressions and both firmware runners pass. The
+full 2.22/2.39 release limitations recorded above remain open.
+
+Changed files for this step: `src/soc/apollo4/iom_sapporo235.c`, `iom.c`,
+`iom.h`, `iom_internal.h`, `iom_snapshot.c`, `apollo4.c`,
+`tests/devices/test_sapporo_235_pressure.c`, the new
+`tests/integration/test_firmware_sapporo_235_pressure.sh`, and the preceding
+production runner. Planning adds ticket 778 and its index row; its status
+remains ready for review. Public include headers and firmware files are unchanged.
+
+### Shared implementation
+
 - Dependency-free C99 headless build and optional SDL3 build.
 - Strict profile and firmware manifests with exact size and SHA-256 checks.
 - Fail-closed little-endian memory bus and stable integer-time scheduler.

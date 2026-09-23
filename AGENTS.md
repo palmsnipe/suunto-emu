@@ -90,6 +90,15 @@ the start of the turn and update it as each step changes state.
 - Tickets whose acceptance explicitly requires physical-device captures cannot
   be satisfied under this constraint; the integrator marks them `deferred` with
   a dated deferral note or re-scopes acceptance to lane-equivalent evidence.
+- Human decision (2026-09-23, project owner): for a behavior the lane cannot
+  observe or refuses to model, offline reverse-engineering of the hash-pinned
+  firmware and resource partitions (for example Ghidra analysis under
+  `../suunto-firmware/artifacts/analysis`) is an accepted additional evidence
+  class. Such an entry must name the exact input files and tooling with
+  SHA-256, record the derivation and the derived census in the entry itself,
+  and satisfy the same twice-reproduced requirement. It authorizes no value
+  the pinned firmware itself does not exhibit. First application: the ticket
+  788 compressed-texture (format 17) codec.
 
 ## Implementation Rules
 
@@ -100,10 +109,11 @@ the start of the turn and update it as each step changes state.
 - Preserve deterministic virtual time and stable event ordering.
 - Validate the full operation before state mutation, especially DMA, storage,
   parser, multi-register, and rendering operations.
-- New handwritten files should remain below 300 lines and all handwritten
-  files must remain at or below 500. A bounded change may touch an existing
-  file above 300 lines without a mechanical split when it does not materially
-  grow that file; split by responsibility before exceeding the hard limit.
+- Prefer focused handwritten files, using 300 lines as a review threshold
+  and 500 lines as a prompt to consider splitting by responsibility. These
+  are advisory guidelines, not hard limits: exceeding them is acceptable
+  when keeping related code together improves clarity. Do not split files
+  mechanically just to satisfy a line count.
 - Add no dependency to the normal headless build. Do not add platform-specific
   assembly, JITs, Unicorn, or a Renode runtime requirement.
 

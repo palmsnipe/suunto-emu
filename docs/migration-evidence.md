@@ -13,6 +13,208 @@ profile and gap conclusions without changing the original observation.
 
 ## Seed Evidence
 
+### E-EMU-SAP235-DMA-001
+
+2026-09-19; bounded maintenance against `5980046`. Sources: the complete-range
+DMA rule in `docs/execution-model.md`, the byte-wide memory/overlay contracts
+in `include/semu/bus.h`, E-SAP-0036's existing IOM4 law, and synthetic cases in
+`tests/devices/test_sapporo_iom4_dma.c`. No new lane behavior is inferred.
+The implementation previously read memory-to-peripheral DMA incrementally,
+mutating FIFO state before discovering a missing tail. Peripheral-to-memory
+DMA ignored bus write errors and still set completion after partial writes.
+Wide source copies also bypassed one-byte device overlays and incorrectly
+rejected transfers spanning adjacent memory regions.
+
+All four added cases fail before correction (`make test
+TEST_FILTER=sapporo_iom4_dma`, exit 2; external log
+`/tmp/suunto-iom4-dma-before.log`, SHA-256
+`275017025a5572643d87338a621e6e9d4bb45d98645700838a17514608a77312`).
+The fix admits every byte before changing command/FIFO/gauge/IRQ/memory,
+stages up to 4095 source bytes, and propagates the original mapping error.
+It preserves the lane-observed invalid-address-window status/IRQ path.
+The tests cover missing tails in both directions, a ROM destination,
+one-byte device overlays with zero callbacks, unchanged complete controller
+state/RAM on refusal, successful retry after mapping the missing tail, and
+adjacent-ROM source bytes delivered intact to the gauge.
+
+`make test TEST_FILTER=sapporo_iom4` passes all 13 cases. Two direct runs of
+`build/tests/test_sapporo_iom4_dma` give four passes and identical logs
+(`/tmp/suunto-iom4-dma-pass-{1,2}.log`), SHA-256
+`2d8532b2ee606c721cf28e0366827cb1b5fa5542e13f132e11ca89b226b4dd5c`.
+Confidence: high for these synthetic memory-admission properties; this does
+not add endpoints, DMA modes, scheduling laws, or firmware compatibility.
+
+The exact private manifest `tests/private/sapporo-2.35.34.18929/firmware.semu`
+is validated by the CLI before execution (all three profile-pinned components).
+One pre-fix and two post-fix runs of
+`build/suunto-emu run --profile sapporo-2.35.34 --firmware
+tests/private/sapporo-2.35.34.18929/firmware.semu --max-instructions 1000000000
+--max-time 300000000000 --trace /tmp/suunto-235-PASS.trace` reproduce
+E-SAP-0036 exactly: `stop=budget pc=0x000e1862 instructions=122878688
+virtual_time_ns=300000000000`, exit 3. External logs
+`/tmp/suunto-235-before.log`, `/tmp/suunto-235-after-{1,2}.log` all hash to
+`3f6e0818a4ba15a39c56299f6da22b30e49ed4ee1e56905a4d6c4b9d8771c938`;
+their corresponding traces are empty, SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+No UI progress beyond that cold-run boundary is claimed.
+
+### E-EMU-SAP235-SNAPSHOT-001
+
+2026-09-19; bounded snapshot-safety maintenance. E-SAP-0036 already records
+that the live 2.35 RTC and IOM4 are absent from vmstate. The public machine
+snapshot contract requires all mutable state. A new synthetic regression in
+`tests/devices/test_apollo4_snapshot.c` demonstrates that the old SoC reader
+nevertheless accepts a legacy image after selecting the live profile.
+`make test TEST_FILTER=apollo4_snapshot` fails that case before the guard
+(two existing cases pass; external log `/tmp/suunto-235-snapshot-before.log`,
+SHA-256 `df7a6252e68cbbdf109e14035d7cefea8a45ede24743fc073f1120763c9e58b5`).
+
+The SoC writer now refuses whenever either live module is selected; the
+reader uses that same writer to build rollback state before consuming bytes,
+so both directions refuse without mutation. The test proves unchanged reader
+offset, retained FIFO word, empty writer, and an explicit RTC/IOM4 diagnostic.
+Two direct runs of `build/tests/test_apollo4_snapshot` pass all three cases
+with identical logs (`/tmp/suunto-235-snapshot-pass-{1,2}.log`), SHA-256
+`6ff902a02aad1d54639841274b2a12b63e572aba62fc2df37804dbb53cce0712`.
+A validated CLI cold run capped at 1000 instructions/1000000 ns with
+`--snapshot-save /tmp/suunto-review-unsupported-235.sems` exits 2, reports
+`Sapporo 2.35 RTC/IOM4 snapshots are not supported`, and creates no image.
+Confidence: high for refusal safety. Full 2.35 snapshot support still requires
+codecs for both live modules, scheduler event identity/link validation, and
+cold-versus-resumed firmware equivalence. RTC ownership was addressed by the
+following maintenance entry. No format change or migration is introduced by
+this guard.
+
+### E-EMU-SAP235-RTC-OWNER-001
+
+2026-09-19; bounded ownership correction, preserving the E-SAP-0035 register
+and timing law. Source contracts: `docs/architecture.md` ownership/lifetimes,
+`include/semu/scheduler.h` owner-checked cancellation, and E-SAP-0035/0036.
+The old RTC lived in a process-global `rtc_instance`; mapping any Apollo4
+SoC detached it, and every Sapporo machine replaced its scheduler/IRQ binding.
+The synthetic public-API probe `/tmp/suunto-review-rtc-isolation.c`
+(SHA-256 `48559dbf42ed006813159dfb20ce5608b77193e29079357330f3b201dfda0baa`)
+sets machine A's RTC CTRL to `0x10`, creates a distinct 2.22 SoC B, and reads
+A's CTRL again. Before correction it changes to zero: two runs exit 1 and
+produce identical logs `/tmp/suunto-review-rtc-isolation-{1,2}.log`, SHA-256
+`1659c674ef9da202f68d48b43f4f83f9eac97c6004188911ec4dd16e22a97498`.
+
+Each live SoC now owns an allocated RTC, passes it as the existing bus callback
+context, and binds its existing scheduler/IRQ dispatcher at profile selection.
+Machine creation no longer attaches or clears global state. Reset preserves
+instance bindings; reset, rescheduling and destruction cancel only events
+whose ID, callback and context still belong to that RTC, protecting IDs reused
+after a scheduler reset. Destruction removes pending callbacks before freeing
+the instance; the scheduler must outlive the RTC. No public header, register
+law, guest cadence, snapshot bytes, or profile selection default changes.
+
+`make test TEST_FILTER=sapporo_rtc_ownership` fails all three new cases before
+the correction; log `/tmp/suunto-rtc-ownership-before.log`, SHA-256
+`6c0831790e175a264f85654cc8b79d0351ec8cd0199c22f24300e21f0946e605`.
+They now pass: creation/reset/destruction of an unrelated profile preserves
+the first clock; two live RTCs keep independent clocks, pending alarms and IRQ
+sinks; destruction cancels only owned work, including the reused-event-ID
+negative control. Two direct binary runs produce identical three-pass logs
+`/tmp/suunto-rtc-ownership-pass-{1,2}.log`, SHA-256
+`80c39b6caf10dc82867932686aad619494633f2a37ddb99cd4f34af3b6bb0182`.
+The original eight RTC cases retain their register, IRQ and three-pass firmware
+checkpoint expectations; their fixture now destroys its SoC and filters the
+shared SoC IRQ sink to RTC line 2 instead of receiving the old private sink.
+
+The same external isolation probe linked against the correction preserves
+`0x10`, exits zero twice, and produces logs
+`/tmp/suunto-review-rtc-isolation-fixed-{1,2}.log`, SHA-256
+`af78457b0526eb7be626555e8b7a205e20136628b94f7b4f35607e2380d068d9`.
+Two final 300-second cold runs use the command in E-EMU-SAP235-DMA-001:
+`/tmp/suunto-235-owned-{1,2}.log` still hash to
+`3f6e0818a4ba15a39c56299f6da22b30e49ed4ee1e56905a4d6c4b9d8771c938`,
+with empty traces of SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+Confidence: high for the tested ownership/lifetime correction. The live-module
+snapshot refusal remains necessary. This does not establish whole-machine
+concurrency for unrelated devices, nor add any new lane or UI behavior.
+
+### E-EMU-SAPPORO-AUDIT-001
+
+2026-09-19; emulator review and bounded maintenance validation against
+`5980046`. Sources: exact profile-validated private firmware manifests,
+existing firmware gates and their retained baseline census. This entry records
+emulator behavior and static diagnosis, not new lane-observed hardware laws.
+No firmware bytes, pixels, raw logs, or relaxed goldens are committed.
+
+Final `make check` passes 939 cases, including five SDL cases (exit 0;
+`/tmp/suunto-review-check-owned.log`, SHA-256
+`8daea1b0699bbb42d65a201543efe636d4c8941100400111c141db876f43dd6b`).
+Final `make sanitize` passes 934 cases (exit 0;
+`/tmp/suunto-review-sanitize-owned.log`, SHA-256
+`636ec7d81cbd4ae4753939be33b0b6f6812ecec57c5304397f55e1eaea86c2f5`).
+`make all sdl`, `make check-lines`, `make check-task-contracts` (143 tickets)
+and `git diff --check` pass. File-size warnings are now advisory as requested;
+the 511-line RTC and an isolated synthetic 501-line file both warn without
+failure. These checks do not replace the full private firmware gates below.
+
+The baseline `make check-sdl` exits 2: its short input walk passes, and the
+long walk reaches step 30, generation 4403, CRC `fb8e0155`, at 38231199108 ns.
+The final tuple is `stop=budget pc=0x0005a8f8 instructions=40000000000
+virtual_time_ns=69612174532`, instead of the historical
+`stop=halt pc=0x000727ca instructions=14178200857
+virtual_time_ns=43790375389`. Its disabled-case branch is not reached.
+External log `/tmp/suunto-review-sdl.log`, SHA-256
+`e191edfb248a019ea8ab70e471ddb5158d2edeae5241ecd84743fe32a55f9ef3`.
+After all runtime fixes, `sh tools/test_sdl_live_input.sh` passes again with
+`stop=user pc=0x000bacf4 instructions=774081920 virtual_time_ns=6520939902`;
+log `/tmp/suunto-review-sdl-live-final.log`, SHA-256
+`228575cb7c370d51649adcd05eb6ae3bc055c22bcd177c7ba3c9381300d5d263`.
+
+Static Capstone 5.0.7 inspection of the 2.22 application SHA-256
+`c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc`
+confirms the budget PC branches to itself; `000727c8` is a breakpoint and
+`000727ca` returns through LR. External probe source
+`/tmp/suunto-review-222-stop.py`, SHA-256
+`cd042bea98c457ebfe07935f3b0761e041dffc5d57ec9bafa86120a490f4d4c4`;
+two identical derived logs `/tmp/suunto-review-222-stop-{1,2}.log`, SHA-256
+`b6f29f252c03009d0f792baa84fa891052cd18326dceecad6b2de2e72dd5686b`.
+Derived census: one terminal self-branch, one historical breakpoint, one
+historical return. This identifies the terminal instruction only; no call path
+or correction to the existing E-ULS-0041 CPU semantics is inferred.
+
+A single validated 2.33 CLI audit uses `build/suunto-emu run --profile
+sapporo-2.33.16 --firmware tests/private/sapporo-2.33.16/firmware.semu
+--max-instructions 100000000 --max-time 3000000000 --trace
+/tmp/suunto-review-233.trace`. It exits 3 at
+`000a4c78 / 100000000 / 372326454`, with two reset requests at `000c97f2`
+(times 175577735 and 347614991 ns), and zero compatibility hits. Log
+`/tmp/suunto-review-233.log`, SHA-256
+`a099676c6537e375c55c2aa6766cceb6b2d24443f71c16559d6a47fa44588213`;
+trace SHA-256 `704dfae2d63a06aa106664a54ea6ee76518fe3ed44776ce196215372f939adb7`.
+This single audit is not implementation evidence or a working UI claim.
+
+`SEMU_SAPPORO_239_FULL_FLASH=/tmp/sapporo-239-full-flash-exact.bin make check-era`
+uses full-flash SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`
+and the validated 2.39 manifest. It exits 2: 27 of 43 scripts pass; 16 fail.
+The derived failure list below uses the suffix after
+`tests/integration/test_firmware_sapporo_239_`, before `.sh`:
+
+```text
+gpio_wt1 haptic haptic_calibration history_budget lps22
+ohr2_boot_mode ohr2_bsl_identity ohr2_echo ohr2_main_identity
+ohr2_result_13 ohr2_result_14 ongoing preload1 quiet_read widgets zip_read
+```
+
+The sorted names exactly match the retained E-SAP-ERA-GATES-239-001 baseline list
+`/tmp/sap235/era_0037_set.txt`, SHA-256
+`19e7541c00cdba4bcb1de2bb2e500b328fec8c9748f81275d1de141ca38c4314`.
+Current log `/tmp/suunto-review-era.log`, SHA-256
+`2c863b372a98b55336672f8b53205df3eb23df5487a91496f985e8ec38aa19a6`.
+This is one sweep spanning the maintenance session; binaries were rebuilt
+while it ran. The corrected live RTC/IOM4 paths are selected only for 2.35.
+The census establishes no additional failing script, not byte-identical
+whole-suite behavior or complete 2.39 compatibility. No pin is changed.
+Full census repair exceeds ticket 777's current six allowed scripts and needs
+an integrator scope update. The long 2.22 endpoint, later-version UI progress,
+2.35 snapshot codecs and previously deferred GPS behavior remain open.
+
 ### E-EMU-NEMA-CALLBACK-001
 
 2026-09-08; ticket 761 callback-lifecycle audit after `cfce2a1`. Sources:
@@ -3308,3 +3510,3132 @@ references rather than product inputs.
 | E-CPU-0005 | 2026-08-13; Arm, *Procedure Call Standard for the Arm Architecture*, AAPCS32 document IHI 0042J, ABI release 2020Q2; FreeRTOS-Kernel `V10.4.6` ARM_CM4F port at peeled commit `a4b28e35103d699edf074dfff4835921b481b301` | AAPCS32 [exact Arm ABI repository revision `ee4b3c12d57c8424ff60c2ae56e10690d0604ab6`](https://github.com/ARM-software/abi-aa/blob/ee4b3c12d57c8424ff60c2ae56e10690d0604ab6/legacy-documents/aapcs32/ihi0042_J/IHI0042J_2020Q2_aapcs32.xhtml), document `IHI0042J_2020Q2_00_en`, source SHA-256 `92d7c399a47fa31451703f6a9c07c965daf5de399282310c74d3f05ac4741a57`; FreeRTOS [`portable/GCC/ARM_CM4F/port.c`](https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/a4b28e35103d699edf074dfff4835921b481b301/portable/GCC/ARM_CM4F/port.c) and [`portmacro.h`](https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/a4b28e35103d699edf074dfff4835921b481b301/portable/GCC/ARM_CM4F/portmacro.h). Source SHA-256: `port.c` `8aa709759655b1711b28ea943b232a8c7f3ddbbb06f6c05f4328c681b223a734`; `portmacro.h` `a0cc3996ab10e9dce31b6665502e7a1328d134383d467b16e0aab205a7b07ccb` | AAPCS32 §§5.1–5.2 (data types, endianness, alignment), §6.1 (core registers), §6.2.1 (stack and universal stack constraints), §§6.3–6.6 (calls, returns, parameter passing, interworking), and §7.1 (VFP register arguments) define the ABI assumptions. The exact FreeRTOS port is used only as a synthetic-gate shape reference: `port.c` lines 189–220 (`pxPortInitialiseStack`), 247–321 (SVC/startup), 368–390 (VFP enable and FPCCR), 439–495 (PendSV), 496–518 (SysTick), and 712–731 (VFP enable); `portmacro.h` lines 172–239 cover interrupt-state and BASEPRI helpers. | `fixtures/synthetic/rtos/**` and `tests/integration/test_cpu_rtos_guest.c` in ticket 280; ABI/context handoff to ticket 275. No FreeRTOS source, binary, or copied implementation is part of this repository. | High for the named ABI release and exact upstream revision. The port is a gate-shaping reference only, not evidence that the emulator matches FreeRTOS or a product firmware; the synthetic checkpoint/hash remains to be produced by ticket 280. |
 | E-CPU-0009 | 2026-08-14; Arm, *Armv7-M Architecture Reference Manual*, ARM DDI 0403E.e, ID021621, FPv4-SP compare/conversion/immediate rules | [Arm documentation-service PDF](https://documentation-service.arm.com/static/606dc36485368c4c2b1bf62f); SHA-256 `76500176d20f897eaf05eeadb5a6202cef641e332073b107905c8898e0ee0747` | Ticket 270 uses the exact A2.5 pseudocode and instruction entries: `FPCompare` and its N/Z/C/V table (A2-53–A2-54) produce less `1000`, equal `0110`, greater `0010`, and unordered `0011`; signaling NaNs always set IOC and `VCMPE`/quiet-NaN exception mode also sets IOC, while `VCMP` with a quiet NaN does not. `FPToFixed` and `FixedToFP` (A2-58–A2-59) define FPSCR-directed versus round-toward-zero conversion, ties-to-even, signed/unsigned `SatQ` results, IOC on saturation/NaN/infinity, and IXC only for non-overflowing inexact finite results. A7.7.226 (A7-457–A7-459) pins VCMP/VCMPE register and +0 forms; A7.7.228 (A7-460–A7-463) pins signed/unsigned 32-bit VCVT/VCVTR and the `sz=0` single-precision forms; A7.7.229 (A7-463–A7-465) pins S16/U16/S32/U32 fixed-point widths, legal fraction ranges, source low-bit extraction, sign/zero extension, round-toward-zero float-to-fixed, and round-to-nearest fixed-to-float; A6.4.1/A6-166–A6-167 pins `VFPExpandImm` for binary32 modified immediates; A7.7.239–A7.7.240 (A7-478–A7-480) pin VMOV immediate/register. The ticket implements only FPv4-SP `sz=0` forms; double-precision and FPv5-only forms are explicit refusal cases. | `src/cpu/armv7m/{fpu_convert.c,fpu_softfloat.c,fpu_softfloat_convert.c,fpu_softfloat.h,fpu_softfloat_internal.h,armv7m_internal.h,thumb32_fpu.c}` and `tests/fixtures/cpu/fpu-convert/**`; exact raw S-register/FPSCR vectors, including comparison flags, conversion saturation, NaN/invalid, rounding modes, modified-immediate classes, and reserved/double refusals. | High for the cited primary document, exact revision, pseudocode, and opcode pages. No target-specific conversion deviation is asserted; unreferenced FPv5/double forms remain outside this ticket. |
 | E-CPU-0010 | 2026-08-14; Arm, *Armv7-M Architecture Reference Manual*, ARM DDI 0403E.e, ID021621, FP exception context and lazy preservation | [Arm documentation-service PDF](https://documentation-service.arm.com/static/606dc36485368c4c2b1bf62f); SHA-256 `76500176d20f897eaf05eeadb5a6202cef641e332073b107905c8898e0ee0747` | Ticket 275 uses B1.5.6–B1.5.8 and Figure B1-4 as the exact context contract. Basic frames are 0x20 bytes with R0/R1/R2/R3/R12/LR/return PC/xPSR at offsets 0x00–0x1c. Extended frames are 0x68 bytes: the same basic frame remains at 0x00–0x1c, S0–S15 are at 0x20–0x5c, FPSCR is at 0x60, and the reserved word is at 0x64. Extended entry forces 8-byte alignment and records a pre-entry 4-byte alignment in stacked xPSR[9]. If CONTROL.FPCA is 1, entry selects an extended frame; with FPCCR.LSPEN clear it eagerly writes S0–S15/FPSCR, and with LSPEN set it reserves the FP area, writes only the basic words, sets FPCAR to frame+0x20, and sets FPCCR.LSPACT. The first permitted FP instruction while LSPACT is set writes the saved S0–S15/FPSCR to FPCAR and clears LSPACT before executing the instruction. Exception entry clears CONTROL.FPCA; exception return sets it to the inverse of EXC_RETURN[4]. The FP extension defines six valid tokens: 0xffffffe1/0xffffffe9/0xffffffed for Handler/Thread-MSP/Thread-PSP Extended and 0xfffffff1/0xfffffff9/0xfffffffd for the corresponding Basic frames. S16–S31 are unchanged by hardware stacking. B3.2.21–B3.2.22 define FPCCR status/control fields and FPCAR alignment; B3.2.18 and B3.2.20 define MLSPERR/LSPERR for delayed FP preservation faults. The synthetic profile chooses zero for architecturally UNKNOWN handler FP registers and post-preservation FPCAR, while preserving all stacked raw bits for exact return. | `src/cpu/armv7m/{fpu_context.c,exception.c,scb.c,fpu_transfer.c,thumb32_fpu.c,thumb32_system.c,armv7m_internal.h}` and `tests/fixtures/cpu/fpu-context/**`; positive and refusal tests cover basic/extended/lazy frames, nested MSP/PSP returns, alignment, exact FP restoration, invalid frames/tokens, and delayed-preservation faults. | High for the exact primary document and revision. The zero choice for architectural UNKNOWN values is an explicit deterministic synthetic-profile policy; no Apollo4-specific context deviation is asserted. |
+
+### E-SAP-0038 — 2.35 missing manufacturing records select limited boot mode
+
+Ticket 710 instance 8, 2026-09-19. Dependency 705 is done. The selected
+change is one explicitly enabled synthetic-state layer for the exact 2.35
+profile; its module, internal header, focused tests and the existing board
+layer attachment are in scope. No sensor behavior, CPU instruction, profile
+hash, public interface or release pin is changed.
+
+The read-only `sapporo-2.35.resc` lane, with the matching OTA resources in an
+external 32-MiB XIP memory fragment, was run for exactly 2 virtual seconds.
+Observer hooks only read registers. Control and production runs were each
+reproduced twice. Each four-line `SAP235_MODE` census is byte-identical after
+removing host timestamps; raw logs remain outside Git:
+
+| External artifact | SHA-256 |
+| --- | --- |
+| `/tmp/suunto-235-lane-control.resc` | `8e573c509466d17e166b2c0e250b87c0168e9713f18ae87774b2f0ba655e64b9` |
+| `/tmp/suunto-235-lane-production.resc` | `b2d5cf5b7023206f32928569d6700c878b5f7b32f2e2e5eec397725c2e10c766` |
+| `/tmp/suunto-235-lane-xip.repl` | `5baccffc4e00dcf9a509d08c77aa9ed0dcaf8b0c6a8880d8bddcddb92b5a2ca1` |
+| `/tmp/suunto-235-lane-control-1.log` | `ff04b5b0653954b237471b4d5167f8f59c8e8202b831f79735606780a921df22` |
+| `/tmp/suunto-235-lane-control-2.log` | `8c5551f1aa6d94d650983f0897fb93298e299989917671b7eb15b6a70cad1f03` |
+| `/tmp/suunto-235-lane-production-3.log` | `b522b889e10f97e884701e1c1609ba0f58011444c9cfd6a545c6c1adeb3ad2f4` |
+| `/tmp/suunto-235-lane-production-4.log` | `07ff5abe1f8eaf2a5bbcf9573aa4b6bd6cfc142e3c5c4385f65b09871030d2fe` |
+| control census pair | `2d8d5e2317ce47f7453af01dcf91b39f240e8db6f72f9cd01d2ef33164afb145` |
+| production census pair | `3748fbbf1d0f862acc71380a840e65db54a6e846a36464606a50340c7ed95413` |
+| `/tmp/suunto-235-production.bin` | `c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53` |
+
+Derived census (hexadecimal registers; each row occurs once per run):
+
+| PC | Control r0/r4/r5 | Synthetic-record r0/r4/r5 |
+| --- | --- | --- |
+| `000a839e` | `fffffffd/1000a91c/00000005` | `00000000/1000a91c/00000005` |
+| `000a83e8` | `00000016/1000a91c/00000005` | `000fbc3e/1000a91c/00000005` |
+| `000a8018` | `7317f137/00000000/00000002` | `80000000/000fbc3e/00000005` |
+| `000e245c` | `00000002/10025544/10056a84` | `00000005/10025544/10056a84` |
+
+The fixture was generated outside the repository with the sibling's existing
+`tools/build_production_data_fixture.py`, using `--crc-table-address 0x1b1644`
+and the pinned 2.35 application. Its record container matches
+E-SAP-COMPAT-PROD-001: ProductionData plus ACCR/ACCC/MAGN/HLAT in a 4096-byte
+sector at `14fff000`, 256-byte records, CRC over the first 252 bytes, active
+byte and version. All identity and calibration payloads are synthetic; their
+acceptance does not establish physical calibration. Record CRCs are
+`a2c492a6/7310559d/717aee21/b7717e8b/9f42edf7` in that order.
+
+Static inspection of the pinned application identifies the checksum table at
+`001b1644` and production reader `000ce3d8`; return -3 is the failed checksum
+path. The lane observation, not disassembly alone, establishes the accepted
+record effect. Lane setup still emits its pre-existing RTC SilenceRange
+conflict warning; the hooks and both bounded runs complete. The external XIP
+fragment avoids re-registering the lane's existing MSPI1 controller.
+
+In-tree observational probes independently reproduce mode 2 without the
+record and mode 5 with it. The next refusal is an IOM2 read at
+`pc=0014abaa`, address `5c`, command `0f000112`, count 1, target `1002f830`:
+`I2C address 0x5c has no verified device`. It triggers the firmware fault/reset
+path. This is a separate gap; this entry does not authorize a sensor fallback.
+Probe `/tmp/suunto-235-production-probe.c` SHA-256
+`965c513edbe215862312438140c55c971796315f5edd0d9c26a67d6f8e4039de`,
+observer `/tmp/suunto-235-mode-cpu.c`
+`954347ff24d2a222ead15f3180779efd67dee6aa75eb71992316b64557c64995`,
+and diagnostic log `/tmp/suunto-235-production-diag2-1.trace`
+`bbaf45e3c4ff89b92672f07e2ad38dbedb003e9e2f818bb0d7386116b0a1140a`
+record that next boundary (80M-instruction/3-second limits).
+
+Layer declaration: `sapporo-2.35-production-data`, synthetic state, exact three
+component hashes from the 2.35 profile, cold/reset installation into an empty
+(all-zero or all-FF) sector or an exact retained copy of this synthetic fixture,
+one hit per machine reset, logged
+`layer-hit` with `trigger=production-data`, ordinal and E-SAP-0038 provenance.
+An unrelated populated sector, disabled/wrong layer, exhausted budget, missing mapping or
+missing logger refuses before mutation. The immutable single-trigger descriptor
+keeps its counter in the machine's layer state. Manufacturing bytes cannot be
+recovered from OTA components; the lower-level representation is this explicit
+synthetic storage record, not a firmware hook. No authentic identity is claimed.
+
+Implementation validation for E-SAP-0038:
+
+- Source lane `../suunto-firmware/emulator/renode/sapporo-2.35.resc` SHA-256
+  `7314f30f2341ffa743926190ce9e1c347605579ea0b5691fd1f5c55f6ed1f75c`;
+  fixture generator `../suunto-firmware/tools/build_production_data_fixture.py`
+  `58c90b029e6901a266704afb2a9f20e8bcd3812b32361d13156d4db215ef3f4c`.
+  Lane command, from the sibling root: `.tools/renode/Renode.app/Contents/MacOS/renode
+  --console --disable-xwt /tmp/suunto-235-lane-production.resc` (or control).
+- `make test TEST_FILTER=sapporo_235_production`: five synthetic tests pass:
+  record layout plus independent bitwise CRC, atomic refusal, short mapping,
+  all three hash mismatches/wrong profile/missing hash, and reset/independent
+  ownership. Blank all-FF storage succeeds too. An exact copy of this fixture
+  is accepted after a firmware reset preserves XIP memory; unrelated populated
+  data still refuses. This qualifies the empty-sector trigger above.
+- The integrated emitter's sector is byte-identical to the lane fixture
+  (`c0881606…619a53`). Observer `/tmp/suunto-235-integrated-probe.c` SHA-256
+  `dbfe9512c559f6e661fa86a83693d1cfa8824e80699ba85995977778524f90ad`
+  records all four successful reader returns and mode 5 at instruction
+  22889731, PC `e245c`. Trace `/tmp/suunto-235-integrated-mode.trace` SHA-256
+  `14011b2a011569134adb166368f7826a700fb71d2803231ec0f78e6d058e455e`.
+- `build/suunto-emu run --profile sapporo-2.35.34 --firmware
+  tests/private/sapporo-2.35.34.18929/firmware.semu --layer
+  sapporo-2.35-production-data --max-instructions 30000000 --max-time 1000000000`
+  twice exits 3 at `000932a8 / 30000000 / 35339893`, one layer hit, no reset.
+  `/tmp/suunto-235-integrated-{1,2}.log` both SHA-256
+  `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba`.
+- Same command with `--max-instructions 80000000 --max-time 400000000`
+  twice exits 3 at `000cc418 / 77309520 / 400000000`. Exactly one firmware
+  reset is requested at `cdf5a / 73523963 / 396214443`, exception 3, LR
+  `ffffffed`. The layer logs once before that reset and once after it, with
+  ordinal 1 in each reset epoch. `/tmp/suunto-235-next-{1,2}.log` both SHA-256
+  `a5629499c8bad5b8ca5e3897103c2f4a7e32a602ab133116fbe47f7c30ca46bc`.
+- `make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235_production
+  SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`
+  validates all components and passes the new bounded paired regression.
+  `/tmp/suunto-235-production-firmware.log` SHA-256
+  `0a9ad72ef1dca6e71fb58be93d168ec3b32ef945a4b942fea5956e4bcfb34643`.
+
+This is a completed bounded record intervention, not a completed Sapporo
+release gate or a status change to ticket 710. No snapshots are claimed for
+2.35. Prior 2.22 onboarding and 2.39 era failures remain open.
+
+### E-EMU-SAP235-INPUT-HARNESS-001 — bounded input test refusals
+
+Maintenance, 2026-09-19; no guest behavior or checkpoint changes. The private
+input test accepted 32 presses into a 32-edge array, ignored integer overflow,
+spun indefinitely on a refused machine run, and reported malformed supplied
+firmware as an optional skip. The repair limits the array to 16 presses,
+checks millisecond conversion plus release-time addition, returns on refusal
+or no progress, and distinguishes absent optional fixtures from invalid or
+explicitly missing inputs.
+
+`make test TEST_FILTER=sapporo_235_input` adds three synthetic regressions.
+Capacity and time-overflow checks fail before the parser fix; the old sliced
+runner, called with a null machine from an external wrapper, exceeds a
+2-second host timeout. The corrected wrapper immediately preserves
+`SEMU_ERR_ARGUMENT`. Malformed, wrong-version and explicitly missing manifest
+runs exit 1; an absent conventional fixture still skips and exits 0. None of
+the three authentic input checkpoint expectations changed.
+
+| External log | SHA-256 |
+| --- | --- |
+| `/tmp/suunto-235-harness-before.log` | `ada409e853ecc933b21d6b364d039ebbcf5692f6b8a54d2f8e15f39a2fef0227` |
+| `/tmp/suunto-235-run-refusal-before.log` | `8ee51708abad88dc19be18624ee1ad47d8f7d3460bc7282283f2d71d3229068c` |
+| `/tmp/suunto-235-run-refusal-after.log` | `5e86ea95d93d1a344be4adb4309122f7c75552e4f60f3242cb4c3ef5092a7041` |
+| `/tmp/suunto-235-invalid-before.log` (false pass) | `c2628f336a153d1fdfbdbcdf2dd757a4efe0105ad768a6b67cb8018e00d3ccb2` |
+| `/tmp/suunto-235-invalid-after.log` | `9af8c51988c36a458ff0f9bbff83d6a2a43f07331361e9836520b9d7da4f907b` |
+| `/tmp/suunto-235-mismatch-after.log` | `a0dd56ba7c0c39157af8ee7cdbc5ad8bc3d7a6d77af528bdd15cba6111a5b52a` |
+| `/tmp/suunto-235-missing-after.log` | `aff3d9de8cbc22c76aba172e1eb49457cece7eb0f3e6b1b1338cbd8daf0c912e` |
+| `/tmp/suunto-235-absent-after.log` | `d3cea952961bb03287b6aacbdb7e0d413eaaed956ac62f217e967c4c56a0f078` |
+
+Commands for supplied-fixture refusals are
+`SEMU_SAPPORO_235_FIRMWARE_MANIFEST=PATH build/tests/test_sapporo_235_input`,
+with PATH respectively `/tmp/suunto-235-invalid.semu`, the 2.33 manifest,
+and `/tmp/suunto-no-such-fixture.semu`; the absent test runs the same binary
+by absolute path from `/tmp` without the variable. The two before-parser
+failures used `make test TEST_FILTER=sapporo_235_input`.
+
+The E-SAP-0037 timeline was also extended to 2B instructions/120 seconds
+in `/tmp/suunto-235-frontier.c` (SHA-256
+`825353ed56f839af1ff2619a553a49302497a24014c2070d98387bc8a52ecb6d`),
+with 200000-instruction/100000000-ns slices and the same eight presses.
+Both `/tmp/suunto-235-frontier-{1,2}.log` have SHA-256
+`c0bb7a6e06c64a5112e07cb0d4306bb020e41ad345c15904fc85b02d1ebde8cf`:
+all 16 edges delivered, zero frames, 10023 slices, final
+`000cd0c8 / 2000000000 / 81142979747`. Merely extending the input budget
+therefore does not establish a working UI in limited boot mode.
+
+### E-EMU-SAP222-PANIC-001 — script allocation failure behind historical halt
+
+Read-only diagnostic, 2026-09-19; no instruction, allocation policy, firmware
+or expected stop was modified. Two replays of an in-tree checkpoint identify
+the failure behind E-EMU-SAPPORO-AUDIT-001. This is in-tree diagnostic evidence,
+not new lane authority for guest behavior.
+
+Capture command (the fast build uses the same interpreter):
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm \
+SEMU_SDL_SETUP_WALK_TIMELINE='30000:l' \
+build-fast/suunto-emu-sdl run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --max-instructions 14000000000 --max-time 300000000000 \
+  --snapshot-save /tmp/suunto-222-beforepanic.sems
+```
+
+It exits 3 at `6e78e / 14000000000 / 43612174532`; the main-menu frame remains
+CRC `fb8e0155`, generation 4403. Snapshot SHA-256
+`88d89cc8bc06084912eaf61126cf9548b04d9712c74e695cb7831136c1868925`,
+capture log `/tmp/suunto-222-beforepanic.log`
+`10f0a6b4d73f2a83e105d472d326cd58fafbf2ecaadc4ff21381c6f1e7128c58`.
+
+External observer `/tmp/suunto-222-alloc-probe.c` SHA-256
+`e028099554e5811230f4c3e3375d5bf31667fd5704ef3281947ea0fa04d35685`
+loads that checkpoint and executes at most 180201000 single-instruction
+machine calls (each capped at 1 ms), reporting selected PCs/registers without
+mutation. Both `/tmp/suunto-222-alloc-early-{1,2}.log` are byte-identical,
+SHA-256 `9b72e5027de8546b4c59f867e440fcd62387541565e5d4f5cdc499c3a7fe7db0`.
+
+Derived final failure chain:
+
+- The pool allocator's failure return `6a75c` reports request size `r6=50`
+  (80 bytes) eleven times: initial attempt at instruction 14156108860,
+  then ten GC/retry attempts ending at 14168086274. All return zero to the
+  script allocator. The final retry index is 9 at `5f326`.
+- Property-table growth at `600f6` receives zero at instruction 14168086282;
+  the error path `57b7c` follows at 14168086305. Later error-object allocations
+  succeed; this is exhaustion of a suitable pool, not a claim that all memory
+  is unavailable.
+- At 14168090283, `5ec6e` finds no protected error handler. At 14168090291,
+  callback `79f60` receives the exact bounded ASCII message `uncaught error`.
+  The guest assertion identifies `peScriptEngine.cpp:46`.
+- `727c8 / 14178200856 / 43790375388` precedes BKPT. Stepping retires it to
+  `727ca / 14178200857 / 43790375389` (the historical halt tuple), then returns
+  to `5a8f8 / 14178200858 / 43790375390`, the fatal handler's self-loop.
+  The 40B budget failure is downstream of this same panic.
+
+The last step pair uses `/tmp/suunto-222-panic-probe.c` SHA-256
+`48a07599eedaab04f5f7e74ebdfd7ea181cfe0bc1b5da3d48c1f57c8a5974e6a`;
+`/tmp/suunto-222-panic-probe-{1,2}.log` both SHA-256
+`ccd2c780653772975d63b6c75ebb758803892c819deb1a373560b084cf622092`.
+Why this pool exhausts, and whether the allocation history diverges from the
+lane, remains unresolved. Increasing heap sizes or bypassing the assertion
+is not authorized by this observation.
+
+Final tree verification after the input maintenance and E-SAP-0038:
+`make check` exits 0, 947 PASS records including five SDL cases;
+`make sanitize` exits 0, 942 PASS records; `make check-lines` exits 0 with
+advisory warnings; `make check-task-contracts` exits 0 with 143 indexed tickets;
+`git diff --check` exits 0. Log SHA-256 values:
+
+| External log | SHA-256 |
+| --- | --- |
+| `/tmp/suunto-production-check.log` | `3d5e099af43fd6e103cefcb04606796ca27360e718523b8756dec14375b0f23a` |
+| `/tmp/suunto-production-sanitize.log` | `57a1994689ce2d8c38ec9126329381b9549f9f66d2c26beb83be43a4a2f4e2d9` |
+| `/tmp/suunto-production-lines.log` | `238d2e497bd8e5b69b87c19203a9f2532a3c507b71697d761ad64fae84e65075` |
+| `/tmp/suunto-production-contracts.log` | `9f13a69216cc5312ec45f909882c084d77c00db1db803bd4023cd265cd1dbfca` |
+
+The affected profile's new opt-in era runner passes; neither the established
+2.22 long-walk failure nor the 2.39 16-script failure set was silently re-pinned.
+
+The ticket-form command also passes: `make test-firmware
+FIRMWARE_ROOT=/tmp/suunto-235-fwroot TEST_PROFILE=sapporo-2.35.34`.
+The external root contains only a symlink to the original private bundle;
+all three components validate, the 2.35 runner passes, and other-profile
+runners explicitly skip. `/tmp/suunto-235-ticket-firmware.log` SHA-256
+`058c6e698cfafb2a2bfbe943ef2b4d1760239243491c9f6785fca6721ed298c0`.
+
+### E-SAP-0039 — 2.35 negative pressure identity probes
+
+Ticket 710 instance-9 derivation; implementation scope is integration ticket
+778. On 2026-09-19, the unchanged 2.35 lane with E-SAP-0038 synthetic records
+was run for two virtual seconds, twice. Hooks at `14aba6` (before command)
+and `14abaa` (after command/interrupt service) only read registers. The lane
+has no LPS22 at either 0x5c or 0x5d: this is an absent-sensor probe, not
+permission to attach the 2.39 sensor.
+
+`/tmp/suunto-235-pressure-law.resc` SHA-256
+`5a6c6714b61b20b227c800836ca9f373bad0678fd1cf11df5370e8d29f896fac`
+includes the pinned 2.35 lane, external XIP fragment and production fixture
+from E-SAP-0038. The read-only wrapper
+`../suunto-firmware/emulator/renode/iom4/SapporoApollo4Iom4.cs` SHA-256 is
+`b1d1dc8ee41ed84a52d22e3dd510ffb88950619638c93fc57cb43facfe8f1be7`.
+Run from the sibling root with `.tools/renode/Renode.app/Contents/MacOS/renode
+--console --disable-xwt /tmp/suunto-235-pressure-law.resc`.
+
+Raw logs `/tmp/suunto-235-pressure-law-{1,2}.log` have SHA-256
+`e1ae6896a1ce4fbd4ccfc3a34da3f56af3d831586605416898c7820fa7754da8`
+and `edfb91d9ad4f9c43c6abb3071c462e805d88df0201e5444d4743c134b00a6268`.
+Removing ANSI/host timestamps and retaining the 22 `SAP235_PRESSURE` hook
+records plus twelve halted-controller readouts produces identical censuses,
+SHA-256 `e9eccd183c457ef1bdc164992c7d9c45a0c164b2d738c48a0c5946832faa4190`.
+
+Derived native census: six transactions at 0x48 (identity read selector 00
+returns 49, read selector 1c returns e0, four two-byte writes), one identity
+read each at 0x5c and 0x5d, and three transactions at 0x35 (two two-byte writes,
+one 23-byte read). The absent-sensor commands are exactly `0f000112`, count
+1, target `1002f830`. The target starts at zero and remains zero, DMA status
+is 2; after native ISR service the interrupt status is zero. Both absent
+probes are followed by magnetometer and OHR startup rather than a fault reset.
+
+After the two-second run, CPU execution is paused. Each absent address is
+probed separately with submodule 10, interrupts disabled/cleared, target
+`10010000` initialized to `000000a5`, count 1, config `101`, command
+`0f000112`. The exact six readouts, identical for 0x5c and 0x5d, are:
+
+| Readout | Value |
+| --- | --- |
+| target word | `00000000` |
+| INTSTAT | `00000442` (DMA complete, RX FIFO underflow, threshold) |
+| DMASTAT | `00000002` |
+| DMACFG | `00000100` |
+| DMATRIGSTAT | `00000004` |
+| CMDSTAT | `00000020` |
+
+The wrapper drains an empty delegated FIFO after the absent-address error,
+then completes its DMA. This observation authorizes only the exact one-byte
+negative identity probe and its controller status, with checked RAM admission.
+It does not authorize arbitrary absent devices, register values or lengths.
+CMDSTAT is recorded as lane context, not a new generic register implementation.
+Controller config bit 8 is retained for this profile; its codec is explicitly
+unsupported rather than changing the shared snapshot format.
+
+E-SAP-0039 implementation and validation (ticket 778):
+
+`iom_sapporo235.c` implements the exact negative probe at the controller
+boundary. The SoC selects it only on the 2.35 IOM2; its enable flag is owned
+by that controller. It requires command `0f000112`, count 1, config `101`,
+I2C submodule 10 and an attached endpoint. It checks a one-byte RAM write,
+then commits zero data, DMASTAT 2, DMATRIGSTAT bit 2, clears DMA enable, and
+sets INTSTAT `442` through the ordinary IRQ path. Configuration bit 8 is
+retained only for this controller/profile. Other addresses retain the generic
+strict path. There is no fake LPS22 identity or new compatibility layer.
+Direct IOM2 snapshot operations refuse before consuming/writing codec bytes.
+
+The four initial regression cases all fail before implementation
+(`/tmp/suunto-235-pressure-before.log`, SHA-256
+`3920f163e6f12017866b83c90779e1a4b8255a11b8f456955f557aedd15948a6`).
+After implementation, `make test TEST_FILTER=sapporo_235_pressure` passes five
+cases: both exact positive tuples and IRQ rises across reset; seven atomic
+refusal variants (wrong selector/count/direction/enable/submodule, unmapped
+RAM and ROM); independent profile ownership plus unknown-address refusal;
+empty codec refusal; and a one-byte MMIO overlay with zero callbacks. The
+MMIO fixture uses the existing explicit overlay API; ordinary device mapping
+correctly rejected its overlapping setup. Final focused log
+`/tmp/suunto-235-pressure-tests-final.log` SHA-256
+`6069f6901b5918d47d2ab8135b78cf17746dacc1a1b7e50d47f3d8934327c8a7`.
+
+Paired authentic commands use `build/suunto-emu run --profile sapporo-2.35.34
+--firmware tests/private/sapporo-2.35.34.18929/firmware.semu --layer
+sapporo-2.35-production-data`, with these explicit bounds:
+
+| Bounds | Result (PC / instructions / ns) | Both log SHA-256 values |
+| --- | --- | --- |
+| 80M instructions, 400M ns | `000e1862 / 73528280 / 494546055` | `0ab8519944dce5e574e8cbb5b16d06bd798872204c5f602958c3c0cafabd2d81` |
+| 150M instructions, 3B ns | `000e1862 / 122589556 / 3000000000` | `4b6f2edb030d2eb32f4ca526768458e5ebe5500b1a09454116d451d7193ade1a` |
+
+Logs are `/tmp/suunto-235-pressure-next-{1,2}.log` and
+`/tmp/suunto-235-pressure-deep-{1,2}.log`; all exit 3 (`budget`), have exactly
+one production-layer hit and no reset. The 400-ms request stops after a
+sleeping CPU advances to its next scheduled event; the existing run loop's
+granularity accounts for the 494546055-ns result. The unchanged 30M prefix
+continues to match E-SAP-0038.
+
+The previous production runner's fault suffix (`a5629499…ca46bc`) is retired
+under ticket 778's explicit checkpoint scope, replaced with the exact new
+suffix plus a no-reset assertion. Its prefix is unchanged. The new pressure
+runner pins the three-second pair. `make test-firmware
+FIRMWARE_ROOT=/tmp/suunto-235-fwroot TEST_PROFILE=sapporo-2.35.34` validates
+all components and passes both scripts; other profiles explicitly skip.
+Log `/tmp/suunto-pressure-firmware.log` SHA-256
+`52a250611e0f517adff083156db21b8db7a489b63d6eaa0a273c9b3a596d4d92`.
+
+A longer diagnostic pair uses `/tmp/suunto-235-pressure-census` with
+`300000000 30000000000 200000 100000000` (instructions, ns, instruction slice,
+time slice). Observer `/tmp/suunto-235-iom-census.c` SHA-256
+`f0311e9afbec5f5c6511b721294a1d5b0e1b94019175f6196595d4522d245cf6`
+adds only command diagnostics to the current controller implementation;
+the machine driver and CPU observer are the E-SAP-0038 external sources.
+`/tmp/suunto-235-pressure-census-{1,2}.log` both have SHA-256
+`326492cbf082b987da778159ddf3f82c52285b3ce8013c6de75368853c4d09bb`;
+corresponding `.trace` files both have SHA-256
+`94e6b43c9097e6a62ec5ddece422c6eee6781ce447e30312e559b0ac6266971b`.
+The derived command census is eleven IOM2 commands: the same six at 48,
+one each at 5c/5d, and three at 35 as in the lane. It reaches
+`000e1862 / 203436260 / 30000000000`, 1075 slices, zero frames, zero input
+edges and no reset/refusal. The lane's later OHR commands do not occur in this
+in-tree run. That startup wait, not the pressure probe, is the next gap;
+this does not prove a functional 2.35 UI.
+
+Final ticket 778 gates: `make check` exits 0 with 952 PASS records;
+`make sanitize` exits 0 with 947, including the corrected overlay test;
+`make check-lines` exits 0 with advisory warnings;
+`make check-task-contracts` exits 0 with 144 indexed tickets;
+`git diff --check` exits 0. No 2.22/2.39 release expectation was edited.
+
+| External final log | SHA-256 |
+| --- | --- |
+| `/tmp/suunto-pressure-check-final.log` | `665ef0cb3ec5dea428dceaf9f42a0e10087e39edba8b05861b5f17e07fb8b885` |
+| `/tmp/suunto-pressure-sanitize.log` | `71f90b6a0dce8438c4d0e85252141490b02180e85b0d3c61be472e2a2dd0fd31` |
+| `/tmp/suunto-pressure-lines.log` | `0e7ca399690904259d9c704eaff6f458280aa29609b21005431c7d01032e5070` |
+| `/tmp/suunto-pressure-contracts.log` | `ce05d381247f1e5f6a31d415290cd3d1af3b0ac6b4eec5654a93a55740c38dff` |
+
+### E-SAP-0040 — 2.35 IOM4 haptic startup
+
+Ticket 710 instance-10 derivation, integration ticket 779, 2026-09-19.
+The E-SAP-0038 production fixture and unchanged 2.35 lane run for two virtual
+seconds twice. `/tmp/suunto-235-haptic-law.resc` SHA-256
+`61d4237d048781cb84f1c4979c2cbb4ca6a5ce7ff547348f1ba79c940e89e6ac`
+hooks before/after command PCs 14aba6/14abaa, then pauses for synthetic probes.
+Command from the read-only sibling root: `.tools/renode/Renode.app/Contents/MacOS/renode
+--console --disable-xwt /tmp/suunto-235-haptic-law.resc`.
+Lane endpoint `emulator/renode/haptic/SapporoHapticPmic.cs` SHA-256
+`fc7533bbcca2d6cb15d22edf0b40bb884c7df702d58f9f2bac0bbd76b291e968`;
+controller/wrapper identity remains E-SAP-0039.
+
+Raw logs `/tmp/suunto-235-haptic-law-{1,2}.log` SHA-256 respectively
+`5d943ad36846a22a136f56fd432a69347d39ed0333d2a8a13bdbf1beeb36253f`,
+`39fe8643dd83c3359d9c41b1a7c28dbd851034ddcce928af21abcc430da5ab96`.
+Keep HAPTIC records without host timestamps and bare hex readouts; both
+234-line derived censuses are byte-identical, SHA-256
+`112e5ce4888497c684036a9130eaacafa5376774ce5a6b9dc0994482a52e4121`.
+Probe sources, logs and full firmware-derived payload census remain external.
+
+Derived census: 105 transactions at IOM4 address 50: 36 two-byte writes
+(command 00000201), 64 five-byte writes (00000501), five one-byte reads
+(selector in command bits 31:24, command suffix 000112). Every DMA count equals
+command size; transmit config 103 becomes 102, receive 101 becomes 100;
+DMASTAT is 2 after completion. Native ISR service leaves INTSTAT 2 at each
+post-command hook. Initial configuration writes target 0d,11,12,13,1d,1e;
+autotune writes 22=01. Read 22 returns 00 before autotune, then 03 twice;
+reads 23 and 24 return 00. There are 29 wave-selection writes at 09 and
+64 waveform writes beginning 40, covering 32 indices twice each. Startup
+continues to OHR transactions in the lane.
+
+Halted synthetic probe, address 50, submodule 10, interrupts disabled, FIFO
+threshold 800, DMA RAM 10010000, clear IRQ before each command:
+
+| Operation | RAM word | INTSTAT | DMASTAT | DMACFG | TRIG | CMDSTAT |
+| --- | --- | --- | --- | --- | --- | --- |
+| write five bytes 40 11 22 33 dd | 33221140 | 401 | 2 | 102 | 4 | 80 |
+| read four bytes from 40 | 00332211 | 403 | 2 | 100 | 4 | 80 |
+| write 22 01 | 00000122 | 403 | 2 | 102 | 4 | 80 |
+| read one byte from 22 | 00000003 | 403 | 2 | 100 | 4 | 80 |
+
+The five-byte write is delivered as chunks of four and one: 40..42 retain
+11,22,33; the final dd selects a pointer rather than writing register 43.
+The pointer persists across FinishTransmission; subsequent explicit selectors
+override it. Autotune completes synchronously by OR-ing bit 1 after bit 0
+is written. This authorizes scoped configuration retention, waveform chunking
+and the observed read selectors, not arbitrary registers or physical vibration.
+Whole-command DMA admission and unsupported-shape refusal are emulator safety
+contracts, not claims that the permissive lane itself refuses those shapes.
+
+E-SAP-0040 implementation/validation (ticket 779):
+
+`src/devices/sapporo_iom4_haptic.c` admits only the observed complete DMA
+shapes and selectors; the existing IOM4 owns the endpoint state and preserves
+four-byte chunk delivery. `sapporo_iom4.c`, `sapporo_iom4_internal.h`,
+`sapporo_iom4.h` integrate it, and `sapporo_iom4_regs.c` rejects a mid-command
+endpoint change that could bypass admission. No shared-profile behavior changes.
+`tests/devices/test_sapporo_iom4_haptic.c` covers autotune/reset, waveform
+chunking, twelve atomic refusal shapes and active endpoint-switch refusal.
+The original three cases fail with the old unregistered-address behavior.
+
+Exact commands/results (all final commands exit zero):
+
+- `make test TEST_FILTER=sapporo_iom4`: 17 cases pass, including four new cases.
+- `make check`: 956 PASS lines, no failures (includes five SDL cases).
+- `make sanitize`: 951 PASS lines, no failures.
+- `make check-lines`: advisory only, success.
+- `make check-task-contracts`: 145 indexed tickets validate.
+- `make test-firmware FIRMWARE_ROOT=/tmp/suunto-235-fwroot TEST_PROFILE=sapporo-2.35.34`:
+  both 2.35 scripts pass, other-profile scripts explicitly skip.
+- `git diff --check`: success.
+
+The firmware runner preserves E-SAP-0038's 30M prefix and E-SAP-0039's 80M
+production prefix. Ticket 779 explicitly retires the pressure runner suffix
+`e1862 / 122589556 / 3000000000` (hash
+`4b6f2edb030d2eb32f4ca526768458e5ebe5500b1a09454116d451d7193ade1a`).
+Haptic completion now advances the same 150M/3s bounded invocation to
+`cd0c8 / 150000000 / 1258826798`, with no reset. Both new logs have SHA-256
+`c8b5c60d805fe012671575b9f850d4c42a94420d448e4bbdd0c3759fc7127f07`.
+The strict hash, budget reason and no-reset assertion remain in the runner.
+
+Two CLI runs with `--profile sapporo-2.35.34 --firmware
+tests/private/sapporo-2.35.34.18929/firmware.semu --layer
+sapporo-2.35-production-data --max-instructions 280000000 --max-time 3000000000`
+produce identical logs, SHA-256
+`b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879`.
+They reach the next gap: OHR command 0010/sequence 0 in BSL is refused at
+1567178557 ns; firmware resets at instruction 261789155 / 1567178637 ns,
+PC cdf5a. Final tuple is budget / a6bc8 / 280000000 / 1590729375. This is an
+explicit remaining failure, not a passing full-startup gate. No frame or UI
+completion is claimed, no OHR implementation is added here, and 2.35 snapshots
+remain unsupported. Ticket status remains ready for integrator review.
+
+Retained external verification logs (SHA-256):
+
+- `/tmp/suunto-235-haptic-before.log`: `58f2acdafb520d38d1ee44dab8daff93595accb613b0ce7d0c68dfbdb3620bff`.
+- `/tmp/suunto-235-haptic-tests-final.log`: `d21b3372bdccd4c9b57fd551d839dfffd71fd1409bbe6630c147c34f7f02fba0`.
+- `/tmp/suunto-235-haptic-check.log`: `69297c71018bf8ef9f790ecaec53cb3c08b7a221bcdb064e4492a1af12a7d8ba`.
+- `/tmp/suunto-235-haptic-sanitize.log`: `f7274dcf9efa98af94bd60f6865558243ffbdbee08b9e13c8352f90e5c464613`.
+- `/tmp/suunto-235-haptic-lines.log`: `264445172332e1449653ed44c53217badc8282d9c230f72c4ca3e7e02f0f1d84`.
+- `/tmp/suunto-235-haptic-contracts.log`: `1fb2b0475368a44b47feb2c2505961dfd0f9e492d220dae85b79e924602bc7ec`.
+- `/tmp/suunto-235-haptic-firmware.log`: `bb39fa67ef429b1f9707c9f9d8ee8fc9a79894d2adca92bfe81aa127f512faac`.
+
+### E-SAP-0041 — 2.35 synthetic OHR startup fixture
+
+Ticket 710 instance-11; integration ticket 781, 2026-09-19. The unchanged
+2.35 lane with E-SAP-0038 production records runs for two virtual seconds,
+then pauses for two synthetic echo requests. Script
+`/tmp/suunto-235-ohr-startup.resc` SHA-256
+`0f759f688abd77a6208c4214db7d760d6a5a405d8ba7742668a647452cb1dcf0`.
+Read-only lane endpoint `emulator/renode/ohr/SapporoOhr2Transport.cs` SHA-256
+`f35e6a69c86fba8142d94c835db4958d238b7cc042f58e67a0606d5a0d2b96f0`.
+Run from the sibling root with `.tools/renode/Renode.app/Contents/MacOS/renode
+--console --disable-xwt /tmp/suunto-235-ohr-startup.resc`.
+
+Raw `/tmp/suunto-235-ohr-startup-{1,2}.log` SHA-256 respectively
+`2a8949410ee6ba0621fe45893dfdd49a0540df4bdc4d9ecf7e425647073c90cc`,
+`e5042861b62db45871c7f86ba11e83775d99ab6708444f0494bfabf797e82d02`.
+Retaining OHR2 TX/RX rows without host timestamps produces identical 21-row
+censuses, SHA-256
+`7a0c58edee98bc0a96e5cdd41e3deabc5dfd3eb168ea8120dfaa8e6ba81e8cbc`.
+Raw packets and probe sources remain outside Git.
+
+Derived startup order (nine requests, eight responses):
+
+| Command | Sequence | State | Response body after header |
+| --- | --- | --- | --- |
+| 0010 boot mode | 0 | BSL | zero |
+| 0000 identity | 1 | BSL | BSL at body offset 9, otherwise zero |
+| 0003 reboot | 2 | BSL -> MAIN | no response |
+| 0010 boot mode | 2 | MAIN | zero |
+| 0000 identity | 3 | MAIN | MAIN at body offset 9, otherwise zero |
+| 000d result | 4 | MAIN | zero |
+| 000e result | 5 | MAIN | zero |
+| 0006 echo | 6 | MAIN | request body bytes 4..53 echoed |
+| 0002 result | 7 | MAIN | zero |
+
+IOM2 address 10 uses 59-byte TX, command 00003b01/config103; reads select 3c
+with command 3c003a12/config101 and DMA count 58. Request byte 0 is zero;
+54-byte bodies begin little-endian command/sequence and end with a CRC32.
+Boot-mode request body byte 4 is 1, bytes 5..53 are ff. Identity, reboot and
+result requests have ff in bytes 4..53. Echo has ten caller-supplied bytes
+at 4..13 and ff padding at 14..53. Response CRC uses the existing reflected
+IEEE CRC32 transport. Ready GPIO62 rises for each queued reply and falls when
+consumed; reboot has no reply and switches identity to MAIN (lane source law,
+existing E-SAP-OHR2-001 transport).
+
+Paused synthetic echo sequences 42/43 replace those ten bytes with ascending
+00..09 and f0..f9. Both replies preserve all ten bytes and the ff tail with
+valid CRCs, proving echo is data transport rather than a pinned host timestamp.
+The lane's optional I2C analyzer warns about dropping overlapping trace entries
+during the paused synthetic operations; the wrapper's direct OHR TX/RX path
+still completes and reports the exact replies. These probes establish only
+payload echo, not new controller timing.
+
+The lane source explicitly calls identity strings and zero response data a
+synthetic fixture, not physical measurements. Implement as a disabled-by-default
+`--layer sapporo-2.35-ohr-startup`, pinned to E-SAP-0038's three component hashes,
+with eight ordered response hits per reset. The real OHR firmware/state is not
+available for lower-level execution. Require exact command/sequence/state and
+padding; retain normal CRC/ready/reboot framing. Unknown, reordered, malformed
+or exhausted requests refuse; do not fabricate ongoing sensor data. This
+fixture must log every hit and propagate a fixture refusal to a machine
+compatibility stop before guest retry/reset can renew the hit budget.
+
+E-SAP-0041 implementation and verification (ticket 781):
+
+The new `src/compat/sapporo_235_ohr.c/.h` layer owns its eight-response budget
+through `semu_layer_state`, with immutable global metadata and per-device
+context. The existing device body-provider checks profile 2.35 and explicit
+binding. A refusal latches a diagnostic; the existing machine compatibility
+check propagates it to `compat-refused` before any following guest instruction.
+This adds no instruction hook, register patch or synthetic sensor measurement.
+
+Integration files: `src/devices/sapporo_devices.c`, `sapporo_devices.h`,
+`sapporo_devices_internal.h`, `sapporo_device_compat.c`,
+`src/boards/machine.c`, `machine_run.c`. Tests are
+`tests/devices/test_sapporo_235_ohr.c` and the new
+`tests/integration/test_firmware_sapporo_235_ohr.sh`. README and current status
+record the opt-in and remaining limit. Ticket 781/index are planning scope;
+status remains ready for integrator review.
+
+Exact verification, all exit zero:
+
+- `make test TEST_FILTER=sapporo_235_ohr`: four cases, complete transport
+  lifecycle/CRC/ready/echo, eight atomic refusal variants, identity pins and
+  independent counters, device binding/reset and machine compatibility stop
+  with zero guest instructions or resets.
+- `make check`: 960 PASS records, including five SDL cases.
+- `make sanitize`: 955 PASS records, no sanitizer failures.
+- `make check-lines`: advisory warnings only.
+- `make check-task-contracts`: 146 indexed contracts validate.
+- `make test-firmware FIRMWARE_ROOT=/tmp/suunto-235-fwroot TEST_PROFILE=sapporo-2.35.34`:
+  all three 2.35 runners pass; other profiles explicitly skip.
+- `git diff --check`: success.
+
+Two enabled CLI runs with the pinned private 2.35 manifest, both
+`--layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup`,
+`--max-instructions 500000000 --max-time 5000000000`, agree byte-for-byte:
+`budget / bdcfc / 500000000 / 1805389482`, log SHA-256
+`bc24a57b3c533ec37703b3da80ba8d8dda3e4ae40ecb7bc62fbe96c1247ac16e`.
+There are eight layer-hit events and eight successful responses, no reset.
+The disabled 280M control remains `a6bc8 / 280000000 / 1590729375`, one reset,
+SHA-256 `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879`.
+Production/pressure runner hashes are unchanged. The enabled suffix is NOT a
+UI completion: subsequent diagnostic probes identify a logbook-file assertion.
+
+A one-billion-instruction observer with the real NEMA backend sees zero
+frames and reaches `bdcfc / 1000000000 / 2305389482`; instruction sampling
+shows the sorted-list insertion loop at bdcf8..bdd00. This is a diagnostic
+observation, not a success golden. The optional 30-second lane expansion was
+explicitly terminated (exit 143) after remaining at its BKPT frontier; it does
+not provide completed 30-second coverage. The paired two-second startup and
+halt-on-first-breakpoint probes provide the actual lane evidence.
+
+External verification log SHA-256:
+
+- `/tmp/suunto-235-ohr-tests.log`: `d56ba367de93213757b6056fa781a97a8004ca7d9aaf456b1e72e2b76a6856c3`.
+- `/tmp/suunto-235-ohr-check.log`: `7cb39346fca8d7bd13c3cb0805e015569fd41c90685e72618eb2b4073d29238a`.
+- `/tmp/suunto-235-ohr-sanitize.log`: `9645149251cb414a0c818259a26acdb516a6ad8321dda9eb416e29de775e74f6`.
+- `/tmp/suunto-235-ohr-lines.log`: `c07f20b33335f07a6128ef83794c019449d5dacbde9e1d160d20ae00dd32475c`.
+- `/tmp/suunto-235-ohr-contracts.log`: `21139cd9c9d94da679a797c43eabd4cc21d33f3f67d2d0d7787b2454c493b8be`.
+- `/tmp/suunto-235-ohr-firmware.log`: `ae79c0bf32e36dc719941ae5a0540df9cc49b81ac38d0146c247d05b85b5eebc`.
+
+Observer provenance for the preceding 1B diagnostic:
+`/tmp/suunto-235-ohr-probe.c` SHA-256
+`b0cc728d028d2056134c1cd4cda712d35a948cc66855f26ea5172ba101e334ba`;
+`/tmp/suunto-235-ohr-probe-1.log` SHA-256
+`caf5426a114d26923e726fdcff9c2d3ff23013ef623832642a4ca95482b6ef6b`.
+Command: `/tmp/suunto-235-ohr-probe 1000000000 10000000000 200000 100000000`.
+The observer enables both named layers and attaches the actual NEMA backend.
+
+### E-SAP-0042 — 2.35 post-OHR logbook-open assertion
+
+Read-only next-gap derivation following ticket 781. No storage behavior is
+implemented by this observation. Two native lane probes and two interpreter
+probes agree at the first assertion after the eight OHR responses.
+
+Lane script `/tmp/suunto-235-post-ohr-break.resc` SHA-256
+`040f7d735703f422c38c9098706a3aaca82db162d52d31865ec9e50ddbc9e2e1`
+uses the unchanged E-SAP-0038 lane/production setup. Hooks at 79424/79428 halt
+the CPU before the first breakpoint and read all registers plus 16 stack words;
+the emulation run is bounded at two virtual seconds. Raw logs
+`/tmp/suunto-235-post-ohr-break-{1,2}.log` SHA-256 respectively
+`1598ced0d9ad136157075032748ebf0a30e3e3fa11987f5d639d01fb49925b67`,
+`eb504c1973ba0040b5c6f1d50efc50b7f96d14a9be81b0bbe6d42e13c2f5377e`.
+The single normalized SAP235_ASSERT record matches byte-for-byte, SHA-256
+`02c82636fb4ec42d9dfd33651bf03a0a29c0c08c6cd139dca577091d81ef857a`.
+Run with the same Renode console command as E-SAP-0041, replacing script path.
+
+Interpreter observer `/tmp/suunto-235-post-ohr-cpu.c` SHA-256
+`b97a34b105f6cbdc2e68d24f66d95049e1f5f17ee91caa5c80a109e3c93c253b`
+wraps an otherwise unchanged in-tree CPU step, reading only selected boundaries.
+It links with the E-SAP-0041 observer driver and current `build/libsemu.a`:
+`cc -O2 -std=c99 -Iinclude -I. -Isrc/devices -Isrc/cpu/armv7m
+/tmp/suunto-235-ohr-probe.c /tmp/suunto-235-post-ohr-cpu.c build/libsemu.a
+-o /tmp/suunto-235-post-ohr-probe`. Run twice with
+`500000000 5000000000 200000 100000000`. Logs
+`/tmp/suunto-235-post-ohr-{1,2}.log` are identical, SHA-256
+`44931ed81936f7d125692cb9a51e711686f111aa2a095c2a60427c74ebec574b`.
+
+Derived boundary census:
+
+- At instruction 280206405, PC d47f8 enters the logbook database open path.
+  The helper d4850 loads the filename pointer d4ec4 (`logs/entries.bin`)
+  and branches to file-open wrapper 91824, with mode argument 1.
+- At instruction 280326724, PC d4800 has returned handle zero. The conditional
+  path calls assertion helper d49bc with line 0x35 (53), filename at d4ed8
+  (`LogbookEntryDb.cpp`). At instruction 280326729, PC 7945e sees exactly
+  those file/line arguments.
+- The first BKPT boundary is instruction 280326990, PC 79424, LR d4809,
+  SP 10025218. All sixteen CPU registers and all sixteen stack words match
+  the lane record exactly. Both execute the same failed logbook-open path.
+- Continuing the in-tree interpreter reaches the next `file.cpp:167`
+  assertion at instruction 280327008, then eventually loops in sorted-list
+  insertion bdcf8..bdd00. The list loop is downstream of a failed file open;
+  it is not evidence for changing list/CPU behavior or increasing a heap.
+
+The required next observation is why the lane's open returns zero and what
+valid persistent storage/file state this firmware accepts. This entry supplies
+neither a successful file fixture nor permission to bypass the assertion,
+return a fake handle, or reuse the 2.39 logical-file layer without separate
+2.35 evidence and integration scope. Raw logs/firmware-derived probes remain
+outside Git; only derived boundaries are retained here.
+
+### E-SAP-0043 — 2.35 missing 64 KiB erase and controlled storage recovery
+
+2026-09-22, ticket 710 instance-12 / integration 782. The E-SAP-0038 three
+component hashes were revalidated in both private bundle and read-only lane.
+The synthetic production sector retains SHA-256
+`c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53`.
+No physical flash or watch observation is claimed.
+
+Unmodified lane source `emulator/renode/mspi2/SapporoApollo4Mspi2.cs`, SHA-256
+`a782983bbc12a93078362a2e121d4e1d786944e16405e86c61b5c8ad0c029c2f`,
+implements only 21 erase. DC completes without erasing. The interpreter's
+MSPI2 command path also silently completes unknown opcodes. Native firmware
+helper f66ac receives address r1 and length r2: f66b6 selects DC at f66d4 for
+length 10000; f66ee selects 21 at f6710 for length 1000. These are observed
+requests, not proof that the lane already implements DC.
+
+Probe directory `/tmp/sap235-storage/` remains outside Git. Scripts include
+the unchanged 2.35 lane, map XIP, load the three exact components and synthetic
+production data. Hooks read file open/close, erase arguments/results and halt
+at the first assertion. Run from the sibling root:
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+/tmp/sap235-storage/erase-native.resc` (two virtual seconds), or replace the
+script with `erase-synthetic.resc` (five virtual seconds).
+
+| External script | SHA-256 |
+| --- | --- |
+| erase-native.resc | `aad5ba2fb801d023968accda6d7401b4ae328ea27730155827072420d6d715b0` |
+| erase-synthetic.resc | `5223a3b4faea151d402a943f25d6f25096ca9b48ebe969303c103f51ba206ee4` |
+| setup.py | `505ec5e72840ced1d686ad9b51fd1b2457b70c8aca8cafe607192b69826cc124` |
+| xip.repl | `5baccffc4e00dcf9a509d08c77aa9ed0dcaf8b0c6a8880d8bddcddb92b5a2ca1` |
+| census.py | `3244176290c58def32de30a8734efd2e62c45f4d5de81197181815a1785a00c3` |
+
+Raw native logs `erase-native-{1,2}.log` SHA-256 respectively
+`29de59403341dc58b14410763165ec109f81dc6e0243e02ca76b6dc9b3d0d12b`,
+`22bc018912778567645f70b2bc88ca6cdc6c7e65c68c1da1722e115ec1e6588d`.
+All 63 normalized hook records match byte-identically, SHA-256
+`7e9e0372386490cf30dd1f55dd2d16e319674f70fb1489889b94ab61f3d211a7`.
+There are 939 WREN completions, one 35 setup and ten DC completions, zero
+actual erases. Ordered DC addresses (all length 10000, return zero) are
+b00000, b40000, 8e0000, ae0000, b50000, a50000, a90000, b60000, b10000,
+9a0000. Existing CMGRPLST and three storage JSON opens return real handles.
+`logs/entries.bin` read-open returns zero, create returns 80, close executes,
+then read-open returns zero and assertion 79424 / LR d4809 / SP 10025218
+matches E-SAP-0042. This rules out a wholly absent filesystem.
+
+The **controlled, synthetic** experiment does not alter lane source or
+firmware instructions. At f66dc, after each successful aligned 64 KiB
+request, it issues sixteen WREN/21 subsector erases through the existing lane
+MMIO. It restores command data/address, interrupt enable and pending status;
+CPU registers, storage file handles and virtual time are not patched. This
+experiment is an explicit hypothesis test of the missing erase, not a claim
+that unmodified Renode models DC or physical erase latency.
+
+Raw controlled logs `erase-synthetic-{1,2}.log` SHA-256 respectively
+`f2947a9326de25272393ba608f5785bb8e54c0cb567b6c832f91983b9eda08fe`,
+`a37619dc6e6bedd6019fbfee07dad90f6aff767f3bcc9a1eafe409b9b9ce95ef`.
+All 207 normalized records match byte-identically, SHA-256
+`9994369bb5e34b14ee6520d3b44bcbd546690e9ff4537b99e234f6248cf7b0d0`.
+There are 22 DC requests, 352 injected 21 erases, 4666 total WREN completions,
+and one 35 setup. After the ten addresses above, the remaining ordered DC
+addresses are 8b0000, 990000, 740000, 880000, a80000, 970000, b40000,
+b70000, a70000, b20000, ad0000, 6f0000. Every request is aligned, length
+10000, return zero. Logbook create returns 80, next read-open returns 90,
+and update-open returns a0. Further startup creates/reads activity files.
+Neither run reaches the former assertion; both end at PC e1862 at five
+seconds. This proves bounded file recovery, not UI or physical-device success.
+
+Architecture corroboration: [Micron N25Q256A Rev. X, June 2018](https://www.mouser.com/datasheet/2/671/n25q_256mb_3v-1283553.pdf),
+command definitions and ERASE Operations p60, defines DC as four-byte sector
+erase, 64 KiB aligned granularity, FF erased bytes and WREN consumption.
+[STMicroelectronics' N25Q256A driver header](https://github.com/STMicroelectronics/stm32-n25q256a/blob/main/n25q256a.h)
+also specifies sector size 10000 and opcode DC. These references corroborate
+the native helper's exact size/opcode pairing; they do not identify the actual
+watch's package. Integration 782 uses the documented opcode/geometry and the
+lane's existing erase-byte/enable law. Unknown opcodes must refuse instead of
+being promoted to successful no-ops. Existing stricter missing-WREN refusals
+and synchronous completion remain unchanged; protection, suspend/resume and
+physical timing are outside this scope.
+
+The strict controller allowlist also preserves the explicitly probed B9/AB
+power-command completion boundary. External `power-native.resc` SHA-256
+`7b6f672c50dd2c1dedeedf0b8175032ae97f7fccf83227165af72ccd08b95c80`
+runs the same lane without the synthetic production sector for two virtual
+seconds, pauses, clears INTSTAT through INTCLR +208, then issues B9 and AB
+separately with control C1. Each reports INTSTAT 1 and command readback C1.
+Raw `power-native-{1,2}.log` hashes are
+`7f3dbb6f4cc4ec49b922d2c2b4416a876c3b043a409574b6ed54d97642668280`,
+`d9f1dc1fbaf4d1071db134ef9bd6f9e233d07869c443e4f4479b7c35c5fb7734`.
+The six normalized command/readback rows match, SHA-256
+`23b91685a6cbfa44ce643eab3b7cb3432113284a111ff80f3c6b8123e1dfbee5`.
+Lane source confirms neither command reaches the flash overlay or consumes
+WREN. This is completion-only coverage, like existing 35 setup, not a new
+physical power-state model. Refusing B9 broke the pre-existing no-fixture
+input/idle paths; those checkpoints must be preserved, not re-pinned to the
+resulting faults. Other unrecognized commands continue to refuse.
+
+E-SAP-0043 implementation and verification (ticket 782):
+
+`src/devices/sapporo_flash.c` dispatches DC to a checked, aligned 64 KiB
+storage erase and consumes WREN only after success. `src/soc/apollo4/mspi.c`
+preserves the full device address and uses an explicit command allowlist.
+`src/core/storage.c` stages all missing pages for an aligned multi-page erase
+before mutation. Public contracts/formats and source images are unchanged.
+The new direct/controller test file covers lower/upper/final blocks, every
+erased byte, neighbors, immutable base hash, missing/reset enable, malformed
+frames, out-of-range requests, unknown-command atomic refusal and B9/AB.
+The allocation regression injects failure at each of fifteen missing pages,
+proving existing bytes, page ownership and count survive each failure.
+
+Before implementation, all three initial block/controller cases failed;
+`/tmp/sap235-storage/block-before.log` SHA-256
+`f3af861ebf3fca63e387df30692f81b7706808dbe3e5ac7558a2283c7b0b1150`.
+The allocation regression also failed, `atomic-before.log` SHA-256
+`a8326270c1ecf3cb83acc89bad49a88fba75bc52911edf8514bfdb0a3a08cef8`.
+After correction, four block/controller cases and the allocation case pass.
+
+Private interpreter observer source `file_observed_cpu.c` in the same external
+directory, SHA-256
+`bda333d6d3ce3a8f267b2325d31a4963b77d198eaa0aff29c63a3ee95344cf8c`,
+wraps unchanged CPU execution with reads at selected file/erase/assert PCs.
+Link with `cc -O2 -std=c99 -Iinclude -Isrc/cpu/armv7m
+/tmp/sap235-storage/file_observed_cpu.c build/obj/src/frontends/cli.o
+build/obj/src/frontends/main_headless.o build/libsemu.a -o /tmp/sap235-storage/observer`.
+Run the ordinary 2.35 CLI with both layers, instruction cap 1000000000 and
+time cap 10000000000. `observer-{1,2}.log` match exactly, SHA-256
+`a3b2157c6f2566a0fa0223cd600e62735cce3b9dc0906fb08b5e49b1a02e3936`.
+At return PC 91842, logbook create is handle 80 at instruction 277549494;
+read-open is handle 90 at 280328556; update-open is handle a0 at 280554620.
+No old logbook assertion occurs. Final tuple is
+`e1862 / 995880966 / 10000000000`, budget stop.
+
+The regular CLI's repeated first-visible-frame runs use both layers,
+`--until normal-frame --max-instructions 1000000000 --max-time 10000000000`.
+They return zero at `bdd2a / 813500000 / 3733351422`, `stop=user`, complete
+log SHA-256 `2813f2dfdad153de7f2f00250911d86cced75ec15ce01c73d86c822b4470a528`.
+The new block-erase shell gate pins this boundary. The existing OHR enabled
+500M suffix is explicitly re-derived to
+`bdc36 / 500000000 / 2719206417`, log SHA-256
+`b6c35ad981bdceef823937e68fb57bdf101853e62c0ae52caf63fea586aabeb0`.
+The 30M, 80M, 150M and disabled 280M prefixes retain their exact earlier
+hashes. No production/pressure script or no-fixture input golden was changed.
+
+The external frame observer `frame_timed_main.c`, SHA-256
+`1f02bdcf38b8a4413478b5d3cd6c26bfa94cfc6a3e41718a4c14ad468529697d`,
+links with the ordinary CLI object/library and registers frame and read-only
+input-poll callbacks. Repeated 1B/10-second cold logs `frame-timed-{1,2}.log`
+match, SHA-256
+`6d91002f6ec71769d12c6a896c2ab97dac972f35962f76c374533be453afc1ef`.
+Six frames are published; distinct CRC/generation/time records are:
+`2a01c517/1/3732832521`, `4979f432/2/3733315957`,
+`bff092e4/4/6843088226`, `f5b34cc5/5/6843610795`,
+`3bd12ac8/6/6847050830`. External pixel inspection identifies the last as
+“Select language”. No frame pixels or firmware bytes enter Git.
+
+Exact verification commands/results (logs in `/tmp/sap235-storage/`):
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `make test TEST_FILTER=block_erase` | 4 pass | `647f22e303d78aa867f7962b2e0ea874b38b91d3a4e396e715d032eaa6bedac8` |
+| `make test TEST_FILTER=storage_erase_atomic` | 1 pass | `3a6a04e8ddd1099a02a4515a9698578a582e43f82981bd12443fece1f2a78df9` |
+| `make test TEST_FILTER=apollo4_mspi` | 15 pass | `516d4a67c5dc697ece276578cfb46f5d629d02d55343f60c35674d76583af495` |
+| `make test TEST_FILTER=sapporo_flash` | 13 pass | `c21b460ddda2648ff81870f944eb242e3fc7a89cdd67ee359cc054b412db0cb3` |
+| `make test TEST_FILTER=storage` | 21 pass | `4ac66317da3716cb0327daa7e86dae1775deb152621d581341dcca34fd3f4db6` |
+| `make test TEST_FILTER=sapporo_235_input` | 7 pass, original pins | `4d5a8144b0d40e8c4c24357dfa73b5cc25ea23ced7befa0707fbf50f2168940d` |
+| `make check` | 965 pass, exit 0 | `2fc35ea487594ac573d60c7c6e372ad87b55d33834d390dfe699f19cee972258` |
+| `make sanitize` | 960 pass, exit 0 | `3748264cff1e12a58480fb5a478e2e3e3d4d31880a10a4ba5d9372bcdd283cc1` |
+| `make check-lines` | advisory, exit 0 | `45565c05d5d37c57429d9f5c5f661d9e0617ac3b97068fa1942c32dae849dddf` |
+| `make check-task-contracts` | 147 before follow-up 783, exit 0 | `fd0a8463acec53a8e23556a209c7174f31f4a78e979f58cd1d2b1d9d12ff0c47` |
+| `sh tools/test_sdl_live_input.sh` | exact 2.22 checkpoint/hash, exit 0 | `228575cb7c370d51649adcd05eb6ae3bc055c22bcd177c7ba3c9381300d5d263` |
+
+`make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+TEST_PROFILE=sapporo-2.35.34` passes all four selected 2.35 scripts; other
+profiles skip. Complete log SHA-256
+`ab9806bb54bce3744f67e7e7ed42ab155087a3da14462fa0ff9198d583fe299e`.
+`git diff --check` passes. Ticket 783 separately tracks shared 2.39 era drift;
+no 2.39 golden is re-pinned here.
+
+### E-SAP-0044 — 2.35 post-display GPS assertion and control limit
+
+Next-gap observation only; no GPS response/pulse or button behavior is added.
+The E-SAP-0043 controlled storage lane, with unchanged synthetic production
+and native OHR fixture, was extended to a 15-second budget. It halts at the
+first BKPT. Script `/tmp/sap235-storage/gps-boundary.resc` SHA-256
+`287143c90f64742a0783bb1f0d7f65a51f82c39128fb1c66d22db3774b4d3b9f`.
+Raw `gps-boundary-{1,2}.log` SHA-256 respectively
+`2caa5b2b58674c369b81f04d9229b1774a1bfe0313ea4822d46e382849c4ae03`,
+`73eaab9d1485a388fed8498fc41b035cc15018664d1b1650ecc54ea44186706c`.
+The two assertion records reproduce identically, SHA-256
+`92ba31004ec5562d40993558034d310757fbb75307f01496ae7634595753f8a7`:
+file `CXD5610GF-driver.cpp`, line 894, LR 12572d; BKPT PC 79424,
+LR 12572d, SP 1002f7d0. The lane's GPS transport is present but this probe
+does not schedule any synthetic awake pulse or patch CPU control flow.
+
+Interpreter source `frontier_cpu.c` SHA-256
+`52bc6128706aa7e0994be6b060c16d7c234888a8837dbbd55e41954226c5cc19`
+adds assertion-site diagnostics to the prior file observer. The external
+MSPI observer at that run had SHA-256
+`4fff541f2fb8873d9e16fbc533ff66df04362ff25d8fbc840c631d062d956b34`;
+it only reports controller refusals and none occurs on this prefix.
+`frontier-1.log` SHA-256
+`363a1ba1aab9edcb3f8d6c252edcd3abc5f8c09f973deee9f9b6f14dbff1949d`
+records helper 7945e at instruction 1022014915, identical file/line/LR,
+then BKPT 79424 at instruction 1022015210. This 1.5B/15-second bounded
+observer continues to `bdd00 / 1500000000 / 11525639699` after the assertion.
+Static read-only disassembly of the pinned firmware identifies state 5 at
+125708, increment of the byte retry counter at 12570c..125710, comparison
+with three at 125714, and assertion call at 125728. The missing successful
+GPS-start transition needs its own observed exchange; these facts do not
+justify bypassing the assertion or adding an unbounded awake heartbeat.
+
+Input remains a separate open acceptance condition. A single external
+`frame-timed` run with a middle press at 8 seconds and release at 8.3 seconds,
+1.02B/11-second bounds, publishes 22 frames but only the same five distinct
+startup CRCs; final CRC remains `3bd12ac8`. Its `control-timed.log` SHA-256
+is `699daf5aa81dfaa1ba0064c1229290632e28c6008f6d56d9a9e4707cae226475`;
+final tuple `a703c / 1020000000 / 8374206023`. A dummy SDL run using
+`SEMU_SDL_LIVE_TEST=middle-language`, both layers, `--until middle-language`,
+1.1B/11-second limits reaches settled step 2, generation 6, CRC `3bd12ac8`,
+then spends its instruction budget after the third injected button.
+`sdl-235-control-1.log` SHA-256
+`f1529a9a96da6a5189813f772d137ea6702b1db0af0a681ee834efd19c58d9a6`,
+final tuple `a72d2 / 1100000000 / 7479768413`. These exploratory controls
+prove delivery/redraw only, not successful language-menu navigation.
+
+E-SAP-0044 control follow-up: the short input budgets above ended during the
+transition. Extending the same 8-second middle press / 8.3-second release to
+3B instructions and 10 virtual seconds opens the native language menu with
+English selected. `control-long.log` and `control-long-2.log` are identical,
+SHA-256 `4904ba7c49f50079264ef16505919bc92412dfd30c0c0df5f4013010aaf5fc99`.
+The replay file SHA-256 is
+`28946c08f887db73c98a0da41d4e917394fd7076c7547152250e83a0ec6a38a2`.
+There are 79 frames, 62 content changes, last CRC `405422e1` at generation 79,
+virtual time 8562766996; final tuple
+`e1862 / 1244168424 / 10000000000`, budget stop. Pixels remain external.
+This establishes one menu transition, not completed onboarding.
+
+With the existing SDL live-test driver, 2B/11-second limits complete all three
+steps: generation/CRC 3/4979f432, 6/3bd12ac8, 79/405422e1. The final tuple is
+`0800009e / 1202094208 / 7971442704`, user stop, exit 0. The new optional
+`sh tools/test_sdl_sapporo_235.sh` repeats the full run, compares logs and pins
+SHA-256 `523bbceff0a44a5e5eb64ba19e8bce2ca86bc10b2aa0d8ad7bbc50e157a4bdac`.
+It uses the existing SDL keys/clicks, renderer and semantic input mapping.
+An explicitly missing manifest returns 2; a 2.22 manifest returns 1 after
+CLI identity refusal, before guest execution. Negative log hashes are
+`1ade8122cd3303c2f16db626156f267895b6632d02e2d21ce048a467d142b38a` and
+`9da8df3de2928809b3df04297199f7fac47c8f12003de22d5cc6225c0c74c570`.
+
+### E-SAP-0045 — shared erase impact on 2.39 era gates
+
+After E-SAP-0043, run
+`SEMU_SAPPORO_239_FULL_FLASH=/tmp/sap235-storage/sapporo-239-full-flash.bin
+make check-era`. All 43 scripts execute; 13 pass and 30 fail, make exit 2.
+Raw external log `/tmp/sap235-storage/era-239.log` SHA-256
+`960b9c19a5fbee0491f642aa819cff0e52a6523b8b2176bf95ef1796a336e441`.
+The synthetic full-flash fixture retains SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`
+before and after; the exact three 2.39 components validate.
+
+All sixteen earlier E-SAP-ERA-GATES-239-001 failures remain. Fourteen additional
+failing runner suffixes are `activity_budget`, `ctimer13_inten`,
+`ctimer_combined_inten`, `file_seek`, `file_size`, `general_budget`, `gps_awake`,
+`gps_five`, `gps_reopen`, `gps_startup`, `logical_files`, `ohr2_command2`,
+`personal_budget`, and `wbsto_cache`. The prior sixteen are `gpio_wt1`,
+`haptic`, `haptic_calibration`, `history_budget`, `lps22`, `ohr2_boot_mode`,
+`ohr2_bsl_identity`, `ohr2_echo`, `ohr2_main_identity`, `ohr2_result_13`,
+`ohr2_result_14`, `ongoing`, `preload1`, `quiet_read`, `widgets`, `zip_read`.
+
+Failures include changed checkpoints/artifacts and real logical-file path
+refusals; none is assumed harmless. For example the old layer-off boundary
+changes to `70378 / 72774982 / 521257564`, and the general-settings gate
+reports an unknown writable-file path after its POI prefix. Correct erases
+change native filesystem state on the shared flash endpoint; existing 2.39
+adapters must be audited against that state. Ticket 783 records the separate
+integration audit, blocked on review of 782. No 2.39 expected hash, stop,
+compatibility hit budget or unknown-file refusal is changed in this instance.
+
+The final post-documentation `make check` still passes 965 cases, exit 0;
+`/tmp/sap235-storage/check-handoff.log` SHA-256
+`18452667833edda846d0295e1c013a0c10139f3833a0cb4529db970896525376`.
+`make check-task-contracts` validates 148 tickets, exit 0;
+`contracts-handoff.log` SHA-256
+`29c4d06e1fcd5da143a5570c335f0a3c1225a506be980525e30793a345d56513`.
+The passing 2.22 short SDL gate and failing 2.39 sweep are both part of the
+handoff; this is not a passing all-profile release gate.
+
+Final optional UI gate: `sh tools/test_sdl_sapporo_235.sh` exits 0 after two
+byte-identical runs. Wrapper output `sdl-235-gate.log` SHA-256
+`529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9`.
+The subsequent `make check` including the final script/documentation state
+again passes 965 cases, exit 0, with the same complete-log hash
+`18452667833edda846d0295e1c013a0c10139f3833a0cb4529db970896525376`.
+`sh -n tools/test_sdl_sapporo_235.sh
+tests/integration/test_firmware_sapporo_235_block_erase.sh` and
+`git diff --check` both exit 0. Tickets 782/783 remain ready/blocked for
+integrator review; the overall fully functional Sapporo goal remains open.
+
+### E-SAP-0046 — 2.35 initial GPS status/version lifecycle
+
+2026-09-22, ticket 710 instance-13 / integration 784. Exact E-SAP-0038
+firmware; E-SAP-0043 controlled storage recovery remains explicit in the
+read-only lane probes. Source firmware and lane files are unchanged. This
+is a synthetic receiver fixture experiment, not physical receiver evidence.
+
+Pristine startup helper 125462 opens UART via 125388, installs callback
+1250e7, stores pending two at driver+273, and arms state four for 3000 ms
+via 126ef0. Post-arm 1254ec precedes MOVS R0,1. In both lane runs driver
+100364ac, R5 1003671c, R6 100367e4, UART 100456a0, callback 1250e7,
+state/pending 4/2. The native parser at 12687a..1268cc recognizes `$PSS`
+and schedules the pending state after 10 ms. The retry counter at 10058a00
+comes from the literal 100589fe at 125d9c plus two in the state-five branch.
+
+External `/tmp/sap235-gps/startup.resc` supplies exactly ten synthetic bytes
+`$PSS0000\r\n` after 10 ms once, at 1254ec, through the lane transport's
+`InjectHexAfter`. It installs one exact `@VER\r\n` response with the same
+line/delay. Native state sequence is 2,14,15; UART closes at state 14;
+15 schedules 18. Later reopen arms pending seven/state four for 10000 ms
+at LR125665, with no fixture. It times out to states four/five by the 15 s
+cap. No assertion occurs in this positive window; only six TX bytes occur,
+`405645520d0a`, and twenty RX bytes. No GPIO24 pulse or extra reply is sent.
+
+The negative `/tmp/sap235-gps/wrong-prefix.resc` replaces only the initial
+prefix with `$BAD0000\r\n`. No TX occurs. Native states four/five repeat
+three times and assert `CXD5610GF-driver.cpp:894`, LR12572d, BKPT79424,
+SP1002f7d0. Both negative runs stop at that assertion within 15 virtual s.
+
+Run each script twice from the read-only sibling working directory:
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt SCRIPT`.
+All scripts/logs/probe sources remain outside Git. Raw hashes:
+
+| Artifact under `/tmp/sap235-gps` | SHA-256 |
+| --- | --- |
+| startup.resc | b77c328ae1fab4c74abbe0047f78ec10ee97c4b4c43d12900c87c5c1827dec2d |
+| startup-1.log | 6ba4a13b3bc88ffba56cadd4db3e2d1567d2c45dba8712f40f044cdff2dd42d3 |
+| startup-2.log | 4c2fa0415af96eb31745927ba0422df9c2350207f36e33623dc775e4cccf837b |
+| wrong-prefix.resc | 814b737bb0b92ac99ecdfad28db0827be527d29b51efe2058adc6159711c4e55 |
+| wrong-prefix-1.log | 81a8a33155ae1b064a5c0146999d15e0c68867eb6baf056c3cbb543321c3a85b |
+| wrong-prefix-2.log | 6da191bde2dcbea2f2698e61d9ca84823c6d6391fd06ae71e013fac40263a445 |
+
+Normalized positive census: 42 rows, SHA-256
+`607671b75125dd2a1836671adab26e2df83cf9ce2b8278c4aae33252077310ab`,
+byte-identical; negative: 31 rows,
+`a767ffebd20f1eb33aacc40ed9b0450c159f8fd3abdbcaca7859865754774011`,
+byte-identical. Census retains ordered arm/state/schedule/assert tuples and
+UART directions/bytes; expands Renode's repeated-line `(3)` count (four
+zero characters per line), excludes host timestamps. Derived counts and
+boundaries above remain authoritative if volatile logs disappear.
+
+The in-tree read-only observer independently sees the same initial driver
+and UART values at instruction 251711528 / time1555697547, retry zero and
+UART user-data zero. It halts only at the diagnostic BKPT at
+1022015210 / 11047654909, retry three, matching E-SAP-0044. No initial
+response is present in the production baseline. Integration must separately
+opt in and hash-pin this fixture; this evidence authorizes no reopen,
+periodic awake, time/fix or physical receiver behavior.
+
+E-SAP-0046 implementation: `sapporo-2.35-gps-startup` is a separate opt-in,
+three-hash-pinned device fixture. It checks the complete driver/UART spans,
+R5/R6 offsets, callback/pending values, callback identity and zero retry before
+scheduling initial RX. Ordered aggregate hits permit one initial status and
+one exact version reply. Each is logged; all other lifecycle/commands refuse.
+Only the diagnostic latch may change on refusal; device/RX, hits and logs do
+not. The machine observes the latch before executing another instruction.
+Reset cancels pending RX and clears the binding; explicit machine reset
+reinitializes the layer's budget. No valid CPU instruction is intercepted or
+changed; the PC observation only triggers a normal delayed UART response.
+A general physical receiver model is unavailable, so this synthetic fixture
+cannot be enabled automatically or used as physical GPS evidence.
+The lane has no observed power/reset-to-status timing law. The post-arm PC
+is the proven admission point after the native callback is installed;
+inventing an automatic GPIO/power response would extend beyond this evidence.
+
+New private regression failed before implementation with `unknown layer`
+(`/tmp/sap235-gps/before.log`, SHA-256
+`c9727972bb0e044536e2ed6b9b582568db063c8d4baa12b2c5eccc8436ef38bf`).
+The missing-response baseline was separately observed by the external CPU
+wrapper `observed_cpu.c`, SHA-256
+`55fcdce6d331635904fd2d02b5f9a6039df179a5f16be03d62690b1bcbd71f34`;
+baseline log SHA-256
+`c213534492b1358bece668640d84488084c5cec6f70955f483740803b95b7c51`.
+It logs selected driver PCs and stops at BKPT only for diagnosis; it does not
+supply responses or alter instructions. Census source SHA-256
+`f8654d534383c65bc09b0f281ad896e126398fe4ed0246e04404855f52becd02`.
+
+Paired enabled interpreter observations, `enabled-1.log` / `enabled-2.log`,
+byte-identical SHA-256
+`d778b66024588674f258f16317b67d7b25530180a96134c42eab1f96c4c170d6`:
+
+| Native boundary | Instructions | Virtual ns | State |
+| --- | ---: | ---: | --- |
+| initial arm 1254ec | 251711528 | 1555697547 | 4 / pending 2 / retry 0 |
+| state 14 entry 125694 | 281973256 | 2184057416 | 14 / pending 14 / retry 0 |
+| state 15 entry 125694 | 289445162 | 2421599960 | UART closed / retry 0 |
+| reopen timeout arm 126ef0, LR125665 | 816474243 | 4655188295 | pending 7 / retry 0 |
+| unsupported retry 1254ec | 996415389 | 14881889213 | compat-refused, hits 2 |
+
+Observer command: compile with `cc -O2 -std=c99 -Iinclude -Isrc/cpu/armv7m
+/tmp/sap235-gps/observed_cpu.c build/obj/src/frontends/cli.o
+build/obj/src/frontends/main_headless.o build/libsemu.a -o /tmp/sap235-gps/observer`;
+run with exact private 2.35 manifest, all three named 2.35 layers,
+`--max-instructions 1500000000 --max-time 30000000000`. Unmodified CLI
+reaches the same final tuple without observer rows; full-log SHA-256
+`94acff58c93ab408b34b4a5233670740d93464cbab739f02717f35eb5f62d878`.
+The earlier 500M/5s CLI checkpoint is `budget / 000ee120 / 500000000 /
+3343660033`, full log
+`f40ab5506257140b44724ad8522a515ffdc4a3bd98cf2af5d21dbe7b47f22284`.
+Both are exact pins in the new private runner; no existing pin was changed.
+
+New-layer SDL command: `SDL_VIDEODRIVER=dummy
+SEMU_SDL_LIVE_TEST=middle-language build/suunto-emu-sdl run` with the same
+manifest/three layers, `--until middle-language --max-instructions 2000000000
+--max-time 15000000000`. It reaches generation 79 / CRC405422e1 and exits
+`user / 000cd0ba / 1149073728 / 8679404651`. Exact full transcript SHA-256
+`5b000056a5cb5f20e54f7f405fae2e8856cb0c1e4aa9da9c2ee9ff4b16682629`.
+GPS changes timing and execution, but not the language-menu pixels. Existing
+two-layer SDL transcript and checkpoint remain unchanged.
+
+### E-SAP-0047 — 2.35 later GPS reopen census and bounded integration
+
+The next lifecycle is distinct from initial startup. Extend E-SAP-0046's lane
+probe with exactly one post-reopen injection at 125664 and a second ordered
+exact exchange, `@GSR\r\n` -> synthetic `$PSS0000\r\n`, each delayed ten ms.
+Keep the controlled flash and original startup interventions explicit; no
+GPIO24 pulse, register/CPU edit or location/time sentence is added. Both runs
+have a 20-second virtual cap. No response is supplied to later commands.
+
+At 125664: driver100364ac, R5=10036520, R6=1003671c, UART10045798;
+bytes at +74/+7b/+7f/+272/+273 are 15/0/2/4/7. Retry10058a00=0 and
+startup-seen100589ff=1. Native scheduling/dispatch advances through
+7 -> 8 -> 9 -> 10 -> 12, zero retry. State10 schedules state12 after5500ms;
+first state12 schedules another5500ms; second state12 transmits `@GSTP\r\n`.
+There is no `@GUSE 0` TX in this exact branch. Total UART census is nineteen
+TX bytes (`@VER`, `@GSR`, `@GSTP`, each CRLF), forty RX bytes (four synthetic
+status lines), zero awake pulses, no assertion at the cap, final PCe1862.
+The lane transport accepts arbitrary TX into its transcript, so its silence
+after GSTP is not authorization for an in-tree completion fallback. The
+existing in-tree fail-closed transport must still refuse unmodeled commands.
+
+External `/tmp/sap235-gps/reopen.resc` SHA-256
+`db734102890790cc1a1afeddcb6ad231b42fdd99417c404a26d6a6095bc7ac79`;
+run with the same Renode command as E-SAP-0046. Raw logs `reopen-1.log`,
+`reopen-2.log` SHA-256 respectively
+`8f7cf9b004a2ca1e125df5689a8800b52c228edda03254629050358dc9c11da3`,
+`635ebf6f7d028ea5875c16acbd1d930651feeb72b62afb095e7f1357b8131a8a`.
+Their normalized 86-row censuses compare byte-identical, SHA-256
+`2662cde0495d66e952075baec01c1489f73d9f1568763146bb0e6b13d3db667f`.
+Census source `/tmp/sap235-gps/reopen-census.py`, SHA-256
+`3338ac9b11a87e706d2938a1e9588cc499757831f48815986cd00eb42e0db290`,
+uses the same timestamp removal and explicit repeated-line expansion, plus
+post-reopen register/flag rows. Derived counts/tuples above are retained here;
+no firmware-derived log, probe or pixels enter Git.
+
+This evidence supports designing a separate bounded reopen integration.
+It proves no GSTP response semantics, physical GPS behavior, ongoing cadence,
+fix/time data or full onboarding. Ticket784 remains initial startup only.
+
+E-SAP-0046 final verification (2026-09-22, integration784):
+
+| Command/result | Log SHA-256 under `/tmp/sap235-gps` |
+| --- | --- |
+| `make test TEST_FILTER=sapporo_235_gps`: 4 cases, 31 refusal variants, exit0 | `2e82cdbdbdeb6cc091441afd86ecb1f640d17e0059d0946140494a003085f20d` |
+| `make test TEST_FILTER=sapporo_cxd5610`: 13 cases, exit0 | `1ab0320c9d1fa894fb2ced9ba709e44762b6c845561c80eba5436b05a6b3186f` |
+| `make check`: 969 cases, exit0 | `acf1939ec592e3fc5455cdb32d5b30b0e9ae4a5d1c42841cdba6725a2c63b95e` |
+| `make sanitize`: 964 cases, exit0 | `f39ac1752f31a507358f29f8bff863f65df7f1bcbb912208db9529899dd29fa9` |
+| `make check-lines`: advisory, exit0 | `3d52a1ca9b27d1bf5918ec3d1d691131feed47690c30d673eb0076d2dbfc3b5e` |
+| `make check-task-contracts`: 149, exit0 | `68d28216f14e55d58de882f351b4b1656e946a9383bd98af059fc2dbfecd02fc` |
+| `make test-firmware TEST_PROFILE=sapporo-2.35.34 SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`: five 2.35 scripts pass | `43165cbf1f4083a7dd2167a606a1527f7fea32325f9463f0d880de7fdf4d4fb0` |
+| Final GPS script, including added paired refusal suffix, exit0 | `ac0aa8652fd5935ecb22d46d76e43422de9bbfa9f95565449385596eacda9a48` |
+| `sh tools/test_sdl_sapporo_235.sh`: unchanged old two-layer transcript, exit0 | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+
+The final GPS script was rerun directly after adding the refusal suffix:
+`SEMU_EMULATOR=build/suunto-emu SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+TEST_PROFILE=sapporo-2.35.34 sh tests/integration/test_firmware_sapporo_235_gps_startup.sh`.
+New-layer SDL runs `sdl-new-layer-1.log` / `sdl-new-layer-2.log` compare
+byte-identical with the full transcript hash recorded above. `sh -n` on the
+new script and `git diff --check` pass. Tests use bounded virtual/instruction
+limits; no firmware or proprietary pixels enter Git.
+
+Changed files: `src/compat/sapporo_235_gps.c/.h`,
+`src/devices/sapporo_devices.c`, `sapporo_devices_internal.h`,
+`sapporo_device_compat.c`, `src/boards/machine.c`, `machine_run.c`,
+`tests/unit/test_sapporo_235_gps.c`,
+`tests/integration/test_firmware_sapporo_235_gps_startup.sh`, README,
+current-status, this ledger, `plans/index.tsv` and ticket784.
+No public header, generic UART/scheduler/CPU behavior, profile metadata,
+snapshot format or existing golden changes. Other-profile compatibility
+paths are unchanged; the 2.39 era sweep was not repeated for this explicitly
+2.35-only layer, and its prior 30/43 failures remain unresolved. Requested
+integrator action: review 784 separately from implementation and assign the
+E-SAP-0047 reopen attachment before adopting further responses. Ticket784
+status remains ready; the full functional emulator goal remains incomplete.
+
+
+E-SAP-0047 integration785 and verification (2026-09-22):
+
+The separate `sapporo-2.35-gps-reopen` layer implements only the two observed
+synthetic lines, each delayed10000000ns. It requires the completed initial
+fixture (exact descriptor, two hits, enabled, same logger, no refusal), pins
+the three E-SAP-0038 hashes, validates the register/driver tuple above plus
+UART callback1250e7/userdata0, and owns two logged hits per machine. Native
+instructions and parsing remain intact. Unknown commands, repeat/reordered
+exchanges and invalid state refuse before RX/counter/log mutation; scheduler
+failure latches its diagnostic. Machine dispatch propagates the latch before
+another instruction. Reset cancels RX, clears bindings and resets hit counters.
+Either CLI ordering of the two GPS layers is accepted after full binding
+preflight. Initial-only attachment and old checkpoints are unchanged.
+
+The new private regression was run before implementation and failed because
+the new layer was unknown: `/tmp/sap235-reopen/before.log`, SHA-256
+`9a492f6df9fae3f29885eec7e9d6d2f1bc789cb6a6977a0648cec4b92e9720cc`.
+The final runner repeats the four-layer cold run, caps2B instructions/30s,
+requires exit3 and exact refusal tuple, and checks two initial plus two reopen
+hits. Full CLI transcript SHA-256
+`690422bf19ff32bb5de8da3db63a825ba11102a326c112dcbf30ab52e5e7c9ca`.
+Reversing the GPS layer option order gives that same transcript.
+
+Paired interpreter observations in `/tmp/sap235-reopen/observed-1.log` and
+`observed-2.log` are byte-identical, SHA-256
+`900940065b735c11ddef1f74f05e2d30a29536ead1bf5f421a22becb4bb5f93b`.
+Compile E-SAP-0046's unchanged `observed_cpu.c` against the current library
+with the command recorded there, output `/tmp/sap235-reopen/observer`, then
+run the four layers with `--max-instructions 2000000000 --max-time 30000000000`.
+The observer records native register/state reads without changing instructions.
+
+| Boundary | Instructions | Virtual ns | Retry |
+| --- | ---: | ---: | ---: |
+| reopen arm126ef0, LR125665 | 816474243 | 4655188295 | 0 |
+| state7 at125694 | 821817559 | 4703807842 | 0 |
+| state8 | 823662105 | 4714227482 | 0 |
+| state9 | 826441348 | 4723567659 | 0 |
+| state10 | 835669541 | 5331872613 | 0 |
+| first state12 | 935908161 | 10809078124 | 0 |
+| second state12 | 1019618827 | 16287278768 | 0 |
+| next request refused, PC001be85a | 1020576082 | 16288236023 | 0 |
+
+At reopen the interpreter UART is10045d60, callback1250e7/userdata0;
+all other driver/register fields match the lane tuple. A second read-only
+observer additionally records native TX helper12540c: `@VER` at
+271863148/1576689357, `@GSR` at826441384/4723567695 and `@GSTP` at
+1020558113/16288218054. Source `/tmp/sap235-reopen/tx_observer.c`, SHA-256
+`7efd774605f96ca35eb6578ffc1a4a5085ee8092f04fd6bde28b0c9cebd69df3`;
+compile/run identically with that source. Both `tx-observed-1.log` and
+`tx-observed-2.log` match, SHA-256
+`411ee2d41966ba1f77cf501de2d73d0a60a9380ca03293ccd30b8385fc768873`.
+The pristine state12 branch tests awake flag100589fe; without an observed
+awake transition it eventually takes native recovery and sends GSTP. This
+integration supplies no awake pulse or GSTP completion semantics.
+
+Negative lane control: `/tmp/sap235-reopen/wrong-prefix.resc` changes only
+the post-reopen unsolicited line to `$BAD0000\r\n`. Its SHA-256 is
+`1c4bcecbc00f3fd3d16ce0c7c7baf2a3904e22ab68fb68c0dc83f93e21b65026`.
+Run twice from the read-only sibling with
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+/tmp/sap235-reopen/wrong-prefix.resc`; each has a20s virtual cap. Raw
+`wrong-prefix-1.log` and `wrong-prefix-2.log` hashes respectively:
+`d16adcc60162dff7641c1d4ec99dfb3f8615db253faa1077a86f94448c9e6097`,
+`820426c173dfa9979e6d7b7ea0e078ca48f5916f482249313701069892d81bb6`.
+The normalized62-row censuses match, SHA-256
+`3d0a63f8cb2fdb875f19977236ded6e134ce54cca4f363d546fa93dc0e39df82`.
+Normalizer `/tmp/sap235-reopen/wrong-prefix-census.py`, SHA-256
+`9c21ba595151628d8c50572b41e6f8ca8db102f221ecb73fdc0d311bd4e48da2`,
+uses the same explicit repeated-byte expansion as the positive census.
+Derived result: six TX bytes (VER only), thirty RX bytes (two initial valid
+statuses and one BAD line); initial states2/14/15 pass, reopen pending7
+expires in state4 and cycles5/startup, no state7/8/9/10/12, no GSR/GSTP,
+no assertion at20s, final PCe1862. The native parser distinguishes the prefix;
+a merely received line does not satisfy the reopen.
+
+Paired SDL command (same private manifest and all four named 2.35 layers):
+`SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk
+build/suunto-emu-sdl run --profile sapporo-2.35.34 --firmware
+tests/private/sapporo-2.35.34.18929/firmware.semu
+--layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup
+--layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen
+--until setup-next --max-instructions 4000000000 --max-time 30000000000`.
+The second run also sets `SEMU_SDL_PPM_DIR=/tmp/sap235-reopen/frames` for
+visual inspection; no frame pixels enter Git. `sdl-walk-1.log` and
+`sdl-walk-2.log` compare byte-identical, SHA-256
+`dee38d7d1eb4682871ea573db86e3b4f5669b7b6fdf2e30c76e9cbce7b634399`.
+Observed native screens: Welcome gen894/CRCa40f952b/time11430442553;
+Birth year1990 gen1197/CRC2ce89ebe/time14511149843;
+Unit system/Metric gen1274/CRC3e13459a/time15281284186.
+After advancing step10 the walk stops compat-refused, PC001be85a,
+3544601348 instructions,15965172775ns. It does not finish onboarding.
+
+| Exact command/result | Log SHA-256 under `/tmp/sap235-reopen` |
+| --- | --- |
+| `make test TEST_FILTER=sapporo_235_gps`: 8 cases, 4 new/43 refusal variants, exit0 | `c5ce8ef2fdddcd0d5cd79b9c99f4a34af0f261ec59eee8d82b170f60329b38cb` |
+| `make test TEST_FILTER=sapporo_cxd5610`: 13 cases, exit0 | `1ab0320c9d1fa894fb2ced9ba709e44762b6c845561c80eba5436b05a6b3186f` |
+| `make check`: 973 cases, exit0 | `15d0a6f62a1edb55337de42953a44d97172cbebee47986009f37e6137c47c0d8` |
+| `make sanitize`: 968 cases, exit0 | `43e95bf6c2f5506b0bc7ed6c95e212c05e2df20c8168c2bb94c38902e133297f` |
+| `make check-lines`: advisory, exit0 | `d77b418dd4008e9e73e437593160f34495fd20e2464a1202ffdb66da5f953607` |
+| `make check-task-contracts`: 150, exit0 | `3c1f31342b3cb66c63a145a8e56f5664a3a1665836a9721b816f60bd93e5ddd6` |
+| `make test-firmware TEST_PROFILE=sapporo-2.35.34 SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`: six scripts pass, other profiles skip | `144ca2d0f4cbe40fa0353cc05266fc5cc3c33c22832508e7c021e311824339a5` |
+| `sh tools/test_sdl_sapporo_235.sh`: old two-layer transcript unchanged, exit0 | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+
+Changed files: new `src/compat/sapporo_235_gps_reopen.c/.h`,
+`tests/unit/test_sapporo_235_gps_reopen.c`,
+`tests/integration/test_firmware_sapporo_235_gps_reopen.sh`;
+`src/devices/sapporo_devices.c`, `sapporo_devices_internal.h`,
+`sapporo_device_compat.c`, `src/boards/machine.c`, `machine_run.c`;
+README, current-status, this evidence ledger, ticket785 and index row.
+No generic CPU/scheduler/UART MMIO behavior, public include API, profile,
+snapshot format or existing golden changed. The profile-specific fixture
+cannot activate on other versions; the 2.39 era sweep was not repeated and
+its prior30/43 failures remain unresolved. Requested integrator action:
+review785 without adopting ongoing GPS/awake behavior. Ticket status remains
+ready. Full onboarding, 2.35 snapshots and other-version gaps remain open.
+
+### E-SAP-0048 — 2.35 bounded synthetic GPS awake sequence
+
+2026-09-22, ticket786. The read-only lane's normal GPIO24 transport tests the
+native awake predicate without fabricating GSTP or location/time data. Both
+probes extend E-SAP-0047's exact four status responses and controlled flash
+experiment, retain assertion halt diagnostics, and have a60s virtual cap.
+At1259fe (after native state12 rearm, before clearing awake), the positive
+probe admits at most eight pulses, each delayed100ms and high for1ms. The
+negative probe logs the same boundary but admits zero pulses. No firmware
+instruction/register/state write or source-lane edit is added.
+
+Run each twice from `../suunto-firmware` with
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+/tmp/sap235-awake/pulse-N.resc`, N=0 or8. External probe SHA-256:
+
+- pulse-0.resc: `ae40e6e60500f1a3c3f50f79397a8a2d921dd09da8d481e6c3452fba9dedaac6`
+- pulse-8.resc: `de5933eb8416624ffbbd1855cb1d52bf354b1bd96d288e7e7568291283e36436`
+
+Raw logs in `/tmp/sap235-awake`, SHA-256:
+
+- pulse-0-1.log: `df02e3ce3da3457e35eb66c934778f02180e01bfeee2984fdad817b4802a7b95`
+- pulse-0-2.log: `de09a498904b8a54950e050e034ff447f975ed5635578e033f8a31d4a0f6d91a`
+- pulse-8-1.log: `d110d7b39e0ec0ca7c68dfa54be9a1bee1e828ec4fb44cb3b5237dc018716b3b`
+- pulse-8-2.log: `c56e10602ad08213594f4a408cbe121eeb282cf9651ea472080345e58cc84c26`
+
+Normalizer `/tmp/sap235-awake/census.py`, SHA-256
+`8595aa4b1f29197b6fdf5af860469f1ec4fd4121f0ff7bc03ec12b19362aa013`,
+extends E-SAP-0047's timestamp removal/repeated-byte expansion with awake
+poll/injection/pulse rows. Paired negative116-row census SHA-256
+`1db096be04838d19a8045e2a23e32923713bac3140f6a4752ae50a65e2465a8d`;
+paired positive135-row census SHA-256
+`2c161983514f7c3477625f29a05acdd3f08501d7d991f2c5dca0bae9b0a479a2`.
+Both pairs compare byte-identically.
+
+Derived census: positive has nine successful poll boundaries, eight injected
+pulses/eight highs/eight lows, twelve TX bytes (VER+GSR), forty RX bytes
+(four status lines), no GSTP/assertion, final PCe1862 at60s. Every poll has
+R8=100364ac, R4=100589fe, R5=10036718 (driver+26c), R6=100367c0 (+314),
+R7=10036521 (+75), state12/pending10, flags[100589fe..58a00]=1,0,0,
+GPIO24 config[40010060]=93. R0/R2 vary because the scheduler call returned;
+they are not trigger predicates. Native state10 bootstraps awake=1 and
+schedules the first5500ms poll. Subsequent GPIO edges restore the flag after
+each native clear. The ninth observed poll has no pulse admitted.
+
+The zero-pulse control transmits25bytes (VER,GSR,GSTP,GSR), receives the
+same40bytes, then cycles retry startup and asserts at
+CXD5610GF-driver.cpp:894, LR12572d, SP1002f7d0, diagnostic halt79424.
+No response to GSTP or the repeated GSR is configured in either probe.
+This supports only eight opt-in synthetic pulse admissions at the exact
+native boundary. It proves no physical cadence or unbounded receiver model.
+
+
+E-SAP-0048 integration786: `sapporo-2.35-gps-awake` requires the completed
+initial/reopen layers and admits exactly eight pulses through the existing
+CXD transport and Apollo GPIO/IRQ route. Exact descriptors, per-machine
+contexts/counters, dependency completion/refusals, trigger registers/state and
+GPIO configuration are checked before scheduling. Invalid or ninth admissions
+latch compatibility refusal; scheduling failures retain their original error.
+Reset cancels queued rise/fall events and clears fixture bindings. The lower
+transport owns timing and pulse delivery; only the evidenced native trigger
+and finite synthetic admission count belong to the compatibility layer.
+No instruction, native flag, unknown command or old layer budget is changed.
+
+Before implementation, the new private runner fails with unknown-layer error;
+`/tmp/sap235-awake/before.log` SHA-256
+`4221f7b92fa25649720db09edf36ba021938d3f1a72c2f78e603a7d18225b1f0`.
+The cold run, with all five layers and3B/70s caps, admits eight pulses and
+stops before the ninth at1259fe /1579930110 instructions /54642979249ns,
+`compat-refused`. Full CLI log SHA-256
+`0fc177712c29f58a0b51a306db09538497bc0dd899164968f5019de6f96eb9fa`.
+Reversing startup/reopen/awake CLI option order reproduces the same transcript.
+The private runner pins this full transcript, refusal tuple and eight hits.
+
+Read-only interpreter observer source `/tmp/sap235-awake/observer.c`, SHA-256
+`61b6e51ccf207206dffc8a3e43c07ed8c0ef575a61b091043c6e4797689b6aca`,
+extends E-SAP-0047's diagnostic with the awake flag at1259fe. Compile with
+`cc -O2 -std=c99 -Iinclude -Isrc/cpu/armv7m /tmp/sap235-awake/observer.c
+build/obj/src/frontends/cli.o build/obj/src/frontends/main_headless.o
+build/libsemu.a -o /tmp/sap235-awake/observer`; run the exact private manifest,
+all five named 2.35 layers, `--max-instructions 3000000000 --max-time 70000000000`.
+The fixture validates1/0/0 flags at every admission; native IRQ handling
+restores awake=1 after the preceding native clear. No flag is written by the
+observer or fixture.
+
+| Admission | Instructions | Virtual ns |
+| --- | ---: | ---: |
+| 1 | 935908455 | 10809078418 |
+| 2 | 1019620206 | 16287096013 |
+| 3 | 1098618077 | 21766683180 |
+| 4 | 1180362196 | 27245613949 |
+| 5 | 1260275306 | 32724937142 |
+| 6 | 1339272963 | 38204336102 |
+| 7 | 1419186066 | 43683657280 |
+| 8 | 1499096453 | 49163930732 |
+| 9 refused before instruction | 1579930110 | 54642979249 |
+
+The unmodified SDL default setup walk is a navigation stress case, not proof
+of onboarding completion: its post-phase12 LOWER presses adjust HEIGHT
+repeatedly. It exits voluntarily after31 steps at generation2644/CRCf963cf9f,
+PC080000a2 /8101149152 instructions /28562549498ns. Exploratory
+`/tmp/sap235-awake/sdl-1.log` SHA-256
+`5019316ee39179853f0e910c397a5ddaafa0890f0a31d9ce59e7337ffb9dc11b`.
+Only four awake pulses are needed through this navigation window. Further
+setup checks must specify button intent rather than infer completion from
+the frontend's generic “completed setup-navigation” message.
+
+Final paired interpreter observer logs `observed-1.log` / `observed-2.log`
+match byte-identically, SHA-256
+`615a3a60d1d6217f4ca4e2a0beb17629058756832ec6ca671e236780a87c61bb`.
+Both observe the eight flag=1 admissions above; the ninth stops before CPU
+observer entry. TX remains exactly VER/GSR, with no GSTP fallback.
+
+Paired SDL confirmation walks use:
+`SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk
+SEMU_SDL_SETUP_WALK_POST=mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
+build/suunto-emu-sdl run --profile sapporo-2.35.34
+--firmware tests/private/sapporo-2.35.34.18929/firmware.semu
+--layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup
+--layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen
+--layer sapporo-2.35-gps-awake --until setup-next
+--max-instructions 10000000000 --max-time 70000000000`.
+The first additionally sets `SEMU_SDL_PPM_DIR=/tmp/sap235-awake/setup-frames`
+(existing directory) for visual inspection. Both complete transcripts
+`setup-1.log` / `setup-2.log` match, SHA-256
+`5ba851f3775d88d5979c4501060bd93c58e54f874a09a9e2d844ed666960303a`.
+They stop compat-refused at1259fe /5182618500 instructions /54208499271ns
+on the ninth awake admission. Native screens verified from captured pixels:
+
+| Step/screen | Generation | CRC32 | Virtual ns |
+| --- | ---: | --- | ---: |
+| 10, time format24-hour | 1351 | 4fc8fd25 | 16051416224 |
+| 11, weight70kg | 1429 | 4ec75f52 | 16819674459 |
+| 12, height170cm | 1504 | ac9055d3 | 17590133343 |
+| 13, Connect with Suunto app | 1579 | 65575836 | 18360276118 |
+| 14, phone pairing instructions | 1642 | a077755a | 19129590298 |
+
+The later middle press does not complete pairing. No phone, GPS fix or
+onboarding completion is inferred from this run. All frame pixels stay in
+volatile workspaces outside Git.
+
+Verification (2026-09-22), logs under `/tmp/sap235-awake`:
+
+| Exact command/result | SHA-256 |
+| --- | --- |
+| `make test TEST_FILTER=sapporo_235_gps`: 12 cases, four new/36 refusal variants, exit0 | `45f4fd879e9d6cee8e01297e7ffb70607bb50a393bb6ce114286a80aa3eb43da` |
+| `make test TEST_FILTER=sapporo_cxd5610`: 13 cases, exit0 | `005463aaa4f26637158da30a72b13dda31805e74276d12e95e2d0f550c56dc37` |
+| `make check`: 977 cases, exit0 | `c2a5221c37a9755f27e69647ada996f84ca6c173b11a3ac8d944d24f4a6ba737` |
+| `make sanitize`: 972 cases, exit0 | `25d3e3bba81a2ffb8dfcb0299da283271144bb53c6e38264c8c8c42d0ce36089` |
+| `make check-lines`: advisory, exit0 | `9f0cdaa283042855d201f9c8dd2d5f80b8b945447e4ff899f816ee3820fcb247` |
+| `make check-task-contracts`: 151, exit0 | `3af3870f12b9343e05276db271fbe055ea5eb3503bb3a63715bdb62b3c17c30d` |
+| `sh tools/test_sdl_sapporo_235.sh`: original two-layer transcript unchanged, exit0 | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+
+The new binding tests exercise all six GPS option permutations, invalid
+sets before valid binding, low/high reset cancellation and sticky machine
+refusal before guest execution. Pulse tests verify100ms rise/1ms high,
+eight successes and ninth refusal, instance isolation, immutable CPU state,
+log identity, and failure preservation of transport snapshot, scheduler
+queue/IDs/sequence/time, signals and hit counts. The scheduling refusal tests
+cover busy pulse, deadline overflow, ID exhaustion and sequence exhaustion.
+
+
+`make test-firmware TEST_PROFILE=sapporo-2.35.34
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`
+passes all seven2.35 scripts, exit0; other profiles explicitly skip.
+`firmware.log` SHA-256
+`e40c65ec10a96789749203be0b00ed8a1bc9a80ff5a7fabcdb5d852aacb38f47`.
+The resident/app/resource bytes in the read-only lane root were re-hashed and
+match the three pinned E-SAP-0038 component identities. `sh -n` on the new
+runner and `git diff --check` pass.
+
+Changed files for786: `src/compat/sapporo_235_gps_awake.c/.h`,
+`src/devices/sapporo_devices_internal.h`, `sapporo_devices.c`,
+`sapporo_device_compat.c`, `src/boards/machine.c`, `machine_run.c`,
+`tests/unit/test_sapporo_235_gps_awake.c`,
+`tests/integration/test_firmware_sapporo_235_gps_awake.sh`, README,
+current-status, this ledger, ticket786 and its index row. No generic CPU,
+scheduler, GPIO/UART MMIO, public API, profile, snapshot or old golden changes.
+The2.39 era sweep was not repeated for this explicit2.35-only addition;
+its prior30/43 failures remain open. Requested integrator action: review786
+separately and keep ongoing GPS/phone behavior outside its eight-pulse scope.
+Status remains ready; the overall functional-emulator goal is incomplete.
+
+
+### E-EMU-SAP235-SCROLL-001 — phone-instructions scroll submission fault
+
+2026-09-22, read-only follow-up diagnosis after integration786. The five-layer
+SDL walk passes HEIGHT with MIDDLE at step12 and the Connect screen with
+MIDDLE at13. LOWER at step14 (the phone instructions) then provokes a native
+HardFault/reset. It is not evidence of a Bluetooth or GPS exchange failure.
+
+Exploratory command: the E-SAP-0048 SDL command with
+`SEMU_SDL_SETUP_WALK_POST=mmlmmmmmmmmmmmmmmmmmmmmmmmmmmmmm`, caps10B/70s,
+and PPM output to existing `/tmp/sap235-awake/skip-frames` outside Git.
+`skip-1.log` SHA-256
+`0ec8971ccf06e49c3482ad97fcf18b8afe5ec1753b318b8abd1ab6830c682371`.
+The native reset request is at PCcdf5a /4708408494 instructions /
+19206046973ns, LRffffffed, SP1005ff58, xPSR29000003. The run restarts setup
+and ends budget at PCe1862 /9843851847 instructions /70073361127ns.
+The frontend's cumulative budget includes the reset epoch; device logs use
+the reset scheduler clock. This restart is not successful onboarding.
+
+A diagnostic CPU wrapper pauses at the first HardFault after4B instructions,
+without altering execution before that boundary. Source
+`/tmp/sap235-awake/fault_observer.c` SHA-256
+`49b7bf7b8d6ad89a361edcbcdc8677a082c1c63aac359f56f25f4a01084b081b`.
+Compile with `cc -O2 -std=c99 -Iinclude -Isrc/cpu/armv7m
+/tmp/sap235-awake/fault_observer.c build/obj-sdl/src/frontends/cli.o
+build/obj-sdl/src/frontends/main_sdl.o build/libsemu.a -L/opt/homebrew/lib
+-Wl,-rpath,/opt/homebrew/lib -lSDL3 -o /tmp/sap235-awake/fault-sdl`.
+Run the same mml-prefixed SDL sequence, all five layers and exact manifest,
+with5B/22s caps. Both complete `fault-1.log` / `fault-2.log` match, SHA-256
+`ad57215b87364b7a649aa15c0d38e4dfe4ace927d23f394e4b7edc9ccbc683aa`.
+
+Derived fault: valid native STR r1,[r2,r0] atc1932, instruction5011;
+R0=ec, R1=1014389c, R2=40090000. The write to400900ec (CMDRINGSTOP)
+escalates a precise BusFault: CFSR8200, HFSR40000000, BFAR400900ec,
+handler1be85a, LRffffffed, MSP1005ff58, PSP10034630. Diagnostic halt at
+4708408415 instructions /19206046894ns. Stacked PCc1934, LRcb087,
+xPSR09000000; the firmware requests reset79 instructions later. Existing
+E-EMU-NEMA-GPU-001 proves that a rejected GPU transaction takes this CPU/bus
+fault path. No instruction workaround or transaction success fallback is
+permitted; identify and evidence the specific renderer refusal next.
+
+The paired bus-boundary diagnostic identifies the original refusal precisely:
+`address=400900ec width=4 value=1014389c status=6 detail=backend: unsupported source format 0x06`.
+It is captured before the CPU turns the failed write into an architectural
+fault. External `/tmp/sap235-awake/bus_observer.c` SHA-256
+`b888d32ca574b59cbd885912af2d767e7fe1f6250884ce9d8baaf62afdcf45e6`
+is an unchanged bus implementation plus a diagnostic wrapper around writes to
+that address. Compile alongside `fault_observer.c` with additional
+`-Isrc/core`, the same SDL objects/library/link flags, output
+`/tmp/sap235-awake/gpu-fault-sdl`; run the same5B/22s diagnostic twice.
+`gpu-fault-1.log` / `gpu-fault-2.log` compare byte-identical, SHA-256
+`00d4e297bf424d6c985631b685b931ce87a18bd52734d2988dd2deb4c3f08408`.
+Removing only the new GPU_REFUSAL row yields the earlier complete fault
+transcript byte-for-byte. No diagnostic changes production files or pixels.
+
+Next reference located, not yet adopted: read-only lane
+`emulator/renode/graphics/SapporoNemaP.cs`, SHA-256
+`a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165`,
+contains `IsProvenRgba4444Texture`, `ExecuteRgba4444Texture`,
+`BilinearRgba4444` and `Rgba4444`. Its exact pairing-strip predicate includes
+Texture1FormatStride060101e0, resolution006000f0, RGB565 target040001e0 /
+00f000f0, shader941e8000, finite affine coordinates and bounded SRAM. This
+is a concrete lead for a separate observed rendering integration; native draw
+state and lane execution must still be captured and reproduced before adding
+format06 support. Ticket786 does not change rendering or bypass this refusal.
+
+## E-NEMA-RGBA4444-001 — Replayed pairing strip and bilinear pixels
+
+**Status:** verified lane evidence, 2026-09-22. Ticket 787 integration input.
+The read-only `../suunto-firmware/emulator/renode/graphics/SapporoNemaP.cs`
+SHA-256 `a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165`
+is the sole machine oracle. Relevant methods: IsProvenRgba4444Texture,
+ExecuteRgba4444Texture, BilinearRgba4444, Interpolate, TryRectangle.
+
+Two native 2.35 captures repeat E-EMU-SAP235-SCROLL-001's five-layer
+`setup-walk`, POST `mmlmmmmmmmmmmmmmmmmmmmmmmmmmmmmm`, with
+`--until setup-next --max-instructions 5000000000 --max-time 22000000000`.
+The read-only draw observer snapshots format06 state/source/current surface
+before the unsupported draw; the earlier CPU fault observer stops after the
+first HardFault beyond4B instructions. Both native logs and both inputs are
+byte-identical. The native snapshot has source1009774c, target1010ed80; source
+format06/sampling1/stride480/240x96; target04/sampling0/stride480/240x240.
+Clip=(0,162)-(240,240), quad=(0,237)-(240,240), draw5, matmult0,
+codeptr941e8000, IMEM=(0,004e0002,804b1286), white texture tint,
+matrix=(1,0,0;0,1,-237). Draw colorff000000 is unused by this path.
+
+Replay commands run from the read-only sibling:
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+/tmp/sap235-rgba/{native,synthetic,refusal}-{1,2}.resc`. Each script includes
+the 2.35 lane, holds CPU halted (zero instructions), loads bounded source,
+destination and60-word child list, submits through the real command ring,
+and runs exactly 0.001 virtual seconds before dumping 115200 destination bytes.
+The final scripts below are authoritative; the earlier generator's SaveBinary
+line was replaced by SystemBus.ReadBytes/File.WriteAllBytes in those scripts.
+No firmware, captured pixels, probe binaries or raw logs enter Git.
+
+Native replay changes exactly 720 pixels (240x3 visible strip). Synthetic
+replay uses source10040000/target10080000, clip/quad(0,0)-(240,100), matrix
+(1,0,-0.25;0,1,-0.5). Source texel=((x&15)<<12)|((y&15)<<8)|
+(((x+y)&15)<<4)|((3*x+7*y)&15); old RGB565=((x%32)<<11)|
+((y%64)<<5)|((x+y)%32). It changes 23038 pixels, including transparent
+texture borders. Wrong-shader control changes codeptr to941e8001 and changes
+zero pixels, refuses at child byte offset232/draw5, completion refused,
+clid1/irq0. Accepted runs each produce 13 normalized NEMA rows; refusal 12.
+Raw logs include host timestamps; normalization extracts `NEMA_[^\r\n]+`
+rows in order. Every normalized census and full output repeats byte-identically.
+
+Decode little-endian texels as R/G/B/A nibbles times 17. Affine mapping and
+left-associated bilinear products/sums use binary32, with transparent samples
+outside 240x96; channels round via trunc(value+0.5). RGB565 destination
+expansion uses c5*255/31 and c6*255/63 (floor); alpha-over is
+(src*a+dst*(255-a)+127)/255; encoding uses (c*31+127)/255 or
+(c*63+127)/255. Exact shader/descriptor, bounded SRAM, ordered clip,
+rectangular signed16.16 geometry bounded [-1024,1024] and finite matrix are
+required. Mapping overflow, inaccessible memory and source/destination overlap
+remain explicit emulator refusals; these are safety boundaries, not new lane
+behavior claims. Physical panel and arbitrary shaders are unproven.
+
+All following paths are relative to volatile `/tmp/sap235-rgba/`; hashes are
+SHA-256. Input sizes: source 46080, before/output 115200, child lists 240 bytes.
+
+| Artifact | SHA-256 |
+|---|---|
+| `draw_observer.c` | `f0339ac53262158a0c0f2b6f65c2692deab39bd25e161347b39ee45b9555e282` |
+| `make-probes.py` | `44b4045b2b35826c191d757bcf4f00b48457b9d4bc4a20318424ab750bd8b99b` |
+| `normalize.py` | `3c3c383b91b61f91f4f08a92ba395fe3a71f0ec5800e1cd386f7c731da2edd92` |
+| `native-1.log` | `6bf35e6d3c38c817760e69e1805bad00c9bfb2bb3719237ebd9fd27183d8b019` |
+| `native-2.log` | `6bf35e6d3c38c817760e69e1805bad00c9bfb2bb3719237ebd9fd27183d8b019` |
+| `native-1/source.bin` | `eca77b04b10f01f01a62d30d630ab31c939c5afeb22b05692a4d5ca3aa68f5b8` |
+| `native-1/before.bin` | `58059fa607496284614a5e7d881b6ba6ecad9c31b24afa57bb347546be17d227` |
+| `synthetic-source.bin` | `7d2bc1e2af26fcc193e4eaaac3d9586265676a4ba8b51140c6fe8b398ae0fced` |
+| `synthetic-before.bin` | `5a2249552fc4b2ac5fce392ba82129084a1a769c5b30c0145cfebd5caec71a66` |
+| `native-list.bin` | `9ff4c8eed3f253bc7e96130489f5cb470b83e1fb23e1b910781069e13dffbba8` |
+| `native-1.resc` | `330773aa0a4895ac072808a007079dfffe7926a588512cdf0517644fa3a7b616` |
+| `lane-native-1.log` | `26441fcd96cc1abd70da0128bb8760cf9e15b13fb88b31b5b5089ba31025952d` |
+| `lane-native-1.census` | `da99ca333257c2bbb7558b21e7bb730c24691fd1a00764535d966af31fa0d98c` |
+| `native-1.rgb565` | `ae6001a5c2b6e0910bff0aba61b45f8d92d1e25d166d55972cf367bc895ee05c` |
+| `native-2.resc` | `557dd3ee97ef68e6f8c75f16d7309eb793bac852e709f71241520b80233d95d1` |
+| `lane-native-2.log` | `9d448d069b60bf18eadc1996395007cb7698af9e539c24790882e864fe51ba57` |
+| `lane-native-2.census` | `da99ca333257c2bbb7558b21e7bb730c24691fd1a00764535d966af31fa0d98c` |
+| `native-2.rgb565` | `ae6001a5c2b6e0910bff0aba61b45f8d92d1e25d166d55972cf367bc895ee05c` |
+| `synthetic-list.bin` | `b8a6259ef268a35da3e5e93f741a94f4b59a16179086516d03801a9eb2d67df9` |
+| `synthetic-1.resc` | `6a3e38b363eaeaa12206c004f0769248a9673c8c98787271c78a66ab7af5c56d` |
+| `lane-synthetic-1.log` | `9eff6690fa67de65680dd659bdb57587dfa921c72ac0f8ac03442edca8e41c20` |
+| `lane-synthetic-1.census` | `037303231c9e9c4113b7ad00307e9ec1a50c4969794179af565ce37510a00c20` |
+| `synthetic-1.rgb565` | `f2a0a0e64d568e95741790f4ea55fd07ebca33743e32fa697f2e195f432318b3` |
+| `synthetic-2.resc` | `134092f2e6da4033e3de78485e48afa2668404c4e7a1c2cb4a6d22adf749c76d` |
+| `lane-synthetic-2.log` | `17ea6e04dbb0975b01f99f56c1a759ead795305a952f83147d02d01e04249181` |
+| `lane-synthetic-2.census` | `037303231c9e9c4113b7ad00307e9ec1a50c4969794179af565ce37510a00c20` |
+| `synthetic-2.rgb565` | `f2a0a0e64d568e95741790f4ea55fd07ebca33743e32fa697f2e195f432318b3` |
+| `refusal-list.bin` | `0f22e005517916a8fd22e56757955ef7e1c69f12390392dd79a35a8c247ea48e` |
+| `refusal-1.resc` | `f5ecafe21a534fb4e0d0b1c58efdf403bcf7ad1b7c0197310be63ef21846f810` |
+| `lane-refusal-1.log` | `eb5a5c35c30269488c1a4702b708a6aadbf0ea7aca5eff0c946aa000e50a8ae2` |
+| `lane-refusal-1.census` | `8bb91445512009968d9f4dbd1ff87334a936a4947dc11275cf2e669436efb812` |
+| `refusal-1.rgb565` | `5a2249552fc4b2ac5fce392ba82129084a1a769c5b30c0145cfebd5caec71a66` |
+| `refusal-2.resc` | `f4268defffe7bba4197b1501dceb85302d9cad594c9cce120f3134a3a008cc0b` |
+| `lane-refusal-2.log` | `4a7609f5f3ca885c5c9c5e816e99833ca5310db22457d8eb5ca436b16af2b9b9` |
+| `lane-refusal-2.census` | `8bb91445512009968d9f4dbd1ff87334a936a4947dc11275cf2e669436efb812` |
+| `refusal-2.rgb565` | `5a2249552fc4b2ac5fce392ba82129084a1a769c5b30c0145cfebd5caec71a66` |
+
+Additional binary32 cross-check: two cold `complex-{1,2}.resc` lane replays
+use the same synthetic pixels/rectangle, with matrix bit patterns
+(3f7cd6ea,3c4a4533,bed70a3d;bda3d70a,3f95c28f,40466666). This exercises
+non-dyadic fractional interpolation and skew/scaling. Both full outputs and
+the independent interpreter replay match byte-for-byte, with 19765 changed
+pixels. Thirteen normalized NEMA rows repeat; the census is the same as the
+other accepted synthetic run because it logs descriptor/commit boundaries,
+not the six coefficients. Final list hash pins those coefficients separately.
+Launch command and zero-instruction/1ms bounds are the same as above, using
+`complex-{1,2}.resc`; normalization is the same extracted NEMA-row rule.
+
+| Additional artifact under `/tmp/sap235-rgba/` | SHA-256 |
+|---|---|
+| `complex-probe.py` | `fb3c14cb4ff686a7a0c51ac3fbd434f086ba22f78e6e3d540160a6cdd9375d7b` |
+| `complex-list.bin` | `c92b11640ff44acf2a7543a2a2c415fb95a7a05c1ea1d0c10fe8b60021661d4d` |
+| `complex-replay.c` | `fc8782242d499a1805d4f67af856512e221d532ab68ea89bb031f2ac030a5c73` |
+| `complex-emulator.rgb565` | `52f32d7eaf3e1ec7bdfa6c74ebe760e58dcb0fcebab6f122af3219f26bd5a880` |
+| `complex-1.resc` | `cd52a182bf08df17e64acd3a3832bb2dc553a8e416f1462fa7edff1fa2ac16b3` |
+| `complex-2.resc` | `eb0c8774492841f93423150a03831a438b35de140ad7e9bad6da08b1cbf7d0cd` |
+| `lane-complex-1.log` | `d1c91559818a004f7854b9db1e47ba2360639b5ab91164e41ce24aefce62552a` |
+| `lane-complex-2.log` | `7807a4f30286391f79f632281edfddd8e920d6aa380140de8402fffc05ac5c96` |
+| `lane-complex-1.census` | `037303231c9e9c4113b7ad00307e9ec1a50c4969794179af565ce37510a00c20` |
+| `lane-complex-2.census` | `037303231c9e9c4113b7ad00307e9ec1a50c4969794179af565ce37510a00c20` |
+| `complex-1.rgb565` | `52f32d7eaf3e1ec7bdfa6c74ebe760e58dcb0fcebab6f122af3219f26bd5a880` |
+| `complex-2.rgb565` | `52f32d7eaf3e1ec7bdfa6c74ebe760e58dcb0fcebab6f122af3219f26bd5a880` |
+
+Implementation verification, ticket 787: the first `make test
+TEST_FILTER=nema_rgba4444` fails with one selected test on the pre-change
+unsupported-format refusal. Follow-up regressions independently fail for an
+absent zero-valued program register and for an observed black clear after an
+inherited RGBA source; both are corrected within the integration scope.
+The final seven cases pass (including 33 malformed-state variants, 11 missing
+program variants, full lane pixel pins, overlays/holes with zero MMIO reads,
+allocation/mapping atomicity, later-child refusal/retry and inherited clear).
+The complex-matrix extension also passes under a focused sanitizer run.
+
+Exact successful commands:
+
+- `make test TEST_FILTER=nema_rgba4444` — 7 cases.
+- `make test TEST_FILTER=nema` — 119 cases; `make test TEST_FILTER=fpu` — 23.
+- `make check` — 984 passes; `make sanitize` — 979 passes.
+- `make sanitize TEST_FILTER=nema_rgba4444` — 7 cases, including both synthetic matrices.
+- `make check-task-contracts` — 152 indexed tickets; `make check-lines` — advisory warnings only.
+- `make all`; `make sdl` —successful builds, no new runtime dependency.
+- `make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235` — all seven private scripts pass with component validation.
+- `sh tools/test_sdl_sapporo_235.sh` —existing two-layer language-menu pins unchanged.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_live_input.sh` — existing 2.22 SDL pins unchanged.
+
+`/tmp/sap235-rgba/replay.c`, compiled with
+`cc -std=c99 -Wall -Wextra -Werror -pedantic -Iinclude -Isrc/display
+/tmp/sap235-rgba/replay.c build/libsemu.a -o /tmp/sap235-rgba/replay`,
+reads only the captured private inputs and invokes the production renderer.
+`cmp native-emulator.rgb565 native-1.rgb565` passes. The skewed synthetic
+replay uses `complex-replay.c` and the same library and also matches fully.
+Neither replay enters Git. CPU arithmetic implementations/FPSCR, scheduler,
+GPU framing/MMIO, snapshots, old pins and compatibility ceilings are unchanged.
+
+Two SDL cold runs using the earlier capture command without observers
+(`build/suunto-emu-sdl`,5B instructions/22s) match completely, with source
+format06 now accepted: step 15 generation 1756/CRC f0ff828c at 19706966235ns;
+endpoint `budget /000e1862 /4896065682 /22000000000ns` (CLI exit 3 for budget).
+No machine-reset-request, refused device transaction or compatibility refusal.
+The screenshot shows scrolled pairing directions and the watch name, not
+onboarding completion. The optional scroll runner pins this full transcript.
+
+Further paired input observations use the same five layers and `setup-walk`,
+POST `mmlllmmmmmmmmmmmmmmmmmmmmmmmmmm`,10B instructions/40s, with the first
+run's PPM dump directory `/tmp/sap235-rgba/later-frames`. After three LOWER
+scrolls, step 17 generation 1948/CRC 895a642c displays `Later`; MIDDLE selects it.
+Step 18 generation 1957/CRC e0c2f63d shows the native recommendation to connect a
+phone. MIDDLE there produces no further settled frame; both runs finish
+`budget /000e1862 /5570776834 /40000000000ns`, six bounded awake admissions,
+no reset/refusal. This is an observed UI waiting point, not an emulator failure
+or completed onboarding. Raw transcripts repeat byte-identically. Earlier
+single-run LOWER-only exploration is diagnostic only and backs no hardware
+implementation claim.
+
+Other-profile limitation: the full 2.39 era sweep and full 2.22 onboarding gate
+were not repeated here. Their pins may have drifted with the shared rendering
+extension. The pre-existing 2.39 census remains 30 failures among 43, tracked by
+ticket 783; no era golden is weakened or re-pinned. Phone pairing, full setup,
+GPS acquisition/ongoing service, 2.35 snapshots and physical panel are unproven.
+Ticket 787 remains ready; integrator review owns its status.
+
+| Implementation artifact under `/tmp/sap235-rgba/` | SHA-256 |
+|---|---|
+| `before-test.log` | `d24c187ac3ab29373b2c8e7c8a9c175beb4030c4ebea34f5e87eb19a2103782f` |
+| `missing-before.log` | `d3b7d10bc8c55e98905dd74c178326ca5790a9e42995b0c4811b3128ae5a24eb` |
+| `clear-before.log` | `1be0d1dfcd0baec3d47b00b0d2a1584ad1638ede3c51fad753d1805f21bad2d3` |
+| `after-test.log` | `17d32ebb7b8f15fdf6c52ef72fb476fab86f654c25bd476c70ca1810dbbf6810` |
+| `nema-tests.log` | `891f119b83d69a419806e22b5dd68895040852c4f8db1a279a65ce4819138de3` |
+| `fpu-tests.log` | `06ced1117ff54911a683835f99fbbf2dca569f3c2f2318bded8491261ae3c774` |
+| `check.log` | `e51f8b653abe174dd46af4077ec65484d4012f0ffa00d495fffaf86084dab7e8` |
+| `sanitize.log` | `4c0f6f2d377e458347f9fff525faafdce4c2127ec6fdb82ab970728cef070b65` |
+| `rgba-sanitize.log` | `9bb201cf84c0a70cd7d605f4f99688f306f4e9c44e94282bcf07ff77e9df62da` |
+| `contracts.log` | `ef345e23aeb742332c967213d4b2242cceaa759f3e3983ee22555b848a49b80c` |
+| `lines.log` | `67c5053bf19f4c2dc03ba63d1e271fed709637ef18a4657f29006a42a93ef3fc` |
+| `firmware.log` | `4af13c88189146fd7434fac06a93054a194c74dd84e1e8b55fd699c65362cbeb` |
+| `sdl-prefix.log` | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+| `sdl-222.log` | `228575cb7c370d51649adcd05eb6ae3bc055c22bcd177c7ba3c9381300d5d263` |
+| `replay.c` | `27faf3a3d6cd2e2f30fccd0ec7fb51af3459d1af18fa2dc241bca34f27386687` |
+| `native-emulator.rgb565` | `ae6001a5c2b6e0910bff0aba61b45f8d92d1e25d166d55972cf367bc895ee05c` |
+| `scroll-1.log` | `c79d7bd489bba9f280b8f64e233f2ab796688258267e045709e51a0242a7ad6c` |
+| `scroll-2.log` | `c79d7bd489bba9f280b8f64e233f2ab796688258267e045709e51a0242a7ad6c` |
+| `later-1.log` | `057f938336109e8b266e60d1f9ea310ba7894217b8f044f819c264dce916cbd0` |
+| `later-2.log` | `057f938336109e8b266e60d1f9ea310ba7894217b8f044f819c264dce916cbd0` |
+
+Final optional gate: `sh tools/test_sdl_sapporo_235_scroll.sh` exits 0 after
+two fresh runs of the final SDL build, matching the full c79d7bd4…2a7ad6c
+transcript pin and 22s endpoint above. Runner output `/tmp/sap235-rgba/
+sdl-scroll-gate.log` SHA-256 `b3da4b332833d04ee702b7c045ef251c8b46800a7744301666c02f901bf18fa2`.
+
+## E-EMU-SAP235-MAIN-TSC6A-001 — Done reached; compressed icon refuses
+
+**Status:** verified refusal boundary, 2026-09-22. No positive compressed
+texture pixels are established. Runtime and existing goldens are unchanged.
+
+The five-layer 2.35 interpreter reaches Time/date, the time-zone selector and
+Done. A usable LocalTime value is obtained in this run, so manual clock entry
+is unnecessary; its source was not traced and no phone/GPS time is inferred.
+The firmware faults while opening main about three seconds after Done.
+
+Common native command, with CLI validation of all three firmware components:
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+SEMU_SDL_SETUP_WALK_POST=mmlllmlllmmmmmmmmmmmmmmmmmmmmmm \
+build/suunto-emu-sdl run --profile sapporo-2.35.34 \
+  --firmware tests/private/sapporo-2.35.34.18929/firmware.semu \
+  --layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup \
+  --layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen \
+  --layer sapporo-2.35-gps-awake --until setup-next \
+  --max-instructions 10000000000 --max-time 40000000000
+```
+
+`three.log` captures this uninstrumented run, with optional PPM output under
+`/tmp/sap235-setup/three-frames`. Settled checkpoints:
+
+| Step | Generation | CRC32 | Virtual ns | Screen |
+|---|---:|---|---:|---|
+| 21 | 2299 | `ba55af9e` | 23089359324 | Connect later |
+| 22 | 2302 | `d13391e9` | 23584737521 | Time/date |
+| 23 | 3906 | `13021279` | 29084851413 | Time zone, UTC+00:00 selected |
+| 24 | 3981 | `1c1f9064` | 29855991832 | Done |
+
+The reset request is `cdf5a / 7486616944 / 32533939640 ns`. After reset,
+the OHR fixture refuses at `1be85a / 8018066412 / 36105130734 ns` (exit3).
+That later refusal is not the cause of the main-screen failure.
+
+Control `two.log` changes POST to `mmlllmllmmmmmmmmmmmmmmmmmmmmmmm`.
+Two LOWER presses select Connect and return to pairing instructions; it
+ends `budget / e1862 / 6222680298 / 40000000000 ns`. The exploratory
+manual-clock variant changes POST to `mmlllmlllmmlmmmmm`, adds timeline
+`32000:l`, and uses 18B instructions/60s. It also reaches Done, then resets
+at `cdf5a / 7703011117 / 33109623252 ns`, ending at a later OHR refusal
+`1be85a / 8234582705 / 36680814343 ns`. These exploratory controls are
+single runs and authorize no new hardware behavior.
+
+Paired first-fault runs (`fault-{1,2}.log`) use the common command with
+`/tmp/sap235-setup/diagnostic-sdl`. The external CPU observer stops at the
+first HardFault after 4B instructions; the bus observer logs refused GPU writes.
+Both are unchanged sources from E-EMU-SAP235-SCROLL-001:
+
+- `/tmp/sap235-awake/fault_observer.c`, SHA-256
+  `49b7bf7b8d6ad89a361edcbcdc8677a082c1c63aac359f56f25f4a01084b081b`.
+- `/tmp/sap235-awake/bus_observer.c`, SHA-256
+  `b888d32ca574b59cbd885912af2d767e7fe1f6250884ce9d8baaf62afdcf45e6`.
+
+Build: `cc -O2 -std=c99 -Iinclude -Isrc/core -Isrc/cpu/armv7m
+/tmp/sap235-awake/fault_observer.c /tmp/sap235-awake/bus_observer.c
+build/obj-sdl/src/frontends/cli.o build/obj-sdl/src/frontends/main_sdl.o
+build/libsemu.a -L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lSDL3
+-o /tmp/sap235-setup/diagnostic-sdl`.
+
+The complete logs are byte-identical. A valid STR at `c1932` (opcode 5011)
+writes `1014379c` to `400900ec`, receiving `SEMU_ERR_UNSUPPORTED`:
+`nema_tsc6a: unsupported mask resolve state`. CFSR8200, HFSR40000000,
+BFAR400900ec; handler1be85a, MSP1005ff58, PSP10034540, LRffffffed;
+stacked PCc1934/LRcb087/xPSR09000000. Diagnostic endpoint:
+`halt / 1be85a / 7486616865 / 32533939561 ns`, exactly 79 instructions
+before the unmodified firmware reset. No instruction repair is implicated.
+
+Paired draw-capture runs add `draw-observer.c` and `-Isrc/display` to that
+build, producing `/tmp/sap235-setup/draw-diagnostic-sdl`. They use the same
+command with `SEMU_CAPTURE_DIR=/tmp/sap235-setup/capture-{1,2}`. The observer
+saves working pixels before the draw and records the first refusal's state and
+memory-only source bytes. Removing DRAW_REFUSAL/DRAW_SNAPSHOT rows reproduces
+the first-fault logs exactly. Both full logs and both inputs repeat identically.
+
+Refused snapshot:
+
+- target10121d40, format04/sampling0/stride480/dimensions240x240;
+- source100a490c, format 17/sampling1/stride 180/dimensions60x60;
+- clip(0,81)-(240,162), quad(171,90)-(231,150), draw5;
+- drawcolorff555555, tintffffffff, matmult0, code941e8000;
+- IMEM=(0,004e0002,804b1286), matrix present;
+- matrix bits=(3f800000,0,c32b0001;0,3f800000,c2b40000).
+
+The source capture is the bounded stride-times-height span of 10800 bytes,
+not a claim that the compressed asset occupies that many bytes. It is not
+the existing semantic 480x480 transition surface from E-NEMA-TSC6A-001.
+
+`make-lane-probe.py` emits the exact 60-word child list and two lane scripts.
+Each includes the original 2.35 lane, halts the CPU (zero instructions), loads
+the captured inputs, submits the real ring and runs for exactly 1 ms. Command
+from the read-only sibling root:
+`.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+/tmp/sap235-setup/lane-{1,2}.resc`.
+
+Oracle `emulator/renode/graphics/SapporoNemaP.cs` SHA-256:
+`a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165`.
+Both lane runs refuse draw 5 at child byte offset 232 as unknown-state, refuse
+completion (clid1, IRQ0), and preserve all 115200 destination bytes. Twelve
+NEMA rows repeat identically after removing host timestamps. There is no
+positive decoded-pixel oracle in these results.
+
+The existing lane note `../suunto-firmware/docs/research/native-tsc6a-transition-surface.md`
+(SHA-256 `d9ae4eaec1cb5c53c5322f28911dc6f4d04a7df8c8e610c5d80eb6e0aa9301dd`)
+explicitly describes a semantic shadow, not a compressed codec.
+Ambiq's [Apollo4 Plus datasheet](https://ambiq.com/wp-content/uploads/2022/03/Apollo4-Plus-SoC-Datasheet.pdf),
+section 21.3.4.18, identifies format 17 as TSC6A with sixteen pixels and alpha
+in 96 bits; that identification supplies no successful lane decode or complete
+algorithm. The sibling Ulsan `ulsan_tsc4.py` labels its nibble interpretation
+diagnostic and unproven; it is not a TSC6A reference.
+
+`read-views.py` extracts views from resource SHA-256
+`f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22`.
+w-ltim tests LocalTime>=1677628800 after 5 s; w-done marks the wizard executed
+and requests main after 3 s. The scripts guided controls; the observed frames
+above are the runtime evidence. Firmware-derived XML and pixels stay outside
+Git. The missing evidence is a permitted positive compressed-texture reference,
+including block layout, alpha, stride, addressing, filtering and output pixels.
+Ticket 788 tracks that blocker; no shadow enlargement or transparent substitute
+is authorized. The overall emulator goal remains incomplete.
+
+| Artifact relative to `/tmp/sap235-setup/` | SHA-256 |
+|---|---|
+| `two.log` | `539850de28f13d1a56a913757f2539e9255f4d9c33760f48b5d1c17e25ef1009` |
+| `three.log` | `89d84f28e42e8916ae315ba1fd15e30b94059c35e33449394318c1a52dda82af` |
+| `manual-1.log` | `35ec40bcb5fe3143c3561ce5fcb0ecd44fd100d91b3109c5c34c57e24aff38e9` |
+| `fault-1.log` | `f63e252b852eaa3f0a17e45c80f4719f103a5705ceb82393fcb2f4d55d2191be` |
+| `fault-2.log` | `f63e252b852eaa3f0a17e45c80f4719f103a5705ceb82393fcb2f4d55d2191be` |
+| `make-draw-observer.py` | `7316637efa66656e4f46d851fdff5b564f71b39e6439d4539228d586683f176a` |
+| `draw-observer.c` | `189f1f7d62a4a5606e2d3fce7f43da8c567f71b69b3b1f19e9b101c4754d6980` |
+| `draw-fault-1.log` | `a31fe7cae62d225581c46841043f40ce91fc701064de16ed4e01513f2c365c99` |
+| `draw-fault-2.log` | `a31fe7cae62d225581c46841043f40ce91fc701064de16ed4e01513f2c365c99` |
+| `capture-1/before.bin` | `25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340` |
+| `capture-2/before.bin` | `25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340` |
+| `capture-1/source.bin` | `b403fb2454fe9ed8206ad3e5cc79af7789f272450527b7fe76a480ed8c44cdee` |
+| `capture-2/source.bin` | `b403fb2454fe9ed8206ad3e5cc79af7789f272450527b7fe76a480ed8c44cdee` |
+| `make-lane-probe.py` | `b8dd0343a207767d5f186d94b15e67bde7756ebed9117c4caad7aa39b2537f1a` |
+| `native-list.bin` | `29b19753e57ccf54d7b48b63c3a99643416bd5f5a0d60532cc02b9010721df1f` |
+| `normalize.py` | `1afd323e40509eaacf1357bd5167a3a844c32435e82e69ef451a0dd01b9b56be` |
+| `lane-1.resc` | `89480c432a655e0fed9be8fdb2828252367c520fdaf9d73188db08012f47786b` |
+| `lane-2.resc` | `fc85262f7fb2eb0f2706856cab948c091aa9837b20c92f02d53cf32fc257cd1f` |
+| `lane-1.log` | `e06d687882bb7da9de59f2e38e0b77df5bb9d18dfcee824282ea3dc7ef4ea319` |
+| `lane-2.log` | `8ca01cd0bada7871f82ad7eddee01deff12c81c97b46e5bd9fbde0e0f7177ed7` |
+| `lane-1.census` | `407f4d8c1ee7d5b507ce1248911b921b669e0b3d57f0a7643c8496a442fcaf73` |
+| `lane-2.census` | `407f4d8c1ee7d5b507ce1248911b921b669e0b3d57f0a7643c8496a442fcaf73` |
+| `lane-1.rgb565` | `25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340` |
+| `lane-2.rgb565` | `25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340` |
+| `read-views.py` | `dbc6da152559142b163f81178dacbf06db299da0e6e071186fead228d2728abc` |
+| `w-ltim.xml` | `e04cbc3d48b2656b619bf651c3d51fb06980a46b1f733c45ab3578f1f9b97754` |
+| `w-done.xml` | `6665a9dd2484305073a75d3dec56d24164fe8f6e398ac1e6ed8bc95d92bd4048` |
+
+Evidence/planning maintenance verification: `make check-task-contracts` exits0
+with153 indexed tickets; `make check` exits0 with984 PASS records. Its optional
+firmware-gated SDL walks are skipped by the quick target; the authentic
+observations above were executed separately. `git diff --check` passes. No C
+behavior changed, so sanitizers/other-profile era sweeps were not repeated.
+Changed files: README, current-status, this evidence ledger, plans/index.tsv
+and new ticket788. The overall goal remains active; this is a specific decoder
+evidence blocker, not a claim that all remaining work is blocked.
+
+`/tmp/sap235-setup/contracts.log` SHA-256 `1588fe36c7338a390bf91f05d183a779c0b4e100d1896bde3f1ee053fac73445`.
+`/tmp/sap235-setup/check.log` SHA-256 `964f3ebd0b1039e06740302d9c61f623fd1c69b651dc3aa9847a8f15e9e44cce`.
+
+
+### E-EMU-TSC6A-DIAGNOSTIC-001 — compressed asset refusal clarity
+
+Maintenance, 2026-09-22. E-EMU-SAP235-MAIN-TSC6A-001 supplies the observed
+60x60, stride-180 descriptor and paired lane refusal. The existing error
+`unsupported mask resolve state` concealed the distinction between compressed
+asset storage and the supported 480x480 semantic shadow. No decoding evidence
+has been added. This change only specializes the error text after the existing
+mask-resolve acceptance predicate has already rejected the operation.
+
+Changed files: `src/display/nema_tsc6a_raster.c`,
+`tests/unit/test_nema_tsc6a.c`, current-status and this ledger. No public
+interface, accepted state, return code, persistent format, firmware component,
+profile, compatibility limit or golden changes. Ticket 788 remains blocked.
+
+The new unit regression uses only the recorded descriptor and synthetic
+0xa5 destination bytes. Before the fix, `make test TEST_FILTER=nema_tsc6a`
+selects three cases and fails exactly the new diagnostic assertion. Afterward
+all three pass, including the supported triangle/resolve control. The new
+case checks the complete unchanged destination, null error sink, successful
+shadow-mask control and preservation of the generic invalid-shader diagnostic.
+
+`/tmp/sap235-codec/replay.c` validates the three private capture hashes from
+E-EMU-SAP235-MAIN-TSC6A-001 before loading them. It submits exactly one
+60-word list, without CPU execution or scheduled virtual-time advancement.
+It seeds the diagnostic panel with the captured destination; its timestamp
+argument 32533939561 ns is metadata, not elapsed execution. Both current
+runs return REFUSE (2), UNSUPPORTED (6), zero frames, generation zero and
+unchanged=1. Full destination SHA-256 remains
+`25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340`.
+A baseline replay compiled with the original raster source extracted from
+HEAD 5980046 returns the same census and hash. Only the diagnostic line differs.
+No pixels, capture bytes or probe sources enter Git.
+
+Exact commands (logs under `/tmp/sap235-codec/`):
+
+```sh
+make test TEST_FILTER=nema_tsc6a
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/display /tmp/sap235-codec/replay.c build/libsemu.a -o /tmp/sap235-codec/replay
+/tmp/sap235-codec/replay > /tmp/sap235-codec/replay-1.log
+/tmp/sap235-codec/replay > /tmp/sap235-codec/replay-2.log
+cmp /tmp/sap235-codec/replay-1.log /tmp/sap235-codec/replay-2.log
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/display /tmp/sap235-codec/replay.c /tmp/sap235-codec/before-raster.c build/libsemu.a -o /tmp/sap235-codec/replay-before
+/tmp/sap235-codec/replay-before > /tmp/sap235-codec/replay-before.log
+make check
+make sanitize
+make test TEST_FILTER=nema
+make sdl
+git diff --check
+```
+
+Final verification: 985 normal cases, 980 sanitizer cases and 120 focused NEMA
+cases pass, with zero failures. `make check` includes 153 task contracts and
+the advisory line check. SDL builds. Its quick check skips the optional private
+walks; they and the full era sweeps were not rerun for this diagnostic-only
+change. Existing 2.39 era drift and all unresolved firmware boundaries remain.
+The prior authentic cold-run stop tuple was not remeasured here; the captured
+command comparison establishes the unchanged refusal/output boundary only.
+
+Bounded vendor-reference search: Ambiq's
+[graphics guide](https://ambiq.com/wp-content/uploads/2022/04/Apollo4-Graphics-Getting-Started-Guide.pdf)
+documents NEMA PIX-Presso as an image converter. The official
+[SDK 4.5.0 download](https://contentportal.ambiq.com/documents/20123/387817/AmbiqSuite-R4-5-0.zip)
+redirected to a contact/login and license form; no form was submitted. The
+public Ambiq HAL tree at `1577f6e52eebdf5a3a2e2082d5161c1c81858948` exposes
+Nema headers, port code and hardware libraries; no converter/decoder was
+identified in its tree. Other inspected trees are pinned below. A filename
+census is not proof that no decoder exists elsewhere. A vendor decoder would
+also require an explicit exception to AGENTS.md's sole-lane-oracle constraint;
+the user has been asked, and no exception is presumed. No downloaded GPU
+library was executed or treated as pixel evidence.
+
+| Artifact relative to `/tmp/sap235-codec/` | SHA-256 |
+|---|---|
+| `before-test.log` | `b1f5bd844a639d332e6960e70c701f400b67f09371cc4214c660450649fd086b` |
+| `after-test.log` | `04cb1e901956e877a85ffb85447d77ce1363bd37e954da16b7a580de1d2bc32a` |
+| `before-raster.c` | `78bc1d3fc130915bc6bcff2b824cafef60c8245ef097da8043a57556f26e0bcd` |
+| `replay.c` | `8e2d188dbffb9c0fe47d4a1df1e6095b31df30b4c316a2ee6cd0f09e09613ecf` |
+| `replay-before.log` | `afa6135b7843619fc3e37edff3772e9b08614c1adb9567ff5cb8367407a22a62` |
+| `replay-1.log` | `2aafe3df2387a8d302f182eecf1ecded30fb2496a5cdb05a17c145594b4c9df8` |
+| `replay-2.log` | `2aafe3df2387a8d302f182eecf1ecded30fb2496a5cdb05a17c145594b4c9df8` |
+| `check.log` | `4ff6defdab0b42d1c05e3e883d16ed1a2f8a644c6caa38077514feedd90d73e3` |
+| `sanitize.log` | `74d59166cae19c02bc54cdb0cb5193a773f41f05fd3fc7c68d1764210b40f90b` |
+| `nema.log` | `be267dd17517950053075ac9efe7879e67d5815d366f6f38a2bbfe649b91cc3d` |
+| `sdl.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `AmbiqMicro-ambiqhal_ambiq.json` | `2627ede7d832ccbfc80f1c1823f3c40f04a6b4939f917501e5adfdd54101a459` |
+| `AmbiqMicro-lv_port_ambiq.json` | `29aed4a1fadf176226513525fb6fa316afeb3b6266ed4e253b951755cc372f77` |
+| `STMicroelectronics-STM32CubeN6.json` | `22a90a4ba3515c87cb3bceaf44344a43bee99c664f243c4a66d692ea8468539e` |
+| `STMicroelectronics-STM32CubeU5.json` | `f5bd9d96327930739e9afdb4885b9f47e04b532399007daf4b744b5c8b351dac` |
+| `goodix-ble-GR5526-Smart-Watch.json` | `a2791e98dc761f93b15d65ff7cb75625f03aee75ca999b66768ba4b0c28dbb3e` |
+
+### E-EMU-SAP222-HEAP-001 — exhausted live set and bounded allocator/GC comparison
+
+Diagnostic maintenance, 2026-09-22, following E-EMU-SAP222-PANIC-001. Only
+current-status and this ledger change. No firmware, runtime, pool sizes,
+compatibility policy, ticket status or expected stop changes. All probes,
+logs, snapshots and captured bytes remain under `/tmp/sap222-heap/`, outside
+Git. The results identify a narrower investigation target, not a working fix.
+
+The current SDL build reproduces the earlier cold checkpoint exactly:
+`budget / 0006e78e / 14000000000 / 43612174532 ns`, main frame CRC
+`fb8e0155`, generation 4403. Both the log and complete snapshot retain their
+E-EMU-SAP222-PANIC-001 hashes. The observer then reproduces all eleven final
+80-byte allocation failures and panic callback instruction 14168090291.
+The first failure is instruction 14156108860; its allocator entry was
+14155276327 at `6a6de`, context `10000000`, request 80. Observer process exit
+0 at the panic callback is a diagnostic boundary, never a clean guest halt.
+
+**Input control.** The SDL setup harness defaults to Lower after exhausting
+the supplied sixteen-character post-phone sequence. It sends another Lower
+at main frame step 30, 38231199108 ns. A fresh cold run stopped at exactly
+38 seconds, before that press, produces `budget / 000b019a / 8387825468 /
+38000000000 ns`. Two unmodified headless resumes provide no further input;
+both exit 3 at `budget / 0005a8f8 / 18000000000 / 47612174532 ns`, with
+byte-identical logs and snapshots. Thus the final step-30 press is unnecessary
+for reaching the fatal loop. This control does not remove earlier setup input
+or establish an exact panic instruction for the no-click path.
+
+**Pool census.** Twelve 20-byte descriptors at `10000000` contain a free
+head, fixed-region begin/end, class capacity and total slot count. Fixed
+slots have no size header. Dynamic slots in `[10007bd0,1000fff8)` (295 slots)
+and `[100575dc,100579e4)` (12 slots) have four-byte capacity headers. The first
+failure's primary bump has eight bytes left and its secondary bump has one;
+neither can add a fitting slot. Reconstructed counts are:
+
+| Class capacity | Total slots | Free | Live |
+|---:|---:|---:|---:|
+| 20 | 140 | 1 | 139 |
+| 36 | 241 | 3 | 238 |
+| 52 | 60 | 0 | 60 |
+| 64 | 20 | 0 | 20 |
+| 128 | 264 | 0 | 264 |
+| 256 | 20 | 0 | 20 |
+| 384 | 4 | 0 | 4 |
+| 512 | 4 | 0 | 4 |
+| 1024 | 3 | 0 | 3 |
+| 1568 | 1 | 0 | 1 |
+| 2048 | 1 | 0 | 1 |
+| 4096 | 0 | 0 | 0 |
+
+All 758 slots reconcile to 754 live and four free. Live capacity is 64,932
+bytes, exactly the firmware counter at `100575c4`; total slot capacity is
+65,060, equal to the captured peak at `100575c8`. The remaining 128 bytes
+are distributed across a 20-byte block and three 36-byte blocks, so none
+satisfies the request. This is a class-capacity census, not requested payload.
+
+A cold allocation observer records the latest successful birth and caller
+for each address. Its raw free hook covers only dynamic frees and its raw
+capacity field incorrectly assumes every slot has a header. Therefore raw
+`RETAINED` free/reuse/failure/live/payload/capacity totals are not evidence of
+leaks or live capacity. `analyze.py` instead rebuilds all slots from the
+captured layout, walks bounded free lists without cycles, removes their four
+nodes and checks every class count and both firmware counters independently.
+It requires a matching allocation record for each of the 754 live pointers.
+In-place realloc payload sizes are not reconstructed and are not used.
+
+The resulting live-block birth census uses half-open five-second intervals:
+
+| Birth interval, virtual seconds | Live blocks | Capacity bytes |
+|---|---:|---:|
+| [0,5) | 101 | 9,952 |
+| [15,20) | 1 | 1,024 |
+| [35,40) | 649 | 53,820 |
+| [40,45) | 3 | 136 |
+
+Of the 264 live 128-byte blocks, 257 were born in [35,40), seven in [0,5).
+The immediate allocator return address is `5f307` for 750 live blocks,
+`6a7e9` for two, and `5847f`/`584c5` for one each. Among 128-byte blocks,
+249 have `600f5` as the first plausible Thumb return address in eight captured
+caller-stack words; the others yield `5a735` (13), `61759` (1), `5fa11` (1).
+This stack-word heuristic is not a formal unwind. Disassembly verifies that
+`600f0` calls `5f2f4` and returns at `600f4`, supporting property-table growth
+as the next trace target without proving each block's owner or reachability.
+
+**Lane comparisons.** Renode 1.16.1 (`d66b0c2a-202602160921`) includes the
+read-only original `emulator/renode/sapporo.resc`. It loads captured RAM and
+registers, explicitly including SP, then executes bounded firmware functions.
+The resident/application hashes are checked before execution and match the
+private manifest (`a409b088…7a2f522`, `c8f2d9e4…5a9bfc`). The original lane
+script hash is `877b780702b7170827e59a99c4ee0d70a53c863786fed82c71e55640907a412c`;
+platform hash is `e731cec46ae2fc43040f3e5108b51c36b505d9acae054f678913a3ab8d6ac732`.
+The lane's existing MOV.W substitutions are outside these executed allocator
+and collector regions. Its existing startup SilenceRange overlap warning is
+recorded in the raw logs; no allocator/collector MMIO fallback is introduced.
+
+The refusal scan stops at `6a73e`, before the fallback callback can invoke
+RTOS services: 517 instructions, all 16 registers and all 393,216 copied RAM
+bytes match the standalone interpreter. The matching output SHA-256 is
+`a8260ba5121acf169b76d2ef42a7dbec48cca533fd3ae6fa1c69c19260435632`.
+A separate success control supplies one synthetic free 128-byte slot at
+`10020004` through descriptor `10000050`, writes its header at `10020000`,
+and terminates its free chain with zero. It returns that pointer at `5f306`
+after 116 instructions; all registers and bytes again match, output SHA-256
+`6daff01fbae16e7dccee7fa94ce7261323e5ba67aeaad6b83f6b8afb56eb0e3a`.
+This synthetic input is a probe control, not a firmware modification or fix.
+Both lane cases run twice, with identical extracted census and output bytes,
+under a 1 ms virtual cap; core probes cap at 10,000 instructions.
+
+The first final GC retry starts at `5f31a / 14156108868`, heap context
+`100047b0`, flags zero. Both full-machine captures return at `5f31e /
+14156473307`, elapsed 364,439 instructions. Correct isolated replays must
+copy the complete mapped RAM range `[10000000,10160000)`: the collector also
+reads a root at `10088f74`. Initial 384 KiB-only attempts omitted that root
+and are explicitly invalid for GC comparison. They are not cited as evidence.
+
+With the complete mapped RAM, both lane replays and the standalone interpreter
+return at `5f31e` after exactly 364,254 instructions. All 16 registers and
+1,441,792 RAM bytes match; output SHA-256 is
+`b75ad55ce5be931a19ece7c8a1b48c2404e52895d92838a5b5b39dfb7ea49cae`.
+The lane cap is 20 ms and the core cap is two million instructions. Primary
+pool bytes `[10000000,10010000)` and secondary pool/counter bytes
+`[100575c0,100579e5)` are unchanged from GC entry in the isolated and
+full-machine captures. No capacity is released. The full-machine return
+has 69 differing bytes elsewhere and 185 extra instructions relative to the
+isolated replay; the scheduler/interrupt context is not reproduced by this
+probe. It is not a claim of complete machine-state equality.
+
+These comparisons establish allocator and first-retry behavior only for the
+provided emulator-derived states. They do not prove that cold lane execution
+would construct the same object graph. The unresolved target is why the
+35–40-second allocations remain live, including their roots and allocation
+history. Enlarging the heap, skipping GC, bypassing assertions, or changing
+CPU semantics is unsupported by these results.
+
+Commands and bounds (paths below are volatile; no probe is a runtime dependency):
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm \
+SEMU_SDL_SETUP_WALK_TIMELINE=30000:l \
+build/suunto-emu-sdl run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --max-instructions 14000000000 --max-time 300000000000 \
+  --snapshot-save /tmp/sap222-heap/beforepanic.sems
+# Repeat this cold command with --max-time 38000000000 and
+# --snapshot-save /tmp/sap222-heap/before-main-click.sems for the input control.
+build/suunto-emu run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device \
+  --snapshot-load /tmp/sap222-heap/before-main-click.sems \
+  --max-instructions 18000000000 --max-time 50000000000 \
+  --snapshot-save /tmp/sap222-heap/no-click-1.sems
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/cpu/armv7m \
+  /tmp/sap222-heap/observer.c build/obj/src/frontends/cli.o \
+  build/obj/src/frontends/main_headless.o build/libsemu.a \
+  -o /tmp/sap222-heap/observer
+SEMU_HEAP_CAPTURE=/tmp/sap222-heap/final-1 /tmp/sap222-heap/observer run \
+  --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device --snapshot-load /tmp/sap222-heap/beforepanic.sems \
+  --max-instructions 14181000000 --max-time 45000000000
+# The same build/resume command with gc-observer.c, gc-observer and gc-1
+# captures GC entry/return. Each observer run is repeated using output suffix 2.
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/cpu/armv7m \
+  /tmp/sap222-heap/retention.c build/obj-sdl/src/frontends/cli.o \
+  build/obj-sdl/src/frontends/main_sdl.o build/libsemu.a \
+  $(pkg-config --libs sdl3) -o /tmp/sap222-heap/retention-sdl
+python3 /tmp/sap222-heap/run-retention.py
+python3 /tmp/sap222-heap/analyze.py > /tmp/sap222-heap/retention.census
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude \
+  /tmp/sap222-heap/core-probe.c build/libsemu.a -o /tmp/sap222-heap/core-probe
+/tmp/sap222-heap/core-probe refusal /tmp/sap222-heap/core-refusal.sram
+/tmp/sap222-heap/core-probe success /tmp/sap222-heap/core-success.sram
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude \
+  /tmp/sap222-heap/gc-full-core.c build/libsemu.a -o /tmp/sap222-heap/gc-full-core
+/tmp/sap222-heap/gc-full-core refusal /tmp/sap222-heap/gc-full-core.sram
+# From ../suunto-firmware, each final .resc runs twice with a 60-second wall cap:
+.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt \
+  /tmp/sap222-heap/allocator-lane-1.resc
+# Likewise success-lane-{1,2}.resc and gc-full-lane-{1,2}.resc.
+make check
+git diff --check
+```
+
+All final observer/core/lane runs exit 0; the unmodified bounded firmware
+runs exit 3 as stated above. The no-click resumes use 600-second wall caps,
+allocation/GC observers 120 seconds, and cold retention observers 900 seconds.
+`make check` exits 0 with 985 PASS records and 153 task contracts. Its quick
+SDL target explicitly skips private walks; the cold/control runs above are
+separate authentic firmware observations. Sanitizers and full profile era
+sweeps were not repeated for this documentation-only maintenance. Existing
+2.39 era drift and the 2.35 compressed-texture blocker remain unresolved.
+
+Hashes below identify each relied-on raw log and final probe source. Paired
+lane raw logs contain host timestamps; extracted `HEAP_` census lines and
+output RAM are byte-identical. Paired in-tree logs are byte-identical without
+normalization. Snapshot identities above and below do not include firmware
+bytes in Git.
+
+| Artifact relative to `/tmp/sap222-heap/` | SHA-256 |
+|---|---|
+| `cold.log` | `10f0a6b4d73f2a83e105d472d326cd58fafbf2ecaadc4ff21381c6f1e7128c58` |
+| `beforepanic.sems` | `88d89cc8bc06084912eaf61126cf9548b04d9712c74e695cb7831136c1868925` |
+| `before-main-click.log` | `3e813e63497d8aee537b38b5778643f2cabf611a6e306958914e6513a5b5e7ef` |
+| `before-main-click.sems` | `d038e273424f8579c230a14a84f4448dc3cf9e7aec91c4d5696b3fc21e042826` |
+| `no-click-1.log`, `no-click-2.log` | `331ed18d8f415def2a2a38964d0cfcd63f8521489c6b411b62527be4ac26d8a2` |
+| `no-click-1.sems`, `no-click-2.sems` | `5d5ada9648527f5865483609ca6add461017ee6bdf7c465c14f179e6afe3cdc7` |
+| `observer.c` | `f9adbfa5535fd73ce5664537ac0ff90ee6e192d40748e67c43f286ecae5194d1` |
+| `final-1.log`, `final-2.log` | `e7636635eb265a87fc65100a11f158abc57d54581f8af7488cf25bcec6c6cd31` |
+| `final-1/entry.regs`, `final-2/entry.regs` | `953288cb6cc83f296018d9afe804cac57cb5f25bc3d2064fba6eded876533450` |
+| `final-1/entry.sram`, `final-2/entry.sram` | `bdb9d72458074632e8285c652c2864ccd5ff8753fa658eab9a7bfcc34c746fe1` |
+| `final-1/failure.sram`, `final-2/failure.sram` | `2dc6c68866cc4b9c4de376927e43c0998549cb63fb406a9bcfaad36255623a54` |
+| `retention.c` | `37667196094a89c19df1aaa7505db00ba405e14d89051d249a8a602bba8ab20a` |
+| `run-retention.py` | `1e8648c4ef825c7390b4b5900b8d26e1a94ed29c76b6069b3d059a2b67b53ce6` |
+| `retention-1.log`, `retention-2.log` | `f000de6a4625152b35a944544ac5318a473c3298f1c468c5a793083e2a43141a` |
+| `analyze.py` | `cdc99c4475c88f4d8a34033e6532766f21961ce0d4e7a9db0368a8794146fc24` |
+| `retention.census` | `494e1ab54ccabd33a2129a655c9241b766be15016817e52f518c1aeca2120373` |
+| `core-probe.c` | `8107c83314394da31b4a6c84b01838f5f7ee7f1f022b735bda329d4f6bd58ff5` |
+| `core-refusal.log` | `cf901d8931d48815900a181e020b62d69ca1b3611649785e33816a62bf652e33` |
+| `core-success.log` | `6d3fff65f2fc031e90358938c72af8a37dbbf976e0b90afa19cc4be92fc19c23` |
+| `allocator-lane-1.resc` | `230e79a6cb17ba59fd9cc9f3249c5cb8f8ecf54fdfbe938609b39ebf7a5a7b41` |
+| `allocator-lane-2.resc` | `3a2c090b94845d21fcc5915d7585fde3dbc66caa3f8e5f5b17980c047293792e` |
+| `allocator-lane-1.log` | `c364a3b909b0fd2c883fe5f1f366c50c356fa62d2658ed739b961e38e6c557bf` |
+| `allocator-lane-2.log` | `04d4b7317aa5d22d30edb39e6f3bdb38368aba0c8ab90fc33d75ad6061e88df1` |
+| `allocator-lane-1.census`, `allocator-lane-2.census` | `b0d14111adabcde6c8988223389f2de72591ce997b0e7a18e68b1b303d759ffa` |
+| `success-lane-1.resc` | `160660352848c7fcdcbc256c4eb578bc17e0116f330b6cad6ffe901c6e4945cf` |
+| `success-lane-2.resc` | `4f21f34d67adff1cb1213a8191f91db47c21e9f4481190dd6a07417078d895d6` |
+| `success-lane-1.log` | `e3f8764bc170e1abb3f299027c5489ce8e328dd660f49ad639b00fdba4275daa` |
+| `success-lane-2.log` | `38138b16f91a676b316f67aa4a0ec4e417eaf387ab73deb1fbdc37c5cdf211d7` |
+| `success-lane-1.census`, `success-lane-2.census` | `0a4bec3023ba9a971aa4aafe1cab294759399abee42bb1c247d65edb42af04b2` |
+| `gc-observer.c` | `4a4c988841e29d3f43db46faec4ea5c256ed0b5055ad3bdfcac37b900a38f4f6` |
+| `gc-1.log`, `gc-2.log` | `fa4d46715487279ffe12e7a86002a87040102b3d38523a2fd9886ffafc9dc15e` |
+| `gc-1/entry.regs`, `gc-2/entry.regs` | `b1d46954cc7c01413d49d05552f2c5c72d7a706fa4f0324a162cf9d2fd274629` |
+| `gc-1/entry.sram`, `gc-2/entry.sram` | `2dc6c68866cc4b9c4de376927e43c0998549cb63fb406a9bcfaad36255623a54` |
+| `gc-1/return.sram`, `gc-2/return.sram` | `0703c80e54f281816ecb7d468412bd1dfd4162e98ccf11cd1270458675ab7401` |
+| `gc-full-input.sram` | `e57db646dfd8e4b590ea47a0016996a843e06accd92976be1c378b92200ea9dc` |
+| `gc-full-core.c` | `7d820903b1ac350a626ffa0a66d9e4d6fb31d8518fc81f3a178ae367ec4b1897` |
+| `gc-full-core.log` | `79e0145fe047001551a1c3db0edafd7af32d24fd6be662a766aaf06a90b785cf` |
+| `gc-full-lane-1.resc` | `4bc385ac6d1dc09d95a77927a508a8d38c92787f79d6be46286a723071320666` |
+| `gc-full-lane-2.resc` | `8ae42baddb438a4482e70876af6ba69edbed491516175e7dbc0377e59cbb278a` |
+| `gc-full-lane-1.log` | `ededbca49fb703b5d8ea521dba085125c3adaa7c357d6a69a64958f03f64feb9` |
+| `gc-full-lane-2.log` | `7864e59fdae825f196dcc84712eebbc544a6ed30532b3f7f5ba1f398374af151` |
+| `gc-full-lane-1.census`, `gc-full-lane-2.census` | `4aff04dafa8adafe7660514c2085b6deea04a1436166476b5cc70e77be458bef` |
+| `check.log` | `e77cab52f9fc941e3607dbcec3b9b6405d776f940143925898eb0dc3a35c4c9e` |
+
+
+## E-CPU-F57F-001 — Thumb F57F dispatch and the 2.22 script heap loop (2026-09-22)
+
+Scope: bounded CPU bug maintenance, not a firmware workaround. E-CPU-0002
+pins ARM DDI 0403E.e, A5.3 Thumb branch encoding and A7.7 branch/barrier
+pseudocode. `F57F AF87` is BPL.W T3; the old system dispatch mistakenly
+accepted it as an A32-style barrier and returned without taking the branch.
+The same predicate incorrectly consumed `F57F AF07`, `F57F 9F07` and
+`F57F BF07`. Remove that predicate and handler; the existing Thumb branch
+decoder now owns these encodings. Actual `F3BF` Thumb barriers are unchanged.
+
+Five implementation/test files change: `src/cpu/armv7m/thumb32.c`,
+`thumb32_system.c`, and `tests/unit/test_cpu_thumb32_{dispatch,data,memory}.c`.
+The narrow dispatch regression failed before the fix and passes afterward.
+An existing test called three of these branches barriers and pinned them as
+no-ops. It is removed in favor of the new exact-target/state matrix, justified
+by the architecture and paired lane results below. This corrects an erroneous
+CPU expectation; no firmware golden, heap size, instruction substitution,
+compatibility hook, persistent format or public header is changed.
+
+### Provenance and isolated lane results
+
+All raw probes, RAM, logs and rendered pixels stay outside Git under
+`/tmp/sap222-graph/`; prior allocator input comes from E-EMU-SAP222-HEAP-001.
+The only machine oracle is the read-only sibling Renode lane, version 1.16.1,
+using `../suunto-firmware/emulator/renode/sapporo.resc` SHA-256
+`877b780702b7170827e59a99c4ee0d70a53c863786fed82c71e55640907a412c`
+and its platform SHA-256
+`e731cec46ae2fc43040f3e5108b51c36b505d9acae054f678913a3ab8d6ac732`.
+The private manifest validates all three 2.22 components before cold execution:
+resident `a409b088a061c2fe61689c8f39a79b2c35ed0059cd66987646e0195e47a2f522`,
+application `c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc`,
+resources `ec2a4b1c472844ac6ff9cc575cb9383c29a74302107af3619f9a08fdf6abcaf1`.
+Isolated core probes validate their resident, application and RAM input hashes.
+No sibling file is modified.
+
+`branch-mapped-lane.resc` allocates synthetic RAM at `20000000..21ffffff`
+and executes each pair once at PC `21000100`, with N clear and set. Two runs
+produce identical numeric PC/xPSR censuses and exactly eight instructions:
+
+| Thumb halfwords | N=0 target | N=1 target | xPSR after |
+|---|---|---|---|
+| F57F AF87 | 21000012 | 21000104 | unchanged |
+| F57F AF07 | 20ffff12 | 21000104 | unchanged |
+| F57F 9F07 | 2057ff12 | 2057ff12 | unchanged |
+| F57F BF07 | 20d7ff12 | 20d7ff12 | unchanged |
+
+The in-tree test relocates PC to `100`, checks all CPU state except the
+expected PC/instruction count, and covers taken/not-taken conditional branches
+and both unconditional encodings. Existing dispatch refusal tests still pass.
+
+The native software double-add entry at `699e8` receives r1:r0 =
+`3ff00000:00000000` (1.0), r3:r2 = zero. The problematic branch is at `699f2`,
+with the taken target `69904`. Old dispatch returns zero after 42 instructions.
+The corrected interpreter and both `add-valid-lane` replays return 1.0 after
+18 instructions, stopping before the synthetic mapped return at `10010000`.
+All 16 general registers and all 393,216 output RAM bytes match; output SHA-256
+`50b78d236ed2e47b4c1e1d447b9e7e11c35740bcf04207a8c46add9544472b5c`.
+
+### Captured script increment and causal chain
+
+A read-only heap census of the previous failure finds 375 non-string headers:
+336 objects and 39 buffers. Of those, 257 objects have the same four property
+keys (`id`, `src`, `autoUnload`, `class`) and form a 257-object wrapper chain
+ending at the original main-menu identifier. This is a derived census, not
+committed resource source. It directs attention to the script loop increment;
+it alone does not prove interpreter semantics.
+
+Two cold observers capture the same increment input at PC `66884`, bytecode
+pointer `100064c4`, instruction 8271213988, virtual time 37883388520 ns.
+Their general registers and full 1.5 MiB SRAM captures are byte-identical.
+The second additionally captures FPU state: CPACR `00f00000`, FPSCR `82000010`,
+FPCCR `c0000000`, FPCAR zero; D9 already contains 1.0. Isolated replay copies
+1,441,792 bytes of mapped SRAM, all general registers and the captured S/D
+registers, explicitly enables the lane FPU, and stops at PC `660f2` with
+r0=`100064c8`, immediately after the increment bytecode.
+
+Old dispatch takes 127 instructions and leaves the double at `10007478` zero.
+The corrected core and two `inc-fpu-lane` replays take 103 instructions and
+store 1.0 there. All 16 general registers and every copied RAM byte match;
+output SHA-256 `a7cee50dd9813eded80e273bde6360f0913f9155626389f460579973580414ed`.
+The matched final registers are r0=`100064c8`, r1=`1000129c`, r2=1,
+r3=`02000000`, r4=`10007478`, r5=`10007480`, r6=`10005bb0`, r7=`7a`,
+r8=`100063c0`, r9=0, r10=`10`, r11=2, r12=`00200000`, SP=`10040498`,
+LR=`00066d09`, PC=`000660f2`. This explains why the old loop repeatedly
+wrapped the same object until allocation failed. The allocator/GC match in
+E-EMU-SAP222-HEAP-001 remains valid; changing allocator policy is unnecessary.
+
+These are isolated lane comparisons using captured emulator input, not a
+cold lane execution of the whole watch. Exploratory runs with an unmapped
+return/branch target, invalid FPU setter or disabled lane FPU are excluded;
+they are not evidence of a semantic mismatch. Paired final censuses strip
+host logging prefixes only; output RAM is compared byte-for-byte.
+
+### Corrected authentic execution and verification
+
+Two cold SDL walks with the manual-time input sequence finish step 31:
+
+| Checkpoint | Generation | CRC32 | Virtual ns |
+|---|---:|---|---:|
+| step 29 | 4319 | 2a01c517 | 37663749660 |
+| step 30 | 4406 | 73d569a5 | 38240928644 |
+| step 31 | 4510 | 040ebb03 | 38818426902 |
+
+Both exit 0 at `user / 0800009e / 8500057344 / 38818426902 ns`.
+Logs are byte-identical (SHA-256
+`7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa`),
+as are 4,800,287-byte snapshots (SHA-256
+`7082666171efcd66ddf315684c6bfd040f97e126c0cfa5886fc900f47c7ccb1a`).
+Paired idle resumes exit 3 at the budget boundary
+`000d4a8c / 8807319394 / 60041792981 ns`; WFI advances to the next event
+past the requested 60-second bound. Both remain active without reset,
+refusal or the former fatal allocation loop. Logs match with SHA-256
+`9ef28bb9e945d140e21b702b5c50e1b83f15fd994263da80747557a3d62d2074`;
+snapshots match with SHA-256
+`5239ac0e98f71de202c85ceb8c6b19b2c7e4b59ff3d3205c1b59258da5510bfc`.
+This is a bounded stability result, not proof of every main-menu function.
+
+Exact commands (each cold/resume repeated with suffixes 1 and 2):
+
+```sh
+make test TEST_FILTER=cpu_thumb32_dispatch
+make test TEST_FILTER=cpu_thumb32
+make check
+make sanitize
+make sdl
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+  SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm \
+  SEMU_SDL_SETUP_WALK_TIMELINE=30000:l \
+  build/suunto-emu-sdl run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --max-instructions 18000000000 --max-time 60000000000 \
+  --snapshot-save /tmp/sap222-graph/fixed-walk-1.sems
+build/suunto-emu run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device \
+  --snapshot-load /tmp/sap222-graph/fixed-walk-1.sems \
+  --max-instructions 18000000000 --max-time 60000000000 \
+  --snapshot-save /tmp/sap222-graph/fixed-idle-1.sems
+cc -std=c99 -O2 -Iinclude /tmp/sap222-graph/inc-core.c \
+  build/libsemu.a -o /tmp/sap222-graph/inc-core
+/tmp/sap222-graph/inc-core refusal /tmp/sap222-graph/inc-core.sram
+cc -std=c99 -O2 -Iinclude /tmp/sap222-graph/add-fixed-core.c \
+  build/libsemu.a -o /tmp/sap222-graph/add-fixed-core
+/tmp/sap222-graph/add-fixed-core refusal /tmp/sap222-graph/add-fixed-core.sram
+# From ../suunto-firmware, twice each, 60-second wall caps:
+.tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt \
+  /tmp/sap222-graph/branch-mapped-lane.resc
+# Likewise add-valid-lane-{1,2}.resc and inc-fpu-lane-{1,2}.resc.
+sh tools/test_sdl_live_input.sh
+make test-firmware TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235 \
+  SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+python3 -P /tmp/sap222-graph/run-era235.py
+```
+
+Cold walks use a 900-second wall cap; resumes and era runners 600 seconds.
+The isolated add/core increment caps are 10,000/100,000 instructions. Lane
+add/increment caps are 1/20 virtual milliseconds; the branch matrix steps
+exactly eight instructions. The old core comparisons link the pre-fix
+`thumb32.c` and `thumb32_system.c` extracted from HEAD `5980046` ahead of
+the current archive; other core behavior is identical.
+
+The new dispatch regression fails before the correction; afterward the
+Thumb-32 selection passes 34 cases. `make check` passes 985, `make sanitize`
+980, and `make sdl` exits 0. `make check` quick SDL intentionally skips the
+private walks. `sh tools/test_sdl_live_input.sh` exits 1 on changed stop pins,
+though its three frame CRCs remain `4979f432`, `629da47e`, `d4ed66c7`.
+The 2.35 Make selection stops on its first failure (exit 2); the separate
+seven-runner sweep records pressure/production exit 0 and block erase,
+OHR, GPS startup/reopen/awake exit 1. New ticket 789 owns attribution and
+paired re-derivation; no old firmware pin is silently updated. The 2.39 era
+suite was not rerun and may have additional drift beyond tickets 777/783.
+No claim is made about other profiles, long sessions, physical peripherals
+or compressed 2.35 icon support.
+
+### Volatile artifact identities
+
+Paths below are relative to `/tmp/sap222-graph/`. Raw lane logs differ in
+host prefixes; the listed paired censuses and output RAM are byte-identical.
+
+| Artifact | SHA-256 |
+|---|---|
+| `inspect.py` | `d4fc20021a79b0d72811b9fa09c65f14cde95ed98b48bd85bd37a1afe685d93b` |
+| `graph.py` | `9a24ec487fea892330d72f15f6154b8ed935e6b0d9440987acf1806ce229e7a6` |
+| `graph.log` | `bce7fa0148d0fa282ab19a454a5a92b216e9e59b525daa23566350cd0fee05c3` |
+| `increment-observer.c` | `14f5da99aa6626cfa2d6090507b84ec006fccbe536a211ebd9b583cb9f35f014` |
+| `increment-fpu-observer.c` | `990c163452c8b7cc8360e2d8c08d0642371fe4910bc1403f4e78b490af6e6045` |
+| `increment.log` | `cc7b9ae06c5c62b2fa4098957a62168c48433ba28a7ddc7f69d64df9ef60eca7` |
+| `increment-fpu.log` | `0daf110d8d8730fa497be6abf03e6f4cfb5026333c9b2a5d83ef71d01089272a` |
+| `increment/entry.regs` | `1a4cc1f1c79975fc4bfe8d7a8b16a5ba33c145d94a859f989248b0ffbe72af7b` |
+| `increment/entry.sram` | `302a553912768d02ced52c0c0c0a25a4d7cd1710f3395f0f3b6e682904187de2` |
+| `increment-fpu/entry.regs` | `1a4cc1f1c79975fc4bfe8d7a8b16a5ba33c145d94a859f989248b0ffbe72af7b` |
+| `increment-fpu/entry.sram` | `302a553912768d02ced52c0c0c0a25a4d7cd1710f3395f0f3b6e682904187de2` |
+| `increment-fpu/fpu.bin` | `0fbb697e4016527dd3dbb2b7fe6d58a99d1490e993a09477cb726e7ea2496d91` |
+| `inc-core.c` | `d6e0f6e9abdaede8ea5b35730032a4002a5202f4012432c76556c9e0668aa1cb` |
+| `inc-core.log` | `9a9764e87d376e2b0b70b388ed473d0a6a2cbbf3346d9c1360556cfa1539b82e` |
+| `inc-before-core.log` | `9f784392c2a1750e63ffde0368bab9f43ec13abcd9025bd3550ceaab80406309` |
+| `inc-input.sram` | `3ff35bfd3fcd42b15320a8f0c94a602ffc84b937afae50dd05d652bec4b24911` |
+| `inc-core.sram` | `a7cee50dd9813eded80e273bde6360f0913f9155626389f460579973580414ed` |
+| `add-core.c` | `8afad365534c466c85878dcd50be02f5417d26536a3dffc84f20286385c5ed2f` |
+| `add-core.log` | `15b82faeef018bb92df0c1beb6ede5388d61e878524e283b7bdfb9196ba991ca` |
+| `add-fixed-core.c` | `c520d738bd67f9bc4bef05a1c69330b34b9bb03958b7c84b46de19fe2bb314fc` |
+| `add-fixed-core.log` | `4113e5b5933fe6aa0f0e85c2c24fb52c491ffb0dd46439d0be707527fe9256b1` |
+| `add-fixed-core.sram` | `50b78d236ed2e47b4c1e1d447b9e7e11c35740bcf04207a8c46add9544472b5c` |
+| `branch-mapped-lane.resc` | `a07c724821861caa81b07cc1519d990436f99876bb07b73614d852078aa8ecef` |
+| `branch-mapped-lane-1.log` | `3737479619fffd055a3f167051f502ce1e9f6fa17c916f9f22b52931d6d25296` |
+| `branch-mapped-lane-2.log` | `05bcfc53617e450654501b8956ea1b72edc15e0fc536c8d3ca6af08e1bd7b7d2` |
+| `branch-mapped-lane-1.census` | `a1da76b01d51b5fd3bf47346cdac022518674eae37a9fb62266299d69bd22a20` |
+| `branch-mapped-lane-2.census` | `a1da76b01d51b5fd3bf47346cdac022518674eae37a9fb62266299d69bd22a20` |
+| `add-valid-lane-1.resc` | `73bf151bf1e9bb85f9f6d85468750a8c7239d520dccd0e878e9726481b0ad989` |
+| `add-valid-lane-2.resc` | `61885343aa7139d1ee6c20dee85c72e22f6c9e4d06781922ea81e94385c95c48` |
+| `add-valid-lane-1.log` | `b763e3c40e255ec7503ac05cd974215eaffd90f4cb3246ffe83f67c2d403c716` |
+| `add-valid-lane-2.log` | `ff9dff07095b032ac1ca5b0d77051495af7c526c2c2c08b00a8da02dbe0c3f1d` |
+| `inc-fpu-lane-1.resc` | `9617caf3e5028add1dba61d8c5cbe9cf444511ad0317745b4cbb8147be284d2a` |
+| `inc-fpu-lane-2.resc` | `398d19f23cfd8858a9e9d86f6ae1c8fcde9975f4ebbe1cd9068d5b89dd7ac7ac` |
+| `inc-fpu-lane-1.log` | `9a275c5186edc8a2069176bd932a2d9dba3644ab6bbb1c815968a8c956eac621` |
+| `inc-fpu-lane-2.log` | `8e56593de9b6eb90ec18099018ea2d930d66515a9b46828175d6b7239f4c9cfb` |
+| `inc-fpu-lane-1.census` | `6439d3e4370890fd297eed8912d56a20a20f15150b6116721629caa1aadaa9bc` |
+| `inc-fpu-lane-2.census` | `6439d3e4370890fd297eed8912d56a20a20f15150b6116721629caa1aadaa9bc` |
+| `before-regression.log` | `0d65de672519abcd00fefaa2ff2ad669c09bab70679ccfc18a2b456066f87f9a` |
+| `after-regression.log` | `92fffea89589e6ad5aa1aa113ed3db95a0395af4ea27eafe4543725326f60772` |
+| `check.log` | `ccd344f706e18cc671b3be5c6c07817c1cc540cd5f626f88304c30bcb62cf7d3` |
+| `sanitize.log` | `2dd107ae1368dd825ab6f58cbd3cfff07b6d059169b2b2f332a6ba63c6a1078b` |
+| `sdl.log` | `2e19e5f76159ae3c98e3ebf516bd7c4dc655e6bd2d3f40b71781ffadabbdd21f` |
+| `sdl-input.log` | `016cceae97bce3b9cffa96df7b6a26faf86ef19bf1344d84f187bb44ebbf7829` |
+| `firmware235-valid.log` | `51024cbcee9eeada7382c40f60ccfcfa8ccd7c0711d59b966391eaa46100b6e9` |
+| `run-era235.py` | `74385fd7ce1424e4b242231b2142fd420a3c1b3f5503684cd6c142299d1779ac` |
+| `era235-results.json` | `6fe37dded8dbf610a95e75d88bbee6f7dd0208f38f6a0f80dd2d92c7caf315da` |
+| `test_firmware_sapporo_235_block_erase.log` | `943c901726a5be99b2ea1d9873e657a70df80c586b3ece96187d795922ac6b38` |
+| `test_firmware_sapporo_235_gps_awake.log` | `943c901726a5be99b2ea1d9873e657a70df80c586b3ece96187d795922ac6b38` |
+| `test_firmware_sapporo_235_gps_reopen.log` | `943c901726a5be99b2ea1d9873e657a70df80c586b3ece96187d795922ac6b38` |
+| `test_firmware_sapporo_235_gps_startup.log` | `943c901726a5be99b2ea1d9873e657a70df80c586b3ece96187d795922ac6b38` |
+| `test_firmware_sapporo_235_ohr.log` | `943c901726a5be99b2ea1d9873e657a70df80c586b3ece96187d795922ac6b38` |
+| `test_firmware_sapporo_235_pressure.log` | `651ca57415e0c4c4d35b33a6337cccc75f155ac0e29df030b552079a1a20a322` |
+| `test_firmware_sapporo_235_production.log` | `18c0f3956a9691ecab8e927e91482750cc577fa709b2b4238fb9d9f314c29a19` |
+
+
+### Retained 2.35 failure audit and 2.22 visual check
+
+To identify the first failing assertion, external copies of the five failing
+runners change only their EXIT cleanup trap to print and retain the temporary
+run directory; `sh -x /tmp/sap222-graph/test_firmware_sapporo_235_<name>-retain.sh`
+uses the same `TEST_PROFILE`, `SEMU_FIRMWARE_MANIFEST`, `SEMU_EMULATOR` and
+600-second wall caps as `run-era235.py`. Repository runners remain untouched.
+All five first failures are transcript SHA-256 comparisons. Each compared
+pair is byte-identical, with the following observed stop tuples (hex PC;
+instructions; ns). Later assertions after the hash comparison were not run,
+so this is not a replacement passing gate:
+
+| Runner/case | Stop | PC | Instructions | Virtual ns |
+|---|---|---|---:|---:|
+| block erase/frame | user | 000a6bbe | 864000000 | 3782156506 |
+| OHR/enabled | budget | 0008ce2e | 500000000 | 2719206417 |
+| OHR/disabled | budget | 000a6bc8 | 280000000 | 1590729375 |
+| GPS startup | budget | 00093222 | 500000000 | 3343660033 |
+| GPS reopen | compat-refused | 001be85a | 1080305993 | 16306637984 |
+| GPS awake | compat-refused | 001259fe | 1638733422 | 54660679480 |
+
+The last two still report the bounded fixture refusal; awake has exactly
+eight admissions. Ticket 789 must validate all remaining assertions and
+before/after causality before changing any pin.
+
+A third corrected cold 2.22 walk adds only
+`SEMU_SDL_PPM_DIR=/tmp/sap222-graph/visual` to the command above (no snapshot
+save). Its transcript is byte-identical to both earlier walks. Inspection of
+the actual 240x240 PPM output shows step 30 selecting Navigation and step 31
+selecting Logbook, with Media controls/Timer visible below. Thus a post-setup
+button changes the native main-menu selection. Step 29 is black; that
+transient CRC alone must not be described as a complete rendered screen.
+PPMs and display PNG conversions remain outside Git.
+
+A separate SDL resume of `fixed-walk-1.sems` with no input reaches
+`budget / 000d4a8c / 8517764324 / 40014147571 ns` but publishes no fresh frame.
+A read-only backend capture immediately after snapshot load is black. The
+current SDL setup gate rejects input until it has a published frame; this
+snapshot-to-interactive-window path therefore still needs work. The matched
+headless continuation above does not imply a ready-to-use restored UI.
+
+| Artifact relative to `/tmp/sap222-graph/` | SHA-256 |
+|---|---|
+| `test_firmware_sapporo_235_block_erase-retain.sh` | `a472989def69f4f3a85db5f4270b34f3ae565b1d6641cca36f78f51eff777257` |
+| `test_firmware_sapporo_235_block_erase-retain.log` | `0c6d9cc3ec28e1cccc9d3196312247936b32851d65dfa65de374aa46620585c2` |
+| `era235-retained/test_firmware_sapporo_235_block_erase/frame-1.log` | `2d479fc3f6c4f059037e39c139cf939315e8bfdf3b5574166727e5f5dfcb37f8` |
+| `era235-retained/test_firmware_sapporo_235_block_erase/frame-2.log` | `2d479fc3f6c4f059037e39c139cf939315e8bfdf3b5574166727e5f5dfcb37f8` |
+| `test_firmware_sapporo_235_gps_awake-retain.sh` | `4ebae51e37d5760c119112a27cf3879c3c9d2592fdc48f21cc371df7ea2160f0` |
+| `test_firmware_sapporo_235_gps_awake-retain.log` | `10333cedaa943cbd3ee71327e02482058dbcd1fc07ccbdf4bc000010d2d3b9e9` |
+| `era235-retained/test_firmware_sapporo_235_gps_awake/reopen-1.log` | `988c24e77f3b25b2be945f3d81a7f6ca3f17dfae94bd63cbb1eecb14533fbfe3` |
+| `era235-retained/test_firmware_sapporo_235_gps_awake/reopen-2.log` | `988c24e77f3b25b2be945f3d81a7f6ca3f17dfae94bd63cbb1eecb14533fbfe3` |
+| `test_firmware_sapporo_235_gps_reopen-retain.sh` | `2874022490e2d02949209065a28707038dabaabe34214f97baa846a46122ee56` |
+| `test_firmware_sapporo_235_gps_reopen-retain.log` | `575df7718135579c7be0bbb0214e850f5eb2d1315563ec0d3a27e06b9148e773` |
+| `era235-retained/test_firmware_sapporo_235_gps_reopen/reopen-1.log` | `74dca7ea9589a670d9058b253e9f591ae50fb8281b633f1f40471f8653d40589` |
+| `era235-retained/test_firmware_sapporo_235_gps_reopen/reopen-2.log` | `74dca7ea9589a670d9058b253e9f591ae50fb8281b633f1f40471f8653d40589` |
+| `test_firmware_sapporo_235_gps_startup-retain.sh` | `e2605cbf5c875bb9f388efeb0dae570f8fd72c590fdc281842a862c2ad27b27f` |
+| `test_firmware_sapporo_235_gps_startup-retain.log` | `156d91c4169cd90880ccfde5f6e97bfd0483725f223b6b533d0e47b402fb8380` |
+| `era235-retained/test_firmware_sapporo_235_gps_startup/startup-1.log` | `7627f2125bbd7d5ebf644ec551b125c049b50f6f3d589a5922352ebb15fe7994` |
+| `era235-retained/test_firmware_sapporo_235_gps_startup/startup-2.log` | `7627f2125bbd7d5ebf644ec551b125c049b50f6f3d589a5922352ebb15fe7994` |
+| `test_firmware_sapporo_235_ohr-retain.sh` | `1c70cc4950e958f7f64cc66f366fae21c8a33293150ddea8ae364b1d2a2f9db6` |
+| `test_firmware_sapporo_235_ohr-retain.log` | `316265eeab01bd644ba27247bc2d0922badddf0d0ef339d17054d40287a21746` |
+| `era235-retained/test_firmware_sapporo_235_ohr/disabled-1.log` | `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879` |
+| `era235-retained/test_firmware_sapporo_235_ohr/disabled-2.log` | `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879` |
+| `era235-retained/test_firmware_sapporo_235_ohr/enabled-1.log` | `f69c9d8a7c176da98190eed09e14c0c14db32d282cc5ee4b62bbf2bb94201317` |
+| `era235-retained/test_firmware_sapporo_235_ohr/enabled-2.log` | `f69c9d8a7c176da98190eed09e14c0c14db32d282cc5ee4b62bbf2bb94201317` |
+| `visual-walk.log` | `7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa` |
+| `visual/frames.log` | `50e0527c1dead2a134dadb77bd63dbe20c06d032f2edb90d256f4adb2d9273b8` |
+| `visual/suunto-frame-040ebb03.ppm` | `61ee3965fff07e08aaa6b297ddead800e155b3620f1c68c42b4037c28b3f2ad8` |
+| `visual/suunto-frame-73d569a5.ppm` | `28dba8c12577d0e52afc1c8004234192b2d2138cd27ca9cf5b42dd5baeb42496` |
+| `visual/suunto-frame-2a01c517.ppm` | `1c9647599609f484387d350da404471cb44fa2b7a7f3a182f431c58e35509699` |
+| `display-resume.log` | `56c9aae62a542c0a069ec16925ebb2e89fb4a47749398ac63766e72502693340` |
+| `frame-probe.c` | `1c9442f2d6148323f6c246c11151759f18dfad8a21e0e70917c751e6f50461fa` |
+| `frame-probe.log` | `345bc18f10b79a21746553ae949ee757f7cc109b19ed32f9dc4e667639805459` |
+| `current-menu.ppm` | `1c9647599609f484387d350da404471cb44fa2b7a7f3a182f431c58e35509699` |
+
+Final documentation/planning validation: `make check-task-contracts` validates
+154 tickets, `make check-lines` exits 0 with advisory size warnings, and
+`git diff --check` is clean. Final `make check` exits 0 with 985 PASS records
+and 154 task contracts; `/tmp/sap222-graph/check-final.log` SHA-256
+`403e0066a04fcbc60b68fc296da41b91fafeabbab4b76ae6b2c389f991e20e6e`.
+
+## E-EMU-SAPPORO-BRANCH-GATES-001 — Post-F57F firmware regression derivation
+
+2026-09-22, ticket 789. Dependencies 220, 225, 670 and 705 are done. Scope is
+only the eleven named shell runners and README/status/evidence; no engine,
+public interface, profile, firmware component, compatibility budget or existing
+ticket status changes. The architecture and paired lane increment evidence
+remain E-CPU-0002 and E-CPU-F57F-001. This entry records current interpreter
+regressions, not new hardware observations. No physical device is available.
+
+### Causal control
+
+Build a control by compiling the pre-fix `thumb32.c` and `thumb32_system.c`
+(from HEAD `5980046`, volatile copies retained by E-CPU-F57F-001) before the
+current archive. The rest of the current engine and all frontend objects are
+identical. Commands:
+
+```sh
+cc -std=c99 -O2 -Iinclude -Isrc/cpu/armv7m \
+  /tmp/sap222-graph/before-thumb32.c /tmp/sap222-graph/before-system.c \
+  build/obj/src/frontends/cli.o build/obj/src/frontends/main_headless.o \
+  build/libsemu.a -o /tmp/sapporo-789/before-headless
+cc -std=c99 -O2 -Iinclude -Isrc/cpu/armv7m \
+  /tmp/sap222-graph/before-thumb32.c /tmp/sap222-graph/before-system.c \
+  build/obj-sdl/src/frontends/cli.o build/obj-sdl/src/frontends/main_sdl.o \
+  build/libsemu.a $(pkg-config --libs sdl3) -o /tmp/sapporo-789/before-sdl
+python3 -P /tmp/sapporo-789/audit-before.py
+python3 -P /tmp/sapporo-789/collect-after.py
+python3 -P /tmp/sapporo-789/compare-censuses.py
+```
+
+The external before driver runs original runners with explicit manifests and
+the two control binaries, retaining volatile logs by changing only cleanup.
+All ten original control runners exit 0, including the seven 2.35 gates,
+the two 2.35 SDL prefixes and 2.22 live input. Their repeated pairs compare
+byte-identically. The after driver
+uses the production binaries and exact existing command/input budgets. Each
+runner/capture has a 900-second wall cap in addition to its guest budgets.
+Firmware components are validated before execution; component identities
+remain those in E-CPU-F57F-001 (2.22) and E-SAP-0038 (2.35). Original runner
+sources remain under `/tmp/sapporo-789/original-runners/` for pin comparison.
+
+Remove only the leading `time_ns=N ` from ordered device/compat event lines
+for a before/after event census; do not normalize paired-run full logs.
+The 2.35 frame prefix retains 42 event payloads; OHR enabled/disabled 42/4;
+GPS startup and its boundary 44 each; reopen 46; awake 54; SDL language 42;
+SDL phone scroll 49. The 2.22 live-input prefix retains 37 event payloads.
+Each before/after payload sequence is identical. Existing stop reasons and
+refusal diagnostics remain required; instruction/time/PC pins change only
+where the corrected branch changes execution. The live-input SDL frame CRCs
+remain unchanged for both versions.
+
+### 2.22 setup acceptance correction
+
+E-EMU-SAP222-HEAP-001 and E-CPU-F57F-001 disprove the historical description
+of a fatal script halt as clean idle. The completion regression now requires
+all manual-time checkpoints, a normal voluntary harness exit after step 31,
+the rendered Navigation and Logbook-selection frames, and an exact full-log
+hash. It saves a temporary snapshot and continues with no input through
+60 virtual seconds. The continuation must stop on its budget with its exact
+PC/instruction/time tuple and transcript hash, without reset or refusal.
+It does not claim a complete renderer snapshot. The transient black step-29
+frame is retained as a transition checkpoint, never as proof of menu pixels.
+
+The successful cold sequence and idle continuation retain E-CPU-F57F-001's
+paired full-log hashes `7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa`
+and `9ef28bb9e945d140e21b702b5c50e1b83f15fd994263da80747557a3d62d2074`.
+A fresh SDL continuation also repeats the latter hash exactly. Step 23's
+changed CRC still shows YEAR with 2023 selected; the corrected renderer
+capture is inspected rather than assuming a changed CRC is harmless.
+The malformed-timeline checks remain unconditional. Disabling the manual-time
+press sequence still requires the finite GPS-cap refusal, not an assertion
+or generic timeout.
+
+### Required renderer-snapshot integration
+
+`src/boards/machine_snapshot.c` serializes machine, NEMA GPU registers and
+completion state, but the externally owned backend in
+`src/display/nema_backend_internal.h` is absent. It owns the committed RGB565
+surface/generation, inherited register presence/values and TSC6A semantic
+shadow. `include/semu/display.h` offers only prepare/commit/abort, with no
+persistence or frame-restoration contract. Restoring CPU/RAM while constructing
+a fresh backend loses those states; an idle snapshot emits no fresh frame,
+and the SDL gate rejects input until a frame exists.
+
+Smallest required integrator change: add a versioned backend save/validated
+restore contract and a way to borrow or republish the restored frame; wire
+it into machine snapshot atomicity/rollback and CLI presentation without
+advancing guest time or publication generation. Preserve the last published
+image separately from the committed drawing surface: inline draws after the
+last published child can change the latter without a new frame callback
+(`nema_backend_transaction.c`). Persist committed inherited state and semantic
+shadow as well as both pixel states; refuse active transactions,
+unknown backend/version, malformed lengths and missing required state.
+Old snapshots cannot invent missing renderer state. Synthetic uninterrupted
+versus restored drawing and refusal atomicity are required, followed by an
+authentic menu restore and button check. This interface/format work is outside
+789 and is not worked around through a private parallel API.
+
+### Changed checkpoint pins
+
+Old values below are preserved from original runner sources, not inferred
+from current code. Full raw-log identities appear in the next table.
+
+| Runner / case | Before | After |
+|---|---|---|
+| `test_firmware_sapporo_235_block_erase.sh` #1 | `user / 0x000bdd2a / 813500000 / 3733351422` | `user / 0x000a6bbe / 864000000 / 3782156506` |
+| `test_firmware_sapporo_235_gps_awake.sh` #1 | `compat-refused / 0x001259fe / 1579930110 / 54642979249` | `compat-refused / 0x001259fe / 1638733422 / 54660679480` |
+| `test_firmware_sapporo_235_gps_reopen.sh` #1 | `compat-refused / 0x001be85a / 1020576082 / 16288236023` | `compat-refused / 0x001be85a / 1080305993 / 16306637984` |
+| `test_firmware_sapporo_235_gps_startup.sh` #1 | `budget / 0x000ee120 / 500000000 / 3343660033` | `budget / 0x00093222 / 500000000 / 3343660033` |
+| `test_firmware_sapporo_235_gps_startup.sh` #2 | `compat-refused / 0x001254ec / 996415389 / 14881889213` | `compat-refused / 0x001254ec / 1059785208 / 14811876715` |
+| `test_firmware_sapporo_235_ohr.sh` #1 | `budget / 0x000bdc36 / 500000000 / 2719206417` | `budget / 0x0008ce2e / 500000000 / 2719206417` |
+| `test_sdl_live_input.sh` #1 | `user / 0x000bacf4 / 774081920 / 6520939902` | `user / 0x080000a0 / 772290112 / 6520978802` |
+| `test_sdl_sapporo_235.sh` #1 | `user / 0x0800009e / 1202094208 / 7971442704` | `user / 0x080000a0 / 1262036864 / 7966140811` |
+| `test_sdl_sapporo_235_scroll.sh` #1 | `budget / 0x000e1862 / 4896065682 / 22000000000` | `budget / 0x000e1862 / 4961334596 / 22000000000` |
+| onboarding `expected_press` | `SDL live test timeline press index=0 virtual_ns=30005853579` | `SDL live test timeline press index=0 virtual_ns=30003929586` |
+| onboarding `expected_step_22` | `SDL live test settled step=22 generation=3992 crc32=5321867e` | `SDL live test settled step=22 generation=3991 crc32=5321867e` |
+| onboarding `expected_step_23` | `SDL live test settled step=23 generation=4074 crc32=c683e828` | `SDL live test settled step=23 generation=4073 crc32=8b6879f9` |
+| onboarding `expected_step_24` | `SDL live test settled step=24 generation=4137 crc32=cd1b0979` | `SDL live test settled step=24 generation=4136 crc32=cd1b0979` |
+| onboarding `expected_step_25` | `SDL live test settled step=25 generation=4194 crc32=455b603a` | `SDL live test settled step=25 generation=4193 crc32=455b603a` |
+| onboarding `expected_step_26` | `SDL live test settled step=26 generation=4257 crc32=53d3f0c1` | `SDL live test settled step=26 generation=4256 crc32=53d3f0c1` |
+| onboarding `expected_step_27` | `SDL live test settled step=27 generation=4260 crc32=17e1772c` | `SDL live test settled step=27 generation=4259 crc32=17e1772c` |
+| onboarding `expected_step_28` | `SDL live test settled step=28 generation=4312 crc32=578e2601` | `SDL live test settled step=28 generation=4311 crc32=578e2601` |
+| onboarding `expected_step_29` | `SDL live test settled step=29 generation=4318 crc32=1c62ab1a` | `SDL live test settled step=29 generation=4319 crc32=2a01c517` |
+| onboarding `expected_step_30` | `SDL live test settled step=30 generation=4403 crc32=fb8e0155` | `SDL live test settled step=30 generation=4406 crc32=73d569a5` |
+| onboarding `expected_stop` | `stop=halt pc=0x000727ca instructions=14178200857 virtual_time_ns=43790375389` | `stop=user pc=0x0800009e instructions=8500057344 virtual_time_ns=38818426902` |
+| onboarding `expected_baseline_step_21` | `SDL live test settled step=21 generation=1928 crc32=8362b9bc` | `SDL live test settled step=21 generation=1927 crc32=8362b9bc` |
+| onboarding `expected_baseline_stop` | `stop=compat-refused pc=0x0010fbde instructions=13181432148 virtual_time_ns=68142804403` | `stop=compat-refused pc=0x0010fbde instructions=13184192858 virtual_time_ns=68141114950 detail=layer sapporo-2.22-no-device trigger gps-awake-pulse exceeded budget` |
+
+New assertions additionally pin step 31 (generation 4510, CRC `040ebb03`),
+`user / 0800009e / 8500057344 / 38818426902 ns`, and idle
+`budget / 000d4a8c / 8807319394 / 60041792981 ns`.
+
+### Before/after full-log hash pins
+
+| Runner / pin index | Before SHA-256 | After SHA-256 |
+|---|---|---|
+| `test_firmware_sapporo_235_block_erase.sh` #1 | `2813f2dfdad153de7f2f00250911d86cced75ec15ce01c73d86c822b4470a528` | `2d479fc3f6c4f059037e39c139cf939315e8bfdf3b5574166727e5f5dfcb37f8` |
+| `test_firmware_sapporo_235_gps_awake.sh` #1 | `0fc177712c29f58a0b51a306db09538497bc0dd899164968f5019de6f96eb9fa` | `988c24e77f3b25b2be945f3d81a7f6ca3f17dfae94bd63cbb1eecb14533fbfe3` |
+| `test_firmware_sapporo_235_gps_reopen.sh` #1 | `690422bf19ff32bb5de8da3db63a825ba11102a326c112dcbf30ab52e5e7c9ca` | `74dca7ea9589a670d9058b253e9f591ae50fb8281b633f1f40471f8653d40589` |
+| `test_firmware_sapporo_235_gps_startup.sh` #1 | `f40ab5506257140b44724ad8522a515ffdc4a3bd98cf2af5d21dbe7b47f22284` | `7627f2125bbd7d5ebf644ec551b125c049b50f6f3d589a5922352ebb15fe7994` |
+| `test_firmware_sapporo_235_gps_startup.sh` #2 | `94acff58c93ab408b34b4a5233670740d93464cbab739f02717f35eb5f62d878` | `d00ed24b150258249f030451d427247b6ce2226779b6f2de0ab79e1869ba46dd` |
+| `test_firmware_sapporo_235_ohr.sh` #1 | `b6c35ad981bdceef823937e68fb57bdf101853e62c0ae52caf63fea586aabeb0` | `f69c9d8a7c176da98190eed09e14c0c14db32d282cc5ee4b62bbf2bb94201317` |
+| `test_firmware_sapporo_235_ohr.sh` #2 | `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879` | `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879` |
+| `test_firmware_sapporo_235_pressure.sh` #1 | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` |
+| `test_firmware_sapporo_235_pressure.sh` #2 | `c8b5c60d805fe012671575b9f850d4c42a94420d448e4bbdd0c3759fc7127f07` | `c8b5c60d805fe012671575b9f850d4c42a94420d448e4bbdd0c3759fc7127f07` |
+| `test_firmware_sapporo_235_production.sh` #1 | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` |
+| `test_firmware_sapporo_235_production.sh` #2 | `0ab8519944dce5e574e8cbb5b16d06bd798872204c5f602958c3c0cafabd2d81` | `0ab8519944dce5e574e8cbb5b16d06bd798872204c5f602958c3c0cafabd2d81` |
+| `test_sdl_live_input.sh` #1 | `9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c` | `278cc6dbc76e7359ff217c00821b9f4b08d3a7814435b11dc02bbc589a3d4d81` |
+| `test_sdl_sapporo_235.sh` #1 | `523bbceff0a44a5e5eb64ba19e8bce2ca86bc10b2aa0d8ad7bbc50e157a4bdac` | `1bea6fedcaeee7f0fb5d47212ea40d8a2570455adbda948c4db6bcec178d3e5c` |
+| `test_sdl_sapporo_235_scroll.sh` #1 | `c79d7bd489bba9f280b8f64e233f2ab796688258267e045709e51a0242a7ad6c` | `77402db41d8dc1260cb4226ce37edd618bd654a6b37c6c4dfd5f6be6c1b5c696` |
+
+The pressure/production and OHR-disabled hashes are unchanged. The disabled
+2.22 control gains a full-log pin
+`07250eea92a667f06cc4e666289cd56e54effe6ad90ff1f4f6d52466ad62f5bb`
+and exactly eleven GPS pulse admissions, strengthening its previous tuple-only
+check. Old onboarding halt pixels are not accepted as success.
+
+### Volatile raw-log identities
+
+All paths below are relative to `/tmp/sapporo-789/`. Paired files sharing a
+hash are exact byte matches; no timestamp normalization is used for pairs.
+Firmware, snapshots and frame pixels remain outside Git.
+
+| Artifact | SHA-256 |
+|---|---|
+| `after/222-disabled-2.log`, `after/222-disabled-1.log` | `07250eea92a667f06cc4e666289cd56e54effe6ad90ff1f4f6d52466ad62f5bb` |
+| `after/222-live-1.log`, `after/222-live-2.log` | `278cc6dbc76e7359ff217c00821b9f4b08d3a7814435b11dc02bbc589a3d4d81` |
+| `after/235-boundary-2.log`, `after/235-boundary-1.log` | `d00ed24b150258249f030451d427247b6ce2226779b6f2de0ab79e1869ba46dd` |
+| `after/235-scroll-2.log`, `after/235-scroll-1.log` | `77402db41d8dc1260cb4226ce37edd618bd654a6b37c6c4dfd5f6be6c1b5c696` |
+| `after/235-sdl-1.log`, `after/235-sdl-2.log` | `1bea6fedcaeee7f0fb5d47212ea40d8a2570455adbda948c4db6bcec178d3e5c` |
+| `before/test_firmware_sapporo_235_block_erase/frame-2.log`, `before/test_firmware_sapporo_235_block_erase/frame-1.log` | `2813f2dfdad153de7f2f00250911d86cced75ec15ce01c73d86c822b4470a528` |
+| `before/test_firmware_sapporo_235_block_erase/runner.log` | `15a469c287560b4e7642e332c58a36a1a2739d247c3b5e5910be91cd4c11a05d` |
+| `before/test_firmware_sapporo_235_gps_awake/reopen-1.log`, `before/test_firmware_sapporo_235_gps_awake/reopen-2.log` | `0fc177712c29f58a0b51a306db09538497bc0dd899164968f5019de6f96eb9fa` |
+| `before/test_firmware_sapporo_235_gps_awake/runner.log` | `627068abc80c291220d120148dd9748300dc76cc1717c1b3deefbfb3acf029b3` |
+| `before/test_firmware_sapporo_235_gps_reopen/reopen-1.log`, `before/test_firmware_sapporo_235_gps_reopen/reopen-2.log` | `690422bf19ff32bb5de8da3db63a825ba11102a326c112dcbf30ab52e5e7c9ca` |
+| `before/test_firmware_sapporo_235_gps_reopen/runner.log` | `4def79fccf31d1d39c9099f9b18144b901c801e133aa5b332475c9f6a324d150` |
+| `before/test_firmware_sapporo_235_gps_startup/boundary-2.log`, `before/test_firmware_sapporo_235_gps_startup/boundary-1.log` | `94acff58c93ab408b34b4a5233670740d93464cbab739f02717f35eb5f62d878` |
+| `before/test_firmware_sapporo_235_gps_startup/runner.log` | `0c65fa55e2b57c391f6f8045c6e9bd0dfe88b793afc1c5744258f4d62e683e42` |
+| `before/test_firmware_sapporo_235_gps_startup/startup-1.log`, `before/test_firmware_sapporo_235_gps_startup/startup-2.log` | `f40ab5506257140b44724ad8522a515ffdc4a3bd98cf2af5d21dbe7b47f22284` |
+| `before/test_firmware_sapporo_235_ohr/disabled-1.log`, `before/test_firmware_sapporo_235_ohr/disabled-2.log` | `b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879` |
+| `before/test_firmware_sapporo_235_ohr/enabled-2.log`, `before/test_firmware_sapporo_235_ohr/enabled-1.log` | `b6c35ad981bdceef823937e68fb57bdf101853e62c0ae52caf63fea586aabeb0` |
+| `before/test_firmware_sapporo_235_ohr/runner.log` | `50e462f3e5a55b39bbe10aea620736bff84bbfc4b6e73a3bc80068b31297ead7` |
+| `before/test_firmware_sapporo_235_pressure/boot-2.log`, `before/test_firmware_sapporo_235_pressure/boot-1.log`, `before/test_firmware_sapporo_235_production/boot-2.log`, `before/test_firmware_sapporo_235_production/boot-1.log` | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` |
+| `before/test_firmware_sapporo_235_pressure/next-1.log`, `before/test_firmware_sapporo_235_pressure/next-2.log` | `c8b5c60d805fe012671575b9f850d4c42a94420d448e4bbdd0c3759fc7127f07` |
+| `before/test_firmware_sapporo_235_pressure/runner.log` | `113276d03abfdf1828ccef2691f668929c86c02c468cb060b7bb07002def55fd` |
+| `before/test_firmware_sapporo_235_production/next-1.log`, `before/test_firmware_sapporo_235_production/next-2.log` | `0ab8519944dce5e574e8cbb5b16d06bd798872204c5f602958c3c0cafabd2d81` |
+| `before/test_firmware_sapporo_235_production/runner.log` | `a937de78906bfeab313048cdd5afa8554d15358df71fc16b79df7d8baa541e20` |
+| `before/test_sdl_live_input/live.log` | `9ee0637132d115f0136e490c2314db49ef4a792ab0a1eae1d70ed15ff3a9382c` |
+| `before/test_sdl_live_input/runner.log` | `aa444e32a0a1cd79aa7cd10724f00fa00051f065cd27ed323403a178a0986c01` |
+| `before/test_sdl_sapporo_235/run-1.log`, `before/test_sdl_sapporo_235/run-2.log` | `523bbceff0a44a5e5eb64ba19e8bce2ca86bc10b2aa0d8ad7bbc50e157a4bdac` |
+| `before/test_sdl_sapporo_235/runner.log` | `bb1a2a8017fb6650acd6d2d44dfa9a70383d9820ff98adcfa9e1cf06afe17708` |
+| `before/test_sdl_sapporo_235_scroll/run-1.log`, `before/test_sdl_sapporo_235_scroll/run-2.log` | `c79d7bd489bba9f280b8f64e233f2ab796688258267e045709e51a0242a7ad6c` |
+| `before/test_sdl_sapporo_235_scroll/runner.log` | `9a2be7f70e50d88f0b2764833ad07fed9f5832c9b4fac7b93b3773cee7bc756f` |
+| `audit-before.py` | `6072161b9ee3f2a771b3438d14904ae2d5224b2514ec94583e40bc30b9583456` |
+| `collect-after.py` | `6da0289884f2290750d5eda9b4a60e967b2b20a0704be800c5b2eb8c36459143` |
+| `compare-censuses.py` | `a36cf39fec55a7f856c49a3e13ad7a8e5c90e8dda2341ad7ec032b28fa9f300a` |
+| `pin-tables.py` | `c317210b2fe6747b089e8c9e640dbfc1354b42991c2a10278dbd6367996e6c13` |
+| `verify-firmware.py` | `38f8f4debe40428aa21c1ae1a79ff9484fd0ba5727c3af76efcf3f65252b01c0` |
+| `verify-sdl-prefixes.py` | `43b18efb01d5920d7df9c54b13d4c22fb38a3752ba492ebda02bc54e7ae48f74` |
+| `verify-onboarding.py` | `fcad76cde067778640071693da826491ea475ca020ca856789cf5f94ba64f56c` |
+| `engine-before.json` | `9f74d01f79d7a36bbf2be54d162f031b3a344e31dcbec0462d0eec01d6455919` |
+| `before-results.json` | `c7302068a283de54c345967387311958bffca43a6563152e26e6a4fd3ad5fce5` |
+| `after-results.json` | `4a24c0edfa786678c788bbc6c53b8b125bd281200af756c5b1c0f55df7aa76f8` |
+| `event-census.json` | `fe2288bc5c9528dfe6eef6a783f99a5ef87690e565f279bd8010f1862c34a6f0` |
+| `event-census.log` | `fe2288bc5c9528dfe6eef6a783f99a5ef87690e565f279bd8010f1862c34a6f0` |
+| `idle-sdl-1.log` | `9ef28bb9e945d140e21b702b5c50e1b83f15fd994263da80747557a3d62d2074` |
+| `idle-sdl-2.log` | `9ef28bb9e945d140e21b702b5c50e1b83f15fd994263da80747557a3d62d2074` |
+| `step23.png` | `df34a74fb91b642d6dd4b970d2cc00f8f8ec587b9db38b1328f07340dcdc1c9c` |
+
+
+### Bounded button input after snapshot restore
+
+Two additional diagnostic resumes use the public CLI input replay and frame
+callback, with no runtime modification or renderer-state injection. From the
+E-CPU-F57F-001 step-31 snapshot, replay LOWER at 39000000000 ns and release
+at 39100000000 ns, bounded by 10 billion total instructions / 41 virtual
+seconds and a 120-second wall cap. The first paired SDL attempt publishes a
+frame but its PPM diagnostic does not capture every frame outside live-test
+mode; absence of PPM files is not absence of GPU output.
+
+A standalone `frame-observer.c` calls `semu_cli_main` with a read-only frame
+callback, saves the last RGB565-to-PPM conversion outside Git, and reports
+publication CRCs. It produces 100 frames: first CRC `c1760fc8`, last
+`0cb272ba`. Both full transcripts and final PPMs are byte-identical. The final
+image visibly selects Media controls, with Navigation, Logbook, Timer and
+Alarms also present. Both runs exit 3 at `budget / 000d4a8c / 8744080727 /
+41088770901 ns`, matching the uninstrumented SDL stop tuple. The saved
+snapshot had generation 4510; restored publication restarts at generation 1,
+confirming a missing renderer generation even on this successful redraw.
+
+This narrows the gap: explicit replay can provoke a usable redraw on this
+menu, but idle restore lacks its initial image and frame-gated live input
+cannot provoke that redraw. It does not prove missing inherited state/shadow
+is harmless on other screens, nor authorize synthesizing input as a restore
+workaround. No new guest hardware behavior is inferred from this probe.
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Iinclude -Isrc/frontends \
+  /tmp/sapporo-789/frame-observer.c build/obj/src/frontends/cli.o \
+  build/libsemu.a -o /tmp/sapporo-789/frame-observer
+SEMU_CAPTURE_PPM=/tmp/sapporo-789/observe-resume-1.ppm \
+  /tmp/sapporo-789/frame-observer run --profile sapporo-2.22.60 \
+  --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device \
+  --snapshot-load /tmp/sap222-graph/fixed-walk-1.sems \
+  --input-replay /tmp/sapporo-789/resume-lower.replay \
+  --max-instructions 10000000000 --max-time 41000000000
+# Repeat with suffix 2. Uninstrumented controls use build/suunto-emu-sdl,
+# SDL_VIDEODRIVER=dummy and the same arguments/budgets.
+```
+
+| Artifact relative to `/tmp/sapporo-789/` | SHA-256 |
+|---|---|
+| `frame-observer.c` | `6e0c028df99dd98b6c5d689fa2d34ef63de518e33f1e84e777617203d474b27e` |
+| `resume-lower.replay` | `537a91acb17872eb6911ea047844de7ae5a239793b4b2bdeba1e3aeecc31dd74` |
+| `resume-lower-1.log` | `54aac2ca2bba1a90ba9383a3c68c8ac7ff0a5bd0c3e7d93fc2c2eaff4add7bcf` |
+| `resume-lower-2.log` | `54aac2ca2bba1a90ba9383a3c68c8ac7ff0a5bd0c3e7d93fc2c2eaff4add7bcf` |
+| `observe-resume-1.log` | `bd210eb30645da96fce0fcfd0ab75810456d4932831b4c2516af63c3a7ee8f04` |
+| `observe-resume-2.log` | `bd210eb30645da96fce0fcfd0ab75810456d4932831b4c2516af63c3a7ee8f04` |
+| `observe-resume-1.ppm` | `f085ab8896e22e910ffaeb1191113369179bb10f0d5cada2807193fdc567794f` |
+| `observe-resume-2.ppm` | `f085ab8896e22e910ffaeb1191113369179bb10f0d5cada2807193fdc567794f` |
+
+
+### Ticket 789 final verification and handoff
+
+All eleven named runners exit 0 twice on the final scripts. Both 2.35 Make
+runs select all seven firmware runners; each itself compares paired native
+transcripts. All four SDL runners pass twice; their configuration/refusal
+checks are preserved, and the 2.22 onboarding script adds exact idle and
+post-setup input assertions. The original control's ten runners also pass.
+No new unsupported behavior was turned into a passing golden.
+
+Exact final commands: the five authentic firmware/SDL invocations run twice
+with 900-second wall caps; build/static checks run once, with final diff checks
+repeated after documentation edits:
+
+```sh
+make test-firmware TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235 \
+  SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu \
+  sh tools/test_sdl_live_input.sh
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu \
+  sh tools/test_sdl_onboarding_completion.sh
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu \
+  sh tools/test_sdl_sapporo_235.sh
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu \
+  sh tools/test_sdl_sapporo_235_scroll.sh
+make sdl
+make check
+make check-lines
+make check-task-contracts
+git diff --check
+```
+
+All listed commands exit 0. `make check` has 985 PASS records and 154 task
+contracts; its SDL quick target intentionally skips private walks, which the
+explicit commands above supply. Line checks produce advisory warnings only.
+All eleven shell runners pass `sh -n`. All 334 files under `src`, `include`
+and `profiles` have identical before/after SHA-256 inventories (inventory hash
+`9f74d01f79d7a36bbf2be54d162f031b3a344e31dcbec0462d0eec01d6455919`).
+Sanitizers are not repeated for this shell/documentation ticket; the unchanged
+engine retains E-CPU-F57F-001's 980 passing sanitizer cases.
+
+Changed files: `tools/test_sdl_live_input.sh`,
+`tools/test_sdl_onboarding_completion.sh`, `tools/test_sdl_sapporo_235.sh`,
+`tools/test_sdl_sapporo_235_scroll.sh`; the five
+`tests/integration/test_firmware_sapporo_235_{block_erase,gps_startup,gps_reopen,gps_awake,ohr}.sh`
+runners; `README.md`, `docs/current-status.md`, `docs/migration-evidence.md`.
+The pressure/production runners and their pins remain unchanged. Every old
+pin is recorded above. Ticket status remains ready for integrator review.
+
+Remaining gaps: the renderer-snapshot interface/format work specified above;
+2.35 device/layer snapshot coverage; unbounded GPS; 2.35 compressed main icons;
+broader main functions and other-profile coverage. No new 2.39 era run is
+claimed; its previously recorded drift remains owned by 777/783. This ticket
+adds no engine behavior, so it introduces no additional CPU/device era drift.
+
+Final validation log and original-runner identities, relative to
+`/tmp/sapporo-789/`:
+
+| Artifact | SHA-256 |
+|---|---|
+| `check.log` | `403e0066a04fcbc60b68fc296da41b91fafeabbab4b76ae6b2c389f991e20e6e` |
+| `make-sdl.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `lines.log` | `30f1f1df34c0c2e7fff4d2af41e719f792bfafd32933ff0c448d37aec5ae699e` |
+| `contracts.log` | `0b2072a03f6c4a0a523d87b99ceb9d11d51fb4cdf1ad6753e7e140b52f305f69` |
+| `verify-firmware-1.log` | `4af13c88189146fd7434fac06a93054a194c74dd84e1e8b55fd699c65362cbeb` |
+| `verify-firmware-2.log` | `4af13c88189146fd7434fac06a93054a194c74dd84e1e8b55fd699c65362cbeb` |
+| `verify-firmware-results.json` | `7211ad359c55dcd75c38c53c5da3fe7c80724fec884b8ac9042a261f3e14caa4` |
+| `verify-sdl-results.json` | `4fb1475c12d64e5748b323cc259c4846773adc1f4921b9c21dddd196f165aba4` |
+| `verify-onboarding-1.log` | `3b28cac7dad4f4fa7d92d2625f3218e8aab9b64fde67d9908931cb6c3ff6cd93` |
+| `verify-onboarding-2.log` | `3b28cac7dad4f4fa7d92d2625f3218e8aab9b64fde67d9908931cb6c3ff6cd93` |
+| `verify-onboarding-results.json` | `7211ad359c55dcd75c38c53c5da3fe7c80724fec884b8ac9042a261f3e14caa4` |
+| `verify-test_sdl_live_input-1.log` | `599e4fbec468555b97ddcf853324e7de4fe39447a3672ece445a03af1ba6dd7f` |
+| `verify-test_sdl_live_input-2.log` | `599e4fbec468555b97ddcf853324e7de4fe39447a3672ece445a03af1ba6dd7f` |
+| `verify-test_sdl_sapporo_235-1.log` | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+| `verify-test_sdl_sapporo_235-2.log` | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+| `verify-test_sdl_sapporo_235_scroll-1.log` | `b3da4b332833d04ee702b7c045ef251c8b46800a7744301666c02f901bf18fa2` |
+| `verify-test_sdl_sapporo_235_scroll-2.log` | `b3da4b332833d04ee702b7c045ef251c8b46800a7744301666c02f901bf18fa2` |
+| `original-runners/test_firmware_sapporo_235_block_erase.sh` | `8b33ed882f8d514c7d1597bf31531ee10123656e43558b3f0681a49cfdd85ba9` |
+| `original-runners/test_firmware_sapporo_235_gps_awake.sh` | `6187f8064cdda5faec5fb76ae6d68a4a097dd7d50fe4c634f5d436cab906f1e9` |
+| `original-runners/test_firmware_sapporo_235_gps_reopen.sh` | `7bbfe4a2e8ae0d27cb5d14a59263701ae567d0c04ffb6785a486376f8959f963` |
+| `original-runners/test_firmware_sapporo_235_gps_startup.sh` | `10e016ee38fff0bc38896eb56832f34e00aac7a56daf8453366d43dae25d547c` |
+| `original-runners/test_firmware_sapporo_235_ohr.sh` | `de755efa47f9058a34b904502283ad31fe3c5f1e64df88ca7e27b6b262404ab0` |
+| `original-runners/test_firmware_sapporo_235_pressure.sh` | `4b2fc8bdebc8f30759a9548718897e21c02455710cd71bd799ae7d230de05df8` |
+| `original-runners/test_firmware_sapporo_235_production.sh` | `813281dad39356f865d9d8dff0ac0249cec521f29a62f692908edba8700423d0` |
+| `original-runners/test_sdl_live_input.sh` | `97e165a451905f71f1ab64a43afa4c02cf0e04ee29f77c5a2f56404ff606ae8d` |
+| `original-runners/test_sdl_onboarding_completion.sh` | `ff4ff14068ec31f263a59d019a26fb2da74d438fb658f3d32a2789d152ba0654` |
+| `original-runners/test_sdl_sapporo_235.sh` | `20be0e3e432c3afa864976fcb8cb81c06d2a47bc6558f46a8877ac037ec21a6f` |
+| `original-runners/test_sdl_sapporo_235_scroll.sh` | `46ceccae4c47f9435448718fc64e9defbb6da520d8f0cd9a2f82ef27866a3ee9` |
+
+
+## E-EMU-RENDERER-SNAPSHOT-001 — complete renderer restoration (ticket 791)
+
+Date: 2026-09-22. Scope: persistence and host presentation, authorized by the
+existing display ownership/transaction architecture; no new hardware behavior
+is inferred. References: E-EMU-NEMA-ATOMIC-001 and
+E-EMU-SAPPORO-BRANCH-GATES-001. Dependencies 513, 615 and 761 are done.
+Ticket 791 owns the public codec contract and version-2 format integration;
+its index status remains ready for integrator review.
+
+### Regression and implementation
+
+The original machine-only snapshot restores no renderer frame. The new
+`test_machine_restores_published_renderer` failed before implementation at
+`1u == cb.count` (zero callbacks), then passed after integration. The public
+machine option copies a save/load/published-frame table tied to the existing
+backend context. Display section 10 records backend identity and the bounded
+little-endian image specified in `docs/execution-model.md`. A backend without
+persistence support refuses; absent backends use identity zero. Old version-1
+files refuse with `snapshot: unsupported version 1`, CLI exit 2.
+
+The backend preserves inherited registers/presence, list/draw counters,
+working RGB565 pixels, last published RGB565 pixels/generation, and the TSC6A
+shadow. Last published pixels are distinct from later inline drawing pixels.
+No diagnostic history, transient transaction storage, host pointer, or callback
+is encoded. Full component validation precedes an allocation-free load.
+Malformed identity/length/version/dimensions/flags/presence and active
+transactions refuse. No new rasterization, compressed decoding or compatibility
+intervention is introduced.
+
+Synthetic tests compare continuation with an uninterrupted backend across
+inherited quad draws, inline pixels and a real shadow triangle/resolve. They
+also verify unchanged output arguments on busy save, reset with no published
+image, copied codec tables, and whole-machine byte identity after a failed
+load. An orphan scheduler event fails AFTER renderer loading and exercises
+rollback of the changed renderer and guest state; refusal emits no frame.
+Successful load republishes exactly once without executing an instruction,
+incrementing generation, or advancing virtual time.
+
+SDL accepts any button at restored checkpoints and flushes the held restored
+frame before waiting. It also releases the final held composite at settled
+input checkpoints, where guest time is paused. This affects host presentation,
+not guest frame generation, commands or scheduling. Native live inspection
+using Computer Use showed the restored Logbook selection, changed menu
+selections, and the native `LOGBOOK EMPTY` page after interaction. UI artifacts
+stay outside Git; key/click automation timing is not a deterministic golden.
+
+### Paired authentic census
+
+Firmware is the unchanged identity-pinned 2.22.60 bundle from the preceding
+entry (resident `a409b088a061c2fe61689c8f39a79b2c35ed0059cd66987646e0195e47a2f522`,
+application `c8f2d9e4c114fef0774056a316ad09c42d31b95e2e956f887ed691c3c15a9bfc`,
+resources `ec2a4b1c472844ac6ff9cc575cb9383c29a74302107af3619f9a08fdf6abcaf1`).
+All authentic artifacts are volatile under `/tmp/sapporo-791/`.
+
+Two cold version-2 runs use setup POST `mlllmlllmmlmmmmm`, timeline `30000:l`,
+`--until setup-next`, maximum 18,000,000,000 instructions and 60,000,000,000 ns.
+Both retain the preceding cold log hash, native stop `user`, PC `0800009e`,
+8,500,057,344 instructions, time 38,818,426,902 ns, and menu generation 4510,
+CRC `040ebb03` (Logbook). Both snapshots are 5,952,483 bytes and byte-identical.
+Display payload is 1,152,184 bytes including the four-byte backend ID.
+
+Two idle restores publish generation 4510 / CRC `040ebb03` immediately, then
+reach the SAME previous budget stop: PC `000d4a8c`, 8,807,319,394 instructions,
+60,041,792,981 ns. The restored frame line is the sole difference from the
+previous idle transcript: old SHA-256
+`9ef28bb9e945d140e21b702b5c50e1b83f15fd994263da80747557a3d62d2074`, new
+`0e21563113837f9d0d27c2e13c53f8746e23f601041689542cd4c00cff16eceb`.
+Only that restore-specific pin changes in the onboarding runner.
+
+Two LOWER replays press at 39,000,000,000 ns and release at 39,100,000,000 ns,
+with maximum 10,000,000,000 instructions / 41,000,000,000 ns. Both finish at
+budget, PC `000d4a8c`, 8,744,080,727 instructions, 41,088,770,901 ns, with
+current and published frame CRC `0cb272ba` (Media controls), generation 4610.
+The complete resulting machine snapshots are byte-identical. This preserves
+the previous pixel/CPU checkpoint while fixing generation reset and initial
+blank presentation. No replay is needed to display the initial saved menu.
+
+Exact paired cold command (substitute pass 1/2 in the external output path):
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+  SEMU_SDL_SETUP_WALK_POST=mlllmlllmmlmmmmm \
+  SEMU_SDL_SETUP_WALK_TIMELINE=30000:l build/suunto-emu-sdl run \
+  --profile sapporo-2.22.60 --firmware tests/private/sapporo-2.22.60/firmware.semu \
+  --layer sapporo-2.22-no-device --until setup-next \
+  --max-instructions 18000000000 --max-time 60000000000 \
+  --snapshot-save /tmp/sapporo-791/cold-1.sems
+```
+
+Each cold/idle/LOWER capture uses a 900-second `subprocess.run` wall cap.
+The new `tools/test_sdl_snapshot_restore.sh` independently checks a cold-created
+snapshot, initial publication with execution budgets already exhausted, and
+paired LOWER continuation, with 900-second per-process wall caps. Supplied
+`SEMU_SDL_TEST_SNAPSHOT` must match the exact fresh version-2 checkpoint hash.
+No snapshot is migrated by patching an old version.
+
+Raw artifact identities (same-named numbered pairs were compared bytewise):
+
+| Artifact | SHA-256 |
+|---|---|
+| `before-regression.log` | `49ba51ede2f1dac98ac5b5850f65eede85e7f7dac31eb4eca0b0eb269cbf03c2` |
+| `after-regression.log` | `f7c15e00a9be5557061f484e40f2b927c096512121d53b5a062d494917a6f1cd` |
+| `renderer-final.log` | `1bcbdd706868c54668715dd7b0531c0547c9ddf7ed9a63308d4a286d666f0eb3` |
+| `snapshot-tests.log` | `f4589bc11e76484648278a240cf8e9905b608cb53bf152c4c677efcea423316e` |
+| `cold-1.log` | `7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa` |
+| `cold-2.log` | `7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa` |
+| `cold-1.sems` | `f829b2fa514c65b0e10d1f7faa20f4564ba95a442ffd8d217fa21b28b711e592` |
+| `cold-2.sems` | `f829b2fa514c65b0e10d1f7faa20f4564ba95a442ffd8d217fa21b28b711e592` |
+| `idle-1.log` | `0e21563113837f9d0d27c2e13c53f8746e23f601041689542cd4c00cff16eceb` |
+| `idle-2.log` | `0e21563113837f9d0d27c2e13c53f8746e23f601041689542cd4c00cff16eceb` |
+| `lower-1.log` | `163b8d0e752e1f0f817f9d887760316377388af12a973a91e9dfdd393cd67c7d` |
+| `lower-2.log` | `163b8d0e752e1f0f817f9d887760316377388af12a973a91e9dfdd393cd67c7d` |
+| `lower-1.sems` | `e5c5dd57e7ad7b7ba1941f2b1bdd8123d42e6ab286ed152d55ecd38f885a9ab6` |
+| `lower-2.sems` | `e5c5dd57e7ad7b7ba1941f2b1bdd8123d42e6ab286ed152d55ecd38f885a9ab6` |
+| `version1-refusal.log` | `b74b683d3e6a1f6c60743138710804b6aacb063886a88b96d9c650e4e0417cb8` |
+| `sanitize.log` | `999960d5a5d0532f9d492ce435117241e556c1af3972df4effa4f05bdd754fcc` |
+
+The public CLI frame observer from `/tmp/sapporo-789/frame-observer.c` was
+rebuilt against the new library into `/tmp/sapporo-791/frame-observer` and run
+twice with the same LOWER replay and bounds. Each emits 101 callbacks: restored
+4510 / `040ebb03`, then 4511 through 4610, ending `0cb272ba`. Both final PPMs
+match the earlier continuation pixel hash exactly. The observer only records
+callbacks; it does not inject frames or alter renderer state.
+
+| Artifact | SHA-256 |
+|---|---|
+| `/tmp/sapporo-789/frame-observer.c` | `6e0c028df99dd98b6c5d689fa2d34ef63de518e33f1e84e777617203d474b27e` |
+| `/tmp/sapporo-791/frame-observer` | `d94aa9781a48632696bd237835ef7c71f61434e89695f7b756de19671b492d3b` |
+| `/tmp/sapporo-791/frames-1.log` | `bbe49601d14d1c10154f235bac90cdfc81431d78ac6d75b91a310a490d6804cf` |
+| `/tmp/sapporo-791/frames-2.log` | `bbe49601d14d1c10154f235bac90cdfc81431d78ac6d75b91a310a490d6804cf` |
+| `/tmp/sapporo-791/frames-1.ppm` | `f085ab8896e22e910ffaeb1191113369179bb10f0d5cada2807193fdc567794f` |
+| `/tmp/sapporo-791/frames-2.ppm` | `f085ab8896e22e910ffaeb1191113369179bb10f0d5cada2807193fdc567794f` |
+
+
+### Verification commands and integration handoff
+
+```
+make test TEST_FILTER=renderer_snapshot
+make test TEST_FILTER=snapshot
+make check
+make sanitize
+make sdl
+make check-lines
+make check-task-contracts
+make test-firmware TEST_PROFILE=sapporo-2.35.34 SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_onboarding_completion.sh
+SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.22.60/firmware.semu sh tools/test_sdl_snapshot_restore.sh
+sh tools/test_sdl_live_input.sh
+sh tools/test_sdl_sapporo_235.sh
+sh tools/test_sdl_sapporo_235_scroll.sh
+git diff --check
+```
+
+The renderer's four cases pass, all 276 snapshot-selected cases pass,
+`make check` has 989 PASS records (including five SDL input cases), and the
+full sanitizer suite has 984 passing cases. The final renderer cases also
+pass separately under ASan/UBSan. All seven 2.35 firmware runners and both
+paired 2.35 SDL prefixes pass without changed pins. The 2.22 SDL live-input
+gate passes. Line checks remain advisory; 155 task contracts validate.
+Unselected 2.39 runners explicitly skip under the 2.35 profile; their existing
+drift is not claimed fixed and no pin was changed. The 2.35 Make runner has
+explicit guest budgets; SDL prefix subprocesses have 900-second wall caps.
+
+Implementation/header changes: `include/semu/{display,machine,trace}.h`;
+`src/boards/{machine.c,machine_internal.h,machine_snapshot.c,machine_snapshot_display.c}`;
+`src/display/{nema_backend.c,nema_backend.h,nema_backend_internal.h,nema_backend_transaction.c,nema_backend_snapshot.c,nema_state.c,nema_state_internal.h,surface.c}`;
+`src/frontends/{cli.c,main_sdl.c}`. Tests/runners:
+`tests/unit/{test_renderer_snapshot.c,test_snapshot.c}`,
+`tools/{test_sdl_onboarding_completion.sh,test_sdl_snapshot_restore.sh}`.
+Documentation: README, current-status, migration-evidence and execution-model.
+Planning adds ticket 791 and its index row before implementation; no existing
+status or dependency is modified. All unrelated working-tree changes remain.
+
+Unsupported cases remain: version-1 migration, 2.35 device/layer snapshot
+codecs, unsupported compressed TSC6A main icons, unbounded GPS, and broader
+watch-function/other-profile validation. The existing 2.39 era drift remains
+777/783's work. Integrator action: review 791's API/format ownership and evidence,
+then update its status; no private parallel interface or firmware workaround
+is requested by this implementation.
+
+Additional terminal validation identities, relative to `/tmp/sapporo-791/`:
+
+| Artifact | SHA-256 |
+|---|---|
+| `era-235.log` | `e40c65ec10a96789749203be0b00ed8a1bc9a80ff5a7fabcdb5d852aacb38f47` |
+| `test_sdl_live_input.log` | `599e4fbec468555b97ddcf853324e7de4fe39447a3672ece445a03af1ba6dd7f` |
+| `test_sdl_sapporo_235.log` | `529b27af7a24a9f4b054ebe1f670613601bdbcb186da331cc64ac810891191d9` |
+| `test_sdl_sapporo_235_scroll.log` | `b3da4b332833d04ee702b7c045ef251c8b46800a7744301666c02f901bf18fa2` |
+| `sanitize-renderer-final.log` | `73bc4d4684b9760b585a2349a327b9215fcd8b3e595c197c21d9ee556c216811` |
+| `contracts.log` | `9a518e8984ccd42e9a0c0e752c0c6cc0f92f4c93e2349266f0e747021a34b904` |
+| `lines.log` | `11916af63f91489e5498d680941eecdefc89076df6d77c0d05c77ae04efcb5f6` |
+| `restore-supplied.log` | `a66ba4cb041918aa91c4fcf3cabaf6630c666a0db81eb09f2cb5b53defd67685` |
+| `onboarding-1.log` | `3b28cac7dad4f4fa7d92d2625f3218e8aab9b64fde67d9908931cb6c3ff6cd93` |
+
+The full new restore runner exits 0 after cold capture and both immediate/LOWER
+restore pairs. Its cold-only setup environment is confined to that subprocess.
+The supplied-snapshot path also exits 0. Final generic checks pass again after
+public contract documentation and the copied-table constructor regression.
+
+| Artifact | SHA-256 |
+|---|---|
+| `restore-accepted.log` | `a66ba4cb041918aa91c4fcf3cabaf6630c666a0db81eb09f2cb5b53defd67685` |
+| `check-final2.log` | `830d8e29c3fccf69436f7a404706fb4e0a9c2fe9cd19d6e546c1ba2957e0957d` |
+| `snapshot-final.log` | `577732a2da84f70d0a6e663be02a0f013881a4067209729b569192222d8a66aa` |
+| `live-initial.png` | `04afdd3d7ae620a6492a6d93f9c6add5e8633afe06c3d0d98de5f8ccac318269` |
+| `live-logbook.png` | `cf895c9ad679560a30d6c4c1c637212b59d6803b53da88e991ac5cb40e5f7751` |
+
+Both complete onboarding runner invocations finish with exit 0 and identical
+output, including the unchanged eleven-pulse disabled-control refusal. These
+three-stage runners were supervised with a 2700-second whole-script cap; the
+independent paired cold/idle/LOWER captures and the new restore runner use
+900-second per-emulator caps. Every native run also has explicit guest bounds.
+No acceptance stop, pixel hash, instruction/time pin, or cold transcript was
+weakened. Only the restore-specific idle log hash changed.
+
+Final checks: `make sdl`, `make check-lines`, `make check-task-contracts`, both
+runner syntax checks and `git diff --check` exit 0. No firmware-derived assets
+are present in the Git change list. The live SDL window remains available;
+its host UI proof does not establish untested watch functions or 2.35 main.
+
+| Artifact | SHA-256 |
+|---|---|
+| `onboarding-1.log` | `3b28cac7dad4f4fa7d92d2625f3218e8aab9b64fde67d9908931cb6c3ff6cd93` |
+| `onboarding-2.log` | `3b28cac7dad4f4fa7d92d2625f3218e8aab9b64fde67d9908931cb6c3ff6cd93` |
+| `lines-final.log` | `ae723a501293fc63635625edd043a22c876a3c8172dd93382d399ea3e8a22d6b` |
+| `contracts-final.log` | `9a518e8984ccd42e9a0c0e752c0c6cc0f92f4c93e2349266f0e747021a34b904` |
+| `sdl-final.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |

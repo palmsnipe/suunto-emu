@@ -92,6 +92,31 @@ Transient staging is not encoded in machine snapshots. Machine options and
 GPU construction use the public operations table, copied at creation; the
 single-list callback remains only a backend convenience entry point.
 
+Version-2 snapshots require display section 10: a little-endian backend ID
+followed by the backend image, or ID zero alone for an absent backend. A present
+backend without persistence callbacks refuses snapshot operations. The machine
+copies the public `semu_display_snapshot_ops` table at creation and associates
+it with the existing display context. Version 1 is explicitly refused.
+
+The NEMA image has backend ID `0x4e454d41`, codec version 1 and 1,152,180 bytes.
+Its fixed fields are version/width/height/publication flag (four LE u32s),
+generation (u64), register presence (u64), list ID (u32), draw counter (u64),
+34 inherited registers (u32 each), current RGB565 pixels (115,200 bytes),
+last published RGB565 pixels (115,200 bytes), and 480×480 shadow pixels
+(LE u32 each). The publication image is canonical zero when absent. Reserved
+presence bits, wrong dimensions/length/version, invalid publication flags and
+active transactions refuse. Generation may remain nonzero after backend reset,
+but an image marked published must have nonzero generation. Diagnostic history
+and transient staging are excluded.
+
+Backend load validates fully, then commits without allocating or publishing.
+The renderer participates in machine rollback. Only after every machine section
+and event link succeeds does load invoke the original frame callback once with
+the last published image; an unpublished surface emits nothing. This does not
+advance guest time or frame generation. SDL flushes its held presentation before
+waiting for restored input and at settled input checkpoints. It does not execute
+saved command lists or inject input to manufacture a restored image.
+
 An active CMDRINGSTOP write builds one validated ring plan containing ordered
 inline spans, child lists and completion markers. It prepares all command spans
 in one backend transaction, then atomically admits all
