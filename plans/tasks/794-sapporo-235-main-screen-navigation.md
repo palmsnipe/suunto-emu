@@ -34,6 +34,15 @@ instructions=7554756551 virtual_time_ns=32447955715` and the
 OHR-fixture refusal `stop=compat-refused pc=0x001be85a
 instructions=8135889023 virtual_time_ns=36070752064` (exit 3). Pre-change,
 the same PC was reached through the refusal→BusFault chain only.
+Integrator decode (2026-09-23, from the pinned app listing): the 2.35
+fault analyzer dump is at VA `0x1b0c08` (gate: HFSR bit31; parks tag
+`0xFE0E8700` + HFSR/CFSR/MMFAR/BFAR + 8 frame words at `0x1005FFC0+8..`
+before tail `b.w 0xcdf48`); the reset log's `lr=0xffffffed`/`xpsr=0x29000003`
+fingerprint proves this run reaches the reset through the analyzer branch,
+not through any of the eight direct policy-reboot callers of `0xcdf48`
+(`a7fb6,a7fdc,ccf68,f50f2,f511a,f55c6,fc54a,10289a,12b106`). The residual
+reset is therefore a second, as-yet-unnamed faulting access ~2.4 s after
+Done, not authentic post-wizard behavior.
 
 ## Allowed Files
 

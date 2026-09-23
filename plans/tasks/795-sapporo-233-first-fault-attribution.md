@@ -32,6 +32,17 @@ tail into CMSIS `NVIC_SystemReset`, not the lane's footer-policy branch
 (E-SAP-0050). The lane with authentic storage staging boots past the footer
 gate with zero warnings; the tree already backs `0x14000000`.
 
+Integrator finding (2026-09-23, `src/cpu/armv7m/scb.c:376` + the pinned 2.35
+analyzer at VA `0x1b0c08`): the tree's escalation sets HFSR bit30
+(VECTTABLE per ARMv7-M; the snapshot invariant keys on the same bit) while
+the analyzer's park gate tests bit31 (DEBUGEVT) with `bmi`, and ARM
+escalation FORCED is bit1. The gate therefore skips parking in-tree, so
+fault attribution must read the SCB/CFSR values (spec-correct FORCED bit,
+BFSR precise bits, BFAR) directly; whether the escalation bit itself should
+become bit1 is a guest-visible CPU-semantics question requiring its own
+lane observation (probe binary forcing BusFault→HardFault and reading HFSR
+via UART) — name it in the evidence entry, change it only if observed.
+
 ## Allowed Files
 
 `src/devices/`, `src/cpu/armv7m/`, `src/boards/`, `src/core/bus*` (only if
