@@ -176,6 +176,29 @@ behavior, not the fail-closed law. Implementation instance dispatched;
 the reset tuple `pc=0x000cdf5a` and the 793 setup-walk pins become
 re-derivation candidates for the integrator after review.
 
+
+Lane replay of the authentic refused submit (2026-09-23, FINDINGS §9,
+sha `b792cc8f…`, pair `417c2983…` byte-identical): the 250-word child is
+fully whitelist-parseable; ladder verdict REFUSED_AT_TUPLE with exactly
+ONE `NEMA_DRAW_STATE` row (DRAW=2 resolve, offset 48/word 12,
+start `0x005A00AB` end `0x009600E7`) — the model aborts the child at the
+first refusal so the five A2LE quads never print; zero pixel writes
+in-machine provenance (span hashes `de2f2560…`/`17ff4b59…` before==after,
+covering the crosshair destination and TSC6A bases); NO completion row
+(marker scan only over the executed span — push-with-no-marker faithful);
+CFSR/HFSR/ISPR0 all zero again — the authentic refused submit is
+CPU-invisible in the lane. RECIPE FIX for all future replay specs: the
+register block must end with `0x400900FC = 0` or the model records but
+never executes (found by zero-edit verbatim replay, NO_SUBMISSION_OBSERVED
+`72bfbad9…`, honestly reported first). Limit (§9.4): the lane walker does
+NOT apply ring-inline register writes, so no lane run can pin the
+authentic inherited resolve state — the refusal FORM is proven, the state
+authority is the tree's own refusal site. Offline twice-derived quad
+census (`c494b014…`): five A2LE quads, code `0x941E8000`, inst
+`0/0x004E0002/0x804B1286`, clip `0x00510000`/`0x00A200F0`, no fmt-0x17
+pointer anywhere. Control skipped as not representable from captured
+bytes (three named blockers; no fabricated renders).
+
 ## Acceptance
 
 A ledger entry attributes the `0xcdf5a` reset (fault-path closure or
