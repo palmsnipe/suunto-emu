@@ -1,6 +1,6 @@
 # 710 — One Later Sapporo Observed Gap
 
-**Status:** in-progress
+**Status:** ready
 **Phase:** 7
 **Dependencies:** 705
 
@@ -97,3 +97,11 @@ aperture, so investigate the CPU address-arithmetic/exception-frame path
 first (suspected tree defect class: every bug fix starts red-test-first);
 (3) after (1)/(2): button navigation acceptance (ticket 794's remaining
 scope) across the settling main screen.
+
+Slice 2 (2026-09-23, same instance): command 0x0004/seq 13 admitted by
+integrator ruling (lane byte-pinned, MAIN-only, 14th response); the walk
+settles steps 24/25 with zero refusals/resets and stops at the CPU
+unsupported-instruction wall pc=0x00072f52 (e1bb8c48) — next boundaries
+are the 794 CPU family and the GPU law family (788/793/794), not further
+OHR admissions; the ticket rolls back to `ready` for the next named
+later-Sapporo gap. No fixture growth without a new ruling.

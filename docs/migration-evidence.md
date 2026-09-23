@@ -7282,3 +7282,30 @@ Confidence/limits: the five responses are lane-model outputs for
 requests the authentic guest provably issued (captured byte-exactly
 in-tree); no physical device. The `0x0004` refusal-vs-lane-answer gap and
 the unmapped-access terminal are open boundaries, recorded not smoothed.
+
+E-SAP-0041-EXT slice 2 (2026-09-23, ticket 710 instance, ruling by the
+integrator): command `0x0004` sequence 13 ADMITTED — the fixture grows to
+fourteen responses. Fresh lane reproduction before pinning: two new
+replays byte-identical to each other AND to the slice-1 capture
+(`4d6309fc…`); model input still `f35e6a69…`; answer `04000d00` + 50×00
++ CRC `b72d3ede`; MAIN-only (BSL `0x0004` still fails closed — device
+transport accepts the command in MAIN state only, the smallest carrier:
+one enum + two predicate branches in the 705 module, no parallel API).
+Payload-shape law pinned (`0x23`@4, zeros 5..18, ff from 19). Request at
+sequence 14 (CRC `306eb59c`) and out-of-turn commands still refuse
+without consuming budget. Setup-walk pair `e1bb8c48…` (integrator-
+reproduced twice on a fresh build, rc 3): fourteen OHR hits, zero
+refusals, ZERO resets; the walk settles steps 24 AND 25, then the GPU
+law-family census records 43 GPU-side draw refusals in the settling main
+screen (24 resolve states + 19 compressed-source 60x60 repaints, every
+one CPU-invisible) and the terminal moves to a CPU wall: `stop=
+unsupported-instruction pc=0x00072f52 instructions=7867825439
+virtual_time_ns=33196821909 detail=unsupported Thumb instruction
+0xf20e46e4`. The old `unmapped-access` terminal is retired with a named
+verdict: `0x10025298 + 0x68 = 0x10025300`, the producer reports a fault
+*base*, SRAM is fully backed — faithful fail-closed on a corrupt post-
+reset-storm pointer, not an aperture defect (residual CPU item: model
+MemManage instead of machine-stop for wrapped addresses; needs
+instruction-level trace, recorded for the 794 family). Era drift from
+`maximum=14` re-pinned again (metadata-only, same normalisation proof);
+Section 3 re-derived to the CPU-wall state above.

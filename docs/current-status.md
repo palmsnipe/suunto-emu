@@ -34,12 +34,17 @@ SETTLES on the main screen (`generation=3998 crc32=1394c638`), and the
 walk reaches `stop=unmapped-access pc=0x001023b0
 instructions=8772734885 virtual_time_ns=39969302384` (transcript
 `245cab82…`) after command `0x0004` sequence 13 refuses and four guest
-self-resets. Open boundaries: admitting `0x0004` (lane answer already
-pre-captured: zero body `b72d3ede…`), the unmapped-access terminal
-(inside the pinned SRAM aperture — a CPU address-arithmetic question),
-the resolve-law extension (witness detail: accent color `0xff55aaff`,
-IMEM already matching), and button navigation acceptance across the
-now-settling main screen (tickets 710/794).
+self-resets. Command `0x0004` is since admitted (14th response, lane-pinned; ticket
+710 rolled back to `ready`), the walk settles steps 24 AND 25 with zero
+resets, and the terminal is now a CPU wall: unsupported Thumb
+`0xf20e46e4` at `0x00072f52` (transcript `e1bb8c48…`) — decode/
+UNDEFINED-classification work for the 794 CPU family, with the old
+unmapped-access terminal resolved to a faithful fail-closed verdict.
+Open boundaries: that CPU instruction; the GPU law-family gap now
+measured (43 GPU-side refusals per settling-main-screen window: 24
+resolve states + 19 compressed-source 60x60 repaints, all CPU-invisible
+— 788/793/794); and button navigation acceptance across the settling
+main screen.
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment
