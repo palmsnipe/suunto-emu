@@ -255,6 +255,59 @@ static void test_state_sequence_and_fire_forget(semu_test_context *context)
     semu_sapporo_ohr2_destroy(device);
 }
 
+/* E-SAP-0041-EXT (ticket 710 integrator ruling 2026-09-23): command 0x0004
+ * was observed only in MAIN state, so it is a known command only there. A
+ * bootloader-side 0x0004 request keeps failing closed before any response
+ * body fixture is consulted; the same command in MAIN is accepted. */
+static void test_command_four_is_main_only(semu_test_context *context)
+{
+    ohr_fixture fixture = { 0u };
+    semu_error error;
+    semu_sapporo_ohr2 *device;
+    semu_serial_endpoint endpoint;
+    semu_serial_transaction transaction;
+    uint8_t request[59];
+    uint8_t response[58];
+
+    semu_error_clear(&error);
+    device = semu_sapporo_ohr2_create(ready_callback, &fixture,
+                                      body_provider, NULL, &error);
+    SEMU_TEST_ASSERT(context, device != NULL);
+    endpoint = semu_sapporo_ohr2_endpoint(device);
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_RESULT_4, 0u);
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 0u, fixture.ready_count);
+    make_request(request, 3u, 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    make_request(request, SEMU_SAPPORO_OHR2_COMMAND_RESULT_4, 2u);
+    transaction = (semu_serial_transaction){
+        SEMU_SAPPORO_OHR2_ADDRESS, 0u, request, 59u, NULL, 0u
+    };
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, 1u, fixture.ready_count);
+    transaction.tx = (const uint8_t[]){ SEMU_SAPPORO_OHR2_RESPONSE_SELECTOR };
+    transaction.tx_size = 1u;
+    transaction.rx = NULL;
+    transaction.rx_size = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    transaction.tx = NULL;
+    transaction.tx_size = 0u;
+    transaction.rx = response;
+    transaction.rx_size = 58u;
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                     endpoint.transfer(endpoint.context, &transaction, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_SAPPORO_OHR2_COMMAND_RESULT_4, response[0u]);
+    SEMU_TEST_EQ_U64(context, 2u, response[2u]);
+    semu_sapporo_ohr2_destroy(device);
+}
+
 static void test_refusals_reset_and_missing_body(semu_test_context *context)
 {
     ohr_fixture fixture = { 0u };
@@ -437,6 +490,7 @@ int main(void)
         SEMU_TEST_CASE(test_packet_crc_and_ready),
         SEMU_TEST_CASE(test_bounded_transaction_diagnostics),
         SEMU_TEST_CASE(test_state_sequence_and_fire_forget),
+        SEMU_TEST_CASE(test_command_four_is_main_only),
         SEMU_TEST_CASE(test_refusals_reset_and_missing_body),
         SEMU_TEST_CASE(test_sequence_refusal_and_probe_reset),
         SEMU_TEST_CASE(test_sequence_overflow_is_atomic),

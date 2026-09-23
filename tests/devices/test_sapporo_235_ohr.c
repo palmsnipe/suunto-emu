@@ -84,14 +84,20 @@ static size_t parse_hex(const char *hex, uint8_t *out, size_t max)
     return i;
 }
 
-/* E-SAP-0041-EXT: the post-Done MAIN-state query round. The five request
+/* E-SAP-0041-EXT: the post-Done MAIN-state query round. The six request
  * frames below are the byte-exact packets an in-tree OHR2 byte census
  * captured from the five-layer 2.35.34 setup-walk at the point where the
  * eight-hit startup budget was exhausted, and each listed response frame was
- * reproduced twice byte-identically by the read-only lane endpoint. Only the
- * eight pinned startup frames plus these five may be answered: the sixth
- * post-Done request (command 0x0004 sequence 13, the first payload-carrying
- * command outside the observed set) must keep refusing. */
+ * reproduced twice byte-identically by the read-only lane endpoint (lane
+ * replay /tmp/sap235-710ohr/lane-replay-extended.resc, normalised transcript
+ * sha256 4d6309fccc4b71d897c236832d17dbaaab11bc3d0eb3fb1f0150cd0303d37d14
+ * from the fresh slice-2 pair /tmp/sap235-710ohr/slice2-lane-ext-{1,2}.norm,
+ * byte-identical to the slice-1 capture of the same sha256). Command 0x0004
+ * sequence 13 was admitted by the ticket 710 integrator ruling of 2026-09-23:
+ * the lane answered the provably guest-issued frame twice with a zero body.
+ * Only the eight pinned startup frames plus these six may be answered; any
+ * later request, a wrong sequence, or a payload outside the pinned shape keeps
+ * refusing. */
 static const char *const ext_requests[] = {
     /* command 0x0010 sequence 8 */
     "001000080001ffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -108,6 +114,10 @@ static const char *const ext_requests[] = {
     /* command 0x0002 sequence 12 */
     "0002000c00ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     "ffffffffffffffffffffffffffffffffffffffffffffff5ed33fce",
+    /* command 0x0004 sequence 13: payload byte 0x23 at offset 4, zeroes to
+     * offset 18, pinned padding after (the first payload-carrying query). */
+    "0004000d00230000000000000000000000000000ffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff276ae026",
 };
 
 static const char *const ext_responses[] = {
@@ -126,12 +136,16 @@ static const char *const ext_responses[] = {
     /* command 0x0002 sequence 12 */
     "02000c0000000000000000000000000000000000000000000000000000000000"
     "000000000000000000000000000000000000000000000e242fb2",
+    /* command 0x0004 sequence 13: lane zero body, command/sequence echoed. */
+    "04000d0000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000b72d3ede",
 };
 
 static const char *const ext_unknown_request =
-    /* command 0x0004 sequence 13 */
-    "0004000d00230000000000000000000000000000ffffffffffffffffffffffff"
-    "ffffffffffffffffffffffffffffffffffffffffffffff276ae026";
+    /* command 0x0004 sequence 14: the observed frame advanced by one
+     * sequence. It is outside the pinned round and must refuse. */
+    "0004000e00230000000000000000000000000000ffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff306eb59c";
 
 static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
 {
@@ -161,7 +175,7 @@ static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
             exchange(ep, &selector, 1u, response, 58u, &f.error));
     }
     SEMU_TEST_EQ_U64(c, 8u, f.layer.hits);
-    for (i = 0u; i < 5u; ++i) {
+    for (i = 0u; i < 6u; ++i) {
         SEMU_TEST_EQ_U64(c, 59u, parse_hex(ext_requests[i], packet, 59u));
         SEMU_TEST_EQ_U64(c, 58u, parse_hex(ext_responses[i], expected, 58u));
         SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
@@ -173,29 +187,75 @@ static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
         SEMU_TEST_EQ_U64(c, 0u, f.ready);
         SEMU_TEST_ASSERT(c, memcmp(expected, response, 58u) == 0);
     }
-    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
-    SEMU_TEST_EQ_U64(c, 26u, f.edges);
+    SEMU_TEST_EQ_U64(c, 14u, f.layer.hits);
+    SEMU_TEST_EQ_U64(c, 28u, f.edges);
     rewind(f.log);
     j = (unsigned)fread(log, 1u, sizeof(log) - 1u, f.log); log[j] = '\0';
-    SEMU_TEST_ASSERT(c, strstr(log, "hit=13 maximum=13") != NULL);
-    SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=12") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=14 maximum=14") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "command=0004 sequence=13") != NULL);
 
-    /* Refusal case: the next observed post-Done request is outside the
-     * pinned round, so it fails closed without consuming budget. */
-    SEMU_TEST_EQ_U64(c, 59u, parse_hex(ext_unknown_request, packet, 59u));
-    SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
-        exchange(ep, packet, 59u, NULL, 0u, &f.error));
-    SEMU_TEST_EQ_U64(c, 0u, f.ready);
-    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
-    SEMU_TEST_EQ_U64(c, 26u, f.edges);
-    /* A known command out of its turn refuses too, again without a hit. */
-    frame(packet, 2u, 13u);
-    SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
-        exchange(ep, packet, 59u, NULL, 0u, &f.error));
-    SEMU_TEST_EQ_U64(c, 0u, f.ready);
-    SEMU_TEST_EQ_U64(c, 13u, f.layer.hits);
+    /* Refusal cases past the round, each without consuming budget:
+     * (a) the observed command 0x0004 frame one sequence further than the
+     * pinned sequence 13, and (b) a known command out of its turn. */
+    for (i = 0u; i < 2u; ++i) {
+        if (i == 0u)
+            SEMU_TEST_EQ_U64(c, 59u,
+                parse_hex(ext_unknown_request, packet, 59u));
+        else
+            frame(packet, 2u, 14u);
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
+            exchange(ep, packet, 59u, NULL, 0u, &f.error));
+        SEMU_TEST_EQ_U64(c, 0u, f.ready);
+        SEMU_TEST_EQ_U64(c, 14u, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, 28u, f.edges);
+    }
     semu_sapporo_ohr2_destroy(device);
     fclose(f.log);
+}
+
+/* E-SAP-0041-EXT (integrator ruling of 2026-09-23): command 0x0004 sequence
+ * 13 is admitted at round position 14, but only as the captured frame. Its
+ * payload byte 0x23 at offset 4, the zero region through offset 18, the
+ * pinned ff padding, sequence 13, and MAIN state are all required; every
+ * deviation fails closed without consuming budget. */
+static void test_sapporo_235_ohr_result4_law(semu_test_context *c)
+{
+    static const unsigned mutations[] = {0u, 1u, 2u, 3u, 4u, 5u};
+    unsigned i, k;
+    for (i = 0u; i < 6u; ++i) {
+        fixture f;
+        uint8_t body[54], response[54];
+        uint16_t sequence = 13u;
+        SEMU_TEST_ASSERT(c, setup(&f));
+        f.layer.hits = 13u;
+        memset(body, 0xff, sizeof(body));
+        body[0] = 4u; body[1] = 0u; body[2] = 13u; body[3] = 0u;
+        body[4] = 0x23u;
+        for (k = 5u; k < 19u; ++k) body[k] = 0u;
+        switch (mutations[i]) {
+        case 0: break;
+        case 1: sequence = 14u; break;
+        case 2: body[0] = 0u; break;
+        case 3: body[4] = 0x24u; break;
+        case 4: body[18] = 0xffu; break;
+        case 5: body[53] = 0u; break;
+        }
+        memset(response, 0xa5, sizeof(response));
+        if (mutations[i] == 0u)
+            SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+                semu_sapporo_235_ohr_body_provider(&f.context,
+                    (semu_sapporo_ohr2_command)4u, sequence,
+                    SEMU_SAPPORO_OHR2_MAIN, body, response, &f.error));
+        else
+            SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
+                semu_sapporo_235_ohr_body_provider(&f.context,
+                    (semu_sapporo_ohr2_command)4u, sequence,
+                    SEMU_SAPPORO_OHR2_MAIN, body, response, &f.error));
+        SEMU_TEST_EQ_U64(c, mutations[i] == 0u ? 14u : 13u, f.layer.hits);
+        for (k = 0u; k < 54u; ++k)
+            SEMU_TEST_EQ_U64(c, mutations[i] == 0u ? 0u : 0xa5u, response[k]);
+        fclose(f.log);
+    }
 }
 
 static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
@@ -247,7 +307,7 @@ static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
     SEMU_TEST_ASSERT(c, f.context.refusal.code != SEMU_OK);
     rewind(f.log);
     j = (unsigned)fread(log, 1u, sizeof(log)-1u, f.log); log[j] = '\0';
-    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=13") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=14") != NULL);
     SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=7") != NULL);
     semu_sapporo_ohr2_destroy(device);
     fclose(f.log);
@@ -272,13 +332,13 @@ static void test_sapporo_235_ohr_atomic_body_refusals(semu_test_context *c)
         case 4: body[4] = 2u; break;
         case 5: body[53] = 0u; break;
         case 6: body[1] = 1u; break;
-        case 7: f.layer.hits = 13u; break;
+        case 7: f.layer.hits = 14u; break;
         }
         SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
             semu_sapporo_235_ohr_body_provider(&f.context,
                 (semu_sapporo_ohr2_command)command, (uint16_t)sequence,
                 state, body, response, &f.error));
-        SEMU_TEST_EQ_U64(c, i == 7u ? 13u : 0u, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, i == 7u ? 14u : 0u, f.layer.hits);
         for (j = 0u; j < 54u; ++j) SEMU_TEST_EQ_U64(c, 0xa5u, response[j]);
         fclose(f.log);
     }
@@ -366,6 +426,7 @@ int main(void)
         SEMU_TEST_CASE(test_sapporo_235_ohr_atomic_body_refusals),
         SEMU_TEST_CASE(test_sapporo_235_ohr_pins_and_owners),
         SEMU_TEST_CASE(test_sapporo_235_ohr_post_done_queries),
+        SEMU_TEST_CASE(test_sapporo_235_ohr_result4_law),
         SEMU_TEST_CASE(test_sapporo_235_ohr_machine_refusal_and_reset)
     };
     return semu_test_run(cases, sizeof(cases)/sizeof(cases[0]));

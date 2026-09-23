@@ -129,8 +129,12 @@ static int valid_command_state(const semu_sapporo_ohr2 *device,
         return command == SEMU_SAPPORO_OHR2_COMMAND_CONFIGURE ||
                command == SEMU_SAPPORO_OHR2_COMMAND_REBOOT;
     }
+    /* E-SAP-0041-EXT (ticket 710 integrator ruling 2026-09-23): command
+     * 0x0004 was observed only in MAIN state, so it is accepted only there;
+     * bootloader-side 0x0004 requests still fail closed. */
     return command == SEMU_SAPPORO_OHR2_COMMAND_ECHO ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_2 ||
+           command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_4 ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_13 ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_14;
 }
@@ -140,6 +144,7 @@ static int known_command(uint16_t command)
     return command == SEMU_SAPPORO_OHR2_COMMAND_IDENTITY ||
            command == SEMU_SAPPORO_OHR2_COMMAND_CONFIGURE ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_2 ||
+           command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_4 ||
            command == SEMU_SAPPORO_OHR2_COMMAND_REBOOT ||
            command == SEMU_SAPPORO_OHR2_COMMAND_ECHO ||
            command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_13 ||
