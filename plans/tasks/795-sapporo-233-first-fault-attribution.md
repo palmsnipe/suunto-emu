@@ -58,6 +58,15 @@ IOM4 `0x120` write law (value semantics, response) and the matching
 in-tree behavior in `src/soc/apollo4/iom*`/`sapporo_iom4_regs`; the PWRCTRL
 hypothesis is retired by observation.
 
+Reference located (read-only, `shasum -a 256` `b1d1dc8ee41ed84a…`):
+`../suunto-firmware/emulator/renode/iom4/SapporoApollo4Iom4.cs` models
+offset `0x120` as **`CommandOffset`** — the IOM4 DMA command register
+(`PrepareDma`, DMACFG/TotalCount/TargetAddress/Status neighbors, OHR2
+pressure-bus special case, command-size low nibble with read opcode,
+CMDSTAT retire semantics). The in-tree 2.33 IOM4 register model lacks
+`0x120` entirely; the closure is the lane-consistent DMA-command law
+(plus its IRQ/CMDSTAT completion), not a bare store-accept.
+
 ## Allowed Files
 
 `src/devices/`, `src/cpu/armv7m/`, `src/boards/`, `src/core/bus*` (only if
