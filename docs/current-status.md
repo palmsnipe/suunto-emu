@@ -34,17 +34,20 @@ SETTLES on the main screen (`generation=3998 crc32=1394c638`), and the
 walk reaches `stop=unmapped-access pc=0x001023b0
 instructions=8772734885 virtual_time_ns=39969302384` (transcript
 `245cab82…`) after command `0x0004` sequence 13 refuses and four guest
-self-resets. Command `0x0004` is since admitted (14th response, lane-pinned; ticket
-710 rolled back to `ready`), the walk settles steps 24 AND 25 with zero
-resets, and the terminal is now a CPU wall: unsupported Thumb
-`0xf20e46e4` at `0x00072f52` (transcript `e1bb8c48…`) — decode/
-UNDEFINED-classification work for the 794 CPU family, with the old
-unmapped-access terminal resolved to a faithful fail-closed verdict.
-Open boundaries: that CPU instruction; the GPU law-family gap now
-measured (43 GPU-side refusals per settling-main-screen window: 24
-resolve states + 19 compressed-source 60x60 repaints, all CPU-invisible
-— 788/793/794); and button navigation acceptance across the settling
-main screen.
+self-resets. Command `0x0004` is since admitted (14th response, lane-pinned), and
+the CPU wall fell: `0xf20e46e4` is a valid ADD (T3) `addw r6,lr,#0x4e4`
+(LR-base guard fix, red-test-first, E-CPU-0011 with the family-wide
+census — the same latent wall existed in all six private images). The
+walk now settles steps 24 AND 25 with zero resets, executes the list-move
+loop, and stops at the next OHR boundary: command `0x0002` sequence 14
+refused at the 14-hit budget (transcript `5f46126e…`) — the next
+E-SAP-0041-EXT growth candidate pending capture + lane answer + ruling.
+Open boundaries: that 15th response (and whether repeated `0x0002`
+result-polls make a law-based bounded answer the right design); the GPU
+law-family gap measured at 43 GPU-side refusals per window (24 resolve
+states + 19 compressed-source 60x60 repaints, all CPU-invisible —
+788/793/794); and button navigation acceptance across the settling main
+screen.
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment
