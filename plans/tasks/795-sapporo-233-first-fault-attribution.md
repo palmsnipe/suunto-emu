@@ -43,6 +43,21 @@ become bit1 is a guest-visible CPU-semantics question requiring its own
 lane observation (probe binary forcing BusFault→HardFault and reading HFSR
 via UART) — name it in the evidence entry, change it only if observed.
 
+CAPTURED 2026-09-23 (probe pair `run_a.log`/`run_b.log`, byte-identical):
+at the reset the SCB reads `HFSR=0x40000000 CFSR=0x00008200
+BFAR=0x40054120` (PRECISERR+BFARVALID, and the parked region was in fact
+present with tag `0xFE0E8700`, contradicting the skip-path reading — the
+gate semantics need the lane ground truth). The faulting instruction at
+`0x1438b2` is `str.w r1,[r5,#0x120]` — a **precise WRITE to IOM4 offset
+`0x120`** (base selected `0x40054000` via the driver-instance field
+`<<12`), not a read; the caller chain composes bits 8..11/13..15 (enum
+values 3/6/0xc, `0xe000` variants) — an IOM4 CS/transaction-style register
+write by the external-device driver (IOM4 hosts haptic + MAX17050 per
+E-SAP-HAPTIC-001/E-SAP-MAX17050-001). Task 3 is now: lane census of the
+IOM4 `0x120` write law (value semantics, response) and the matching
+in-tree behavior in `src/soc/apollo4/iom*`/`sapporo_iom4_regs`; the PWRCTRL
+hypothesis is retired by observation.
+
 ## Allowed Files
 
 `src/devices/`, `src/cpu/armv7m/`, `src/boards/`, `src/core/bus*` (only if
