@@ -289,6 +289,18 @@ static void test_wide_bitfield_and_extract(semu_test_context *context)
     SEMU_TEST_ASSERT(context, run32(0xf1adu, 0x0d01u, state, &status,
                                     &state));
     SEMU_TEST_EQ_U64(context, 0x800u, state.r[13]);
+    /* LR as ADD/SUB (T3) base register is legal (DDI 0403E.e A5.3.1;
+     * 0xf20e 0x46e4 = addw r6,lr,#0x4e4 executes at firmware pc
+     * 0x00072f52 in Sapporo 2.35.34, GNU-as round-trip verified). */
+    state = initial_state();
+    state.r[14] = 0x8000u;
+    SEMU_TEST_ASSERT(context, run32(0xf20eu, 0x46e4u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, 0x84e4u, state.r[6]);
+    state.r[14] = 0x8000u;
+    SEMU_TEST_ASSERT(context, run32(0xf2aeu, 0x46e4u, state, &status,
+                                    &state));
+    SEMU_TEST_EQ_U64(context, 0x7b1cu, state.r[6]);
     state = initial_state();
     SEMU_TEST_ASSERT(context, run32(0xf2afu, 0x0008u, state, &status,
                                     &state));

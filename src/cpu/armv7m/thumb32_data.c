@@ -228,7 +228,7 @@ static semu_status wide_data(semu_cpu *cpu, uint16_t first, uint16_t second,
     imm = ((uint32_t)(first & 0x400u) << 1u) |
           ((uint32_t)(second & 0x7000u) >> 4u) | (second & 0xffu);
     if (rn == 15u) base = (pc + 4u) & ~3u;
-    else if (rn <= 13u) base = cpu->state.r[rn];
+    else if (rn <= 14u) base = cpu->state.r[rn];
     else return refuse(cpu, first, second, pc, error);
     if (rd == 13u && rn != 13u)
         return refuse(cpu, first, second, pc, error);

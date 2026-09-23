@@ -90,11 +90,12 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # 19 compressed-source 60x60 refusals as the settling main screen repaints
 # its icon — a 794/788/793 law-family observation, fail-closed GPU-side,
 # zero resets), step 25 settles (generation 3998, crc32 1394c638), and
-# under the 14-hit E-SAP-0041-EXT fixture (command 0x0004 admitted in
-# MAIN, ticket 710) the walk runs to a CPU wall: unsupported Thumb
-# 0xf20e46e4 at 0x00072f52. Re-derived 2026-09-23 from paired
-# byte-identical runs (transcript sha
-# e1bb8c48d2f96a557b39a89db2b7275def2c6e8da5340d4e3e617bed21e54c22),
+# — with ADD/SUB (T3) LR-base now decoded (firmware pc 0x00072f52,
+# thumb32_data.c guard fix, red-test-first) — past the old CPU wall to
+# the next OHR fixture boundary: command 0x0002 sequence 14 refused at
+# the 14-hit budget (E-SAP-0041-EXT growth pending the next ruling).
+# Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
+# 5f46126eb53e46a9046f91c14ea8f9f39f379c9ffeb820859addb9bf35d0e9e8),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -122,16 +123,16 @@ grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=25 generation=3998 crc32=1394c638' \
     "$run_dir/main-1.log"
-grep -Fqx 'stop=unsupported-instruction pc=0x00072f52 instructions=7867825439 virtual_time_ns=33196821909 detail=unsupported Thumb instruction 0xf20e46e4 at 0x00072f52' \
+grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=7888826679 virtual_time_ns=33546943105 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
     "$run_dir/main-1.log"
 # GPU refusals in this window are GPU-side only (zero faults/resets;
 # E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): 24 unsupported resolve
-# states plus 19 compressed-source 60x60 repaint refusals; the CPU wall
-# is the terminal (next boundary, 794-family CPU work).
+# states plus 19 compressed-source 60x60 repaint refusals; the terminal
+# is the OHR 14-hit budget refusing command 0x0002 sequence 14.
 grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
 [ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 19 ]
 [ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 43 ]
 [ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    e1bb8c48d2f96a557b39a89db2b7275def2c6e8da5340d4e3e617bed21e54c22 ]
+    5f46126eb53e46a9046f91c14ea8f9f39f379c9ffeb820859addb9bf35d0e9e8 ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'
