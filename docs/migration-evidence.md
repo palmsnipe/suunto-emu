@@ -7017,3 +7017,70 @@ fails); all nine 2.35 firmware runners green; `check-sdl`, the 2.35 scroll
 gate (`1d44ea98…`), the SDL startup/language gate, and snapshot restore all
 unchanged; 2.35 era scripts zero drift (production, OHR, pressure,
 gps-startup/reopen/awake, block-erase).
+
+### E-RE-SAP235-RESOURCES-INDEX-001 — resources index, aux-plane statistics, A1 negative census
+
+Class: owner-authorized offline RE of hash-pinned firmware/resources
+(Lane Oracle decision 2026-09-23; second application after ticket 788).
+Probe period 2026-09-23. Repo tree untouched by the probe.
+
+Inputs (all re-verified every run): `sapporo-2.35.34.18929/
+component-05-type-1-v3.raw` size 16519168, sha256 `f281385a…ae22`
+(the pinned 2.35.34 resources partition, PIN_MATCH). Tools: Python
+3.14.7 (stdlib-only scan batteries), capstone 5.0.7. Scan batteries:
+`scan_descriptors.py` sha `bd4bbe4b3282358a…`, `scan_aux.py` sha
+`7cb49c2d981092d7…`; each run twice `cmp`-byte-identical — descriptor
+census output sha `9516b566990d4017…`, aux census sha `5b76412e…`
+(volatile paths `/tmp/sap235-descriptors/`, FINDINGS sha `0a20d0e7…`).
+
+Census (derived, authoritative):
+- Container validation over the whole partition: PXB2 fmt census
+  {0x05:294, 0x0f:20, 0x10:28, 0x11:61, 0x13:20}, 9 rejected magic hits
+  itemized. Non-greedy whole-blob walk finds 61 fmt-0x11 assets (the
+  earlier 59 count skipped assets inside blobs; both self-consistent,
+  61 used here). All 61 carry header stride 0 — GPU-side strides
+  (180 capture / 480 target) are never asset-header fields.
+- Auxiliary plane (block bits 75..95) over all 61 fmt-0x11 assets,
+  22296 blocks: nonzero in 14275 blocks (59 aux-nonzero assets, 2
+  aux-zero incl. the captured crosshair — confirms the 2/57 split);
+  only **1239 distinct values of 2^21**; `0x1FFFFF` (all-ones) is the
+  most common value (39.5% of nonzero blocks); every bit used (46–55%
+  set per bit — no padding); spatial lag-1 aux equality 69% (~0.005%
+  expected random) — a smooth per-block plane, not dither; under a
+  3x7-bit split 80% of nonzero values are gray triples led by
+  (127,127,127) white, plus Suunto teal (31,122,117) and blue
+  (0,85,127); triple equals E1 in only 40.8% — not a duplicate field.
+  Verdict A3 = **CONSTRAINED**: a third representative color at
+  7-bit/channel precision (patent US 9,640,149 B2 multi-precision
+  representative-color reading); subalpha/padding/dither rejected by
+  the arithmetic and statistics. The GPU's *usage rule* (which index
+  patterns select it, channel order) is NOT resolvable from data.
+- A1 (GPU 0x17 endpoint format) = **STILL-OPEN, resource-side
+  EXHAUSTED** (twice-reproduced negative census): 46066 asset-offset
+  reference sites; 38 within 0x17-proximity, all classified font/blob/
+  dir noise; stride-phase census shows only a mod-64 FAT-chain artifact
+  (EXPLAIN1); (w,h)+0x17 content join yields 78 false positives; the
+  capture tuple (stride 180 / 0xffffffff / 0xff555555) exists only as
+  pixel data (7458 hits), never as descriptor fields. The partition's
+  master index is a fixed-stride 16-byte record family (205 tables at
+  block offset 0xf800, 23131 records, [u32][0fff][idx][u32 slot][u32
+  ptr]) with **no format field**; the single constant-0x17 table
+  (@0x21f800) is a file/slot-id table spanning three container formats
+  at noise rate. The container-format→GPU-format mapping lives only in
+  application code (41 `lsl #24` candidate sites listed in the probe
+  logs; the two known packers 0xcaacc/0xcab52 use stack-procedural
+  records). NOTE: for every draw already captured, the accepted law
+  (RGBA4444 top-3-nibble x17 endpoints) reproduces lane pixels with
+  zero diffs (E-EMU-SAP235-COMPRESSED-001), so A1 gates only
+  as-yet-unobserved states.
+- Manifest: VSF1 footer @0xfc0000, version string "2.35.34", stored CRC
+  equals recomputed CRC of the footer's first words (MATCH), "SCSF" tag
+  @+0x18; FAT-style directory census 574 records in the first MB
+  (region to 0xfbb060); the crosshair page's cluster is not any SFN
+  entry head — filename attribution remains open.
+
+Implications: the ticket-794 refused post-Done draw is most plausibly an
+aux-bit asset; the decisive discriminator is now a lane capture of that
+submit (in progress) or a synthetic lane GPU A/B render — no in-tree
+value change is authorized by this entry alone, and the fail-closed aux
+refusal stands.
