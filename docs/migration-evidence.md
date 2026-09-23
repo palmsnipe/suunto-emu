@@ -6925,3 +6925,95 @@ correct placement, mirroring the semantic-shadow precedent. The next
 discriminating probe for A1/A3 is a scan of `resources.raw` for descriptor
 templates pairing byte `0x17` with PXB2 asset offsets, and the patent's
 multi-color block arrangement (pair-plane) reading.
+
+## E-SAP-0050 — 2.33.16 reset-loop gate is the fsimage VSF footer; the in-tree reset is the HardFault branch
+
+**Status:** verified lane probe, 2026-09-23 (read-only Renode, twice
+reproduced). Inputs: `sapporo-2.33.resc` lane with 2.33.16 app
+`ba286a7b…` + 2.33.12 resident, plus the authentic
+`component-05-type-1-v3.raw` resource partition and the existing
+`suunto-sapporo-storage.repl` staging; report
+`/tmp/sap233-reset/FINDINGS.md` with per-file SHA-256 census (§0/§7), clean
+log pairs byte-identical: fault `ecafbc47…`, check-bare `03b13e5d…`,
+check-fixture `b8a7bd32…`, string `a285c765…` (full hashes in the FINDINGS
+census). Renode
+v1.16.1.16858, capstone 5.0.7.
+
+Observed (lane): the boot startup task (`bl 0x000f49b8` → `0x000a5f30`,
+gate `bl #0xa6028` at `0x000a5fc6`) validates the external-flash resource
+partition footer at flash offset `0xFC0000` (XIP `0x14FC0000`): 0x24 bytes
+(via MSPI driver `0xdf15a`, byte loop at PC `0xF7DF2`) must have word0 ==
+`0x46535631` ("VSF1") and word[0x14] == CRC32 of the first `0x14` bytes
+(validator `0x000c9804`; the pinned component-05 footer carries
+`VSF1|"2.33.16"` with stored CRC `0xd4c76c92`, verified equal). On failure
+(boot-stage byte `[0x1005b8f1]==5`) the guest logs
+`Attempting to start APP without valid fsimage!` (string VA `0x001A9714`,
+captured `r0=0x600`), persists reboot reason `0x11`, and resets via
+`bl #0xc97e0` at `0x000a5fe4` — CMSIS `NVIC_SystemReset` (literal
+`0x05FA0004`/`0xE000ED0C` at `0xc97f0`, the recorded `0xc97f2` is the DSb).
+Bare lane (no XIP backing): reads return 0, footer check 0, deliberate
+policy reboot; with authentic staging: `r0=0x46535631 check=1`, boot
+continues past the gate with zero warnings. No 2.33.16-specific lane script
+existed before this probe; 2.33.12/2.33.16 share the validator and the
+HardFault analyzer byte-identically.
+
+Attribution for the in-tree reset (E-SAP-0015, PC `0x000c97f2`): the tree
+profile already backs `0x14000000`, and the recorded registers are
+internally consistent with the *HardFault analyzer* branch into the same
+helper — `xPSR 0x29000003` (IPSR=3), `LR 0xffffffe9` EXC_RETURN, and
+`R3 0x49000000` equal to the stacked xPSR copied by the analyzer's
+frame-dump loop before its tail `b.w 0xc97e0` at `0x001ab0ce` (R0–R2 are
+helper literals). So the in-tree first reset is a fault escalation, not the
+policy path. HYPOTHESIS (explicitly not observed): the first faulting
+access is among the early PWRCTRL-family writes the lane only warns about
+(`0x40020000` offsets `0x58/0x60/0x78/0x80`, `[no-name]` offset `0x2C0`,
+offset `0x4` PWRENMSPI2 — the E-SAP-0018 family). Actionable next probe:
+the firmware analyzer parks tag `0xFE0E8700` + HFSR/CFSR/MMFAR/BFAR + 8
+exception-frame words at RAM `0x1005FFC0` (literals `0x1ab0d8/0x1ab0dc`)
+immediately before reset; an in-tree dump of that region at the reset names
+the faulting address. Never inject a synthetic footer; the authentic one is
+already valid.
+
+## E-EMU-SAP235-COMPRESSED-001 — main-entry compressed draw accepted in-tree
+
+**Status:** verified in-tree runtime result, 2026-09-23 (ticket 793
+implementation; law per E-RE-SAP235-TSC6A-001, capture tuple per
+E-EMU-SAP235-MAIN-TSC6A-001). Implementation: second accepted state of
+`nema_tsc6a_resolve_mask` (exact capture tuple, `semu_bus *bus` parameter
+added — fail-closed NULL), `tsc6a_expand_block` in
+`src/display/nema_tsc6a_expand.c`; validate-before-mutate with zero-write
+refusals; pixel-center mapping through the existing fixed-point helpers.
+
+Common-command setup-walk control (the five-layer invocation of
+E-EMU-SAP235-MAIN-TSC6A-001, POST `mmlllmlllmmmmmmmmmmmmmmmmmmmmmm`,
+10^10-instruction / 40 s budgets) post-change, paired byte-identical
+transcript `b2820edff0e119bc18796079c87128aa9f250997c0b73fd05db93ad15699c286`:
+no compressed-source or `nema_tsc6a` refusal anywhere; the first
+post-Done settled frame appears at step 25, generation 3994,
+`crc32=6a446900` (the main screen with the 60x60 crosshair composited via
+TSC6A expansion + SRC_OVER); the guest then self-requests the machine reset
+at `0xcdf5a` (`pc=0x000cdf5a instructions=7554756551
+virtual_time_ns=32447955715`, `reset_count=1`) — ~67M instructions past the
+old refusal/fault point — and ends at the pre-existing OHR-fixture compat
+refusal `stop=compat-refused pc=0x001be85a instructions=8135889023
+virtual_time_ns=36070752064` (exit 3). The former refusal→BusFault→reset
+chain at `7486616944`-instructions is gone; the `0xcdf5a` self-reset and
+the exhausted-OHR-fixture tail are the new honest boundaries, owned by
+ticket 794. The five-layer headless window (pre-Done) is byte-unchanged
+(`17cc9087…`, four runs) — the acceptance state never fires before main
+entry, so no pre-existing pin moved.
+
+Acceptance probe (volatile, `/tmp/sap235-793-derive/probe_composite.c`
+`60a0c80b…`): the real renderer over the real capture-1 `before.bin` target
+plus the dd-derived 2700 B asset and the exact tuple produced
+115200 bytes byte-identical (COMPOSITE-MATCH, zero diffs, twice) to an
+independent law re-composite (192 opaque texels, 176 target pixels changed,
+all inside the quad window) using the tree's `pack_round` convention.
+Verification census: `make check` 996 PASS / 0 FAIL; `make sanitize` zero
+findings; `make check-lines` advisory-only; `make test
+TEST_FILTER=nema_tsc6a_expand` 7/7 with the golden byte-exact against
+`decode-1.bin` `2f30fe18…` (negative control: one flipped fixture byte
+fails); all nine 2.35 firmware runners green; `check-sdl`, the 2.35 scroll
+gate (`1d44ea98…`), the SDL startup/language gate, and snapshot restore all
+unchanged; 2.35 era scripts zero drift (production, OHR, pressure,
+gps-startup/reopen/awake, block-erase).

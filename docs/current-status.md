@@ -9,6 +9,32 @@ already exist.
 ## Implemented Baseline
 
 
+### Sapporo 2.35 main entry renders the compressed crosshair — ticket 793, 2026-09-23
+
+`nema_tsc6a_resolve_mask` now accepts exactly one compressed state — the
+captured main-entry 60x60 crosshair tuple of E-EMU-SAP235-MAIN-TSC6A-001 —
+expanding it in-tree through the E-RE-SAP235-TSC6A-001 law
+(`tsc6a_expand_block`) with validate-before-mutate and zero-write refusals;
+the function gained a `semu_bus *` parameter (NULL stays fail-closed). On
+the private firmware the former refusal→BusFault→reset chain is gone: the
+setup-walk trajectory shows the main-entry settled frame (generation 3994,
+`crc32=6a446900`) and no compressed refusal anywhere
+(E-EMU-SAP235-COMPRESSED-001; runner Section 3, transcript `b2820edf…`;
+renderer output byte-identical to an independent law re-composite of the
+real capture). Everything else still refuses: any auxiliary-bit block,
+every near-miss state, all other compressed shapes.
+
+Residual honest boundary: ~2.4 s after Done the guest self-resets at
+`0xcdf5a` and the run ends at the exhausted OHR-fixture compat refusal —
+attribution and main-screen button navigation are ticket 794 (`ready`).
+Ticket 795 (`ready`) carries the 2.33.16 first-fault attribution, newly
+sharpened by E-SAP-0050 (lane reset = fsimage VSF footer policy reboot;
+the in-tree reset is the HardFault-analyzer branch; the analyzer parks the
+faulting address at RAM `0x1005FFC0`). Verification: `make check` 996 PASS,
+`make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
+the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
+zero pin drift.
+
 ### Sapporo 2.35 sustained GPS-awake cadence — ticket 710 instance-9, 2026-09-23
 
 Two longer read-only lane probes (same E-SAP-0048 script, admission ceilings

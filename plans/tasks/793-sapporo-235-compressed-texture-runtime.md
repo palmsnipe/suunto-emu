@@ -1,6 +1,6 @@
 # 793 — Sapporo 2.35 TSC6A Compressed Texture Runtime Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,761,788
 
@@ -132,3 +132,31 @@ Report changed files, exact commands/results, the reference-window hash, the
 refusal case, the derived main-entry checkpoint, and any integrator-owned
 change needed. Do not claim done if private firmware is unavailable to run the
 renderer gate.
+
+## Integrator acceptance (2026-09-23, delegated)
+
+Implemented (implementer) and integrator-verified. `tsc6a_expand_block`
+(`src/display/nema_tsc6a_expand.c`) plus the second accepted state of
+`nema_tsc6a_resolve_mask` (exact E-EMU-SAP235-MAIN-TSC6A-001 tuple, new
+`semu_bus *bus` parameter per the authorized Option A scope add, fail-closed
+NULL, validate-before-mutate with zero-write refusals). The bus-parameter
+change, caller line, and `test_nema_tsc6a.c` rework (legacy-diagnostic pin
+converted to the stride-181 near-miss) were integrator-specified and
+integrator-reviewed.
+
+Integrator verification (2026-09-23): `make -j8 all`; `make test
+TEST_FILTER=nema_tsc6a` 7/7 including real-bus resolve accept, aux-bit
+zero-write atomicity, and the legacy-diagnostic string; full 2.35 firmware
+runner set green; `make check` 996 PASS / 0 FAIL and `make sanitize` zero
+findings (implementer runs on the identical tree, integrator spot re-runs
+green); `check-sdl`, the 2.35 scroll gate (`1d44ea98…`), the SDL
+startup/language gate, and snapshot restore unchanged; 2.35 era scripts zero
+drift. Runner Section 3 added by the integrator: the common-command
+setup-walk main-entry window, paired byte-identical
+(`b2820edf…`), shows the main-entry settled frame (step 25, generation 3994,
+`crc32=6a446900`), zero compressed-source refusals, and the single residual
+self-reset at `0xcdf5a` ending at the documented OHR-fixture boundary —
+recorded with the COMPOSITE-MATCH acceptance probe as
+E-EMU-SAP235-COMPRESSED-001. The former refusal→fault→reset chain is gone;
+the `0xcdf5a` self-reset and main-screen button navigation are tracked as
+ticket 794. Status set `done`.

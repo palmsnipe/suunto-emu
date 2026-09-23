@@ -83,11 +83,13 @@ the next gap. Button-driven runs reach weight, height and phone-pairing instruct
 It supplies no GPS fix or phone connection. The RGBA4444 pairing strip now
 renders, and Down scrolls the phone instructions without the former GPU fault
 and reset. The bounded 22-second regression repeats exactly. A longer button sequence
-passes phone pairing, selects the time zone and reaches “Done,” but opening
-main currently faults on an unsupported compressed TSC6A icon. The reference
-lane also refuses it, so the block law was derived offline from the pinned
-partitions (E-RE-SAP235-TSC6A-001); drawing it in-tree is the pending ticket
-793. A usable main screen and stable long sessions remain incomplete.
+passes phone pairing, selects the time zone and reaches “Done,” and main now
+opens: the previously faulting compressed TSC6A crosshair renders in-tree
+(ticket 793, E-EMU-SAP235-COMPRESSED-001; law derived offline as
+E-RE-SAP235-TSC6A-001 because the reference lane refuses that format). The
+guest still self-resets ~2.4 s after Done while attribution continues under
+ticket 794, which also owns main-screen button navigation; a usable main
+screen and stable long sessions remain incomplete.
 
 To reproduce the phone-instructions scroll regression (SDL3 and private
 firmware required):
