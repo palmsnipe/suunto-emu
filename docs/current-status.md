@@ -39,6 +39,21 @@ ticket-710 instance; no throttling or clock guessing is authorized.
 re-derived awake and scroll gates pass. 2.39 era gates are unaffected by
 construction (only the profile-pinned fixture budget changed).
 
+### Sapporo 2.35 compressed TSC6A law derived — ticket 788, 2026-09-23
+
+Under the owner-authorized offline-RE evidence class, the format-17 (TSC6A)
+block law blocking 2.35 main entry is derived in E-RE-SAP235-TSC6A-001:
+12-byte 4x4 blocks (16 2-bit indices, RGBA4444 endpoints E0/E1, 11-bit
+constant alpha, unverified auxiliary bits 75..95 that fail closed), QCP-thirds
+color table. Twice-reproduced decode of the refused 60x60 draw matches
+independent integrator re-runs byte-for-byte (`2f30fe18…`, a compass crosshair
+with exact icon symmetry), and the `PXB2` asset container was confirmed in the
+pinned resource partition (asset at `0x9db613`, format byte `0x11`). Recorded
+ambiguities A1/A2/A3 stay contained by fail-closed refusals. No runtime code
+changed; the renderer integration is ticket 793 (`ready`), which draws this one
+observed draw behind the capture-pinned tuple. The main-screen and stable
+long-session gaps remain open until 793 lands.
+
 ### Renderer snapshot integration — ticket 791, 2026-09-22
 
 Version-2 snapshots now preserve the renderer as well as guest/device state:

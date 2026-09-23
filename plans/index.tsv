@@ -150,8 +150,9 @@ id	phase	title	status	dependencies	ticket
 785	7	Sapporo 2.35 GPS Reopen Integration	done	416,705	plans/tasks/785-sapporo-235-gps-reopen-integration.md
 786	7	Sapporo 2.35 GPS Awake Integration	done	416,705	plans/tasks/786-sapporo-235-gps-awake-integration.md
 787	7	RGBA4444 Pairing Strip Rendering Integration	done	502,512,513,761	plans/tasks/787-rgba4444-rendering-integration.md
-788	7	Sapporo 2.35 Compressed Texture Evidence	ready	504,513,761	plans/tasks/788-sapporo-235-compressed-texture-evidence.md
+788	7	Sapporo 2.35 Compressed Texture Evidence	done	504,513,761	plans/tasks/788-sapporo-235-compressed-texture-evidence.md
 789	7	Sapporo 2.22 and 2.35 Post-Branch Gate Re-derivation	done	220,225,670,705	plans/tasks/789-sapporo-post-branch-gate-rederivation.md
 790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md
 791	7	Renderer Snapshot and Interactive Restore Integration	done	513,615,761	plans/tasks/791-renderer-snapshot-integration.md
 792	7	Sapporo 2.35 Live Device Snapshot Codec Integration	ready	615,791	plans/tasks/792-sapporo-235-device-snapshot.md
+793	7	Sapporo 2.35 TSC6A Compressed Texture Runtime Integration	ready	504,513,761,788	plans/tasks/793-sapporo-235-compressed-texture-runtime.md

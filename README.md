@@ -85,8 +85,9 @@ renders, and Down scrolls the phone instructions without the former GPU fault
 and reset. The bounded 22-second regression repeats exactly. A longer button sequence
 passes phone pairing, selects the time zone and reaches “Done,” but opening
 main currently faults on an unsupported compressed TSC6A icon. The reference
-lane also refuses it. A usable main screen and stable long sessions remain
-incomplete.
+lane also refuses it, so the block law was derived offline from the pinned
+partitions (E-RE-SAP235-TSC6A-001); drawing it in-tree is the pending ticket
+793. A usable main screen and stable long sessions remain incomplete.
 
 To reproduce the phone-instructions scroll regression (SDL3 and private
 firmware required):

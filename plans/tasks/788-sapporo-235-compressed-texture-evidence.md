@@ -1,6 +1,6 @@
 # 788 — Sapporo 2.35 Compressed Texture Evidence
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,761
 
@@ -107,3 +107,16 @@ hash-pinned firmware and resource partitions (AGENTS.md Lane Oracle decision,
 through static RE of the pinned 2.35 firmware and resource partition, recorded
 as a new evidence entry with input/tool hashes and a twice-reproduced census.
 
+
+## Integrator acceptance (2026-09-23, delegated)
+
+E-RE-SAP235-TSC6A-001 records the offline-RE derivation under the owner-
+authorized evidence class: inputs and tooling hashed, the block law stated, and
+a twice-reproduced decode census (`2f30fe18…`, integrator independently
+re-run) plus the `PXB2` container corroboration (asset at `0x9db613`, hash
+`f311e1ef…`, format byte 0x11). Ambiguities A1/A2/A3 are recorded and
+contained: the expansion fails closed on any nonzero auxiliary bits. The
+acceptance condition — a permitted positive reference giving exact compressed
+pixels for the 60x60 draw plus synthetic controls and bounded refusals — is
+satisfied. Status set `done`. Runtime work is defined and tracked as ticket
+793; this evidence ticket adds no runtime code.

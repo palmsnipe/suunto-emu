@@ -6742,3 +6742,101 @@ the attributed metadata-only diff. 2.39 era gates were not re-run here (no CPU,
 scheduler, bus or device law changed; only this profile-pinned fixture
 budget); their pins are unaffected by this change by construction and ticket
 783/777 remain the owners of any real era drift.
+
+
+## E-RE-SAP235-TSC6A-001 — offline RE derivation of the format-17 (TSC6A) block law
+
+2026-09-23, ticket 788. First application of the owner-authorized offline
+reverse-engineering evidence class (AGENTS.md Lane Oracle human decision,
+2026-09-23): the lane refuses to model this draw (E-EMU-SAP235-MAIN-TSC6A-001
+keeps standing as the machine-observed refusal boundary), so the block law was
+derived by static analysis of the hash-pinned 2.35.34 resource partition and
+the captured refused draw, cross-checked against public vendor documentation
+and US 9,640,149 B2. No lane file or firmware byte was modified; no firmware
+or asset bytes are recorded here — only layout facts, counts and hashes.
+
+Inputs and tooling (SHA-256):
+
+| Input | SHA-256 |
+|---|---|
+| `tests/private/sapporo-2.35.34.18929/resources.raw` | `f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22` |
+| refused-draw capture `source.bin` (capture-1 = capture-2) | `b403fb2454fe9ed8206ad3e5cc79af7789f272450527b7fe76a480ed8c44cdee` (first 2700 B: `f311e1ef2267f07528ce18403f1601ce4b51e7a897b516bcf540b773af8ab371`) |
+| refused-draw capture `before.bin` | `25eadc1a96223d4b4c67b5a2257e17e6d8773ab184d17ece6889d8cea15c6340` |
+| `apollo4plus-datasheet.pdf` (§21.3.4.18) | `e0c60833dc4573fcae6fde886d059238f00a40599d3a3e74283ac62e662710e5` |
+| `Pixpresso_Starting_Guide.pdf` | `124d548094f5dd2933b13d69fc75da02343d75f1a2503c80e2d8e3bfd6247414` |
+| `NemaGFX_API_Manual.pdf` | `0aaa65a1b1db013b414fa97df31b0cf4f28b00fe95798e83cee2dc5c859f1043` |
+| `US9640149.pdf` (Think Silicon, image compression) | `856ff7b2ed0d04b7cdf8cf907a5f02ccb1b76b412a0249a926c789e7b1bc5991` |
+| `/tmp/sap235-tex17/decoder.py` (stdlib Python) | `9face3a6c37563d02f9a9173315c5095a2335e12325aa969d5eacca2a974b875` |
+| `/tmp/sap235-tex17/scan_layouts.py` | `76f2cff67a11f30b60bcdf7b1a762cbd77cf2ca51e79616db97f5fee895c434d` |
+| `/tmp/sap235-tex17/solve_endpoints.py` | `599a2c52110cb694259ec18084c99a017f7dc9250eb232f04e0ca9d8031a260c` |
+| `/tmp/sap235-tex17/DERIVATION.md` | `1fd79c0a92345e84b74b08d895fe9583ec8f2a5c7e20045d7aad3e87f3d806b9` |
+| `/tmp/sap235-tex17/INTEGRATION-NOTE.md` | `2c4e15cf908b60af7899176be8cd70766f1e46d9997697cc3fe74dc6261c4fb9` |
+
+Format identification: four independent public sources agree the ticket's
+"format 17" is TSC6A — datasheet §21.3.4.18 "TSC6A 16-pixels with Alpha /
+96-bits … Value: 0x17"; Think Silicon `NEMA_TSC6A 0x17U`; `Imgfmt::TSC6a = 23`;
+PixPresso "4x4-pixels block in … 96-bits (TSC6 and TSC6a)". None prints the
+bit layout; the layout below is data-derived.
+
+Block law (12 bytes per 4x4 pixels; block-row advance `ceil(w/4)*12` —
+capture stride 180 = 15·12 ✓; bit0 = LSB of byte0):
+
+- bits 0..31 — sixteen 2-bit color indices, pixel p = 4r+c raster, index p at
+  bits 2p..2p+1.
+- bits 32..47 — endpoint E0, bits 48..63 — endpoint E1, RGBA4444-packed
+  (top three nibbles ×17; R duplicated into the A nibble in 94.7% of corpus
+  blocks).
+- bits 64..74 — 11-bit alpha, constant per block, scaled ×255/2047
+  (0x7FF opaque, 0 transparent).
+- bits 75..95 — auxiliary region: zero in every block of the pinned capture,
+  nonzero in ~63% of corpus blocks; semantics UNVERIFIED — any decoder built
+  on this entry must fail closed when it is nonzero.
+- colors: four quantized points in thirds, idx0=E0, idx1=(2E0+E1)/3,
+  idx2=(E0+2E1)/3, idx3=E1 (patent eqs. 12-19 four-point mode).
+
+Derived census (twice reproduced; independent re-run by the integrator):
+`decoder.py` on the capture's first 2700 B twice →
+`/tmp/verify-decode-a.bin` = `decode-1.bin` = `decode-2.bin`, SHA-256
+`2f30fe186ba7edd5ef39498f4ad69736684a1611ee1f5d581f05b2afba756b2f` (60x60
+RGBA8888, 14400 B); census texts `ccbb5db2af4b59a88699fdec098ae1e41f06da03f3d24d3b677fdd5ed3e24833`
+(both runs). Output: 12 unique RGBA colors; 225/225 blocks expand to exactly
+2 distinct colors (capture uses idx∈{0,2}); alpha set {0,255}; silhouette is
+exactly a 4-armed 4-px-wide crosshair with arms reaching all four borders
+(16 of 240 border pixels opaque) around an empty 36x36 center — the expected
+compass icon. Index-field law is additionally CONFIRMED by exact icon
+symmetry: `grid(C)=transpose(grid(A))`, `grid(E)=hflip(grid(D))`,
+`grid(F)=vflip(grid(B))` of the decoded 2-bit grids. Alpha law by corpus
+mass: 46.0% of 22,296 blocks exactly 0x000, 31.5% exactly 0x7FF (only an
+11-bit full-scale-2047 reading concentrates both), boundary-coherence winner
+0.758 versus ≤0.60 for rival windows. Endpoint positions win a 278-candidate
+× 4-table corpus sweep; 96.6% of opaque corpus blocks land on the 4-bit
+white/black Suunto palette.
+
+Asset container corroboration (integrator-verified directly): the refused
+source equals the resource-partition asset at `0x9db613`, under a 19-byte
+`PXB2` header at `0x9db600` — bytes
+`32 42 58 50 | 3c00 3c00 | 0000 | 11 | 8c0a` (magic 0x50584232, w=h=60,
+stride 0, format byte 0x11, size 0x0a8c=2700); the 2700 B at `0x9db613` hash
+to `f311e1ef…` exactly. A strict walk of `resources.raw` validated 380
+assets: 302× format 0x05 (2bpp paletted), 61× format 0x11 (TSC6A, every size
+= `ceil(w/4)·ceil(h/4)·12`), 17× format 0x19 (raw RGBA4444).
+
+Recorded ambiguities (contained, not hidden): A1 — endpoint 16-bit packing
+RGBA4444-with-R-duplication (chosen; corpus palette mass and nibble
+symmetry) versus RGB565 (indistinguishable on the capture's coarse palette);
+A2 — mid-alpha block semantics (capture uses only 0x000/0x7FF); A3 — the
+auxiliary region bits 75..95 (fail-closed by law above). Next discriminating
+probe: Ghidra disassembly of the PXB2 loader around the magic constant at
+`../suunto-firmware/artifacts/analysis/sapporo-2.35.34.18929/component-04-type-4-v2.raw`
+file offset `0x4039c` (strings `%s%s.pxb`, `pxBlitC64.cpp`).
+
+Scope authorized: a deterministic C99 expansion of zero-aux TSC6A blocks,
+integrated only behind the capture-pinned acceptance tuple enumerated in
+`INTEGRATION-NOTE.md` (src 0x17 sampling 1 stride 180 60x60 bounded SRAM;
+RGB565 240x240 target 480 stride; pinned codeptr/matmult/matrix bits; ordered
+clip (0,81)-(240,162); 60x60 quad; tint 0xffffffff; drawcolor 0xff555555;
+all-block validate-before-mutate; any aux nonzero ⇒ refusal with zero
+writes). Blending reuses the lane-observed SRC_OVER path of
+E-NEMA-RGBA4444-001. This entry authorizes no per-asset guessing, no
+non-identity-matrix sampling, and no behavior beyond what the pinned
+firmware exhibits. Runtime integration is ticket 793.
