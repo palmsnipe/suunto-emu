@@ -15,8 +15,13 @@ expected_step_two='SDL live test settled step=2 generation=5 crc32=629da47e'
 expected_step_three='SDL live test settled step=3 generation=63 crc32=d4ed66c7'
 # E-EMU-SAPPORO-BRANCH-GATES-001 / ticket 789: architectural branch fix.
 # Frame CRCs are unchanged; the stop tuple/transcript are re-derived.
-expected_stop='stop=user pc=0x080000a0 instructions=772290112 virtual_time_ns=6520978802'
-expected_cold_hash=278cc6dbc76e7359ff217c00821b9f4b08d3a7814435b11dc02bbc589a3d4d81
+# E-EMU-SAP233-GAUGE-FIXTURE-001: gauge AvgVCell 0x19 aligned to the current
+# lane fixture (pair 9119ef13…); the guest no longer issues the resource-
+# status compat probe at t~1.228 s, shifting timing only. All frame CRCs and
+# the completed-navigation checkpoint are unchanged; stop tuple and cold
+# transcript re-derived twice (control-build attribution in the ledger).
+expected_stop='stop=user pc=0x0800009e instructions=770457344 virtual_time_ns=6521343631'
+expected_cold_hash=ccc4ea6008192eb3981695c208004a8f530ea6152cfc8d3053770de354f96e93
 temporary_root=${TMPDIR:-/tmp}
 log=$(mktemp "$temporary_root/suunto-emu-sdl-live.XXXXXX")
 

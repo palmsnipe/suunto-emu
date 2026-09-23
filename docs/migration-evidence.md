@@ -7084,3 +7084,68 @@ aux-bit asset; the decisive discriminator is now a lane capture of that
 submit (in progress) or a synthetic lane GPU A/B render — no in-tree
 value change is authorized by this entry alone, and the fail-closed aux
 refusal stands.
+
+### E-EMU-SAP233-GAUGE-FIXTURE-001 — AvgVCell fixture supersession and 2.33 first-fault closure
+
+Class: current-lane-model re-derivation of a host-side fixture VALUE
+(device law E-SAP-MAX17050-001 states fixture values are host-side battery
+fixtures, not physical gauge evidence; the current lane model is the oracle
+for values while selectors stay pinned to the authentic command census).
+
+Evidence inputs (twice byte-identical): lane pair normalized sha256
+`9119ef13e60dbe71483f28bf02a962997252d7c476b4444a47f3fab9f06b6d76` (raws
+`c4dea835f159cdcafec0edf45b31ae1b41c8c0e5d9e1c48a76d2f8546e88c169` /
+`ecbeda19efc3cf2dfbd174475737da20f1434ff6ce6403942ae4416be725e244`,
+volatile `/tmp/sap233-fault/f4v2_{1,2}.log`, 22 payload reads; the lane
+never issues register 0xF4). Lane fixture table source
+`emulator/renode/iom4/SapporoApollo4Iom4.cs` sha `b1d1dc8e…`
+`SapporoMax17050.Reset()` lines 689-706: 0x00=0x0000, 0x06=0x3200,
+0x08=0x1900, 0x09=0xC000, **0x19=0xC000**; all other 251 words 0x0000.
+Tree diff: exactly `MAX_AVERAGE_VCELL_VAL` 0x0000 to 0xC000
+(`src/devices/sapporo_max17050.c`); the earlier 0x0000 pin traced to a
+payload-free trace of a different register census and is superseded.
+Selector set unchanged: 0xF4 remains a refused unobserved selector
+(unit test `test_unobserved_f4_and_ff_refuse`); 2.35 IOM4 mirror and the
+Ulsan gauge already carried 0xC000 (this aligned the last divergent
+endpoint).
+
+Acceptance (twice reproduced by implementer AND independently by the
+integrator, pair `5d7c9daf29adff26ac7430542ecafe41f55fb95227a04f761003488dc71b0c0c`):
+2.33.16 boot in a 200M-instruction/200 ms window has ZERO
+machine-reset-request and ZERO refusals; the old first fault
+`pc=0x000c97f2` (HardFault after the refused 0xF4 gauge read, instr
+42130231, vt 175577735, PRE pair `c889ee15…`) is fault-free;
+`stop=budget pc=0x000dbc0a instructions=48412217
+virtual_time_ns=339421286`.
+
+2.22 deep-boot consequence (control-build attribution, all pins re-derived
+twice; every frame CRC and PPM byte unchanged): the 2.22 guest consumes
+register 0x19 in its pinned startup census; under the lane-consistent
+0xC000 answer it no longer issues the `E-SAP-COMPAT-RESOURCE-001`
+resource-status probe at t~1.228 s, shifting downstream timing only.
+Re-pinned values (old -> new, twice each): live-input stop tuple
+`0x080000a0/772290112/6520978802` -> `0x0800009e/770457344/6521343631`,
+cold transcript `278cc6db…` -> `ccc4ea6008192eb3981695c208004a8f530ea6152cfc8d3053770de354f96e93`;
+onboarding press vt `30003929586` -> `30010093175`, walk transcript
+`7186e3eb…` -> `2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8`,
+stop `8500057344/38818426902` -> `8491624576/38819797929`, idle transcript
+`0e215631…` -> `91cc708109a2e0405d385fc894674832c58c5457a2845d36c97571d9bd4ab1bf`
+(stop budget `8807319394/60041792981` -> `8798037004/60043686593`),
+disabled-case transcript `07250eea…` ->
+`9fe0c259b48a59ada20064d68f7be32834dc463df3958b23e8d3f2072efa8a5b` (stop
+`13184192858/68141114950` -> `13176760848/68149538779`, GPS-cap line count
+11 unchanged), snapshot `f829b2fa…` ->
+`87a8dca8925aeb4f4eb9adbefb3240d5be77eb04ffc7274d9093f3076dd02dbf`,
+restore-chain next-snapshot `e5c5dd57…` -> e802a9b715b16fb366c8b53fdad2c2f35f706238bf9cae46b1e1397c43e79fcd, next-stop
+`8744080727/41088770901` -> 8734743608/41090034111.
+
+Gate census: make check 998 PASS / 0 FAIL (996 + 2 new gauge cases; unit
+`test_sapporo_max17050` 14/14, failing-first on 0x19); make sanitize zero
+findings; 2.35 era set (8 runners) zero drift; 2.35 SDL main/scroll gates
+hold their pins; 2.33 boot advances; 2.22 gates green on the re-derived
+pins above. Unchanged open items: the 0x06-early lane-order divergence is
+still unexplained; HFSR escalation-bit fidelity (bit30 vs FORCED bit1,
+`src/cpu/armv7m/scb.c`) remains open pending a lane-observable scenario;
+2.39 era pins could not be exercised on this host (full-flash fixture
+absent) — 2.39 shares this gauge endpoint, tracked in the 2.39 era-
+re-derivation tickets (777/783).

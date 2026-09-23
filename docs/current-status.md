@@ -27,10 +27,17 @@ every near-miss state, all other compressed shapes.
 Residual honest boundary: ~2.4 s after Done the guest self-resets at
 `0xcdf5a` and the run ends at the exhausted OHR-fixture compat refusal —
 attribution and main-screen button navigation are ticket 794 (`ready`).
-Ticket 795 (`ready`) carries the 2.33.16 first-fault attribution, newly
-sharpened by E-SAP-0050 (lane reset = fsimage VSF footer policy reboot;
-the in-tree reset is the HardFault-analyzer branch; the analyzer parks the
-faulting address at RAM `0x1005FFC0`). Verification: `make check` 996 PASS,
+Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
+AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
+pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment
+`0x000c97f2` fault-free — zero resets and zero refusals in the
+200M-instruction/200 ms window (integrator-reproduced pair 5d7c9daf). The
+2.22 timing pins moved one compat line (resource-status probe no longer
+issued; every frame CRC unchanged) and were re-derived twice with
+control-build attribution in that entry. Open items kept honest: the
+0x06-early lane-order divergence is unexplained, HFSR escalation-bit
+fidelity is open, and 0xF4 stays a refused unobserved selector.
+Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
 zero pin drift.

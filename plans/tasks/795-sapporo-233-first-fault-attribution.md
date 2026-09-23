@@ -1,6 +1,6 @@
 # 795 — Sapporo 2.33.16 First-Fault Attribution And Boot Refusal Closure
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,761,762,764
 
@@ -132,6 +132,20 @@ Focused register unit tests with success and refusal cases, `make test
 TEST_FILTER=…`, `make check`, `make check-lines`, `make sanitize` (device
 protocol change), updated 2.33 firmware runner with twice-derived
 post-boundary transcripts.
+
+Recorded result (2026-09-23, integrator): CLOSED. `E-EMU-SAP233-GAUGE-
+FIXTURE-001` supersedes the `MAX_AVERAGE_VCELL_VAL=0x0000` pin with the
+current lane fixture `0xC000` (lane table source sha `b1d1dc8e…`, pair
+`9119ef13…`); the boot passes `0x000c97f2` fault-free, integrator-
+reproduced pair `5d7c9daf29adff26…` (zero resets/refusals in the
+200M/200 ms window, `stop=budget pc=0x000dbc0a instructions=48412217
+virtual_time_ns=339421286`); unit `test_sapporo_max17050` 14/14 with
+failing-first fixture test and retained 0xF4/0xff refusal test; 2.22
+timing pins re-derived twice with control-build attribution (all frame
+CRCs unchanged). Follow-ups explicitly open (tracked in tickets, not
+silently here): the 0x06-early lane-order divergence, HFSR escalation-
+bit fidelity (`src/cpu/armv7m/scb.c`, needs a lane-observable scenario),
+and the 2.39 era re-exercise when a full-flash fixture machine exists.
 
 ## Acceptance
 

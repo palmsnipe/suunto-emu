@@ -1,6 +1,6 @@
 # 794 — Sapporo 2.35 Main-Screen Settling And Button Navigation
 
-**Status:** ready
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 504,513,761,789,793
 
@@ -111,6 +111,38 @@ manifest; twice-identical transcripts; derived pins only);
 sanitize` if devices change, affected 2.35 era scripts, `check-sdl` plus
 the 2.35 scroll/startup/snapshot gates unchanged or re-derived with
 attribution.
+
+
+Lane-oracle census (2026-09-23, `sap235-lane-seconddraw`, FINDINGS sha
+`19bfd86031cdef3d9e4f19c7dc49480b35e4ed83673da9d48398121db05e4c88`, every
+finding twice byte-identical): the lane NemaGFX model is a tuple
+whitelist that never decodes format-17 (its only 0x17 predicates demand
+a fixed 480x480 uncompressed shadow), so a lane replay yields
+accept/refuse plus the printed draw-state tuple only — never pixels; the
+aux-plane usage rule stays UNRESOLVED (third-colour reading as leading
+hypothesis, E-RE-SAP235-RESOURCES-INDEX-001). Refusal ladder (hashed to
+model lines): REFUSED_AT_PARSE (child word-pair prefix/register
+whitelist miss; emits `NEMA_RENDER_REFUSED … command=0x…` with NO
+`reason=` and NO draw-state row), REFUSED_AT_TUPLE (`NEMA_DRAW_STATE` +
+`reason=unknown-state`), ACCEPTED (`NEMA_CHILD_RENDERED` + completion
+irq=1), plus SILENT-DROP when the previous and new ring stops are not
+both inside [CMDADDR, CMDADDR+CMDSIZE) (control field 6 = bootstrap
+sentinel). The live in-lane 2.35 walk is a CLOSED route: the authentic
+boot stalls at assertion `LogbookEntryDb.cpp:53` (BKPT `0x00079424`,
+LR `0x000d4809`, re-derives E-SAP-0042) because the lane's MSPI2 lacks
+the 64 KiB DC erase; lane-tree edits to fix that are DECLINED as oracle
+contamination. The refusal-to-BusFault-to-reset chain is a tree contract
+choice, proven CPU-invisible in the lane (census `c575c2dce1b15664…`):
+while the state is unsupported, the `0xcdf5a` reset is NOT authentic and
+fail-closed stays. Step-2 census capture requirements (replay pipeline
+validated, self-test reproduces the accepted submission's pinned census
+`407f4d8c…`): CMDADDR/CMDSIZE at the refused kick; ring bytes across the
+command span (previous-stop to new-stop inclusive plus base); the
+previous accepted CMDRINGSTOP value; the refused kick value and its
+low-3-bit control field (must be 4); raw child words at each child
+address; completion-marker presence; child TEX1 base/format/stride/
+resolution words. Artifacts go to `/tmp/sap235-794census/` (volatile)
+with shas.
 
 ## Acceptance
 

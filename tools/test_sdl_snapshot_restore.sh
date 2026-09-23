@@ -44,10 +44,13 @@ if [ -z "${SEMU_SDL_TEST_SNAPSHOT:-}" ]; then
         --max-instructions 18000000000 --max-time 60000000000 \
         --snapshot-save "$snapshot" >"$work/cold.log" 2>&1
     [ "$(shasum -a 256 "$work/cold.log" | awk '{print $1}')" = \
-        7186e3eb3f16474294628d6753932f9635c8a3ce2a7fc8cb66138cabf831eafa ]
+        2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8 ]
 fi
+# E-EMU-SAP233-GAUGE-FIXTURE-001: cold-walk/snapshot/restore-chain pins
+# re-derived twice under the lane-consistent gauge AvgVCell fixture (pair
+# 9119ef13...); restored first frame (gen 4510, crc 040ebb03) unchanged.
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    f829b2fa514c65b0e10d1f7faa20f4564ba95a442ffd8d217fa21b28b711e592 ]
+    87a8dca8925aeb4f4eb9adbefb3240d5be77eb04ffc7274d9093f3076dd02dbf ]
 cat >"$work/lower.replay" <<'EOF'
 39000000000 button lower press
 39100000000 button lower release
@@ -56,13 +59,13 @@ for pass in 1 2; do
     set +e
     bounded "$emulator" run --profile sapporo-2.22.60 --firmware "$manifest" \
         --layer sapporo-2.22-no-device --snapshot-load "$snapshot" \
-        --max-instructions 8500057344 --max-time 38818426902 \
+        --max-instructions 8491624576 --max-time 38819797929 \
         >"$work/initial-$pass.log" 2>&1
     status=$?
     set -e
     [ "$status" -eq 3 ]
     grep -Fqx 'SDL first-frame width=240 height=240 generation=4510 crc32=040ebb03' "$work/initial-$pass.log"
-    grep -Fqx 'stop=budget pc=0x0800009e instructions=8500057344 virtual_time_ns=38818426902' "$work/initial-$pass.log"
+    grep -Fqx 'stop=budget pc=0x0800009e instructions=8491624576 virtual_time_ns=38819797929' "$work/initial-$pass.log"
     set +e
     bounded "$emulator" run --profile sapporo-2.22.60 --firmware "$manifest" \
         --layer sapporo-2.22-no-device --snapshot-load "$snapshot" \
@@ -72,10 +75,10 @@ for pass in 1 2; do
     status=$?
     set -e
     [ "$status" -eq 3 ]
-    grep -Fqx 'stop=budget pc=0x000d4a8c instructions=8744080727 virtual_time_ns=41088770901' "$work/next-$pass.log"
+    grep -Fqx 'stop=budget pc=0x000d4a8c instructions=8734743608 virtual_time_ns=41090034111' "$work/next-$pass.log"
     # Full machine state includes generation 4610 and Media controls CRC 0cb272ba.
     [ "$(shasum -a 256 "$work/next-$pass.sems" | awk '{print $1}')" = \
-        e5c5dd57e7ad7b7ba1941f2b1bdd8123d42e6ab286ed152d55ecd38f885a9ab6 ]
+        e802a9b715b16fb366c8b53fdad2c2f35f706238bf9cae46b1e1397c43e79fcd ]
 done
 cmp "$work/initial-1.log" "$work/initial-2.log"
 cmp "$work/next-1.log" "$work/next-2.log"
