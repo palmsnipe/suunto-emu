@@ -34,20 +34,23 @@ SETTLES on the main screen (`generation=3998 crc32=1394c638`), and the
 walk reaches `stop=unmapped-access pc=0x001023b0
 instructions=8772734885 virtual_time_ns=39969302384` (transcript
 `245cab82…`) after command `0x0004` sequence 13 refuses and four guest
-self-resets. Command `0x0004` is since admitted (14th response, lane-pinned), and
-the CPU wall fell: `0xf20e46e4` is a valid ADD (T3) `addw r6,lr,#0x4e4`
-(LR-base guard fix, red-test-first, E-CPU-0011 with the family-wide
-census — the same latent wall existed in all six private images). The
-walk now settles steps 24 AND 25 with zero resets, executes the list-move
-loop, and stops at the next OHR boundary: command `0x0002` sequence 14
-refused at the 14-hit budget (transcript `5f46126e…`) — the next
-E-SAP-0041-EXT growth candidate pending capture + lane answer + ruling.
-Open boundaries: that 15th response (and whether repeated `0x0002`
-result-polls make a law-based bounded answer the right design); the GPU
-law-family gap measured at 43 GPU-side refusals per window (24 resolve
-states + 19 compressed-source 60x60 repaints, all CPU-invisible —
-788/793/794); and button navigation acceptance across the settling main
-screen.
+self-resets. Command `0x0004` is since admitted, and the CPU wall fell: `0xf20e46e4`
+is a valid ADD (T3) `addw r6,lr,#0x4e4` (LR-base guard fix,
+red-test-first, E-CPU-0011 with the family-wide census — the latent wall
+existed in all six private images). The post-Done `0x0002` result poll
+(~955 ms period, lane-verified sequence-independent zero-body answer,
+19/19 byte-identical) made enumeration the wrong instrument; the
+E-SAP-0041-EXT3 ruling replaced it with a lane-law MAIN-only bounded
+poll tail after the pinned 14-entry prefix. The five-layer setup-walk
+now terminates NATURALLY at its scripted quit (`stop=user`, transcript
+`360c325a…` twice): the first Sapporo window to run post-Done to a
+scripted end — 0 refusals, 0 resets, main screen settling steps 24–31.
+Open boundaries: the GPU law-family gap measured at 227 GPU-side
+refusals per window (124 resolve states + 103 compressed-source repaints,
+all CPU-invisible — 788/793/794); button navigation acceptance across the
+now-naturally-running main screen (794 — the governing objective's
+"buttons for the navigation" becomes directly testable); tail cap 16 (~15
+s post-Done) as the pinned headroom for longer scripts.
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment

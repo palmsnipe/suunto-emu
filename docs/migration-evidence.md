@@ -7310,3 +7310,35 @@ MemManage instead of machine-stop for wrapped addresses; needs
 instruction-level trace, recorded for the 794 family). Era drift from
 `maximum=14` re-pinned again (metadata-only, same normalisation proof);
 Section 3 re-derived to the CPU-wall state above.
+
+E-SAP-0041-EXT3 poll-tail ruling (2026-09-23, ticket 710 slice 4, ruling
+by the integrator on measured data): the post-Done `0x0002` result query
+is a PERIODIC ~955 ms poll, not a one-shot — captured twice (frame
+`000200NN00` + 50×ff; dump pair `0c51f1b9…`, behaviour-neutral against
+the pinned transcript both with and without probes), and the lane answers
+EVERY sequence it was asked (14..18) header-echo + zero body, 19/19
+answers byte-identical to the tree's law (`b41b4883…` poll-family pair;
+`0638554b…` prefix pair reproducing all 14 pinned answers byte-for-byte).
+A finite enumerated list therefore ends every long run in a synthetic
+`compat-refused` inside a poll cycle hardware survives — enumeration was
+declared the wrong instrument for periodic traffic. New law (B′): after
+the full 14-entry pinned prefix, in MAIN only, `0x0002` frames passing
+the default-`ff` shape law are answered by the existing zero body, capped
+(16 tail hits, budget shown as maximum_hits 30) and logged per hit
+(`trigger=ohr-poll`). Explicitly accepted extrapolation: sequences the
+lane never pinned (19+) are answered by a pure function of
+(command, sequence) demonstrated byte-identical for every sequence it
+was asked; one-shot queries (0x0004-style) stay enumerated. Refusal
+matrix keeps fail-closed: prefix not consumed, non-MAIN state, shape
+mutations, any other command, cap exhaustion — refusals never consume
+budget. Result: five-layer setup-walk terminates at the scripted
+`stop=user` (transcript `360c325a…` twice, integrator-reproduced fresh
+build; first-25 steps byte-identical pre/post) — the first Sapporo window
+to run post-Done to a natural end: 0 refusals, 0 resets, main screen
+settling steps 24–31 (crc alternating `1394c638`/`7ef957e9`), GPU
+law-family census now 227 GPU-side refusals (124 resolve + 103
+compressed-source) pinned as a measured golden. Era drift: 4 windows
+byte-identical, 8 metadata-only (normalisation-proven), Section 3
+genuinely re-derived; tail cap 16 ≈ 15 s post-Done headroom — longer
+scripts bump the pinned cap (metadata-only again) or take the
+deterministic ordinal-17 refusal boundary.

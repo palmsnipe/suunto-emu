@@ -105,3 +105,15 @@ unsupported-instruction wall pc=0x00072f52 (e1bb8c48) — next boundaries
 are the 794 CPU family and the GPU law family (788/793/794), not further
 OHR admissions; the ticket rolls back to `ready` for the next named
 later-Sapporo gap. No fixture growth without a new ruling.
+
+Slice 3+4 (2026-09-23, same instance): slice 3 measured the refused
+0x0002/seq14 as a PERIODIC ~955 ms poll (lane 19/19 byte-identical
+answers; enumerated growth structurally wrong) and stopped without
+implementing, per protocol. Slice 4 implemented the integrator's B'
+ruling (E-SAP-0041-EXT3): pinned-14 prefix untouched, MAIN-only
+law-governed 0x0002 poll tail (default-ff shape, zero body, cap 16,
+logged), full refusal matrix — setup-walk now ends at the scripted
+stop=user (360c325a, twice) with the main screen settling steps 24-31.
+OHR boundary class CLOSED for this window; ticket stays `ready` for the
+next named later-Sapporo gap (GPU law family and CPU census now belong
+to 794/788/793).
