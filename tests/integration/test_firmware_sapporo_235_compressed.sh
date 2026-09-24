@@ -70,7 +70,7 @@ cmp "$run_dir/compressed-1.log" "$run_dir/compressed-2.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-awake' "$run_dir/compressed-1.log")" -eq 11 ]
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=1860847385 virtual_time_ns=70000000000' "$run_dir/compressed-1.log"
 [ "$(shasum -a 256 "$run_dir/compressed-1.log" | awk '{print $1}')" = \
-    16e3d4d3bb88b27e669c73bdb254d5621fa6fcc35a5ed3b6998e4407dd64540b ]
+    ee99bc5e034f2e7d0ef94999551b5815ca2eabba891d6bfb0a9d7d32dd7e448f ]
 # Honest boundary inside this window: nothing refuses and nothing resets.
 # The compressed draw itself lives past this window (setup-walk trajectory);
 # its runtime rendering gate is Section 3.
@@ -84,18 +84,17 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # The setup-walk trajectory reaches private 2.35 main entry, where the
 # 60x60 crosshair draw is accepted by ticket 793.  E-EMU-SAP235-RINGKICK-
 # CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick:
-# the refused DRAW=2 resolve children log gpu/draw-refused lines (43 in
-# this window: 24 unsupported resolve states, first pair ord 7989 child
-# 0x100d2800 and driver retry 7999 child 0x100d0800 both offset 48, plus
-# 19 compressed-source 60x60 refusals as the settling main screen repaints
-# its icon — a 794/788/793 law-family observation, fail-closed GPU-side,
-# zero resets), step 25 settles (generation 3998, crc32 1394c638), and
-# — with ADD/SUB (T3) LR-base now decoded (firmware pc 0x00072f52,
-# thumb32_data.c guard fix, red-test-first) — past the old CPU wall to
-# the next OHR fixture boundary: command 0x0002 sequence 14 refused at
-# the 14-hit budget (E-SAP-0041-EXT growth pending the next ruling).
+# the refused DRAW=2 resolve children and the main-screen repaint
+# refusals log gpu/draw-refused lines GPU-side only (227 in this window:
+# 124 unsupported resolve states, first pair ord 7989 child 0x100d2800
+# and driver retry 7999 child 0x100d0800 both offset 48, plus 103
+# compressed-source 60x60 refusals — a 794/788/793 law-family census,
+# fail-closed, zero resets). With the E-SAP-0041-EXT3 lane-law poll tail
+# (ticket 710 slice 4) the walk now terminates NATURALLY: stop=user at
+# the scripted quit, steps 24-31 settling on the main screen (crc
+# alternating 1394c638/7ef957e9), zero refusals, zero resets.
 # Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
-# 5f46126eb53e46a9046f91c14ea8f9f39f379c9ffeb820859addb9bf35d0e9e8),
+# 360c325a6fc4d6cd7060929a229bee1104ff0b97dc13442ed12bf1a2966f927e),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -116,23 +115,27 @@ for pass in 1 2; do
             --until setup-next --max-instructions 10000000000 \
             --max-time 40000000000 \
         > "$run_dir/main-$pass.log" 2>&1 || rc=$?
-    if [ "$rc" -ne 3 ]; then cat "$run_dir/main-$pass.log"; exit 1; fi
+    if [ "$rc" -ne 0 ]; then cat "$run_dir/main-$pass.log"; exit 1; fi
 done
 cmp "$run_dir/main-1.log" "$run_dir/main-2.log"
 grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=25 generation=3998 crc32=1394c638' \
     "$run_dir/main-1.log"
-grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=7888826679 virtual_time_ns=33546943105 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
+grep -Fqx 'SDL live test settled step=26 generation=4088 crc32=7ef957e9' \
+    "$run_dir/main-1.log"
+grep -Fqx 'SDL live test settled step=31 generation=4543 crc32=1394c638' \
+    "$run_dir/main-1.log"
+grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/main-1.log"
 # GPU refusals in this window are GPU-side only (zero faults/resets;
-# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): 24 unsupported resolve
-# states plus 19 compressed-source 60x60 repaint refusals; the terminal
-# is the OHR 14-hit budget refusing command 0x0002 sequence 14.
+# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): 124 unsupported resolve
+# states plus 103 compressed-source 60x60 repaint refusals while the
+# main screen settles; the terminal is the scripted user quit.
 grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
-[ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 19 ]
-[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 43 ]
+[ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 103 ]
+[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 227 ]
 [ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    5f46126eb53e46a9046f91c14ea8f9f39f379c9ffeb820859addb9bf35d0e9e8 ]
+    360c325a6fc4d6cd7060929a229bee1104ff0b97dc13442ed12bf1a2966f927e ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'

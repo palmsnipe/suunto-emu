@@ -23,7 +23,7 @@ for pass in 1 2; do
 done
 cmp "$run_dir/reopen-1.log" "$run_dir/reopen-2.log"
 [ "$(shasum -a 256 "$run_dir/reopen-1.log" | awk '{print $1}')" = \
-    795064e81c918f04e901d8b850952c04db0e358e46bf597d5f6725a610cb8d7f ]
+    36823e143a5d85f8fe028112276e6064e4e0e87701e6f9170e96bf3ba14c5d33 ]
 grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=1080305993 virtual_time_ns=16306637984 detail=2.35 GPS reopen fixture disabled, exhausted or unexpected state/request' "$run_dir/reopen-1.log"
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-reopen' "$run_dir/reopen-1.log")" -eq 2 ]
 [ "$(grep -c 'event=layer-hit layer=sapporo-2.35-gps-startup' "$run_dir/reopen-1.log")" -eq 2 ]

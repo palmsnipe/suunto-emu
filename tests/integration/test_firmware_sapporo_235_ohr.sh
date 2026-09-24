@@ -33,7 +33,7 @@ done
 cmp "$run_dir/enabled-1.log" "$run_dir/enabled-2.log"
 cmp "$run_dir/disabled-1.log" "$run_dir/disabled-2.log"
 [ "$(shasum -a 256 "$run_dir/enabled-1.log" | awk '{print $1}')" = \
-    275fa2ddd11c2c4894e454b99068749c1afa6ba63f37acd3ee1b9f92c5f36509 ]
+    f70919dcd23cc0288159b5370c965516a27aee4bf2586d4bfbe68f8f835fff1d ]
 [ "$(shasum -a 256 "$run_dir/disabled-1.log" | awk '{print $1}')" = \
     b452c5669e536c0227a43b319807ad7ccc6fc9fe49fddaba9967051d0f7bd879 ]
 grep -Fqx 'stop=budget pc=0x0008ce2e instructions=500000000 virtual_time_ns=2719206417' "$run_dir/enabled-1.log"
