@@ -147,6 +147,42 @@ static const char *const ext_unknown_request =
     "0004000e00230000000000000000000000000000ffffffffffffffffffffffff"
     "ffffffffffffffffffffffffffffffffffffffffffffff306eb59c";
 
+/* E-SAP-0041-TAIL (integrator ruling of 2026-09-23, option B'): once all
+ * fourteen pinned entries are consumed, the guest keeps polling command
+ * 0x0002 with the same default padding shape every ~955 ms of guest runtime.
+ * The two request frames below are the byte-exact packets the in-tree OHR2
+ * byte census captured from the five-layer 2.35.34 setup-walk at sequences 14
+ * and 15 (census stream /tmp/sap235-710ohr/s3shim-probe-{1,2}.txt, sha256
+ * ce9b54fa99671f81e51aba3712a2a4531b3813b31b09e83cf327de3ab5fafde6, twice
+ * byte-identical), and both responses were reproduced twice byte-identically
+ * by the read-only lane endpoint in the poll-family replay
+ * (/tmp/sap235-710ohr/lane-replay-slice3-poll.resc, normalised transcript
+ * sha256 b41b48839f41650dd559452ea7a8b48e5e31a0c7ee627399812c6168b0be7720,
+ * from the pair /tmp/sap235-710ohr/slice3-poll-{1,2}.norm) - all 19 answers of
+ * that replay are byte-identical to what the in-tree lane-law shim produced.
+ * The lane's answer is a pure function of command and sequence: header echo
+ * plus a zero body. The tail therefore answers by law rather than by
+ * enumeration, so sequences past 15 are answered by the same function; any
+ * other command, shape, state, or an unconsumed prefix still refuses. */
+static const char *const tail_requests[] = {
+    /* command 0x0002 sequence 14: default padding law, byte-identical to the
+     * pinned sequence-12 frame apart from the sequence field. */
+    "0002000e00ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff442ba61d",
+    /* command 0x0002 sequence 15: the next poll, one period later. */
+    "0002000f00ffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    "ffffffffffffffffffffffffffffffffffffffffffffff49d76a74",
+};
+
+static const char *const tail_responses[] = {
+    /* command 0x0002 sequence 14: lane zero body, command/sequence echoed. */
+    "02000e0000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000014dcb661",
+    /* command 0x0002 sequence 15: same law, next sequence. */
+    "02000f0000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000019207a08",
+};
+
 static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
 {
     const unsigned commands[] = {16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u};
@@ -189,25 +225,41 @@ static void test_sapporo_235_ohr_post_done_queries(semu_test_context *c)
     }
     SEMU_TEST_EQ_U64(c, 14u, f.layer.hits);
     SEMU_TEST_EQ_U64(c, 28u, f.edges);
+
+    /* E-SAP-0041-TAIL: with the pinned prefix consumed, the law-governed poll
+     * tail answers command 0x0002 at two different sequences, which is the
+     * claim that the answer is a function of command and sequence rather than
+     * a fifteenth enumerated fixture entry. */
+    for (i = 0u; i < 2u; ++i) {
+        SEMU_TEST_EQ_U64(c, 59u, parse_hex(tail_requests[i], packet, 59u));
+        SEMU_TEST_EQ_U64(c, 58u, parse_hex(tail_responses[i], expected, 58u));
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, packet, 59u, NULL, 0u, &f.error));
+        SEMU_TEST_EQ_U64(c, 1u, f.ready);
+        SEMU_TEST_EQ_U64(c, 15u + i, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_OK,
+            exchange(ep, &selector, 1u, response, 58u, &f.error));
+        SEMU_TEST_EQ_U64(c, 0u, f.ready);
+        SEMU_TEST_ASSERT(c, memcmp(expected, response, 58u) == 0);
+    }
+    SEMU_TEST_EQ_U64(c, 16u, f.layer.hits);
+    SEMU_TEST_EQ_U64(c, 32u, f.edges);
     rewind(f.log);
     j = (unsigned)fread(log, 1u, sizeof(log) - 1u, f.log); log[j] = '\0';
-    SEMU_TEST_ASSERT(c, strstr(log, "hit=14 maximum=14") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=16 maximum=30") != NULL);
     SEMU_TEST_ASSERT(c, strstr(log, "command=0004 sequence=13") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=15") != NULL);
 
-    /* Refusal cases past the round, each without consuming budget:
-     * (a) the observed command 0x0004 frame one sequence further than the
-     * pinned sequence 13, and (b) a known command out of its turn. */
-    for (i = 0u; i < 2u; ++i) {
-        if (i == 0u)
-            SEMU_TEST_EQ_U64(c, 59u,
-                parse_hex(ext_unknown_request, packet, 59u));
-        else
-            frame(packet, 2u, 14u);
+    /* Refusal cases inside the tail, each without consuming budget: a pinned
+     * one-shot query the tail does not admit, a known command out of its turn,
+     * and the echo command whose body law belongs to the prefix only. */
+    for (i = 0u; i < 3u; ++i) {
+        frame(packet, i == 0u ? 4u : (i == 1u ? 14u : 6u), 16u);
         SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
             exchange(ep, packet, 59u, NULL, 0u, &f.error));
         SEMU_TEST_EQ_U64(c, 0u, f.ready);
-        SEMU_TEST_EQ_U64(c, 14u, f.layer.hits);
-        SEMU_TEST_EQ_U64(c, 28u, f.edges);
+        SEMU_TEST_EQ_U64(c, 16u, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, 32u, f.edges);
     }
     semu_sapporo_ohr2_destroy(device);
     fclose(f.log);
@@ -258,6 +310,83 @@ static void test_sapporo_235_ohr_result4_law(semu_test_context *c)
     }
 }
 
+/* E-SAP-0041-TAIL (integrator ruling of 2026-09-23): the poll tail admits only
+ * command 0x0002, only in MAIN, only with the default padding shape, and only
+ * once all fourteen pinned entries were consumed; its answer is the pinned zero
+ * body at whatever sequence the transport expects. Everything else fails closed
+ * without consuming budget. */
+static void test_sapporo_235_ohr_poll_tail_law(semu_test_context *c)
+{
+    struct tail_case {
+        uint64_t hits;
+        unsigned command;
+        uint16_t sequence;
+        semu_sapporo_ohr2_state state;
+        unsigned mutate;
+        int accept;
+    };
+    static const struct tail_case cases[] = {
+        {14u, 2u, 14u, SEMU_SAPPORO_OHR2_MAIN, 0u, 1},
+        {15u, 2u, 15u, SEMU_SAPPORO_OHR2_MAIN, 0u, 1},
+        {14u, 2u, 14u, SEMU_SAPPORO_OHR2_BSL, 0u, 0},
+        {14u, 4u, 14u, SEMU_SAPPORO_OHR2_MAIN, 1u, 0},
+        {14u, 6u, 14u, SEMU_SAPPORO_OHR2_MAIN, 2u, 0},
+        {14u, 14u, 14u, SEMU_SAPPORO_OHR2_MAIN, 0u, 0},
+        {14u, 2u, 14u, SEMU_SAPPORO_OHR2_MAIN, 3u, 0},
+        {14u, 2u, 14u, SEMU_SAPPORO_OHR2_MAIN, 4u, 0},
+        {14u, 2u, 14u, SEMU_SAPPORO_OHR2_MAIN, 5u, 0},
+        {13u, 2u, 13u, SEMU_SAPPORO_OHR2_MAIN, 0u, 0},
+        {30u, 2u, 30u, SEMU_SAPPORO_OHR2_MAIN, 0u, 0}
+    };
+    const size_t count = sizeof(cases) / sizeof(cases[0]);
+    size_t i;
+    unsigned k;
+    for (i = 0u; i < count; ++i) {
+        fixture f;
+        uint8_t body[54], response[54], packet[59];
+        char want[40];
+        semu_transaction_result want_result = cases[i].accept ?
+            SEMU_TRANSACTION_OK : SEMU_TRANSACTION_REFUSE;
+        SEMU_TEST_ASSERT(c, setup(&f));
+        f.layer.hits = cases[i].hits;
+        memset(body, 0xff, sizeof(body));
+        body[0] = (uint8_t)cases[i].command; body[1] = 0u;
+        body[2] = (uint8_t)cases[i].sequence; body[3] = 0u;
+        switch (cases[i].mutate) {
+        case 0u: break;
+        case 1u: /* the pinned one-shot command 0x0004 sequence-14 query */
+            SEMU_TEST_EQ_U64(c, 59u,
+                parse_hex(ext_unknown_request, packet, 59u));
+            memcpy(body, packet + 1u, 54u);
+            break;
+        case 2u: for (k = 4u; k < 14u; ++k) body[k] = (uint8_t)k; break;
+        case 3u: body[4] = 0u; break;
+        case 4u: body[53] = 0u; break;
+        case 5u: body[2] = (uint8_t)(cases[i].sequence + 1u); break;
+        }
+        memset(response, 0xa5, sizeof(response));
+        SEMU_TEST_EQ_U64(c, want_result,
+            semu_sapporo_235_ohr_body_provider(&f.context,
+                (semu_sapporo_ohr2_command)cases[i].command, cases[i].sequence,
+                cases[i].state, body, response, &f.error));
+        SEMU_TEST_EQ_U64(c, cases[i].accept ? cases[i].hits + 1u : cases[i].hits,
+            f.layer.hits);
+        for (k = 0u; k < 54u; ++k)
+            SEMU_TEST_EQ_U64(c, cases[i].accept ? 0u : 0xa5u, response[k]);
+        if (cases[i].accept) {
+            char log[2048];
+            size_t j;
+            (void)snprintf(want, sizeof(want), "hit=%llu maximum=30",
+                (unsigned long long)cases[i].hits + 1ull);
+            rewind(f.log);
+            j = fread(log, 1u, sizeof(log) - 1u, f.log); log[j] = '\0';
+            SEMU_TEST_ASSERT(c, strstr(log, want) != NULL);
+            SEMU_TEST_ASSERT(c, strstr(log, "trigger=ohr-poll") != NULL);
+        }
+        fclose(f.log);
+    }
+}
+
 static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
 {
     const unsigned commands[] = {16u, 0u, 16u, 0u, 13u, 14u, 6u, 2u};
@@ -299,6 +428,9 @@ static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
         SEMU_TEST_ASSERT(c, memcmp(expected, response, 58u) == 0);
     }
     SEMU_TEST_EQ_U64(c, 16u, f.edges);
+    /* E-SAP-0041-TAIL keeps the tail unreachable until the whole pinned
+     * prefix was consumed: this poll-shaped request at the next free sequence
+     * still refuses, latches the refusal, and consumes nothing. */
     frame(packet, 2u, 8u);
     SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
         exchange(ep, packet, 59u, NULL, 0u, &f.error));
@@ -307,7 +439,7 @@ static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
     SEMU_TEST_ASSERT(c, f.context.refusal.code != SEMU_OK);
     rewind(f.log);
     j = (unsigned)fread(log, 1u, sizeof(log)-1u, f.log); log[j] = '\0';
-    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=14") != NULL);
+    SEMU_TEST_ASSERT(c, strstr(log, "hit=8 maximum=30") != NULL);
     SEMU_TEST_ASSERT(c, strstr(log, "command=0002 sequence=7") != NULL);
     semu_sapporo_ohr2_destroy(device);
     fclose(f.log);
@@ -316,7 +448,7 @@ static void test_sapporo_235_ohr_startup_transport(semu_test_context *c)
 static void test_sapporo_235_ohr_atomic_body_refusals(semu_test_context *c)
 {
     unsigned i, j;
-    for (i = 0u; i < 8u; ++i) {
+    for (i = 0u; i < 9u; ++i) {
         fixture f;
         uint8_t body[54], response[54];
         semu_sapporo_ohr2_state state = SEMU_SAPPORO_OHR2_BSL;
@@ -333,12 +465,13 @@ static void test_sapporo_235_ohr_atomic_body_refusals(semu_test_context *c)
         case 5: body[53] = 0u; break;
         case 6: body[1] = 1u; break;
         case 7: f.layer.hits = 14u; break;
+        case 8: f.layer.hits = 30u; break; /* pinned prefix + tail budget gone */
         }
         SEMU_TEST_EQ_U64(c, SEMU_TRANSACTION_REFUSE,
             semu_sapporo_235_ohr_body_provider(&f.context,
                 (semu_sapporo_ohr2_command)command, (uint16_t)sequence,
                 state, body, response, &f.error));
-        SEMU_TEST_EQ_U64(c, i == 7u ? 14u : 0u, f.layer.hits);
+        SEMU_TEST_EQ_U64(c, i == 7u ? 14u : (i == 8u ? 30u : 0u), f.layer.hits);
         for (j = 0u; j < 54u; ++j) SEMU_TEST_EQ_U64(c, 0xa5u, response[j]);
         fclose(f.log);
     }
@@ -427,6 +560,7 @@ int main(void)
         SEMU_TEST_CASE(test_sapporo_235_ohr_pins_and_owners),
         SEMU_TEST_CASE(test_sapporo_235_ohr_post_done_queries),
         SEMU_TEST_CASE(test_sapporo_235_ohr_result4_law),
+        SEMU_TEST_CASE(test_sapporo_235_ohr_poll_tail_law),
         SEMU_TEST_CASE(test_sapporo_235_ohr_machine_refusal_and_reset)
     };
     return semu_test_run(cases, sizeof(cases)/sizeof(cases[0]));

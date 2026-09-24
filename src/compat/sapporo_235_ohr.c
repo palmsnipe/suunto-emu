@@ -25,9 +25,32 @@ static const char *const hashes[] = {
  * slice-1 capture of the same sha256); it is the first post-Done query with
  * a payload byte beyond the pinned padding and pins its payload shape
  * exactly: byte 0x23 at offset 4, zeroes through
- * offset 18, pinned padding from offset 19. Requests past the fourteenth, out
- * of this order, or outside the pinned payload padding still fail closed. */
+ * offset 18, pinned padding from offset 19. Out of this order, or outside the
+ * pinned payload padding, the pinned round still fails closed; past the
+ * fourteenth entry only the law-governed poll tail below answers, and only for
+ * the command, state and payload shape the lane demonstrated. */
 #define SAP235_OHR_RESPONSES 14u
+
+/* E-SAP-0041-TAIL (ticket 710 integrator ruling of 2026-09-23, option B'): the
+ * post-Done guest poll of command 0x0002 is periodic, measured at 948-969 ms
+ * per request (mean ~955 ms) in the in-tree OHR2 byte census of the five-layer
+ * 2.35.34 setup-walk (census stream sha256
+ * ce9b54fa99671f81e51aba3712a2a4531b3813b31b09e83cf327de3ab5fafde6, twice
+ * byte-identical), so a finite ordered fixture can never model it: it would end
+ * every long run in an artificial compat refusal inside a poll cycle. Once all
+ * fourteen pinned entries are consumed, the tail below answers command 0x0002
+ * by law instead of by enumeration. The lane endpoint - the sole machine oracle
+ * - answered every sequence it was asked about with the same pure function of
+ * command and sequence (header echo plus zero body; poll-family replay
+ * normalised transcript sha256
+ * b41b48839f41650dd559452ea7a8b48e5e31a0c7ee627399812c6168b0be7720, whose 19
+ * answers are byte-identical to the in-tree lane-law census shim), which is the
+ * extrapolation the ruling accepts explicitly: sequences 14 and 15 are captured
+ * and pinned here, later sequences are answered by that demonstrated function.
+ * The tail is bounded by this separate budget, keeps the same refusal
+ * semantics, and admits no other command, shape, or state. */
+#define SAP235_OHR_TAIL_HITS 16u
+#define SAP235_OHR_TOTAL_HITS (SAP235_OHR_RESPONSES + SAP235_OHR_TAIL_HITS)
 
 /* E-SAP-0041: synthetic identities/zero startup data, never measurements.
  * The response budget and order belong to each machine's layer state. */
@@ -38,7 +61,7 @@ const semu_layer_descriptor semu_sapporo_235_ohr_layer = {
     .evidence = "E-SAP-0041",
     .component_hashes = hashes,
     .component_hash_count = 3u,
-    .maximum_hits = SAP235_OHR_RESPONSES
+    .maximum_hits = SAP235_OHR_TOTAL_HITS
 };
 
 static semu_transaction_result refuse(semu_sapporo_235_ohr_context *ctx,
@@ -55,6 +78,38 @@ static semu_transaction_result refuse(semu_sapporo_235_ohr_context *ctx,
     return SEMU_TRANSACTION_REFUSE;
 }
 
+/* E-SAP-0041-TAIL: the pinned prefix being consumed, answer the periodic
+ * command 0x0002 poll. Shape law and answer construction are the ones already
+ * pinned by E-SAP-0041 for this command (default padding from payload offset 4,
+ * zero body; the transport echoes command and sequence into the header), so the
+ * tail introduces no new constant and no new answer byte. */
+static semu_transaction_result poll_tail(
+    semu_sapporo_235_ohr_context *ctx, semu_sapporo_ohr2_command command,
+    uint16_t sequence, semu_sapporo_ohr2_state state,
+    const uint8_t request[54], uint8_t response[54], semu_error *error)
+{
+    uint8_t body[54];
+    char effect[112];
+    size_t pad;
+    if (command != SEMU_SAPPORO_OHR2_COMMAND_RESULT_2 ||
+        state != SEMU_SAPPORO_OHR2_MAIN ||
+        request[0] != (uint8_t)command || request[1] != 0u ||
+        request[2] != (uint8_t)sequence || request[3] != 0u)
+        return refuse(ctx, error);
+    for (pad = 4u; pad < 54u; ++pad)
+        if (request[pad] != 0xffu) return refuse(ctx, error);
+    (void)snprintf(effect, sizeof(effect),
+        "trigger=ohr-poll ordinal=%u command=%04x sequence=%u synthetic-body",
+        (unsigned)ctx->state->hits - SAP235_OHR_RESPONSES + 1u,
+        (unsigned)command, (unsigned)sequence);
+    if (semu_layer_hit(ctx->state, ctx->logger, effect, error) != SEMU_OK)
+        return refuse(ctx, error);
+    memset(body, 0, sizeof(body));
+    memcpy(response, body, sizeof(body));
+    semu_error_clear(error);
+    return SEMU_TRANSACTION_OK;
+}
+
 semu_transaction_result semu_sapporo_235_ohr_body_provider(
     void *context, semu_sapporo_ohr2_command command, uint16_t sequence,
     semu_sapporo_ohr2_state state, const uint8_t request[54],
@@ -69,8 +124,13 @@ semu_transaction_result semu_sapporo_235_ohr_body_provider(
     char effect[112];
     if (ctx == NULL || ctx->state == NULL || ctx->logger == NULL ||
         !ctx->state->enabled || ctx->state->descriptor != &semu_sapporo_235_ohr_layer ||
-        ctx->state->hits >= SAP235_OHR_RESPONSES || ctx->refusal.code != SEMU_OK ||
+        ctx->state->hits >= SAP235_OHR_TOTAL_HITS ||
+        ctx->refusal.code != SEMU_OK ||
         request == NULL || response == NULL) return refuse(ctx, error);
+    /* The tail is unreachable until every pinned entry was consumed, so the
+     * same poll-shaped request earlier in the round still refuses. */
+    if (ctx->state->hits >= SAP235_OHR_RESPONSES)
+        return poll_tail(ctx, command, sequence, state, request, response, error);
     index = (size_t)ctx->state->hits;
     if ((unsigned)command != commands[index] || sequence != index ||
         state != (index < 2u ? SEMU_SAPPORO_OHR2_BSL : SEMU_SAPPORO_OHR2_MAIN) ||
