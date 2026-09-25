@@ -83,18 +83,23 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # --- Section 3: main-entry setup-walk trajectory (positive render gate) ---
 # The setup-walk trajectory reaches private 2.35 main entry, where the
 # 60x60 crosshair draw is accepted by ticket 793.  E-EMU-SAP235-RINGKICK-
-# CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick:
-# the refused DRAW=2 resolve children and the main-screen repaint
-# refusals log gpu/draw-refused lines GPU-side only (227 in this window:
-# 124 unsupported resolve states, first pair ord 7989 child 0x100d2800
-# and driver retry 7999 child 0x100d0800 both offset 48, plus 103
-# compressed-source 60x60 refusals — a 794/788/793 law-family census,
-# fail-closed, zero resets). With the E-SAP-0041-EXT3 lane-law poll tail
-# (ticket 710 slice 4) the walk now terminates NATURALLY: stop=user at
-# the scripted quit, steps 24-31 settling on the main screen (crc
-# alternating 1394c638/7ef957e9), zero refusals, zero resets.
-# Re-derived 2026-09-23 from paired byte-identical runs (transcript sha
-# 360c325a6fc4d6cd7060929a229bee1104ff0b97dc13442ed12bf1a2966f927e),
+# CPU-INVISIBLE-001 (ticket 794) retired the post-Done BusFault-on-kick,
+# and the ticket-794 resolve-law extension (E-SAP-0041-EXT4 census:
+# accent 0xff55aaff firmware-native in the pinned theme table, all 124
+# resolve refusals carry it, every other tuple predicate already passed)
+# admits it to the tsc6a ACCENT predicate: the 124 unsupported-resolve
+# refusals are gone and their draws RASTER (host-side only — guest
+# instructions and virtual time are unchanged).  The remaining window
+# refusals are exactly the 103 compressed-source 60x60 ones (ticket 788
+# codec family, fail-closed, zero resets).  With the E-SAP-0041-EXT3
+# lane-law poll tail (ticket 710 slice 4) the walk still terminates
+# NATURALLY: stop=user at the scripted quit, steps 24-31 settling on the
+# main screen (from step 25 the accent-tinted element contributes: crc
+# alternates 7ef957e9 with a43f1010/ddbafcf2/636e9f75; step 24
+# 3991/1c1f9064 is unchanged from the pre-EXT4 window), zero resolve
+# refusals, zero resets.  Re-derived 2026-09-23 from paired byte-
+# identical runs (transcript sha
+# a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -120,22 +125,31 @@ done
 cmp "$run_dir/main-1.log" "$run_dir/main-2.log"
 grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=25 generation=3998 crc32=1394c638' \
+grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=74e8d4f5' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=26 generation=4088 crc32=7ef957e9' \
+grep -Fqx 'SDL live test settled step=26 generation=4112 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=31 generation=4543 crc32=1394c638' \
+grep -Fqx 'SDL live test settled step=27 generation=4224 crc32=a43f1010' \
+    "$run_dir/main-1.log"
+grep -Fqx 'SDL live test settled step=29 generation=4446 crc32=ddbafcf2' \
+    "$run_dir/main-1.log"
+grep -Fqx 'SDL live test settled step=31 generation=4667 crc32=636e9f75' \
     "$run_dir/main-1.log"
 grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/main-1.log"
 # GPU refusals in this window are GPU-side only (zero faults/resets;
-# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): 124 unsupported resolve
-# states plus 103 compressed-source 60x60 repaint refusals while the
-# main screen settles; the terminal is the scripted user quit.
-grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"
+# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001).  After the ticket-794
+# resolve-law extension (E-SAP-0041-EXT4) the accent-tinted resolve
+# children raster, so exactly the 103 compressed-source 60x60 repaint
+# refusals remain while the main screen settles (ticket 788 family);
+# the terminal is the scripted user quit.
+if grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"; then
+    echo 'FAIL: resolve-state refusals returned after the EXT4 extension'
+    exit 1
+fi
 [ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 103 ]
-[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 227 ]
+[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 103 ]
 [ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    360c325a6fc4d6cd7060929a229bee1104ff0b97dc13442ed12bf1a2966f927e ]
+    a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42 ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'
