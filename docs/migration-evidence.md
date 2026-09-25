@@ -3512,6 +3512,51 @@ references rather than product inputs.
 | E-CPU-0010 | 2026-08-14; Arm, *Armv7-M Architecture Reference Manual*, ARM DDI 0403E.e, ID021621, FP exception context and lazy preservation | [Arm documentation-service PDF](https://documentation-service.arm.com/static/606dc36485368c4c2b1bf62f); SHA-256 `76500176d20f897eaf05eeadb5a6202cef641e332073b107905c8898e0ee0747` | Ticket 275 uses B1.5.6–B1.5.8 and Figure B1-4 as the exact context contract. Basic frames are 0x20 bytes with R0/R1/R2/R3/R12/LR/return PC/xPSR at offsets 0x00–0x1c. Extended frames are 0x68 bytes: the same basic frame remains at 0x00–0x1c, S0–S15 are at 0x20–0x5c, FPSCR is at 0x60, and the reserved word is at 0x64. Extended entry forces 8-byte alignment and records a pre-entry 4-byte alignment in stacked xPSR[9]. If CONTROL.FPCA is 1, entry selects an extended frame; with FPCCR.LSPEN clear it eagerly writes S0–S15/FPSCR, and with LSPEN set it reserves the FP area, writes only the basic words, sets FPCAR to frame+0x20, and sets FPCCR.LSPACT. The first permitted FP instruction while LSPACT is set writes the saved S0–S15/FPSCR to FPCAR and clears LSPACT before executing the instruction. Exception entry clears CONTROL.FPCA; exception return sets it to the inverse of EXC_RETURN[4]. The FP extension defines six valid tokens: 0xffffffe1/0xffffffe9/0xffffffed for Handler/Thread-MSP/Thread-PSP Extended and 0xfffffff1/0xfffffff9/0xfffffffd for the corresponding Basic frames. S16–S31 are unchanged by hardware stacking. B3.2.21–B3.2.22 define FPCCR status/control fields and FPCAR alignment; B3.2.18 and B3.2.20 define MLSPERR/LSPERR for delayed FP preservation faults. The synthetic profile chooses zero for architecturally UNKNOWN handler FP registers and post-preservation FPCAR, while preserving all stacked raw bits for exact return. | `src/cpu/armv7m/{fpu_context.c,exception.c,scb.c,fpu_transfer.c,thumb32_fpu.c,thumb32_system.c,armv7m_internal.h}` and `tests/fixtures/cpu/fpu-context/**`; positive and refusal tests cover basic/extended/lazy frames, nested MSP/PSP returns, alignment, exact FP restoration, invalid frames/tokens, and delayed-preservation faults. | High for the exact primary document and revision. The zero choice for architectural UNKNOWN values is an explicit deterministic synthetic-profile policy; no Apollo4-specific context deviation is asserted. |
 | E-CPU-0011 | 2026-09-23; E-CPU-0002 (DDI 0403E.e A5.3.1/A7.7 ADD/SUB T3, LR base legal) + offline RE of the hash-pinned private images + in-tree runtime census | GNU binutils 2.47.20260726 objdump sha256 7f7bd6c9…, GNU as sha256 9f86d259… (byte-exact round-trip add.w r6,lr,#0x4e4 -> f20e 46e4); Sapporo 2.35.34 application.raw sha256 36a14dc5… at pc 0x00072f52; census of F2xx/0xF6xx LR-base ADD/SUB encodings: 2.35.34 5+6, 2.22.60 4+6, 2.33.16 5, 2.39.20 4, ulsan-2.35.36 4+1, ulsan-2.44.52 3 | The decoder's wide ADD/SUB-immediate (T3) base guard refused Rn=14 (LR) although architecturally legal, machine-halting four private firmwares at valid list-move shift loops; fix is the guard `rn <= 14u` (src/cpu/armv7m/thumb32_data.c wide_data). Runtime proof: behaviour-neutral branch-ring (instrumented binary sha fdf5b8b8…, stderr ring sha 7519e5b1… twice) shows the tree executing `addw r9,r0,#0x4ac` eight instructions earlier in the same function, then falling through to the refused LR-base twin; pristine pair d907f71e… reproduced the stop exactly. Post-fix 2.35 walk pair 5f46126e… advances past the wall to the next OHR boundary with zero resets. | src/cpu/armv7m/thumb32_data.c; tests/unit/test_cpu_thumb32_data.c (LR-base addw/subw assertions, red-first) | High: dual disassemblers, toolchain round-trip, normative encoding table, and twice-reproduced runtime behaviour all agree; the refusal had no architectural basis. |
 
+### E-SAP-BUTTONS-001 — board button input mapping and 2.35.34 dispatch law
+
+Ticket 794 family, recorded 2026-09-23 (integrator; consolidates the
+previously-implicit mapping evidence with the offline-RE dispatch
+census). Input mapping: semantic upper/middle/lower buttons drive
+GPIO57/GPIO58/GPIO59, active-low, per the verified `sapporo_wiring.c`
+wiring table (`src/boards/sapporo_wiring.c`); proven empirically by
+E-SAP-ONBOARD-EMU-008 (the inverted mapping stalled 2.22 onboarding at
+the phone-pair handoff; correcting upper=GPIO57/lower=GPIO59 let the
+semantic lower press advance it, twice byte-identical).
+
+Offline-RE corroboration on the hash-pinned 2.35.34 application
+(`tests/private/sapporo-2.35.34.18929/application.raw`, sha256
+`36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`;
+resident `c81aa19d…`, resources `f281385a…`, manifest `a367830b…`;
+RE addr = file offset + 0x40000): twice-reconciled dispatch census
+(objdump 2.47.20260726 sha `7f7bd6c9…` path A + capstone 5.0.7 python
+resume-walk path B, 50-PC table identical modulo formatting; full notes
+`/tmp/sap235-btn/notes.md` sha `8f1fd1391233b082311bacf3c8173f8498f2ea39bb294b3b18200f76992d6bf0`,
+volatile — derived census retained here). CONFIRMED law: 30 ms poll
+timer (`0xa4d69→0xa4d80`, debounce `cmp #30 @0xa4db4`) reads level via
+BKPT bridge op #24 (`0x70bcc`) → subscriber cell `[0x10053b1c]` →
+`ButtonProvider_event 0x107b78`: click = codes {2,5}; hold = {2,3…,6 at
+≥1200 ms (`cmp #0x4b0 @0x107b9c`),4 repeats,1 on release}, 600 ms
+re-arm (`0x107bba`) → ring `0x107bf4` → unique bus publish token 0x2003
+(`0x107cac`) → `UI_button_dispatch 0x73d3c` → widget vtable slot +0x3c
+(`blx r4 @0x73e16`, r1=button idx, r2=event code) → main-screen
+carousel step `0x9de52` (slot +0xc, wrap modes `0x9de90`/`0x9deb2`,
+5000 ms settle timer `0x9dee0`) → parallel-array move `0x72d60` →
+`0x72ee8–0x72f82` (count sbyte `+0x7E8` @`0x72ef4`; arrays `+0x4E8/
++0x560`; u16 `+0x4AC` — the UI core's own view-entry array) →
+invalidate `bl 0x7971c @0x72da0`; the descending move loop's first
+instruction `0x72f52` is the formerly-pinned E-CPU-0011 wall (fixed
+5d013da). Lane corroboration: innermost ring frame `0x72ee8–0x72f82`,
+ring sha `7519e5b1…` twice.
+
+Scope: authorizes the emulator button mapping and button-navigation
+goldens that claim ONLY the backed law above. Per-key visible-region
+effects, MIDDLE inertness on the 2.35 main screen (lane-observed inert,
+`4bb7cb7b…` scroll gate, twice), UPPER effect (never sent post-handoff),
+hold-repeat visible behavior, and the bus-hop subscriber site (U1) are
+OBSERVATION-ONLY until a twice-pinned firmware chain closes them; eight
+named gaps U1–U8 with exactly-missing evidence are catalogued in the
+census notes. Authorizes no value the pinned firmware does not exhibit.
+
 ### E-SAP-0038 — 2.35 missing manufacturing records select limited boot mode
 
 Ticket 710 instance 8, 2026-09-19. Dependency 705 is done. The selected
