@@ -179,7 +179,8 @@ int tsc6a_resolve_state(const nema_draw_snapshot *s)
         return 0;
     }
     accent = s->tex_color & 0x00ffffffu;
-    return accent == 0x0055ff00u || accent == 0x0000ffffu;
+    return accent == 0x0055ff00u || accent == 0x0000ffffu ||
+           accent == 0x0055aaffu;
 }
 
 int tsc6a_triangle_points_ok(const nema_draw_snapshot *s)

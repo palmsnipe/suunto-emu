@@ -125,6 +125,43 @@ static void test_refuses_unobserved_state(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_resolve_accepts_firmware_native_accent(semu_test_context *context)
+{
+    /* Ticket 794 resolve-law extension (E-SAP-0041-EXT4 census): all 124
+     * main-screen resolve refusals in the natural-terminal window carry
+     * tex_color == draw_color 0xff55aaff, and that accent is firmware-native
+     * (bytes ff aa 55 ff at VA 0x19c597/0x19c5f7/0x19c617/0x19c697 of the
+     * hash-pinned 2.35.34 application, theme/style table, twice-reproduced
+     * with two independent decoders). Every other predicate of the pinned
+     * tuple already passes, so the masked accent 0x0055aaff is admitted to
+     * the ACCENT predicate and the draw resolves. */
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot target;
+    nema_draw_snapshot resolve;
+    uint8_t panel[480u];
+
+    semu_error_clear(&error);
+    bus = make_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_create(&surface, &error));
+    target = target_triangle();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_draw_target(surface, bus, &target, &error));
+    memset(panel, 0, sizeof(panel));
+    resolve = resolve_state();
+    resolve.draw_color = UINT32_C(0xff55aaff);
+    resolve.tex_color = UINT32_C(0xff55aaff);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_resolve(surface, &resolve, panel, 480u,
+                                        &error));
+    SEMU_TEST_ASSERT(context, panel[0] != 0u || panel[1] != 0u);
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
 static void test_compressed_asset_refusal_diagnostic(semu_test_context *context)
 {
     semu_error error;
@@ -197,6 +234,7 @@ int main(void)
     const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_target_triangle_and_resolve),
         SEMU_TEST_CASE(test_refuses_unobserved_state),
+        SEMU_TEST_CASE(test_resolve_accepts_firmware_native_accent),
         SEMU_TEST_CASE(test_compressed_asset_refusal_diagnostic),
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
