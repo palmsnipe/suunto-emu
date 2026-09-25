@@ -42,14 +42,21 @@ existed in all six private images). The post-Done `0x0002` result poll
 19/19 byte-identical) made enumeration the wrong instrument; the
 E-SAP-0041-EXT3 ruling replaced it with a lane-law MAIN-only bounded
 poll tail after the pinned 14-entry prefix. The five-layer setup-walk
-now terminates NATURALLY at its scripted quit (`stop=user`, transcript
-`360c325a…` twice): the first Sapporo window to run post-Done to a
-scripted end — 0 refusals, 0 resets, main screen settling steps 24–31.
-Open boundaries: the GPU law-family gap measured at 227 GPU-side
-refusals per window (124 resolve states + 103 compressed-source repaints,
-all CPU-invisible — 788/793/794); button navigation acceptance across the
+terminates NATURALLY at its scripted quit (`stop=user`; transcript
+`a4a04c53…` twice after the EXT4 display gain, `360c325a…` before it):
+the first Sapporo window to run post-Done to a scripted end — 0 resets,
+main screen settling steps 24–31. The E-SAP-0041-EXT4 ruling (ticket
+794, offline-RE census: accent `0xff55aaff` firmware-native, sole
+failing predicate of all 124 resolve refusals) admitted the masked
+accent to the tsc6a ACCENT predicate — the accent-tinted main-screen
+blit now rasters (frames change from step 25; guest instructions and
+virtual time unchanged, pure display gain; RED-first unit test).
+Open boundaries: the GPU law-family gap measured at 103 GPU-side
+refusals per window (exactly the compressed-source repaints, CPU-
+invisible — 788/793); button navigation acceptance across the
 now-naturally-running main screen (794 — the governing objective's
-"buttons for the navigation" becomes directly testable); tail cap 16 (~15
+"buttons for the navigation" becomes directly testable; the button
+dispatch law is catalogued as E-SAP-BUTTONS-001); tail cap 16 (~15
 s post-Done) as the pinned headroom for longer scripts.
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,

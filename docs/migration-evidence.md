@@ -7387,3 +7387,46 @@ byte-identical, 8 metadata-only (normalisation-proven), Section 3
 genuinely re-derived; tail cap 16 ≈ 15 s post-Done headroom — longer
 scripts bump the pinned cap (metadata-only again) or take the
 deterministic ordinal-17 refusal boundary.
+
+
+E-SAP-0041-EXT4 resolve-law extension ruling (2026-09-23, ticket 794
+slice, ruling by the integrator). The 124 per-window
+`nema_tsc6a: unsupported resolve state` refusals are a SINGLE law family,
+not per-draw shapes: in the natural-terminal window every refusal line
+carries child in {0x100d2800 x63, 0x100d0800 x61}, offset=48, draw=2,
+imem triple 0,0x004e0002,0x804b1286, code 0x941e8000, and
+tex_color == draw_color == 0xff55aaff (in-entry census derived from the
+twice-run transcript; first pair ord 7989/7999 unchanged from the
+RINGKICK entry). Offline RE of the pinned application
+(`component-04-type-4-v2.raw` sha `36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`,
+decoders arm-none-eabi-objdump 2.47.20260726 sha `7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda`
++ capstone 5.0.7 python resume-walk, every chain twice-reproduced, notes
+`/tmp/sap235-resolve/notes.md` volatile): the accent `0xff55aaff` is
+firmware-native — LE bytes `ff aa 55 ff` at VA 0x19c597/0x19c5f7/
+0x19c617/0x19c697 of a 28-byte-row theme/style table (neighbors
+0xff00aa00, 0xffffaa00, 0xffaa5500, 0xff000000, 0x00ffffff, 0xffffffff)
+with a live message/replies renderer consumer; the per-draw composer
+`0xa2060-0xa24b6` composes the census DATAH/IMEM values byte-exactly
+(0x004e0002 at 0xa2472/0xa2476; IMEM slot 0 programmed per draw at
+0xa2488/0xa248e; CODEPTR 0x941e8000 = 2 IMEM pairs of the same program),
+and the driver-init bootstrap `0xa1fe0` programs IMEM 31 =
+(0x08000002, 0x80000009) — exactly the tree unit-test pin. RULING: the
+ACCENT predicate admits the masked accent `0x0055aaff` alongside the
+existing {0x0055ff00, 0x0000ffff}; the refused accent was the sole
+failing predicate of the census tuple (unit-level red test proven: the
+case reaches the accent assertion with every other predicate passing).
+Post-extension (twice, byte-identical, transcript sha
+`a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42`):
+resolve refusals 124→0, window draw-refused 227→103 (exactly the
+compressed-source 60x60 family, ticket 788), the accent-tinted 60x60
+blit at clip (171,90)-(231,150) RASTERS into the resolve targets and the
+compositor composites it — settled frames change from step 25 (new crcs
+74e8d4f5/a43f1010/ddbafcf2/636e9f75 alternating with 7ef957e9; step 24
+gen 3991/1c1f9064 unchanged), while guest instructions
+9487528672 and virtual_time_ns 37414100700 are UNCHANGED — pure
+display-fidelity gain with zero CPU-timeline perturbation. Era pins
+re-derived in the same batch (compressed Section 3 rewritten, nav/scroll
+tools re-pinned by their owners). Scope: authorizes the accent admission
+only; the compressed-source 60x60 refusals remain fail-closed for
+ticket 788; src_sampling and the (0x100,2) draw-kick emission site stay
+UNCONFIRMED gaps.

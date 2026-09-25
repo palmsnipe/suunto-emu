@@ -216,6 +216,29 @@ navigation acceptance across the settled main screen once (1) opens;
 (4) parse-level refusal CPU-invisibility known-divergence recorded in
 the ledger, deliberately out of this change's scope.
 
+Resolve-law extension landed (2026-09-23, integrator, E-SAP-0041-EXT4):
+the 124 per-window resolve refusals are one law family — every line
+carries tex/draw color `0xff55aaff`, firmware-native per the twice-
+reconciled offline-RE census (theme/style table, four VAs in the pinned
+application) and the SOLE failing predicate of the tuple. RED-first unit
+case `test_resolve_accepts_firmware_native_accent`, then the masked
+accent `0x0055aaff` admitted in `tsc6a_resolve_state`. Window effect
+(twice byte-identical, transcript `a4a04c53…`): resolve refusals 124→0,
+draw-refused 227→103 (exactly the 788 compressed-source family), the
+accent-tinted 60x60 blit at clip (171,90)-(231,150) rasters into the
+resolve targets and composites — settled frames change from step 25
+(new crcs `74e8d4f5`/`a43f1010`/`ddbafcf2`/`636e9f75` alternating with
+`7ef957e9`; step 24 `3991/1c1f9064` unchanged).
+Instructions and virtual time `9487528672`/`37414100700` are unchanged —
+pure display gain with zero CPU-timeline perturbation. Compressed
+Section 3 re-derived to the EXT4 state (twice, integrator); `make
+check`, `make sanitize` green; ledger entry E-SAP-0041-EXT4 records the
+census, tooling, and scope. Remaining for acceptance: (3) button
+navigation acceptance across the settled main screen — slice in flight
+(nav tool per E-SAP-BUTTONS-001 golden policy); (4) parse-level refusal
+CPU-invisibility known-divergence recorded in the ledger, deliberately
+out of scope.
+
 ## Acceptance
 
 A ledger entry attributes the `0xcdf5a` reset (fault-path closure or
