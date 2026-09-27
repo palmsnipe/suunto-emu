@@ -239,3 +239,17 @@ stops/hashes/transcripts value-only, guards/census intact, stay below the
 796 wall) applies directly to file_size, history_budget, preload1,
 logical_files; note logical_files' absent trigger may need re-examination
 of its registration condition rather than a cap move.
+
+B2 stage result (integrator-reviewed, twice-verified): file_size RE-PINNED
+green twice (tss.bin size op relocated to vt 2038505656; cold cap
+405895301→414252829 by ±1 bisection; census 595→506; guard byte-identical;
+new cold stop vt = event vt + 1 exactly). history_budget, preload1, and
+logical_files are NEGATIVE observations — their asserted events occur
+NOWHERE below the 796 wall (±1-verified wall-1 census in
+/tmp/sap239-era/b2/notes.md): the 35,712-record sleep.bin scan never
+begins, and neither WbStoPreload cmd-0/cmd-1 result-500 callback fires.
+Scripts untouched (no guard may be weakened); all three are folded into
+ticket 796's unblock list (13→16 windows) — the events must reappear past
+the modeled storage-JSON write or be recorded as proven post-wall guest
+changes. Stage (3) therefore concludes awaiting 796; remaining stages:
+796 + 16 windows, then the full-green twice-run census.

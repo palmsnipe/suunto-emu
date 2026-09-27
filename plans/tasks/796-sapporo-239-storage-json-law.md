@@ -55,6 +55,37 @@ scripts total are unreachable past the wall; their windows recover only
 when this ticket lands. A separate OHR2 BSL semantics change (ticket 797)
 and the cap-redistribution windows are NOT this ticket's scope.
 
+Addendum 2026-09-27 (797/777-B2 completions — scope update): ticket 797
+closed showing the OHR2 movement was session relocation, no device law.
+The 777 B2 stage then proved three further windows are wall-entangled, so
+this ticket's unblock list grows from 13 to 16 scripts. New findings
+(±1-verified negative probes below the wall, census in
+`/tmp/sap239-era/b2/notes.md`, wall-1 probe log sha
+`67cd6109ab5c41e85dab870a2362d94dcf0f8aa8f541178aa02e4e5039339cf8`):
+(a) `history_budget` — the 35,712-record `sleepln/sleep.bin` read scan
+occurs NOWHERE below the wall (0 `result=72` reads through 442856245; 2
+header reads + 2 seeks; the guest never begins the sleep scan) and its
+pinned unknown-path refusal boundary IS the wall (old anchor
+439081594/1978038136 → 442856246/2176971322): the scan must reappear
+naturally past the modeled data.jsn write.
+(b) `preload1` — `wbsto-preload1-result` (registered
+`src/compat/sapporo_239.c:34`) fires nowhere below the wall: the exact
+`WbStoPreload` command-1 callback with result 500 (chain: provider
+0x001c0ed8, cmd byte 1, r3==500, session-cache + preload-result hits) is
+never reached; its FILE_OPEN budget-exceeded boundary (logical-file
+budget now 76667) is likewise unreachable at the current 865 max hits.
+(c) `logical_files` — `wbsto-preload-result` (registered
+`src/compat/sapporo_239.c:27`, cmd-0 callback result 500) fires nowhere
+below the wall; session-cache trigger and census 118 intact at the old
+cap. Acceptance for this ticket therefore also includes: after the law
+lands, the three windows' asserted events either reappear (re-derive per
+E-SAP239-OHR2-REPIN-001) or remain absent as a PROVEN post-wall guest
+change, recorded as a negative observation — never by weakening a guard.
+This is consistent with the lane's own note (read-only
+`../suunto-firmware/docs/research/sapporo-2.39-logical-storage-adapter.md`)
+that native `storage/` opens sit beyond the WbStoPreload boundary the
+synthetic layer currently ends at.
+
 ## Allowed Files
 
 `src/compat/sapporo_239_files.c`, `src/compat/sapporo_239_files_internal.h`,

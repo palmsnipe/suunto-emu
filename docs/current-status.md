@@ -109,7 +109,13 @@ mechanically with no engine change. That re-derivation then completed
 the same day (E-SAP239-OHR2-REPIN-001): all seven green twice
 byte-identically via first-appearance-cap advancement from a
 144-probe ±1 bisection, guards and census pins intact, no cap reaching
-the 796 wall; census now 26 of 43 era scripts green.
+the 796 wall; census now 26 of 43 era scripts green. The B2 cap stage
+(E-SAP239-B2-CAPSTAGE-001) then re-pinned file_size green twice (cap
+414252829, census 506, guards byte-identical) and proved history_budget,
+preload1, and logical_files wall-entangled negatives — their asserted
+events occur nowhere below the 796 wall — folding them into ticket 796's
+unblock list (13→16 windows); census 27 of 43 green, all 16 reds
+explained and tracked.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with

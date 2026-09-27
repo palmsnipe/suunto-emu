@@ -7704,3 +7704,43 @@ pins (`cf5251f9…`, `77a579f1…`). Zero machine-reset/compat-refused/
 status=refuse/unmapped lines in all pinned-shape windows and bisection
 probes — confirms no OHR2 device-semantics change; the flip is session
 relocation to normal completion. Census now 26 of 43 era scripts green.
+
+E-SAP239-B2-CAPSTAGE-001 (2026-09-27, ticket 777 B2 cap stage;
+integrator-reviewed, no engine changes). `file_size` re-pinned green twice
+byte-identically: its boundary `operation=size path=tssln/tss.bin
+result=2384` relocated to time_ns=2038505656 (sleep.bin size op at
+1915260913), ±1-bisected first appearance at instruction 414252829
+(absent at 414252828); cold stop re-pinned
+`stop=budget pc=0x0016f862 instructions=414252829
+virtual_time_ns=2038505657` (= event vt + 1, the E-SAP239-OHR2-REPIN-001
+law), resume cap 414252830 `pc=0x0016f864 …58` (pc+4/vt+1, mirroring the
+old +1 structure); log/snapshot pins → observed
+(`5d59dc016b2484fe3bf85d1a5b82bfee34a03c62a11c784e4508bdb95008a66e` /
+`dfc26a3043449c8b12219cc7695e203c19e3e1a0d7f3ea62f8bf393218e41cdd`);
+intervention census 595→506 verbatim; guard greps byte-identical;
+integrator independently ran the edited script twice (rc=0, rc=0). Three
+NEGATIVE observations (scripts untouched, no guard weakened), all
+±1-verified below the E-SAP239-ERA-CLASSIFY-001 B1 wall by a wall-1 recon
+run (cap 442856245 → `stop=budget pc=0x000c98fa
+virtual_time_ns=2176971321` = wall−1, refusal-free; log sha
+`67cd6109ab5c41e85dab870a2362d94dcf0f8aa8f541178aa02e4e5039339cf8`,
+method/shas in `/tmp/sap239-era/b2/notes.md`): (a) history_budget — the
+35,712-record `sleepln/sleep.bin` read scan (result=72) occurs NOWHERE
+below the wall (0 reads; 2 header result=24 reads + 2 seeks vs pinned
+35714; triggers 865 vs 75764) and the pinned unknown-path refusal anchor
+439081594/1978038136 IS the wall, now at 442856246/2176971322; (b)
+preload1 — `wbsto-preload1-result` (registered
+`src/compat/sapporo_239.c:34`) never fires: the exact WbStoPreload cmd-1
+callback with r3==500 is not reached below the wall; the FILE_OPEN
+budget-exceeded boundary is unreachable at the 76667 budget vs 865 max
+hits; (c) logical_files — `wbsto-preload-result` (registered
+`src/compat/sapporo_239.c:27`, cmd-0 result-500 callback) never fires
+below the wall though the session-cache trigger (vt 281501988) and census
+118 remain byte-intact at the old cap. Interpretation: all three are
+B1-wall-entangled (the guest's storage-JSON-adjacent post-boot path is
+unreachable past the fail-closed `storage/38d123/data.jsn` refusal),
+consistent with the read-only lane note
+`../suunto-firmware/docs/research/sapporo-2.39-logical-storage-adapter.md`
+that native `storage/` opens sit beyond the WbStoPreload boundary; ticket
+796's unblock list therefore grows from 13 to 16 windows. Census stands
+at 27 of 43 era scripts green (26 + file_size).
