@@ -170,6 +170,14 @@ identical to direct runs): `stop=compat-refused pc=0x000920b4
 instructions=474153646 virtual_time_ns=2208268722 detail=unknown Sapporo
 2.39 writable file path` — NOT a storage path. Era scripts not re-pinned
 here; the 16 wall-entangled windows re-derive under 777. `make check`
-1015 PASS; baseline drift check (stashed vs new binary): no era script
-changed status from this implementation — the red set is identical to the
-pre-existing 16-window classification.
+PASS; sanitize clean. Status spot-check (committed binary, stashed
+baseline): pre-admission windows green (profile, file_size, file_seek,
+chip_identity, power, rstgen, watchdog); the 16 wall-entangled scripts
+remain red exactly as classified pre-implementation (they assert stops
+below or at the moved wall). Note for 777: scripts capping beyond the
+first wall (wbsto_cache, quiet_read, ongoing at 500M) now stop at the
+NEW wall 474153646/2208268722 instead of the old 442856246 wall; the
+layer-off pins of wbsto_cache/logical_files drift is
+`pc=0x00070378` at cap 72774982 (pre-existing at f413e23, not caused by
+796; bisection: the layer-on path at that cap changed when the storage
+wall moved). Ticket stays in-progress until 777 re-derivation lands.
