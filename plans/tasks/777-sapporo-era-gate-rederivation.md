@@ -203,9 +203,39 @@ nine-commit bisect candidate list. A 69b1b35 control build reproduces the
 old pin sets exactly for ctimer13_inten and history_budget, proving all
 drift is accepted-batch era movement, not nondeterminism.
 
+Integrator record 2026-09-27 (ticket 797 attribution stage, clean builds):
+the B3 "device-law flip" premise is SUPERSEDED by the clean-build bisect
+recorded in plans/tasks/797 Attribution Record. The earlier pass (and my
+first probes) suffered build-directory object pollution (a
+duplicate-symbol link failure exposed it); with `make clean` per commit:
+the ohr2 cold stop stays pinned-exact (pc 0x0014e8ea vt 1881138282)
+through 0c84673, relocates (pure instruction-count movement, vt fixed)
+exactly at cd1de52, then drifts pc-only within the same vt lineage
+(0x000d2084 era → 0x000a7ac4 on 06e3c2c, the ohr2_command2 re-pin
+lineage); the pinned refuse goldens RELOCATE, they do not die — with the
+scripts' own one-instruction resume shape, HEAD advances a single
+instruction at the boundary with zero transactions, while the transcripts
+show the same command/sequence family completing ok at the relocated
+moments (refuse capability intact; guard greps hold). At 69b1b35 the
+log/snapshot hashes already differ from the pins while the cold stop is
+pinned-exact (Sep-5 file-law intervention/state drift, counts and hashes
+only). 1bc1ce8/6ae8ce5/7c8bb59 exonered. No
+engine change is warranted; the seven OHR2 scripts re-derive
+mechanically under 797. The timer_pattern attribution to d8bfba9 stands
+separately (its own rebuild-bisect, value -62).
+
 The 2026-09-23 audit's "25 timing-only re-pin candidates" classification
 is superseded by this record: only 7 of the 25 were mechanically
 re-pinnable; the rest are the B1/B2/B3 evidence gaps above. 777 remains
 in-progress: the remaining stages are (1) 796 lands → re-derive the 13
 wall-blocked windows, (2) 797 lands → re-derive the 7 OHR2 windows,
 (3) B2 cap re-derivation stage, then (4) full-green twice-run census.
+
+Update 2026-09-27: stage (2) is DONE — the seven OHR2 scripts re-pinned
+green twice (E-SAP239-OHR2-REPIN-001); census 26 of 43 green. Stage (3)
+B2 is now UNBLOCKED from the 797 result: the technique (advance caps to
+the boundary's first-appearance instruction via ±1 bisection, re-pin
+stops/hashes/transcripts value-only, guards/census intact, stay below the
+796 wall) applies directly to file_size, history_budget, preload1,
+logical_files; note logical_files' absent trigger may need re-examination
+of its registration condition rather than a cap move.

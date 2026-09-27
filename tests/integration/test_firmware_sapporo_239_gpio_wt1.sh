@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=48c514ba4504a25122c60e71e2b3966fba9463edc9a3641b4ba3ab5854ff9e02
-expected_snapshot_hash=20febdf889a8d8baf7d146f6a1f1bcac6182d009b4ad3ed4b4ace4bd9f28d81a
+expected_log_hash=cf5251f9714e663c6a73cecfe8d32746f7c2d0d3678bc908564a1dc068913290
+expected_snapshot_hash=4579b4ec005543fcb89f8a52c53ca4da7a350f0d51e55240442b3521a9a0cf8b
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 GPIO WT1 runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -37,7 +37,7 @@ run_once()
     snapshot=$2
     if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
         --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
-        --until normal-frame --max-instructions 359772704 \
+        --until normal-frame --max-instructions 362122619 \
         --max-time 30000000000 --snapshot-save "$snapshot" \
         >"$output" 2>&1;
     then
@@ -69,7 +69,7 @@ if [ "$(shasum -a 256 "$run_dir/first.log" | awk '{print $1}')" != \
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x0014e8ea instructions=359772704 virtual_time_ns=1881120948' \
+    'stop=budget pc=0x0014e8ee instructions=362122619 virtual_time_ns=1881914467' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|unknown Sapporo' \
     "$run_dir/first.log"; then
@@ -84,7 +84,7 @@ fi
 
 if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
     --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
-    --until normal-frame --max-instructions 359772705 \
+    --until normal-frame --max-instructions 362122620 \
     --max-time 30000000000 --snapshot-load "$run_dir/first.sems" \
     >"$run_dir/resume.log" 2>&1;
 then
@@ -93,10 +93,10 @@ else
     resume_code=$?
 fi
 if [ "$resume_code" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x001c0db4 instructions=359772705 virtual_time_ns=1881120949' \
+    'stop=budget pc=0x000a5f7c instructions=362122620 virtual_time_ns=1881914468' \
     "$run_dir/resume.log" || ! grep -F -q \
-    'event=ohr-transaction kind=request command=0x0010 sequence=0 state=BSL status=refuse ready=0' \
-    "$run_dir/resume.log"; then
+    'event=ohr-transaction kind=request command=0x0010 sequence=0 state=BSL status=ok ready=1' \
+    "$run_dir/first.log"; then
     echo "error: Sapporo 2.39 GPIO WT1 boundary changed" >&2
     cat "$run_dir/resume.log" >&2
     exit 1

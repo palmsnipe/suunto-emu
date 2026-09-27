@@ -97,7 +97,19 @@ pinned caps (4 windows), and a new OHR2 BSL refuse→ok semantics change
 (7 windows, ticket 797). Census on 947f4bb: 19 of 43 era scripts green
 (12 device-register + 7 re-pinned), 24 red, all reds explained and
 tracked; the audit's "25 timing-only" classification is superseded by
-the batch record.
+the batch record. The 797 attribution stage then corrected the B3
+reading with clean-build bisect probes (an earlier build-directory
+pollution caveat is recorded in the evidence addendum): no OHR2 device
+law ever flipped — the cold session's relocation is attributed to
+`cd1de52` (pure instruction-count movement at fixed virtual time) and
+the pinned refuse goldens relocate with the session (the device's
+refusal capability is intact; the boundary instructions no longer carry
+an OHR2 transaction at all), so the seven OHR2-era scripts re-derive
+mechanically with no engine change. That re-derivation then completed
+the same day (E-SAP239-OHR2-REPIN-001): all seven green twice
+byte-identically via first-appearance-cap advancement from a
+144-probe ±1 bisection, guards and census pins intact, no cap reaching
+the 796 wall; census now 26 of 43 era scripts green.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with

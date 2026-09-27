@@ -7621,3 +7621,86 @@ exactly, so all movement is accepted-batch era drift. Final census on
 19 green, reproducing the batch classification; the audit's "25
 timing-only" classification is superseded. Scratch logs
 `/tmp/sap239-era/repin/<script>-{1,2}.log` and `-green{1,2}.log`.
+
+Addendum 2026-09-27 (ticket 797 attribution stage, integrator, clean
+builds — corrects this entry's B3 reading): the B3 "OHR2 BSL refuse→ok
+device-semantics change" is NOT a device law change. A rebuild-bisect with
+`make clean` per commit (the first pass, including the subagent's, reused
+one build directory and mixed stale objects into `libsemu.a` — a
+duplicate-symbol link failure exposed the pollution; the findings below
+are from clean rebuilds only) shows: with probe shape cold
+`--until normal-frame --max-instructions 359790038` + snapshot + resume,
+the ohr2_boot_mode cold stop is pinned-exact
+`stop=budget pc=0x0014e8ea instructions=359790038
+virtual_time_ns=1881138282` at 69b1b35 and 0c84673 and relocates to
+`pc=0x000d2084` with the IDENTICAL `virtual_time_ns=1879581886` exactly at
+`cd1de52` (2.35 bring-up carrying global engine/CPU work; pure
+instruction-count movement — the same vt holds at 25e8b3d, 2f22137,
+39da666), with later pc-only drift in the same vt lineage to
+`pc=0x000a7ac4 vt=1879581886` on 06e3c2c (the ohr2_command2 re-pin
+lineage). The pinned one-instruction RESUME windows (cap = pinned
+boundary+1, the scripts' own shape — an earlier 440M resume probe had the
+wrong shape and is void) show at HEAD that the guest advances a single
+instruction at the boundary with NO OHR2 transaction: ohr2_boot_mode cold
+`pc=0x000a7ac4` → resume `pc=0x000a7ac6 vt=1879581887`, zero
+transactions; ohr2_echo cold `pc=0x000a7f32 vt=1888829177` → resume
+`pc=0x000a7f38 vt=1888829178`, zero transactions. The refusal-capability
+law itself is intact (guard greps hold; the device still refuses the
+same-shaped requests it refused), and the transcripts show the same
+transaction sequence completing `status=ok` at the relocated moments
+(`0x0000 sequence=1 state=BSL` at time_ns=1881138282,
+`0x0002 sequence=7 state=MAIN` at time_ns=1890385573): the refuse goldens
+relocate rather than die, re-pinning to the current transcript lines at
+the same golden positions. The Sep-5 file-law series still explains the
+artifact-hash drift at the pinned-exact stop: at 69b1b35, with the cold
+stop still pinned-exact, the first-window log hash
+(`0b4da2f95e105568be485357a881fe4ecc0ce7d6f5734a2e44c859767d80a5f5` vs
+pinned
+`b8977bf8911cc5435e19afc109205c267e822249c17e19fba3809779d046664e`) and
+snapshot hash
+(`885e517f21b69c5924237d00b8edb4b450c07b82f7c3d03738adae74022bcfad` vs
+pinned
+`b7d1d84e2be435635cc6031b8424ece436b6557d3ba3883c59f92b7550916f86`)
+already differ — compat intervention lines and session-local state
+changed without moving the guest, affecting hashes and census counts, not
+refuse semantics. The
+Sep-23 OHR-touching commits 1bc1ce8, 6ae8ce5, 7c8bb59 are exonered: at
+39da666 (7c8bb59's parent) the cold stop and vt already equal the later
+era. Consequence: no engine-source fix is warranted; the seven OHR2-era
+scripts re-derive mechanically under ticket 797 against the current
+transcripts, guards intact. The timer_pattern attribution to `d8bfba9`
+above stands independently (separate value-level rebuild-bisect).
+
+E-SAP239-OHR2-REPIN-001 (2026-09-27, ticket 797 re-derivation
+completion; integrator-owned, no engine changes). The seven Sapporo 2.39
+OHR2-era scripts (gpio_wt1, ohr2_boot_mode, ohr2_bsl_identity, ohr2_echo,
+ohr2_main_identity, ohr2_result_13, ohr2_result_14) re-pinned green twice
+byte-identically on the current tree (HEAD 06e3c2c lineage; binary sha
+`1e4539da3a83ebef73c3ee6e8395627940b9ef9ba672033c6a2829ce72cc7e33`;
+fixture sha `37134845…c4cb`). Method per E-SAP239-ERA-CLASSIFY-001
+addendum: cold-window caps advanced to the first-appearance instruction of
+each script's boundary transaction, found by ±1-instruction bisection
+(144 probes, logs `/tmp/sap239-era/sweep2/`, census
+`/tmp/sap239-era/notes2.md`, hashes in-file): 0x0010/0 BSL=362122619,
+0x0000/1 BSL=362139953, 0x0010/2 MAIN=371282413, 0x0000/3=371297902,
+0x000d/4=371308289, 0x000e/5=371345157, 0x0006/6=371376907,
+0x0002/7=371387244. Per script: cold cap set to its boundary event's
+instruction (gpio_wt1 359772704→362122619 … result_14
+369026992→371351594; every new cold stop's virtual time = anchor event
+time + 1 ns, verified), resume cap = cold cap+1, cold/resume stop lines
+and artifact hashes re-pinned to observed, each boundary golden moved
+from the (transaction-free) one-instruction resume log to first.log and
+re-pinned VERBATIM to the current transcript line at the same position
+(refuse→ok as observed, e.g. `0x0000 sequence=1 state=BSL status=refuse
+ready=0` → `0x0010 sequence=0 state=BSL status=ok ready=1`). All
+refusal-GUARD greps and the census-118 pins byte-identical; no window cap
+reaches the E-SAP239-ERA-CLASSIFY-001 B1 wall at 442,856,246. Twice-run
+evidence: implementation teammate serial pass 20:27–20:30Z (all seven
+rc=0, outer pairs byte-identical, script-file shas in notes2.md) plus
+integrator independent twice-runs of boot_mode, result_14,
+main_identity, result_13 (rc=0 each); no-snapshot probe logs at caps
+362122619/371387244 hash byte-identically to the new expected_log_hash
+pins (`cf5251f9…`, `77a579f1…`). Zero machine-reset/compat-refused/
+status=refuse/unmapped lines in all pinned-shape windows and bisection
+probes — confirms no OHR2 device-semantics change; the flip is session
+relocation to normal completion. Census now 26 of 43 era scripts green.

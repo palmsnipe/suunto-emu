@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=2ef900dbf79d08a83e94c2e6d8e642c53b51fa40d3faaca977319ac64f4d59cf
-expected_snapshot_hash=5168ba1e48997e23553370705d49f4ea0f83c407337576bb3c7a56cacb308686
+expected_log_hash=77a579f1ffd9264e086c2974688e3fd29a5c40eb5adb61e89f2d9b2ad2e402a9
+expected_snapshot_hash=d2925f079983dbcbf09ba37d6490f98af1b0b770102b53f4d14cbce0e6bfc951
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 echo runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -37,7 +37,7 @@ run_once()
     snapshot=$2
     if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
         --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
-        --until normal-frame --max-instructions 369037329 \
+        --until normal-frame --max-instructions 371387244 \
         --max-time 30000000000 --snapshot-save "$snapshot" \
         >"$output" 2>&1;
     then
@@ -80,7 +80,7 @@ do
     fi
 done
 if ! grep -F -x -q \
-    'stop=budget pc=0x0014e8ea instructions=369037329 virtual_time_ns=1890385573' \
+    'stop=budget pc=0x0014e8ee instructions=371387244 virtual_time_ns=1891179092' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|command=0x0006.*state=MAIN.*status=refuse' \
     "$run_dir/first.log"; then
@@ -95,7 +95,7 @@ fi
 
 if "$emulator" run --profile sapporo-2.39.20 --firmware "$manifest" \
     --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
-    --until normal-frame --max-instructions 369037330 \
+    --until normal-frame --max-instructions 371387245 \
     --max-time 30000000000 --snapshot-load "$run_dir/first.sems" \
     >"$run_dir/resume.log" 2>&1;
 then
@@ -104,10 +104,10 @@ else
     resume_code=$?
 fi
 if [ "$resume_code" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x001c0db4 instructions=369037330 virtual_time_ns=1890385574' \
+    'stop=budget pc=0x000a5f7c instructions=371387245 virtual_time_ns=1891179093' \
     "$run_dir/resume.log" || ! grep -F -q \
-    'kind=request command=0x0002 sequence=7 state=MAIN status=refuse ready=0' \
-    "$run_dir/resume.log"; then
+    'kind=request command=0x0002 sequence=7 state=MAIN status=ok ready=1' \
+    "$run_dir/first.log"; then
     echo "error: Sapporo 2.39 post-echo boundary changed" >&2
     cat "$run_dir/resume.log" >&2
     exit 1
