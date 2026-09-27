@@ -101,6 +101,21 @@ dependency list only if its runtime is bounded and fixture-clean locally.
 
 ## Tests and Commands
 
+Fixture provenance re-derived (2026-09-23, integrator): the volatile 2.39
+full-flash fixture was lost to a machine event and rebuilt byte-exactly from
+the recorded recipe (current-status 2.39 boundary section) plus the lane's
+read-only tools — `../suunto-firmware/tools/build_production_data_fixture.py`
+on the 2.22.60 application image (`component-04-type-4-v2.raw`, CRC table at
+`0x199EE8` VA) yields the synthetic 4 KiB manufacturing sector, then
+`component-05-type-1-v3.raw` (2.39, `0xFC1000` bytes) is placed at offset 0,
+FF-padded to 16 MiB with the sector patched at `0x00FFF000`, and FF-extended
+to 32 MiB; `shasum -a 256` again equals the pinned
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`. The
+first probe with the restored fixture (`file_seek`) passes the fixture gate
+and manifest validation and fails at artifact comparison — the expected
+PIN-DRIFT entry state; full six-script classification is queued on the final
+post-788 binary so display-side transcript movement is re-derived once.
+
 `SEMU_EMULATOR=$PWD/build/suunto-emu SEMU_FIRMWARE_MANIFEST=… SEMU_SAPPORO_239_FULL_FLASH=…
 TEST_PROFILE=sapporo-2.39.20 sh tests/integration/test_firmware_sapporo_239_<name>.sh`
 for each of the six names, twice each, exit 0 both times; `make check-era`
