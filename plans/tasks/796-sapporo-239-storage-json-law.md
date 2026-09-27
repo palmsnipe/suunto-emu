@@ -149,3 +149,27 @@ changes outside the compat layer named above.
 Integrator-created 2026-09-27 during the 777 classification batch: the six
 era scripts are blocked on exactly this law; everything else about the 777
 re-derivation is reproducible without it.
+
+## Implementation Note 2026-09-27 (awaiting integrator review)
+
+Evidence: E-SAP239-REPO38D123-001. Law: `storage/<key>/data.jsn` key =
+lowercased FNV-1 (prime-multiply-before-xor) of the lower-cased resource
+path; open admits only on guest mode 2 (write-create) with a fail-closed
+shape check; fixed 34-byte capacity (observed payloads end exactly at 34);
+append-only name table bounded by the handle index space (63 slots, file
+ids 12..74); repeat open reuses retained bytes; unknown mode-2 paths keep
+the verbatim refusal. Snapshot codec v2 (name table + present flags +
+payloads); v1 artifacts byte-identical; open storage handles legal only in
+v2. `ac100d90` key preimage not cracked (admitted by family shape, as
+evidence records). Unit coverage: shape refusals, mode-1 fallthrough,
+capacity boundary, pool exhaustion, reopen reuse, v2 round-trip
+(`test_sapporo_239_files`, 6/6 pass; `make test TEST_FILTER=sapporo_239`
+53/53; `make sanitize TEST_FILTER=sapporo_239_files` clean).
+Post-admission wall (from pre-wall save, cross-wall resume verified
+identical to direct runs): `stop=compat-refused pc=0x000920b4
+instructions=474153646 virtual_time_ns=2208268722 detail=unknown Sapporo
+2.39 writable file path` — NOT a storage path. Era scripts not re-pinned
+here; the 16 wall-entangled windows re-derive under 777. `make check`
+1015 PASS; baseline drift check (stashed vs new binary): no era script
+changed status from this implementation — the red set is identical to the
+pre-existing 16-window classification.

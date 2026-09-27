@@ -71,10 +71,11 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
 {
     char path[65];
     uint32_t mode = cpu->r[1];
-    s239_file_slot *file;
     s239_handle_slot *handle;
     uint8_t *allocation = NULL;
     int index;
+    int storage_slot = -1;
+    size_t capacity;
     if (read_path(bus, cpu->r[0], path, error) != SEMU_OK) return error->code;
     index = semu_s239_file_index(path);
     /* E-SAP-TIME-NATIVE-239-001: native storage retains this exact save. */
@@ -84,16 +85,42 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
     if (mode < 1u || mode > 3u)
         return refuse(error, "unknown Sapporo 2.39 file open mode");
     if (index < 0) {
-        if (mode == 2u)
+        /* E-SAP239-REPO38D123-001: admit the storage/<key>/data.jsn family
+           on its write-create open only (guest mode 2, observed value); the
+           path shape is validated fail-closed before any slot is created. */
+        if (mode == 2u && semu_s239_storage_path(path)) {
+            /* Native open semantics live in the admit scan: an admitted
+               name (present or closed) re-presents its slot; only a new
+               name appends. */
+            storage_slot = semu_s239_storage_admit(files, path);
+            if (storage_slot == -(int)SEMU_ERR_STATE)
+                return refuse(error,
+                    "invalid Sapporo 2.39 storage path shape");
+            if (storage_slot == -(int)SEMU_ERR_NOMEM) {
+                semu_error_set(error, SEMU_ERR_NOMEM,
+                    "cannot allocate Sapporo 2.39 storage file");
+                return SEMU_ERR_NOMEM;
+            }
+            if (storage_slot < 0)
+                return refuse(error,
+                    "Sapporo 2.39 storage slot pool exhausted");
+            index = semu_s239_storage_index(files, path);
+        } else if (mode == 2u) {
             return refuse(error, "unknown Sapporo 2.39 writable file path");
-        return SEMU_OK;
+        } else {
+            return SEMU_OK;
+        }
     }
-    file = &files->files[index];
-    if (!file->present && mode != 2u) return SEMU_OK;
+    if (storage_slot < 0 &&
+        index < (int)S239_FILE_COUNT && !files->files[index].present &&
+        mode != 2u)
+        return SEMU_OK;
     if (files->next_handle >= S239_FILE_MAX_HANDLES)
         return refuse(error, "Sapporo 2.39 logical handle pool exhausted");
-    if (!file->present && semu_s239_file_capacities[index] != 0u) {
-        allocation = (uint8_t *)calloc(semu_s239_file_capacities[index], 1u);
+    capacity = semu_s239_file_capacity(files, (uint32_t)index);
+    if (storage_slot < 0 && index < (int)S239_FILE_COUNT &&
+        !files->files[index].present && capacity != 0u) {
+        allocation = (uint8_t *)calloc(capacity, 1u);
         if (allocation == NULL) {
             semu_error_set(error, SEMU_ERR_NOMEM,
                            "cannot allocate Sapporo 2.39 logical file");
@@ -101,13 +128,25 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
         }
     }
     if (hit(layer, logger, error) != SEMU_OK) {
+        s239_storage_slot *undo_slot;
         free(allocation);
+        if (storage_slot >= 0) {
+            /* Undo the admission: free payload bytes but keep the name
+               and the append-only name-table extent. */
+            undo_slot = &files->storage[
+                (size_t)(storage_slot - (int)S239_FILE_COUNT)];
+            free(undo_slot->data);
+            undo_slot->data = NULL;
+            undo_slot->size = 0u;
+            undo_slot->present = 0;
+        }
         return error->code;
     }
-    if (!file->present) {
-        file->data = allocation;
-        file->size = 0u;
-        file->present = 1;
+    if (storage_slot < 0 && index < (int)S239_FILE_COUNT &&
+        !files->files[index].present) {
+        files->files[index].data = allocation;
+        files->files[index].size = 0u;
+        files->files[index].present = 1;
     }
     handle = &files->handles[files->next_handle];
     handle->value = S239_FILE_HANDLE_BASE + files->next_handle *
@@ -171,14 +210,33 @@ static semu_status stage_write(size_t capacity,
     return SEMU_OK;
 }
 
-static semu_status validate_read(const s239_file_slot *file,
+/* Unified view over a fixed-table slot or an admitted storage slot.
+   The size pointer targets the owning slot's own size field. */
+typedef struct s239_slot_view {
+    uint8_t *data;
+    size_t *size;
+} s239_slot_view;
+
+static void slot_view(semu_sapporo_239_files *files, uint8_t file_index,
+                      s239_slot_view *view)
+{
+    if (file_index < S239_FILE_COUNT) {
+        view->data = files->files[file_index].data;
+        view->size = &files->files[file_index].size;
+    } else {
+        view->data = files->storage[file_index - S239_FILE_COUNT].data;
+        view->size = &files->storage[file_index - S239_FILE_COUNT].size;
+    }
+}
+
+static semu_status validate_read(const s239_slot_view *file,
                                  const s239_handle_slot *handle,
                                  semu_bus *bus, const semu_cpu_state *cpu,
                                  uint32_t *result, semu_error *error)
 {
     uint32_t i;
-    size_t available = handle->cursor < file->size
-        ? file->size - handle->cursor : 0u;
+    size_t available = handle->cursor < *file->size
+        ? *file->size - handle->cursor : 0u;
     *result = cpu->r[2] < available ? cpu->r[2] : (uint32_t)available;
     if (*result == 0u) return SEMU_OK;
     if (cpu->r[1] > UINT32_MAX - (*result - 1u))
@@ -194,34 +252,37 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
                                 semu_logger *logger, semu_error *error)
 {
     s239_handle_slot *handle = semu_s239_find_handle(files, cpu->r[0]);
-    s239_file_slot *file;
-    size_t capacity;
+    s239_slot_view file;
+    size_t capacity, file_size;
     uint32_t result = 0u;
     uint32_t new_cursor;
     const char *operation;
     uint8_t *chunk = NULL;
     semu_status status = SEMU_OK;
+    char name[65];
     if (handle == NULL) {
         if (synthetic_handle_value(cpu->r[0]))
             return refuse(error, "unknown Sapporo 2.39 logical handle");
         return SEMU_OK;
     }
-    file = &files->files[handle->file];
-    capacity = semu_s239_file_capacities[handle->file];
+    slot_view(files, handle->file, &file);
+    capacity = semu_s239_file_capacity(files, handle->file);
+    file_size = *file.size;
+    semu_s239_slot_name(files, handle->file, name);
     new_cursor = handle->cursor;
     if (cpu->r[15] == FILE_CLOSE) { operation = "close"; result = 1u; }
     else if (cpu->r[15] == FILE_TELL) { operation = "tell"; result = handle->cursor; }
     else if (cpu->r[15] == FILE_FLUSH) { operation = "flush"; }
     else if (cpu->r[15] == FILE_SIZE) {
-        operation = "size"; result = (uint32_t)file->size;
+        operation = "size"; result = (uint32_t)file_size;
     }
     else if (cpu->r[15] == FILE_TRUNCATE) {
         operation = "truncate";
-        if (handle->cursor > file->size)
+        if (handle->cursor > file_size)
             return refuse(error, "truncate cursor exceeds Sapporo 2.39 file");
     } else if (cpu->r[15] == FILE_SEEK) {
         operation = "seek";
-        status = seek_cursor(handle, file->size, capacity, cpu, &new_cursor,
+        status = seek_cursor(handle, file_size, capacity, cpu, &new_cursor,
                              error);
         if (status == SEMU_OK) result = cpu->r[1]; /* Native wrapper ABI. */
     } else if (cpu->r[15] == FILE_WRITE) {
@@ -230,7 +291,7 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
         if (status == SEMU_OK) new_cursor = handle->cursor + result;
     } else {
         operation = "read";
-        status = validate_read(file, handle, bus, cpu, &result, error);
+        status = validate_read(&file, handle, bus, cpu, &result, error);
         if (status == SEMU_OK) new_cursor = handle->cursor + result;
     }
     if (status != SEMU_OK) { free(chunk); return status; }
@@ -238,25 +299,23 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
     if (cpu->r[15] == FILE_CLOSE) {
         handle->active = 0;
     } else if (cpu->r[15] == FILE_TRUNCATE) {
-        if (file->data != NULL && handle->cursor < file->size)
-            memset(file->data + handle->cursor, 0,
-                   file->size - handle->cursor);
-        file->size = handle->cursor;
+        if (file.data != NULL && handle->cursor < file_size)
+            memset(file.data + handle->cursor, 0, file_size - handle->cursor);
+        *file.size = handle->cursor;
     } else if (cpu->r[15] == FILE_SEEK) {
         handle->cursor = new_cursor;
     } else if (cpu->r[15] == FILE_WRITE) {
-        if (handle->cursor > file->size)
-            memset(file->data + file->size, 0,
-                   handle->cursor - file->size);
+        if (handle->cursor > file_size)
+            memset(file.data + file_size, 0, handle->cursor - file_size);
         if (result != 0u)
-            memcpy(file->data + handle->cursor, chunk, result);
+            memcpy(file.data + handle->cursor, chunk, result);
         handle->cursor = new_cursor;
-        if (file->size < new_cursor) file->size = new_cursor;
+        if (file_size < new_cursor) *file.size = new_cursor;
     } else if (cpu->r[15] == FILE_READ) {
         uint32_t i;
         for (i = 0u; i < result; ++i)
             if (semu_bus_write(bus, cpu->r[1] + i, 1u,
-                    file->data[handle->cursor + i], error) != SEMU_OK) {
+                    file.data[handle->cursor + i], error) != SEMU_OK) {
                 free(chunk);
                 return error->code;
             }
@@ -264,8 +323,8 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
     }
     semu_log_write(logger, SEMU_LOG_WARNING, "compat", "logical-file",
         "operation=%s path=%s result=%u size=%u cursor=%u",
-        operation, semu_s239_file_paths[handle->file], (unsigned)result,
-        (unsigned)file->size, (unsigned)handle->cursor);
+        operation, name, (unsigned)result, (unsigned)*file.size,
+        (unsigned)handle->cursor);
     free(chunk);
     return_from_hook(cpu, result);
     return SEMU_OK;

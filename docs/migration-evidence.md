@@ -7744,3 +7744,69 @@ consistent with the read-only lane note
 that native `storage/` opens sit beyond the WbStoPreload boundary; ticket
 796's unblock list therefore grows from 13 to 16 windows. Census stands
 at 27 of 43 era scripts green (26 + file_size).
+
+E-SAP239-REPO38D123-001 (2026-09-27, ticket 796; offline RE under the
+owner-approved evidence class plus deterministic post-admission
+capture). Inputs: the pinned 2.39 application partition extracted
+read-only from the fixture full flash
+(`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`,
+offset/census per E-SAP-COMPAT-FILES-239-001) as
+`/tmp/sap239-era/re796/app.raw` (sha256
+`85dcf109cb7a39f811dafc9553ac79d3b8c40159ab007f609427267b95e21b89` —
+byte-identical to the manifest `application` component hash), analyzed
+with Ghidra (headless, per the `../suunto-firmware/artifacts/analysis`
+conventions) plus deterministic emulator captures
+(`suunto-emu` at f413e23, fixture above). Findings, twice-reproduced:
+(1) `storage/<key>/data.jsn` names carry a 6-hex-digit key produced by
+FNV-1 (prime multiply BEFORE xor: `h=(h*0x01000193)^byte`, initial
+0x811c9dc5, 32-bit wrap) over the lower-cased Whiteboard resource path,
+printed unpadded (`%x`); verified
+`fnv1("/multiple/alarmclock/list") == 38d123` and the four preload
+keys `/settings/zapp/watchface/id→e0759d86`,
+`/settings/ui/watchfacenumber→c459d94`, `/storage/widgets→7ab0dd65`,
+`/settings/ui/dailytheme/default→72be7c7f`. (2) The builder at
+0x00198960 composes `<dir>/<name>/data.jsn` (format `'%s%x'` plus the
+literal `'/data.jsn'`, single cross-reference) and the REPO driver
+0x00198a34 → 0x198e22 thunk reaches the FOPEN shim 0x000c98d4 (maps
+stack booleans to mode bits `[sp+4]→1, [sp+5]→2, [sp+6]→4; asserts
+file.cpp:0x40d), whose `bl 0x920b4` sits at 0x000c98fa; at the
+E-SAP-0045-class wall the CPU shows R0=0x10024374=path, R1=2
+(write-create), SP=0x10024330, matching the admission mode. (3) Guest
+payload census from the admission run (five reproductions, storage
+census-identical: `p2-run1.log` = `p2-run2.log`, sha256
+`69f254483258b299ee84632556c734bf0076f25dfbb405b0fb221fd1dee9b5c4`, on
+the pre-implementation binary; `final-p2.log` = `final-p2b.log` =
+`final3-p2.log` = `final4-p2.log`, sha256
+`a1e305b594d06e1d5874b729ba9f0b0e242e4bd516cee5e0e8427e842fab30af`, on
+the implemented binary; full-log op census of the latter: 36 opens / 36
+closes / 36923 reads / 36946 seeks / 2312 writes / 16 tells / 4 sizes /
+1 flush, of which the storage family is exactly 4 opens / 8 writes / 4
+closes, zero reads/truncates/flushes):
+storage/38d123 write 32 + write 2 → size 34 (`{"alarmCount":0,
+"alarmArray":[]}\r\n`, matching the 34-byte spaced/compact forms in
+run1.sems at file offsets 2221257/4076503/2247761), storage/ac100d90
+5+2 → 7 (`false\r\n`), storage/c459d94 10+2 → 12 (`2444521626\r\n`),
+storage/faed64e2 27+2 → 29 (`{"arrayData":[-1256744450]}\r\n`); every
+sequence ends exactly at 34 = the observed capacity ceiling, and the
+key census below the stop is exactly these four names; `ac100d90` is
+not the FNV-1 of any resource path tried (its builder-site input was
+not captured below the wall — admitted by family shape, not by key).
+(4) Post-admission capture from a pre-wall save (cap 442856240) loaded
+and run to the next refusal: stop unchanged in kind
+`stop=compat-refused pc=0x000920b4 instructions=474153646
+virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
+path` — the next unmodeled write at the new wall, NOT a storage path:
+admission converts the first wall into four write-create sessions plus
+one later unknown path; the storage family itself never re-refuses.
+Implementation law (src/compat/sapporo_239_files*): dynamic slots
+admitted ONLY on guest mode 2 when the path matches
+`storage/<lowercase-hex>/data.jsn` (fail-closed shape check before any
+slot), 34-byte capacity, native open semantics on the append-only name
+table (an admitted name re-presents its slot closed or open; pool
+exhaustion refuses), 63-name pool (handle index space is the bound:
+file ids 12..74, uint8 field); snapshot codec v2 section = count + per
+name (present u8, name u32 length + bytes, size u32, payload when
+present); v1 artifacts byte-identical, open storage handles legal only
+in v2; capacity-overflow writes follow the shared writer's
+stage-then-commit law (observed sequences never exceed capacity).
+Unknown writable paths keep the historical refusal message verbatim.

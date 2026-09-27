@@ -115,7 +115,15 @@ the 796 wall; census now 26 of 43 era scripts green. The B2 cap stage
 preload1, and logical_files wall-entangled negatives — their asserted
 events occur nowhere below the 796 wall — folding them into ticket 796's
 unblock list (13→16 windows); census 27 of 43 green, all 16 reds
-explained and tracked.
+explained and tracked. The 796 storage law then implemented
+(E-SAP239-REPO38D123-001): mode-2 admission of the
+`storage/<fnv1-hex>/data.jsn` family (34-byte capacity, 63-slot
+append-only-name pool, snapshot codec v2 with v1 byte-exact), moving
+the 2.39 wall from 442856246/2176971322 to the next unknown writable
+path at `stop=compat-refused pc=0x000920b4
+instructions=474153646 virtual_time_ns=2208268722`; pre-wall and
+cross-wall snapshot resumes verified equivalent to direct runs; era
+re-derivation of the 16 wall-entangled windows follows under 777.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
