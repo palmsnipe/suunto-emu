@@ -79,7 +79,16 @@ era set (same-day ticket-777 audit on a from-pin rebuilt full-flash
 fixture): 12 gates pin-held, 25 timing-only re-pin candidates, 0
 unexplained failures, 6 environment-blocked re-runs owed, and one
 green-to-red flip (`timer_pattern`) awaiting rebuild-bisect — re-pins
-tracked in ticket 777, none applied silently.
+tracked in ticket 777, none applied silently. The queued final-binary
+classification (E-SAP239-ERA-CLASSIFY-001, 2026-09-27, on 7984ebd)
+reproduced the census with zero new classes and established the root
+cause of the six environment-blocked scripts: every GPS/settings window
+ends at a fail-closed mode-2 refusal of the unmodeled native storage
+write `storage/38d123/data.jsn` (pc 0x920b4, 446,660,148 instructions /
+2.83 s) — tracked as new ticket 796, goldens NOT weakened into it; the
+three GPS snapshot inspectors were fixed to register the 791-era display
+snapshot codec, and the 25 timing-only scripts are being re-derived on
+this binary with twice-identical runs.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with

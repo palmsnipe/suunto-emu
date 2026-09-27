@@ -7547,3 +7547,48 @@ nema_tsc6a_raster.c 711 lines); red evidence
 bounce-family admission, the two one-ULP matrix alternates, and the
 extended refusal diagnostics only; the vertical-scroll family, the
 composer matmult flag, and src_sampling stay UNCONFIRMED gaps.
+
+
+E-SAP239-ERA-CLASSIFY-001 (2026-09-27, ticket 777 final-binary
+classification; integrator-owned, no engine changes). `make check-era` on
+HEAD 7984ebd with fixture sha re-verified
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb` and the
+pinned manifest: 12 of 43 era scripts green — exactly the audit's
+device-register pin-held family (chip_identity, ctimer7_intclr,
+ctimer7_inten, nor_program, power, profile, rstgen, timer_outcfg26,
+usb_clkctrl, watchdog_inten, watchdog_restart, watchdog) — and 31 red with
+no new drift class versus the 2026-09-23 audit census.
+
+Six-script root cause (twice-identical per script, plus a manual
+reproduction): every gps_awake/gps_reopen/gps_startup/gps_five/
+general_budget/personal_budget window ends
+`compat-refused pc=0x000920b4 instructions=446660148
+virtual_time_ns=2831939375 detail=unknown Sapporo 2.39 writable file
+path`. The refused path was captured with a temporary diagnostic (applied,
+one run, reverted; `src/` clean at commit time):
+`storage/38d123/data.jsn`, open mode 2 — a native storage JSON write
+outside `semu_s239_file_paths`. The refusal is correct fail-closed
+behavior for an unmodeled path; the six scripts' choreography goldens
+(awake 32.7 s, five-pulse 37.9 s, settings budgets) are unreachable past
+2.83 s guest time under the current law, so they are NOT re-pinned — that
+would weaken them. Tracked as new ticket 796 (native storage JSON write
+law). Census of the six classification runs:
+`/tmp/sap239-era/classify-<name>-{1,2}.log` twice-identical each;
+`general_budget`/`five` END tuples agree with the manual awake window at
+the same refusal tuple (446660148 / 2831939375 / pc 0x920b4).
+
+Snapshot-inspector drift (the gps_awake/reopen/startup first-failure
+layer): ticket 791 added a display snapshot section (codec id
+`0x4e454d41`) to machine snapshots, while the three 2.39 GPS snapshot
+inspectors created machines without the codec — read_display refused with
+`snapshot display backend identity differs` and the awake save path with
+`display backend has no snapshot codec`. Fix (777 scope add): register the
+CLI's backend + codec in the three inspectors. Verified by loading a real
+446M-state `.sems` through all three round-trips. The failure moved to the
+pinned-stop-line greps, as expected with the storage-law blocker in place.
+
+Remaining 25 red scripts match the audit's timing-only/stale-artifact
+classes and are re-derived on this final binary in the same batch, twice
+per script, reported separately. Scope: authorizes the inspector codec
+registration, the classification census, and ticket 796; authorizes no
+compat-law extension and no re-pin of the six blocked scripts.

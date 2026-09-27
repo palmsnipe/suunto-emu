@@ -158,3 +158,4 @@ id	phase	title	status	dependencies	ticket
 793	7	Sapporo 2.35 TSC6A Compressed Texture Runtime Integration	done	504,513,761,788	plans/tasks/793-sapporo-235-compressed-texture-runtime.md
 794	7	Sapporo 2.35 Main-Screen Settling And Button Navigation	done	504,513,761,789,793	plans/tasks/794-sapporo-235-main-screen-navigation.md
 795	7	Sapporo 2.33.16 First-Fault Attribution And Boot Refusal Closure	done	504,513,761,762,764	plans/tasks/795-sapporo-233-first-fault-attribution.md
+796	7	Sapporo 2.39 Native Storage JSON Write Law	ready	777	plans/tasks/796-sapporo-239-storage-json-law.md

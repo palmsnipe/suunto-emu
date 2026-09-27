@@ -201,6 +201,10 @@ static int inspect(const char *manifest, const char *flash, const char *path,
     semu_log_init(&logger, NULL, SEMU_LOG_ERROR); o.logger = &logger;
     o.layers = layers; o.layer_count = 4u;
     o.display_backend = &semu_nema_backend_ops; o.display_backend_context = backend;
+    /* Ticket 791 added the display section to machine snapshots; this
+     * production machine must register the same codec as the CLI so the
+     * section round-trips instead of refusing (ticket 777 classification). */
+    o.display_snapshot = &semu_nema_backend_snapshot_ops;
     m = semu_machine_create(&o, &e); s = semu_snapshot_create(&e);
     if (!m || !s || semu_cli_snapshot_load_file(path, s, &e) != SEMU_OK ||
         semu_machine_snapshot_load(m, s, &e) != SEMU_OK) goto done;

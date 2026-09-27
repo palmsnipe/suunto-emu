@@ -2,6 +2,7 @@
 #include "semu/hash.h"
 #include "../../src/boards/machine_internal.h"
 #include "../../src/devices/sapporo_devices_internal.h"
+#include "../../src/display/nema_backend.h"
 #include "../../src/frontends/cli_snapshot.c"
 
 static semu_machine *synthetic_machine(char path[128], semu_logger *logger, semu_error *e)
@@ -232,6 +233,7 @@ static int inspect(const char *manifest, const char *flash, const char *path)
     semu_machine_options o = {0};
     semu_machine *m = NULL;
     semu_snapshot *s = NULL;
+    semu_nema_backend *backend = NULL;
     semu_error e;
     uint8_t digest[SEMU_SHA256_SIZE];
     semu_logger logger;
@@ -249,6 +251,13 @@ static int inspect(const char *manifest, const char *flash, const char *path)
     o.profile = &p; o.firmware = &fw; o.external_flash_path = flash;
     semu_log_init(&logger, NULL, SEMU_LOG_ERROR); o.logger = &logger;
     o.layers = layers; o.layer_count = 3u;
+    /* Ticket 791 added the display section to machine snapshots; this
+     * load-only verifier must mirror the CLI's backend + codec registration
+     * so the section resolves instead of refusing (ticket 777
+     * classification). */
+    backend = semu_nema_backend_create(&e); if (!backend) goto done;
+    o.display_backend = &semu_nema_backend_ops; o.display_backend_context = backend;
+    o.display_snapshot = &semu_nema_backend_snapshot_ops;
     m = semu_machine_create(&o, &e); s = semu_snapshot_create(&e);
     if (!m || !s || semu_cli_snapshot_load_file(path, s, &e) != SEMU_OK ||
         semu_machine_snapshot_load(m, s, &e) != SEMU_OK) goto done;
@@ -282,6 +291,7 @@ static int inspect(const char *manifest, const char *flash, const char *path)
 done:
     if (result) fprintf(stderr, "%s\n", e.text);
     semu_snapshot_destroy(s); semu_machine_destroy(m);
+    semu_nema_backend_destroy(backend);
     return result;
 }
 

@@ -202,6 +202,7 @@ check-era: all
 		if ! TEST_PROFILE=sapporo-2.39.20 \
 			SEMU_EMULATOR="$(BUILD_DIR)/suunto-emu" \
 			SEMU_FIRMWARE_MANIFEST="$$manifest" \
+			SEMU_SAPPORO_239_FULL_FLASH="$$SEMU_SAPPORO_239_FULL_FLASH" \
 			sh "$$script"; \
 		then \
 			echo "ERA-FAIL $$script"; \

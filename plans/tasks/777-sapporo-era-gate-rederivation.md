@@ -140,3 +140,31 @@ fixture or manifest, no claims about the Sapporo 2.35 profile.
 Report per-script old→new pin tables with the two-run proof, the `check-era`
 runtime, evidence entry IDs, and any script whose drift class turns out not to
 match E-ULS-0041 attribution (which would open a new gap instead of a re-pin).
+
+## Integrator classification (2026-09-27, final post-788 binary 7984ebd)
+
+The queued final-binary classification ran as `make check-era` on 7984ebd
+(census `/tmp/sap239-era/check-era-1.log`, fixture sha re-verified
+`37134845…`): 12 of 43 green — exactly the audit's device-register pin-held
+family (chip_identity, ctimer7_intclr, ctimer7_inten, nor_program, power,
+profile, rstgen, timer_outcfg26, usb_clkctrl, watchdog_inten,
+watchdog_restart, watchdog); 31 red with NO new drift class since the
+audit. Root cause of the six environment-blocked scripts established: every
+GPS/settings window ends at
+`compat-refused pc=0x000920b4 instructions=446660148 virtual_time_ns=2831939375
+detail=unknown Sapporo 2.39 writable file path`; the refused path,
+captured 2026-09-27 with a temporary (applied, run, reverted) diagnostic is
+`storage/38d123/data.jsn` mode 2 — an unmodeled native storage JSON write.
+The refusal is correct fail-closed law; the six scripts are blocked on new
+ticket 796 and are NOT re-pinned (that would weaken their choreography
+goldens). Secondary fix applied in this batch: the three 2.39 GPS snapshot
+inspectors (`tests/unit/test_sapporo_239_gps_awake_snapshot.c`,
+`test_sapporo_239_gps_reopen_snapshot.c`, `test_sapporo_239_gps_snapshot.c`)
+registered the display snapshot codec the CLI uses, mirroring ticket 791's
+snapshot format — with it, a real 446M-state `.sems` loads and verifies
+(all three inspector round-trips green). The remaining 25 timing-only
+re-pin candidates are being re-derived on this final binary with
+twice-identical runs per script; `timer_pattern` keeps its
+rebuild-bisect-before-re-pin requirement. Scope add (integrator, 2026-09-27):
+the three inspector sources above are in-scope for this ticket as the
+smallest change making the six scripts runnable at all.
