@@ -3548,6 +3548,23 @@ instruction `0x72f52` is the formerly-pinned E-CPU-0011 wall (fixed
 5d013da). Lane corroboration: innermost ring frame `0x72ee8–0x72f82`,
 ring sha `7519e5b1…` twice.
 
+Twice-pinned emulator goldens (post-EXT4, nav tool
+`tools/test_sdl_sapporo_235_nav.sh`, transcripts baseline `a4a04c53…`,
+lower `d250b0ac…`, upper `3e50cabe…`, each twice byte-identical,
+integrator-completed capture after the implementing instance stalled):
+MIDDLE inert (post-EXT4 tick pattern runs to the natural quit, 5 tail
+polls), LOWER produces a REPAINT STALL — one more tick member settles at
+step 26 (gen 4112/7ef957e9) then the guest publishes no frame ever again
+(stop=budget pc=0x000e1862, instructions 8000564488 byte-identical to
+the pre-EXT4 capture; 7 polls), UPPER NAVIGATES — the off-pattern frame
+9b554fd9 settles at step 28 (crc unchanged from the pre-EXT4 capture)
+before the E-SAP-0041 fixture ceiling (stop=compat-refused pc=0x001be85a
+instructions=8896815435, 3 polls; the navigation frame crc and both stop
+lines are byte-identical pre/post EXT4, isolating the accent raster as
+content-only). These rows are OBSERVATION-ONLY per the golden policy;
+the guest-side stall/navigation asymmetry (U-gap territory: idx→
+direction mapping) is recorded, not authorized as firmware semantics.
+
 Scope: authorizes the emulator button mapping and button-navigation
 goldens that claim ONLY the backed law above. Per-key visible-region
 effects, MIDDLE inertness on the 2.35 main screen (lane-observed inert,

@@ -156,5 +156,5 @@ id	phase	title	status	dependencies	ticket
 791	7	Renderer Snapshot and Interactive Restore Integration	done	513,615,761	plans/tasks/791-renderer-snapshot-integration.md
 792	7	Sapporo 2.35 Live Device Snapshot Codec Integration	ready	615,791	plans/tasks/792-sapporo-235-device-snapshot.md
 793	7	Sapporo 2.35 TSC6A Compressed Texture Runtime Integration	done	504,513,761,788	plans/tasks/793-sapporo-235-compressed-texture-runtime.md
-794	7	Sapporo 2.35 Main-Screen Settling And Button Navigation	in-progress	504,513,761,789,793	plans/tasks/794-sapporo-235-main-screen-navigation.md
+794	7	Sapporo 2.35 Main-Screen Settling And Button Navigation	done	504,513,761,789,793	plans/tasks/794-sapporo-235-main-screen-navigation.md
 795	7	Sapporo 2.33.16 First-Fault Attribution And Boot Refusal Closure	done	504,513,761,762,764	plans/tasks/795-sapporo-233-first-fault-attribution.md

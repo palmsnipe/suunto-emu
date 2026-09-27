@@ -1,6 +1,6 @@
 # 794 — Sapporo 2.35 Main-Screen Settling And Button Navigation
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,761,789,793
 
@@ -233,11 +233,27 @@ Instructions and virtual time `9487528672`/`37414100700` are unchanged —
 pure display gain with zero CPU-timeline perturbation. Compressed
 Section 3 re-derived to the EXT4 state (twice, integrator); `make
 check`, `make sanitize` green; ledger entry E-SAP-0041-EXT4 records the
-census, tooling, and scope. Remaining for acceptance: (3) button
-navigation acceptance across the settled main screen — slice in flight
-(nav tool per E-SAP-BUTTONS-001 golden policy); (4) parse-level refusal
-CPU-invisibility known-divergence recorded in the ledger, deliberately
-out of scope.
+census, tooling, and scope.
+
+Button-navigation goldens landed (2026-09-23, implementing instance
+designed the three-window tool; integrator completed the capture after
+the instance stalled mid-re-pin, post-EXT4 re-derivation):
+`tools/test_sdl_sapporo_235_nav.sh` pins three twice-byte-identical
+windows on the settling main screen — MIDDLE inert (natural quit, 5
+polls), LOWER repaint-stall (step 26 last frame, stop=budget
+pc=0x000e1862, 7 polls), UPPER navigates (off-pattern frame 9b554fd9 at
+step 28, then the E-SAP-0041 fixture ceiling, 3 polls) — under the
+E-SAP-BUTTONS-001 golden policy (backed dispatch law; per-key rows
+OBSERVATION-ONLY). The navigation frame crc and both non-user stop
+lines are byte-identical pre/post EXT4, isolating the accent raster as
+content-only. The LOWER stall asymmetry is recorded in the BUTTONS-001
+entry as an observation, not firmware semantics (U-gap: idx→direction).
+The parse-level refusal CPU-invisibility known-divergence stays recorded
+in the ledger, deliberately out of scope. Remaining for acceptance:
+this batch's tool gate green; then the acceptance conditions (reset
+attribution via RINGKICK, main persistence via the natural terminal,
+observed navigation transition via the UPPER window) are met and the
+ticket closes.
 
 ## Acceptance
 
