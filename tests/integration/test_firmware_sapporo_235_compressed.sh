@@ -46,11 +46,14 @@ else
         SEMU_TSC6A_FIXTURE="$run_dir/fixture.bin" \
         SEMU_TSC6A_REFERENCE="$reference" \
             "$expand_test" > "$run_dir/golden.log" 2>&1
-        tail -1 "$run_dir/golden.log" | grep -qx '7 tests, 0 failed'
+        # Ticket 788 added three synthetic admission cases to the expand
+        # suite (7 -> 10); the '0 failed' semantics are unchanged.
+        tail -1 "$run_dir/golden.log" | grep -qx '10 tests, 0 failed'
         echo 'PASS compressed golden expansion matches decode-1.bin'
     else
         "$expand_test" > "$run_dir/golden.log" 2>&1
-        tail -1 "$run_dir/golden.log" | grep -qx '7 tests, 0 failed'
+        # Same additive-count re-pin as the reference branch above.
+        tail -1 "$run_dir/golden.log" | grep -qx '10 tests, 0 failed'
         echo 'SKIP compressed golden reference absent (synthetic cases ran)'
     fi
 fi
@@ -89,17 +92,29 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # resolve refusals carry it, every other tuple predicate already passed)
 # admits it to the tsc6a ACCENT predicate: the 124 unsupported-resolve
 # refusals are gone and their draws RASTER (host-side only — guest
-# instructions and virtual time are unchanged).  The remaining window
-# refusals are exactly the 103 compressed-source 60x60 ones (ticket 788
-# codec family, fail-closed, zero resets).  With the E-SAP-0041-EXT3
+# instructions and virtual time are unchanged).  The ticket-788 codec
+# (E-SAP-0041-EXT6, offline RE per the 2026-09-23 owner decision) then
+# admits the 103 draw-refused bounce quads: the eased horizontal bounce
+# RASTERS host-side and the window ends with ZERO GPU refusals and zero
+# resets.  Residual census: a twice-reproduced intermediate walk pair
+# showed exactly 9 census rows still refusing on one-ULP binary32
+# roundings of the pinned matrix constants (mm11 0x3f7fffff on the
+# width-43 wall draws, mm12 0xc2b40001 on width-1/2/4/8 draws; mm02
+# keeps obeying 60-rect_x1 exactly); those two observed bit values are
+# admitted alternates in the shape predicate, named
+# TSC6A_MATRIX_ONE_ALT / TSC6A_MATRIX_TY0_ALT.  With the E-SAP-0041-EXT3
 # lane-law poll tail (ticket 710 slice 4) the walk still terminates
-# NATURALLY: stop=user at the scripted quit, steps 24-31 settling on the
-# main screen (from step 25 the accent-tinted element contributes: crc
-# alternates 7ef957e9 with a43f1010/ddbafcf2/636e9f75; step 24
-# 3991/1c1f9064 is unchanged from the pre-EXT4 window), zero resolve
-# refusals, zero resets.  Re-derived 2026-09-23 from paired byte-
-# identical runs (transcript sha
-# a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42),
+# NATURALLY: stop=user at the scripted quit, instructions and virtual
+# time byte-identical to the pre-788 pin, steps 24-31 settling on the
+# main screen (step 24 3991/1c1f9064 and step 25 4000/74e8d4f5 are
+# unchanged from the pre-788 window; from step 26 the bounce contributes:
+# the 7ef957e9 alternates recur at 26/28/30 with generations 4131/4389/
+# 4646, and the tick members move to 4258/aec1d3a0, 4515/cf8a4285,
+# 4770/0a576ff1; settled generations drift as the bounce consumes GPU
+# frames, host-side only), zero resolve refusals, zero resets.  Re-derived
+# 2026-09-27 from paired byte-identical runs on the final binary
+# (transcript sha
+# c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e),
 # integrator-reproduced on a fresh build.
 sdl_emulator="$(dirname "$emulator")/suunto-emu-sdl"
 if [ ! -x "$sdl_emulator" ]; then
@@ -127,29 +142,32 @@ grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=74e8d4f5' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=26 generation=4112 crc32=7ef957e9' \
+grep -Fqx 'SDL live test settled step=26 generation=4131 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=27 generation=4224 crc32=a43f1010' \
+grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=aec1d3a0' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=29 generation=4446 crc32=ddbafcf2' \
+grep -Fqx 'SDL live test settled step=28 generation=4389 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=31 generation=4667 crc32=636e9f75' \
+grep -Fqx 'SDL live test settled step=29 generation=4515 crc32=cf8a4285' \
+    "$run_dir/main-1.log"
+grep -Fqx 'SDL live test settled step=30 generation=4646 crc32=7ef957e9' \
+    "$run_dir/main-1.log"
+grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=0a576ff1' \
     "$run_dir/main-1.log"
 grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/main-1.log"
-# GPU refusals in this window are GPU-side only (zero faults/resets;
-# E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001).  After the ticket-794
-# resolve-law extension (E-SAP-0041-EXT4) the accent-tinted resolve
-# children raster, so exactly the 103 compressed-source 60x60 repaint
-# refusals remain while the main screen settles (ticket 788 family);
-# the terminal is the scripted user quit.
+# GPU refusals in this window are gone: the ticket-788 codec family
+# (E-SAP-0041-EXT6, twice-reproduced census and residual one-ULP law)
+# admits every bounce quad, so the main screen settles with ZERO
+# draw-refused events and zero faults/resets; the terminal is the
+# scripted user quit.
 if grep -q 'nema_tsc6a: unsupported resolve state' "$run_dir/main-1.log"; then
     echo 'FAIL: resolve-state refusals returned after the EXT4 extension'
     exit 1
 fi
-[ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 103 ]
-[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 103 ]
+[ "$(grep -c 'compressed source 60x60 stride 180 is unsupported' "$run_dir/main-1.log")" -eq 0 ]
+[ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42 ]
+    c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'

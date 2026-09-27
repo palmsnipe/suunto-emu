@@ -13,12 +13,14 @@
 # into these pins beyond the backed chain.
 #
 # Observation-only transition table (zero-hold click on the settling main
-# screen, five-layer setup-walk, 40 s budget window; re-derived post-EXT4 —
-# the ticket-794 accent raster changes the settling-frame crc space from
-# step 25 but leaves every guest stop line and the navigation frame
-# byte-identical):
-#   MIDDLE 'm'  : inert — the post-EXT4 tick pattern (7ef957e9 alternating
-#                 with 74e8d4f5/a43f1010/ddbafcf2/636e9f75) runs through
+# screen, five-layer setup-walk, 40 s budget window; re-derived post-EXT4
+# and post-788 — the ticket-794 accent raster changes the settling-frame
+# crc space from step 25, and the ticket-788 codec admission rasters the
+# compressed-source bounce repaints so settled generations drift further
+# (host-side only); every guest stop line and the navigation frame crc
+# stay byte-identical):
+#   MIDDLE 'm'  : inert — the post-788 tick pattern (7ef957e9 alternating
+#                 with 74e8d4f5/aec1d3a0/cf8a4285/0a576ff1) runs through
 #                 settled steps 25..31, walk QUITS naturally (stop=user).
 #   LOWER   'l' : at step 25 or 26 the transcript is the same: exactly one more
 #                 tick member (step 26) settles, then the guest publishes no
@@ -34,6 +36,13 @@
 #                 enumerated fixture answers fail-closed: terminal
 #                 stop=compat-refused is the E-SAP-0041 fixture ceiling, by
 #                 design, not a regression.
+# Residual boundary (named, fail-closed): the upper window additionally
+# shows exactly 4 draw-refused events from a distinct vertically-scrolling
+# family (full-width 60px rects at x 171..231, heights 11/49/48/20, clip
+# y-max 240, mm12 -149/-149eps/-192/-220, mm02 -171 exact) — a different
+# widget law than the admitted horizontal bounce, admitted nowhere; zero
+# resets, navigation goldens unchanged (E-SAP-0041-EXT6 residual census,
+# twice-reproduced pair + independent integrator derivation agreeing).
 set -eu
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
@@ -79,18 +88,18 @@ for window in baseline lower upper; do
     cmp "$run_dir/$window-1.log" "$run_dir/$window-2.log"
 done
 [ "$(shasum -a 256 "$run_dir/baseline-1.log" | awk '{print $1}')" = \
-    a4a04c5391aebd4725dd9c97f15fcb8f1bc82f13ba35e1e8762567fbd7ebcb42 ]
+    c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e ]
 [ "$(shasum -a 256 "$run_dir/lower-1.log" | awk '{print $1}')" = \
-    d250b0accb869d776044350f731518084eaf5ba4e32282a56f890a738e9b7c6a ]
+    ac856e520c029e854de95eb4071bd447d71ef5df5748180e402ea0ec1a673aca ]
 [ "$(shasum -a 256 "$run_dir/upper-1.log" | awk '{print $1}')" = \
-    3e50cabeb7d6080b8db8c21279b13071d3e28a64bcc1b7223afa0aa38ca48219 ]
+    be0e2e1cfa74b3557030edbc48d0f4c1f864f0a3e889bc7f7fe56ecad140f6c3 ]
 
-# No-input baseline: the post-EXT4 tick pattern must carry the walk to its
-# natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster;
-# matches the era-pinned window).
+# No-input baseline: the post-788 tick pattern must carry the walk to its
+# natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster +
+# EXT6 compressed-bounce admission; matches the era-pinned window).
 grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=74e8d4f5' \
     "$run_dir/baseline-1.log"
-grep -Fqx 'SDL live test settled step=31 generation=4667 crc32=636e9f75' \
+grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=0a576ff1' \
     "$run_dir/baseline-1.log"
 grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/baseline-1.log"
@@ -99,7 +108,7 @@ grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414
 # derived from the POST script: step N presses POST letter N-12), then the
 # repaint stall — step 27 must never settle and no GPU draw activity may
 # resume at or after 35 s virtual time.
-grep -Fqx 'SDL live test settled step=26 generation=4112 crc32=7ef957e9' \
+grep -Fqx 'SDL live test settled step=26 generation=4131 crc32=7ef957e9' \
     "$run_dir/lower-1.log"
 if grep -Fq 'SDL live test settled step=27' "$run_dir/lower-1.log"; then
     echo 'error: lower-click window republished a settled frame after the stall' >&2
@@ -114,15 +123,15 @@ grep -Fqx 'stop=budget pc=0x000e1862 instructions=8000564488 virtual_time_ns=400
 
 # UPPER window: pair holds through step 27, the off-pair navigation frame
 # settles at step 28, then the E-SAP-0041 fixture ceiling terminates the run.
-grep -Fqx 'SDL live test settled step=27 generation=4224 crc32=a43f1010' \
+grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=aec1d3a0' \
     "$run_dir/upper-1.log"
-grep -Fqx 'SDL live test settled step=28 generation=4311 crc32=9b554fd9' \
+grep -Fqx 'SDL live test settled step=28 generation=4345 crc32=9b554fd9' \
     "$run_dir/upper-1.log"
 grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=8896815435 virtual_time_ns=35626577524 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
     "$run_dir/upper-1.log"
 
 # Hard constraints over every window: zero machine resets and the OHR tail
-# cap of 16 poll hits (observed here: 5, 7, 3 — unchanged post-EXT4).
+# cap of 16 poll hits (observed here: 5, 7, 3 — unchanged post-788).
 for window in baseline lower upper; do
     if grep -q 'machine-reset-request' "$run_dir/$window-1.log"; then
         echo "error: window $window requested a machine reset" >&2

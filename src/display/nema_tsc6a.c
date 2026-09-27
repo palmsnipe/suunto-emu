@@ -49,9 +49,9 @@ int tsc6a_coordinate_ok(int64_t value)
            value <= (int64_t)TSC6A_MAX_COORD * TSC6A_FP16_ONE;
 }
 
-/* Convert a finite binary32 value to signed 16.16 without host FP. */
-static semu_status float_to_fp16(uint32_t bits, int32_t *out,
-                                 semu_error *error)
+/* Convert a finite binary32 value to signed 16.16 without host FP.
+ * Shared with the ticket-788 compressed-asset translation law. */
+semu_status tsc6a_float_to_fp16(uint32_t bits, int32_t *out, semu_error *error)
 {
     uint32_t exponent = (bits >> 23u) & 0xffu;
     uint32_t fraction = bits & 0x7fffffu;
@@ -125,17 +125,17 @@ semu_status tsc6a_snapshot_matrix(const nema_draw_snapshot *s,
         out->mm12 = 0;
         return SEMU_OK;
     }
-    st = float_to_fp16(s->mm00, &out->mm00, error);
+    st = tsc6a_float_to_fp16(s->mm00, &out->mm00, error);
     if (st != SEMU_OK) return st;
-    st = float_to_fp16(s->mm01, &out->mm01, error);
+    st = tsc6a_float_to_fp16(s->mm01, &out->mm01, error);
     if (st != SEMU_OK) return st;
-    st = float_to_fp16(s->mm02, &out->mm02, error);
+    st = tsc6a_float_to_fp16(s->mm02, &out->mm02, error);
     if (st != SEMU_OK) return st;
-    st = float_to_fp16(s->mm10, &out->mm10, error);
+    st = tsc6a_float_to_fp16(s->mm10, &out->mm10, error);
     if (st != SEMU_OK) return st;
-    st = float_to_fp16(s->mm11, &out->mm11, error);
+    st = tsc6a_float_to_fp16(s->mm11, &out->mm11, error);
     if (st != SEMU_OK) return st;
-    return float_to_fp16(s->mm12, &out->mm12, error);
+    return tsc6a_float_to_fp16(s->mm12, &out->mm12, error);
 }
 
 int tsc6a_target_state(const nema_draw_snapshot *s)

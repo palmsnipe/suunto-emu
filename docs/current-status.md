@@ -51,14 +51,19 @@ failing predicate of all 124 resolve refusals) admitted the masked
 accent to the tsc6a ACCENT predicate — the accent-tinted main-screen
 blit now rasters (frames change from step 25; guest instructions and
 virtual time unchanged, pure display gain; RED-first unit test).
-Open boundaries: the GPU law-family gap measured at 103 GPU-side
-refusals per window (exactly the compressed-source repaints, CPU-
-invisible — 788/793 census in flight); ticket 794 is CLOSED done: the
-button-navigation goldens pin MIDDLE inert, LOWER repaint-stall, and
-UPPER navigating (frame 9b554fd9) on the settled main screen under the
-E-SAP-BUTTONS-001 golden policy — the governing objective's "buttons
-for the navigation" is demonstrated and twice-pinned; tail cap 16 (~15
-s post-Done) as the pinned headroom for longer scripts. The 2.39 era
+Open boundaries: ticket 794 is CLOSED done: the button-navigation goldens
+pin MIDDLE inert, LOWER repaint-stall, and UPPER navigating (frame
+9b554fd9) on the settled main screen under the E-SAP-BUTTONS-001 golden
+policy — the governing objective's "buttons for the navigation" is
+demonstrated and twice-pinned; tail cap 16 (~15 s post-Done) as the pinned
+headroom for longer scripts. The E-SAP-0041-EXT6 ruling (ticket 793 scope
+extension, 2026-09-27) admits the 103-refusal bounce family through the
+ticket-788 codec: the eased horizontal bounce now RASTERS (window
+draw-refused 103→0, twice byte-identical on the final binary; guest
+instructions and virtual time unchanged; two observed one-ULP composer
+roundings admitted bit-exactly after a twice-reproduced residual census;
+distinct vertical-scroll refusals stay fail-closed — see E-SAP-0041-EXT6).
+The 2.39 era
 gates are the last firmware-level lane (777 re-derivation in flight).
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
@@ -79,6 +84,28 @@ Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
 zero pin drift.
+
+### Sapporo 2.35 bounce family rasters through the 788 codec — ticket 793 scope extension, 2026-09-27
+
+E-SAP-0041-EXT6: the 103 draw-refused repaints are one census family — a
+60x60 format-17 asset at SRAM `0x100a490c` with an eased horizontal bounce,
+six bursts at setup-walk steps 25-30, two draw-color variants
+(`0xff555555` x89, `0xff000000` x14), 31 left-clipped rects (width 1-46)
+and 72 full-width. The offline-RE matrix law (mm00/mm11 = 1.0f,
+mm01/mm10 = 0, mm12 = -90 exact, mm02 = 60-rect_x1 within 2^-15) plus two
+one-ULP composer roundings observed bit-exactly in a twice-reproduced
+residual census (mm11 `0x3f7fffff`, mm12 `0xc2b40001`) admit every bounce
+quad: the final-binary window ends with ZERO GPU refusals, stop line and
+guest instruction count byte-identical to the pre-788 pin, settled
+generations drifting host-side as the bounce consumes GPU frames. The
+compressed-era script and the navigation tool re-pin cleanly (both run
+their windows twice internally; baseline `c8b69fce…`, lower `ac856e52…`,
+upper `be0e2e1c…`; the upper window's navigation frame `9b554fd9` is crc-
+identical to the pre-788 capture). A distinct vertically-scrolling family
+observed in the upper window (4 draws, different clip/rect/mm12 laws) is
+NOT admitted and stays fail-closed as the named residual. Two independent
+derivations (implementing agent + integrator) produced identical re-pinned
+goldens.
 
 ### Sapporo 2.35 sustained GPS-awake cadence — ticket 710 instance-9, 2026-09-23
 

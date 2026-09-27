@@ -304,6 +304,15 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
  * 60x60 axis-aligned quad (171,90)-(231,150); tint 0xffffffff; draw
  * color 0xff555555.  The mapping and clip use the existing helpers; no
  * value here is invented.
+ *
+ * Ticket 788 (E-SAP-0041-EXT4 sibling census, twice-derived from the
+ * natural-terminal window): that pinned instant is one member of a
+ * 103-event family — the same asset repainted by an eased horizontal
+ * bounce animation, one repaint tick per ~10.08 ms in 6 bursts aligned
+ * with setup-walk steps 25..30.  The animated predicates (draw color
+ * pair, left-clip-only rect widths, mm02 = 60 - rect_x1 translation law)
+ * are pinned by tsc6a_compressed_asset_law below; everything else stays
+ * bit-pinned to the capture in tsc6a_compressed_asset_shape.
  */
 #define TSC6A_CROSSHAIR_W 60u
 #define TSC6A_CROSSHAIR_H 60u
@@ -311,16 +320,30 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
 #define TSC6A_TARGET_RGB_BYTES (480u * 240u * 2u)
 #define TSC6A_TINT_IDENTITY UINT32_C(0xffffffff)
 #define TSC6A_CROSSHAIR_DRAW_COLOR UINT32_C(0xff555555)
+#define TSC6A_CROSSHAIR_DRAW_COLOR_ALT UINT32_C(0xff000000)
 #define TSC6A_MATRIX_ONE UINT32_C(0x3f800000)
 #define TSC6A_MATRIX_TX0 UINT32_C(0xc32b0001)
 #define TSC6A_MATRIX_TY0 UINT32_C(0xc2b40000)
+/* One-ULP binary32 roundings the pinned composer emits at specific
+ * bounce phases (twice-reproduced residual census, 2026-09-27 walk:
+ * mm11 0x3f7fffff on the width-43 wall draws, mm12 0xc2b40001 on the
+ * width-1/2/4/8 draws; every other matrix word stays exact).  These are
+ * observed bit values only - no rounding formula is assumed. */
+#define TSC6A_MATRIX_ONE_ALT UINT32_C(0x3f7fffff)
+#define TSC6A_MATRIX_TY0_ALT UINT32_C(0xc2b40001)
+/* 2^-15 slack of the mm02 = 60 - rect_x1 law in 16.16 units (2 * 65536 *
+ * 2^-15): the pinned instant's observed mm02 0xc32b0001 sits exactly one
+ * binary32 ULP (2^-16 = 1 unit) off -171.0 at rect_x1 = 231, and every
+ * census translation is an exact integer. */
+#define TSC6A_ASSET_TX_SLACK_FP16 2
 
 /* Second accepted state of this resolve: the capture-pinned compressed
- * tuple.  bus must be present because the source bytes are read from
- * bounded guest SRAM; NULL bus fails closed into the existing refusal. */
-static int tsc6a_compressed_asset_state(const nema_draw_snapshot *s,
-                                        semu_bus *bus, int *x0, int *y0,
-                                        int *x1, int *y1)
+ * tuple with the ticket-788 animated predicates factored out into
+ * tsc6a_compressed_asset_law.  bus must be present because the source
+ * bytes are read from bounded guest SRAM; NULL bus fails closed into the
+ * existing refusal. */
+static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
+                                        semu_bus *bus)
 {
     if (bus == NULL || !s->src_present || s->draw_cmd != NEMA_DRAW_QUAD ||
         s->src_format != NEMA_FMT_TSC6A || s->src_sampling != 1u ||
@@ -340,17 +363,78 @@ static int tsc6a_compressed_asset_state(const nema_draw_snapshot *s,
         s->imem_datah != TSC6A_IMEM_DATAH ||
         s->imem_datal != TSC6A_IMEM_DATAL ||
         !s->matrix_present || s->mm00 != TSC6A_MATRIX_ONE ||
-        s->mm01 != 0u || s->mm02 != TSC6A_MATRIX_TX0 || s->mm10 != 0u ||
-        s->mm11 != TSC6A_MATRIX_ONE || s->mm12 != TSC6A_MATRIX_TY0 ||
+        s->mm01 != 0u || s->mm10 != 0u ||
+        (s->mm11 != TSC6A_MATRIX_ONE &&
+         s->mm11 != TSC6A_MATRIX_ONE_ALT) ||
+        (s->mm12 != TSC6A_MATRIX_TY0 &&
+         s->mm12 != TSC6A_MATRIX_TY0_ALT) ||
         !tsc6a_ordered_clip(s, 240u, 240u) ||
-        s->tex_color != TSC6A_TINT_IDENTITY ||
-        s->draw_color != TSC6A_CROSSHAIR_DRAW_COLOR ||
-        !tsc6a_rectangle(s, x0, y0, x1, y1) ||
-        (*x1 - *x0) != (int)TSC6A_CROSSHAIR_W ||
-        (*y1 - *y0) != (int)TSC6A_CROSSHAIR_H) {
+        s->tex_color != TSC6A_TINT_IDENTITY) {
         return 0;
     }
     return 1;
+}
+
+/* Ticket 788 admission law for the bounce-animation siblings of the
+ * pinned instant (E-SAP-0041-EXT4 census, twice-derived; offline RE of
+ * the hash-pinned application with two agreeing decoders).  Beyond the
+ * pinned shape the observed family animates exactly three predicates:
+ *   - the draw color pair {0xff555555, 0xff000000} (89 / 14 census
+ *     draws),
+ *   - the rect: height 60 always; width 1..60 with width < 60 only while
+ *     left-clipped (rect_x0 == 0; all 31 clipped witnesses), and
+ *   - the matrix x-translation: mm02 = 60 - rect_x1 with a 2^-15 slack
+ *     that covers the pinned instant's observed 2^-16 bias (mm02
+ *     0xc32b0001 = TSC6A_MATRIX_TX0 at rect_x1 = 231); mm00=mm11=1.0,
+ *     mm01=mm10=0 and mm12=-90.0 stay bit-pinned in the shape.
+ * rect_x1 is bounded to ±2048 by tsc6a_rectangle, so |60 - rect_x1| <
+ * 2^11 is exactly representable in binary32 and the comparison runs on
+ * the shared integer 16.16 conversion with int64 intermediates - no
+ * host FP.
+ * Returns SEMU_OK when admitted; otherwise names the first failing
+ * predicate, refuses with SEMU_ERR_UNSUPPORTED and zero writes (no
+ * source memory is read here). */
+static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
+                                              int rect_x0, int rect_y0,
+                                              int rect_x1, int rect_y1,
+                                              semu_error *error)
+{
+    int32_t matrix_tx;
+    int64_t expected_tx;
+    semu_status st;
+
+    if (s->draw_color != TSC6A_CROSSHAIR_DRAW_COLOR &&
+        s->draw_color != TSC6A_CROSSHAIR_DRAW_COLOR_ALT) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed asset draw_color 0x%08x is outside the "
+            "observed 0xff555555/0xff000000 pair", s->draw_color);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if ((rect_y1 - rect_y0) != (int)TSC6A_CROSSHAIR_H ||
+        (rect_x1 - rect_x0) < 1 ||
+        (rect_x1 - rect_x0) > (int)TSC6A_CROSSHAIR_W ||
+        ((rect_x1 - rect_x0) < (int)TSC6A_CROSSHAIR_W && rect_x0 != 0)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed asset rect (%d,%d)-(%d,%d) is outside "
+            "the observed 60-high left-clip-only width family",
+            rect_x0, rect_y0, rect_x1, rect_y1);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    st = tsc6a_float_to_fp16(s->mm02, &matrix_tx, error);
+    if (st != SEMU_OK) {
+        return st;
+    }
+    expected_tx = (int64_t)((int)TSC6A_CROSSHAIR_W - rect_x1) *
+                  TSC6A_FP16_ONE;
+    if (matrix_tx < expected_tx - TSC6A_ASSET_TX_SLACK_FP16 ||
+        matrix_tx > expected_tx + TSC6A_ASSET_TX_SLACK_FP16) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed asset matrix mm02 0x%08x is outside the "
+            "observed 60-rect_x1 translation law",
+            s->mm02);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
 }
 
 /* Execute the accepted compressed state.  Validate fully before mutating
@@ -460,8 +544,14 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
     /* The compressed state writes with the captured 480 B pitch and no
      * other caller pitch (the shadow branch keeps its stride >= 480 form
      * inside the existing cascade below). */
-    if (stride == 480u &&
-        tsc6a_compressed_asset_state(s, bus, &x0, &y0, &x1, &y1)) {
+    if (stride == 480u && tsc6a_compressed_asset_shape(s, bus) &&
+        tsc6a_rectangle(s, &x0, &y0, &x1, &y1)) {
+        st = tsc6a_compressed_asset_law(s, x0, y0, x1, y1, error);
+        if (st != SEMU_OK) {
+            /* Census-shaped but outside the ticket-788 law: the named
+             * refusal above, zero writes, no source-memory read. */
+            return st;
+        }
         return tsc6a_resolve_compressed_asset(bus, s, rgb565_le, stride,
                                               x0, y0, x1, y1, error);
     }
@@ -485,11 +575,22 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
             (s->src_width != NEMA_TSC6A_WIDTH ||
              s->src_height != NEMA_TSC6A_HEIGHT ||
              s->src_stride != 0x05a0u)) {
+            /* The pinned prefix keeps the compressed-source grep stable;
+             * the appended fields expose the shape predicates the gpu
+             * submission line does not log (matrix words, matmult,
+             * target stride) so the residual census derives from the
+             * transcript alone.  This diagnostic still does not decode
+             * or read the source memory. */
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                 "nema_tsc6a: compressed source %ux%u stride %u is unsupported; "
-                "only the 480x480 semantic shadow is modeled",
+                "only the 480x480 semantic shadow is modeled; "
+                "mat=%u/%08x/%08x/%08x/%08x/%08x/%08x matmult=%u "
+                "target_stride=%u",
                 (unsigned)s->src_width, (unsigned)s->src_height,
-                (unsigned)s->src_stride);
+                (unsigned)s->src_stride,
+                (unsigned)s->matrix_present, s->mm00, s->mm01, s->mm02,
+                s->mm10, s->mm11, s->mm12, (unsigned)s->matmult,
+                (unsigned)s->target_stride);
         } else {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "nema_tsc6a: unsupported mask resolve state");

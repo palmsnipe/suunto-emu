@@ -403,8 +403,10 @@ static void test_resolve_out_of_tuple_diagnostic(semu_test_context *context)
                      semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
                                    &error));
     s = compressed_tuple();
-    /* One tuple bit off (draw color lsb): the existing compressed-source
-     * diagnostic must be preserved verbatim and nothing may be written. */
+    /* One tuple bit off (draw color lsb): ticket 788 upgraded the
+     * compressed-shaped refusal surface to name the failing animated
+     * predicate; this near-miss now refuses at the draw-color law and
+     * nothing may be written. */
     s.draw_color = UINT32_C(0xff555554);
     memset(panel, 0x33u, sizeof(panel));
     memcpy(panel_before, panel, sizeof(panel));
@@ -412,8 +414,182 @@ static void test_resolve_out_of_tuple_diagnostic(semu_test_context *context)
                      nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
                                              &error));
     SEMU_TEST_ASSERT(context, strcmp(error.text,
-        "nema_tsc6a: compressed source 60x60 stride 180 is unsupported; "
-        "only the 480x480 semantic shadow is modeled") == 0);
+        "nema_tsc6a: compressed asset draw_color 0xff555554 is outside the "
+        "observed 0xff555555/0xff000000 pair") == 0);
+    SEMU_TEST_ASSERT(context, memcmp(panel_before, panel,
+                                      sizeof(panel)) == 0);
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
+/* --- ticket 788: the animated bounce family (census /tmp/sap235-788) ---
+ * The same 60x60 stride-180 fmt-17 asset animates through the general
+ * set-matrix API: mm02 carries the per-frame translation (RE law, twice
+ * reproduced: mm02 = 60 - rect_x1 within 2^-15, mm12 = -90.0f exact,
+ * mm00 = mm11 = 1.0f, mm01 = mm10 = 0), quads arrive left-clipped
+ * (height 60, width 1..60, width < 60 only at x0 == 0), and a second
+ * call site tints with draw_color 0xff000000.  Synthetic striped blocks
+ * below make the consumed texel columns observable; no firmware bytes. */
+
+static void fill_striped_asset(void)
+{
+    unsigned by, bx;
+    /* All pixels index 0; E0 picks the block-column color; alpha 0x7FF;
+     * auxiliary bits zero.  Block col 13 -> (255,0,0) 0xF800, col 14 ->
+     * (0,255,0) 0x07E0, everything else -> (0,0,255) 0x001F. */
+    for (by = 0u; by < 15u; ++by) {
+        for (bx = 0u; bx < 15u; ++bx) {
+            uint8_t blk[12] = { 0x00u, 0x00u, 0x00u, 0x00u,
+                                0xF0u, 0x00u, 0x00u, 0x00u,
+                                0xFFu, 0x07u, 0x00u, 0x00u };
+            if (bx == 13u) {
+                blk[4] = 0x00u;
+                blk[5] = 0xF0u; /* E0 = 0xF000 */
+            } else if (bx == 14u) {
+                blk[4] = 0x00u;
+                blk[5] = 0x0Fu; /* E0 = 0x0F00 */
+            }
+            memcpy(asset + ((size_t)by * 15u + bx) * 12u, blk, 12u);
+        }
+    }
+}
+
+static nema_draw_snapshot bounce_tuple(void)
+{
+    nema_draw_snapshot s = compressed_tuple();
+    /* Left-clipped quad (0,90)-(7,150); mm02 = +53.0f = 60 - x1. */
+    s.point0_x = s.point3_x = 0u;
+    s.point1_x = s.point2_x = UINT32_C(7) << 16u;
+    s.mm02 = UINT32_C(0x42540000);
+    return s;
+}
+
+static void test_resolve_bounce_clipped_quad(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot s;
+
+    semu_error_clear(&error);
+    bus = make_sram_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    fill_striped_asset();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
+                                   &error));
+    s = bounce_tuple();
+    memset(panel, 0, sizeof(panel));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* Pixel centers map x -> texel column x + 53: columns 0..2 consume
+     * block col 13, columns 3..6 block col 14; nothing else is written. */
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(0u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(2u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(3u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(6u, 100u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(7u, 100u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(0u, 89u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(0u, 150u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(170u, 100u));
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
+static void test_resolve_bounce_variant_b(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot s;
+
+    semu_error_clear(&error);
+    bus = make_sram_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    fill_striped_asset();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
+                                   &error));
+    s = compressed_tuple();
+    s.draw_color = UINT32_C(0xff000000);
+    /* Census variant-B geometry: quad (170,90)-(230,150) with the exact
+     * translation mm02 = -170.0f = 60 - 230. */
+    s.point0_x = s.point3_x = UINT32_C(170) << 16u;
+    s.point1_x = s.point2_x = UINT32_C(230) << 16u;
+    s.mm02 = UINT32_C(0xc32a0000);
+    memset(panel, 0, sizeof(panel));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* Full-width quad: panel x -> texel x - 170; the tint draw_color is
+     * state-only (the blend consumes tex_color), so colors come from the
+     * striped texture: blue through texel 51, red 52..55, green 56..59. */
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(170u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(174u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(221u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(222u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(225u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(226u, 100u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(229u, 100u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(169u, 100u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(230u, 100u));
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
+static void test_resolve_bounce_out_of_law(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot s;
+
+    semu_error_clear(&error);
+    bus = make_sram_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    fill_striped_asset();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
+                                   &error));
+    memset(panel, 0x5Au, sizeof(panel));
+    memcpy(panel_before, panel, sizeof(panel));
+
+    /* (1) mm02 beyond the 2^-15 epsilon: 53.25f against 60 - 7. */
+    s = bounce_tuple();
+    s.mm02 = UINT32_C(0x42550000);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (2) width 61 violates the rect law even with an exact mm02. */
+    s = bounce_tuple();
+    s.point1_x = s.point2_x = UINT32_C(61) << 16u;
+    s.mm02 = UINT32_C(0xbf800000); /* -1.0f = 60 - 61 */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (3) right-clipped rect: width 59 with x0 != 0 refuses. */
+    s = bounce_tuple();
+    s.point0_x = s.point3_x = UINT32_C(1) << 16u;
+    s.point1_x = s.point2_x = UINT32_C(60) << 16u;
+    s.mm02 = 0u; /* 0.0f = 60 - 60 */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (4) any third draw_color stays refused. */
+    s = bounce_tuple();
+    s.draw_color = UINT32_C(0xff000001);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (5) the family keeps the null-bus fail-closed rule. */
+    s = bounce_tuple();
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, NULL, &s, panel, 480u,
+                                             &error));
     SEMU_TEST_ASSERT(context, memcmp(panel_before, panel,
                                       sizeof(panel)) == 0);
     nema_tsc6a_destroy(surface);
@@ -430,6 +606,9 @@ int main(void)
         SEMU_TEST_CASE(test_resolve_compressed_accept),
         SEMU_TEST_CASE(test_resolve_aux_refusal_atomic),
         SEMU_TEST_CASE(test_resolve_out_of_tuple_diagnostic),
+        SEMU_TEST_CASE(test_resolve_bounce_clipped_quad),
+        SEMU_TEST_CASE(test_resolve_bounce_variant_b),
+        SEMU_TEST_CASE(test_resolve_bounce_out_of_law),
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

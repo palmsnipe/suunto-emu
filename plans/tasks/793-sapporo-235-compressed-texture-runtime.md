@@ -160,3 +160,18 @@ recorded with the COMPOSITE-MATCH acceptance probe as
 E-EMU-SAP235-COMPRESSED-001. The former refusal→fault→reset chain is gone;
 the `0xcdf5a` self-reset and main-screen button navigation are tracked as
 ticket 794. Status set `done`.
+
+## Integrator scope ruling (2026-09-27, bounce family, E-SAP-0041-EXT6)
+
+The above "only the observed tuple" authorization covered the single
+captured crosshair draw. The 103-refusal bounce family admitted under this
+date is a separate integrator ruling backed by twice-reproduced evidence and
+recorded as E-SAP-0041-EXT6 in `docs/migration-evidence.md`: the codec and
+its acceptance state generalize from the one captured draw to the full
+observed quad family of the same 60x60 source (offline RE per the 2026-09-23
+owner decision; matrix law mm02 = 60-rect_x1 within 2^-15, mm12 = -90 exact,
+plus two one-ULP composer roundings observed bit-exactly). The distinct
+vertically-scrolling family seen in the upper navigation window (4 draws,
+different clip/rect/mm12 laws) is NOT admitted and stays fail-closed. This
+section records the ruling; no other forbidden-scope item of this ticket is
+reopened.

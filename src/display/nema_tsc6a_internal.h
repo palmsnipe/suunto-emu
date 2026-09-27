@@ -42,6 +42,10 @@ int tsc6a_coordinate_ok(int64_t value);
 semu_status tsc6a_snapshot_matrix(const nema_draw_snapshot *snapshot,
                                   tsc6a_fixed_matrix *out,
                                   semu_error *error);
+/* Convert a finite binary32 value (raw bits) to signed 16.16 without host
+ * FP; refuses non-finite or out-of-range matrices.  Shared by the matrix
+ * snapshot and the ticket-788 compressed-asset translation law. */
+semu_status tsc6a_float_to_fp16(uint32_t bits, int32_t *out, semu_error *error);
 int tsc6a_target_state(const nema_draw_snapshot *snapshot);
 int tsc6a_rgb_target_state(const nema_draw_snapshot *snapshot);
 int tsc6a_resolve_state(const nema_draw_snapshot *snapshot);

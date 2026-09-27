@@ -7447,3 +7447,103 @@ tools re-pinned by their owners). Scope: authorizes the accent admission
 only; the compressed-source 60x60 refusals remain fail-closed for
 ticket 788; src_sampling and the (0x100,2) draw-kick emission site stay
 UNCONFIRMED gaps.
+
+
+E-SAP-0041-EXT6 bounce-family codec ruling (2026-09-27, ticket 793 scope
+extension, ruling by the integrator; codec implementation by the
+ticket-788 implementing instance with integrator test reconciliation).
+The 103 `compressed source 60x60 stride 180 is unsupported` refusals left
+after EXT4 are ONE census family, and the ticket-788 codec admits every
+member, taking the window to ZERO GPU refusals.
+
+Offline RE inputs (owner-authorized 2026-09-23 evidence class; identical
+inputs to E-SAP-0041-EXT4): application
+`component-04-type-4-v2.raw` sha `36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`,
+decoders arm-none-eabi-objdump 2.47.20260726 sha
+`7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda` +
+capstone 5.0.7 python resume-walk; derivation notes
+`/tmp/sap235-788/notes.md` sha `22ba2ef306a944c72d20cbb01655cd3c54bf545222154f872b198342b93e4dcc`
+(volatile; the derived census is restated in-entry here).
+
+Census (from the twice-identical EXT4-era setup-walk transcripts;
+per-row table `refusals-103.tsv` sha `0ddd6e01371801574cb047daa041a068f907525c6ce7c569cfed70d34ff7b254`,
+per-window summary `census-ext4-2.txt` sha `9161a70b19aad23029cfcfb3e924cbe9df4274f95258e92f9eee6f4cd6818519`):
+all 103 refusals are draws of ONE element — 60x60 fmt-0x17 asset at SRAM
+`0x100a490c` (PXB2 at resource offset `0x9db613`, sha `f311e1ef…`),
+target 240x240 RGB565 stride 480, tex_color `0xffffffff`, code
+`0x941e8000`, imem triple `0,0x004e0002,0x804b1286`, clip
+(0,81)-(240,162), matmult 0 — with an eased horizontal bounce: six bursts
+aligned with setup-walk steps 25-30 at ~10.08 ms per tick, draw_color
+variants A `0xff555555` (x89) and B `0xff000000` (x14), 31 left-clipped
+rects (width 1-46, rect_x0 = 0) and 72 full-width, height always 60.
+
+Matrix law (twice-verified against the census and the pinned instant):
+mm00 = mm11 = 1.0f (`0x3f800000`), mm01 = mm10 = 0, mm12 = -90.0f exact
+(`0xc2b40000`), and mm02 = 60 - rect_x1 within 2^-15 (= 2 fixed-16.16
+units; pinned instant `0xc32b0001` = -171.0000076, the 2^-16 bias at
+rect_x1 = 231).
+
+Implementation (src/display/nema_tsc6a_raster.c,
+src/display/nema_tsc6a.c, src/display/nema_tsc6a_internal.h): the
+acceptance state splits into `tsc6a_compressed_asset_shape` (bit-pinned
+descriptors above plus the matrix identity/translation words) and
+`tsc6a_compressed_asset_law` (draw_color in {`0xff555555`, `0xff000000`};
+rect height 60, width 1..60, width < 60 ⇒ rect_x0 = 0; |mm02_fp16 -
+(60-rect_x1)*65536| <= 2). Census-shaped out-of-law states refuse with
+named per-predicate diagnostics; the generic compressed-source diagnostic
+additionally logs the matrix words, matmult and target stride (added
+2026-09-27 — it exposed the residual law below). No host floating point
+in the raster path; `float_to_fp16` is exported as
+`tsc6a_float_to_fp16`.
+
+Residual-9 census (2026-09-27, twice byte-identical intermediate walk
+pair, transcript sha `59b78693339f5ea9c8a1f56c1e552ec9d8709eefa6ff90fa22a2f1e789ffc77b`
+under /tmp/sap235-788/post788/main-3.log + main-4.log): after the base
+law, exactly 9 census rows still refused on ONE-ULP binary32 roundings of
+the pinned matrix constants — mm11 `0x3f7fffff` (1-2^-24) on the
+width-43 wall draws (mm02 `0x41880000` = 60-43 exact), mm12 `0xc2b40001`
+on the width-1/2/4/8 draws (mm02 = 60-x1 exact: `0x426c0000`/`0x42680000`
+/`0x42600000`/`0x42500000`); every other matrix word exact, mm02 still
+obeying the translation law. RULING: the shape predicate admits the two
+OBSERVED bit alternates `TSC6A_MATRIX_ONE_ALT`/`TSC6A_MATRIX_TY0_ALT`;
+no rounding formula is assumed, and any other bit refuses.
+
+Post-extension state (twice byte-identical on the final binary, walks
+main-5/main-6): window draw-refused 103 → 0, resolve refusals 0, resets
+0, stop line `stop=user pc=0x0800009e instructions=9487528672
+virtual_time_ns=37414100700` byte-identical to the pre-788 pin, step 24
+(gen 3991/1c1f9064) and step 25 (4000/74e8d4f5) unchanged; settled
+generations drift host-side as the bounce consumes GPU frames (26 =
+4131/7ef957e9, 27 = 4258/aec1d3a0, 28 = 4389/7ef957e9, 29 = 4515/cf8a4285,
+30 = 4646/7ef957e9, 31 = 4770/0a576ff1); baseline transcript sha
+`c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e`.
+Era re-pins: compressed Section 3 rewritten and Sec-1 count 7→10; nav
+tool re-pinned (baseline `c8b69fce…`, lower `ac856e520c029e854de95eb4071bd447d71ef5df5748180e402ea0ec1a673aca`,
+upper `be0e2e1cfa74b3557030edbc48d0f4c1f864f0a3e889bc7f7fe56ecad140f6c3`;
+lower stop=budget and upper stop=compat-refused stop lines byte-identical
+to their pre-788 pins; upper navigation frame crc `9b554fd9` UNCHANGED at
+step 28, generation 4311 → 4345). The nav-tool and compressed-script pins
+were derived TWICE independently (implementing instance + integrator)
+with identical values, and each script re-validates its windows twice
+internally.
+
+Residual boundary, NOT admitted: the upper navigation window shows
+exactly 4 further draw-refused events from a DISTINCT vertically
+scrolling family — full-width rects at x 171..231 (mm02 `0xc32b0001`
+exact), heights 11/49/48/20 with y-max clipped at 240, clip y-max 240
+(not 162), mm12 in {-149.0, -149.0000076, -192.0, -220.0}, mm11 exact.
+Multiple pinned predicates differ (clip, rect height, mm12); with only
+four witnesses no law is derivable, so the family stays fail-closed with
+zero resets and no golden movement — recorded as the next compressed-gap
+ticket candidate.
+
+Gates (2026-09-27, final binary): tsc6a unit filter 7/7 + expand 10/10
+(two ALT positive tuples, two arbitrary-bit refusals, three bounce
+expand cases, stride-181 diagnostic re-pin); `make check` 1012 PASS /
+0 FAIL; `make sanitize` zero findings; `make check-lines` OK (advisory:
+nema_tsc6a_raster.c 711 lines); red evidence
+`/tmp/sap235-788/red-output.txt` sha `b1ec95ac69838dca2caa634af05c6e5d8811d2d5648513355fd332cc0a294e49`
+(unit-level red state before the shape/law split). Scope: authorizes the
+bounce-family admission, the two one-ULP matrix alternates, and the
+extended refusal diagnostics only; the vertical-scroll family, the
+composer matmult flag, and src_sampling stay UNCONFIRMED gaps.
