@@ -253,3 +253,32 @@ ticket 796's unblock list (13→16 windows) — the events must reappear past
 the modeled storage-JSON write or be recorded as proven post-wall guest
 changes. Stage (3) therefore concludes awaiting 796; remaining stages:
 796 + 16 windows, then the full-green twice-run census.
+
+Stage note 2026-09-27 (post-796 census, committed binary 5f1bf4c):
+full 43-script census run 1 recorded (`/tmp/sap239-era/census1/`,
+per-script logs + run1.txt): 27 green / 16 red. The 16-red set is
+BYTE-IDENTICAL to the red set re-run on the pre-796 binary built from
+f413e23 in a separate worktree (`/tmp/sap239-era/census-base/` and
+`/tmp/sap239-era/re796/base-*.log`), so the 796 storage admission flipped
+NO era script green-to-red or red-to-green. Classification of the 16:
+(a) 11 wall-entangled windows asserting stops at or beyond the first
+wall - history_budget, logical_files, preload1, wbsto_cache, quiet_read,
+ongoing, widgets, zip_read, personal_budget, general_budget, and the
+gps_five-family (gps_awake, gps_five, gps_reopen): the wall-crossing
+runs now stop at the E-SAP239-REPO38D123-001 new wall
+`stop=compat-refused pc=0x000920b4 instructions=474153646
+virtual_time_ns=2208268722` (widgets confirms the pair exactly: baseline
+442856246/2176971322 -> new 474153646/2208268722); re-derivation
+proceeds by ±1 first-appearance bisection from the new wall as in
+E-SAP239-OHR2-REPIN-001, plus re-observation of the next unknown
+writable path at the new wall (next RE target). (b) 5 pre-existing
+BKPT-cascade reds identical on both binaries - activity_budget,
+ctimer13_inten, gps_startup and the layer-off halves of wbsto_cache and
+logical_files (pin pc=0x00079e1e sentinel vs observed 0x00070378 at cap
+72774982, verified identical at f413e23): the documented E-ULS-0041
+sentinel-relocation drift, re-pin mechanically (stop line + artifact
+shas, guards intact). Census run 2 completed: run1.txt = run2.txt byte-identical
+(`diff` clean), so the 27/16 split and the red-set identity against the
+pre-796 binary are twice-reproduced. Every
+re-derivation lands with twice byte-identical runs per E-SAP239-OHR2-
+REPIN-001 method.
