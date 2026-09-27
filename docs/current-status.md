@@ -53,11 +53,13 @@ blit now rasters (frames change from step 25; guest instructions and
 virtual time unchanged, pure display gain; RED-first unit test).
 Open boundaries: the GPU law-family gap measured at 103 GPU-side
 refusals per window (exactly the compressed-source repaints, CPU-
-invisible — 788/793); button navigation acceptance across the
-now-naturally-running main screen (794 — the governing objective's
-"buttons for the navigation" becomes directly testable; the button
-dispatch law is catalogued as E-SAP-BUTTONS-001); tail cap 16 (~15
-s post-Done) as the pinned headroom for longer scripts.
+invisible — 788/793 census in flight); ticket 794 is CLOSED done: the
+button-navigation goldens pin MIDDLE inert, LOWER repaint-stall, and
+UPPER navigating (frame 9b554fd9) on the settled main screen under the
+E-SAP-BUTTONS-001 golden policy — the governing objective's "buttons
+for the navigation" is demonstrated and twice-pinned; tail cap 16 (~15
+s post-Done) as the pinned headroom for longer scripts. The 2.39 era
+gates are the last firmware-level lane (777 re-derivation in flight).
 Ticket 795 is closed: E-EMU-SAP233-GAUGE-FIXTURE-001 aligns the MAX17050
 AvgVCell fixture with the current lane table (register 0x19 now 0xC000,
 pair 9119ef13…), and the 2.33.16 boot passes its former first-fault moment
