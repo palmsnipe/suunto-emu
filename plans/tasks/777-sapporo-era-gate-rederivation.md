@@ -168,3 +168,44 @@ twice-identical runs per script; `timer_pattern` keeps its
 rebuild-bisect-before-re-pin requirement. Scope add (integrator, 2026-09-27):
 the three inspector sources above are in-scope for this ticket as the
 smallest change making the six scripts runnable at all.
+
+## Integrator record: re-pin batch complete (2026-09-27, HEAD 947f4bb)
+
+The mechanical re-pin stage ran over the final binary (twice-identical
+runs per script, integrator review + independent spot-verification of
+`timer_pattern` twice byte-identical, full `make check-era` census
+reproducing the classification: 24 of 43 red = 18 blocked + 6 gps/budget,
+19 green = 12 device-register + 7 re-pinned).
+
+Re-pinned green twice (7, value-only substitutions, all refusal guards
+and choreography goldens intact): ctimer_combined_inten (boundary pc
+0x00079e1e→0x00070378, count-preserving), file_seek, haptic,
+haptic_calibration, lps22 (hash + cap-pc/vt drift, censuses intact),
+ohr2_command2 (hash + pc/vt + at-cap census 452→193 per its own
+E-ULS-0047 precedent), timer_pattern (idle 84856118/6372873793→
+84856056/6372873731, park pc 0x000e955a unchanged; ATTRIBUTED by
+rebuild-bisect to exactly d8bfba9 "gauge: align MAX17050 AvgVCell fixture
+0x19 to current lane table" — cd1de52, 2f22137, and d8bfba9^ reproduce
+the old value; not the 788 display commit).
+
+Blocked, untouched (18): three root causes. B1 ticket-796 storage-JSON
+wall at 442856246/2176971322 (fingerprint first.log 47e8aaa7… /
+first.sems d1582e69…) blocks activity_budget, ctimer13_inten, ongoing,
+quiet_read, widgets, zip_read, wbsto_cache in addition to the six
+gps/budget scripts. B2 choreography redistribution past pinned caps —
+file_size (595→456 ordinals, tss.bin ops absent), history_budget
+(75764→865, sleep reads 0 vs 35712), preload1 (FILE_OPEN boundary moved,
+trigger count 0 vs 1), logical_files (wbsto-preload-result trigger never
+fires through 440M, still registered at src/compat/sapporo_239.c:27) —
+needs a cap re-derivation stage once 796/797 settle. B3 OHR2 BSL
+refuse→ok semantic change (7 scripts) — split to new ticket 797 with the
+nine-commit bisect candidate list. A 69b1b35 control build reproduces the
+old pin sets exactly for ctimer13_inten and history_budget, proving all
+drift is accepted-batch era movement, not nondeterminism.
+
+The 2026-09-23 audit's "25 timing-only re-pin candidates" classification
+is superseded by this record: only 7 of the 25 were mechanically
+re-pinnable; the rest are the B1/B2/B3 evidence gaps above. 777 remains
+in-progress: the remaining stages are (1) 796 lands → re-derive the 13
+wall-blocked windows, (2) 797 lands → re-derive the 7 OHR2 windows,
+(3) B2 cap re-derivation stage, then (4) full-green twice-run census.

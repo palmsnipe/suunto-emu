@@ -18,8 +18,8 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # redistribution the other era checkpoints record), each re-derived from two
 # byte-identical runs. The post-boundary run is pinned as a budget-cap
 # continuation (exit code 3) per the E-ULS-0041 BKPT-to-NOP precedent.
-log_hash=8041f273595fe444382f4e708265844c35aeb7bb4669b95e4d2d64c445e98ab7
-snapshot_hash=0077e33ff8c8be5ba99e19c994f0bbbbd0c8fd3d1b02444b63c5d769a04ba7d3
+log_hash=dce94444f3f761c7d8baca62b3a841413a55b37bfe03fe28e2bd957a640be8c2
+snapshot_hash=1b08c4234ff7740d1d37e604408a012f8f37c3e80821080762ef1c87e37c40e0
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 command 2: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -74,11 +74,11 @@ do
     fi
 done
 if ! grep -F -x -q \
-    'stop=budget pc=0x000a7efe instructions=393235868 virtual_time_ns=1914584112' \
+    'stop=budget pc=0x000a7ac6 instructions=393235868 virtual_time_ns=1913027716' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 452 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 193 ]; then
     echo "error: command 2 execution boundary changed" >&2
     exit 1
 fi
@@ -96,7 +96,7 @@ else
     code=$?
 fi
 if [ "$code" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x000a7f00 instructions=393235869 virtual_time_ns=1914584113' \
+    'stop=budget pc=0x000a7ac8 instructions=393235869 virtual_time_ns=1913027717' \
     "$run_dir/resume.log"; then
     echo "error: post-command-2 boundary continuation changed" >&2
     cat "$run_dir/resume.log" >&2

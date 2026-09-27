@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=fa74015d06b9aa988787724e666f4e37c1223c14fc36f996cd773b2a93d61592
-expected_snapshot_hash=75f0f534bfc9aae60adabd642f0d4fa982146ed9a743abb7e584aa0e1664e290
+expected_log_hash=c53694a23d780c6b29a81acae028eb87aee83e4741b94549ac653b5f93371aef
+expected_snapshot_hash=2a5a7c572ff75f3627ca86395fb10dad3981e99c63946c3c51ae537b78e8e23f
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 LPS22 runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -69,7 +69,7 @@ if [ "$(shasum -a 256 "$run_dir/first.log" | awk '{print $1}')" != \
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000a7b2e instructions=79000000 virtual_time_ns=520829069' \
+    'stop=budget pc=0x000a67f6 instructions=79000000 virtual_time_ns=520798552' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|unknown Sapporo' \
     "$run_dir/first.log"; then
@@ -93,7 +93,7 @@ else
     resume_code=$?
 fi
 if [ "$resume_code" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x000a7b30 instructions=79000001 virtual_time_ns=520829070' \
+    'stop=budget pc=0x000d20a4 instructions=79000001 virtual_time_ns=520798553' \
     "$run_dir/resume.log"; then
     echo "error: Sapporo 2.39 LPS22 snapshot resume changed" >&2
     cat "$run_dir/resume.log" >&2

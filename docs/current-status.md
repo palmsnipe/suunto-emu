@@ -88,7 +88,16 @@ write `storage/38d123/data.jsn` (pc 0x920b4, 446,660,148 instructions /
 2.83 s) — tracked as new ticket 796, goldens NOT weakened into it; the
 three GPS snapshot inspectors were fixed to register the 791-era display
 snapshot codec, and the 25 timing-only scripts are being re-derived on
-this binary with twice-identical runs.
+this binary with twice-identical runs. The re-pin batch completed the
+same day: 7 scripts re-pinned green twice (timer_pattern attributed by
+rebuild-bisect to exactly `d8bfba9`, the MAX17050 lane-table fixture
+align; park pc unchanged), 18 blocked on three named causes — the 796
+storage-JSON wall (13 windows total), choreography redistribution past
+pinned caps (4 windows), and a new OHR2 BSL refuse→ok semantics change
+(7 windows, ticket 797). Census on 947f4bb: 19 of 43 era scripts green
+(12 device-register + 7 re-pinned), 24 red, all reds explained and
+tracked; the audit's "25 timing-only" classification is superseded by
+the batch record.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with

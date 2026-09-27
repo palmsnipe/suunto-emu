@@ -63,7 +63,7 @@ if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+    'stop=budget pc=0x00070378 instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/first.log";
 then
     echo "error: Sapporo 2.39 combined CTIMER INTEN checkpoint changed" >&2

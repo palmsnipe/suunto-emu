@@ -42,7 +42,7 @@ if grep -q 'event=machine-reset-request' "$run_dir/first.log"; then
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000e955a instructions=84856118 virtual_time_ns=6372873793' \
+    'stop=budget pc=0x000e955a instructions=84856056 virtual_time_ns=6372873731' \
     "$run_dir/first.log"; then
     echo "error: Sapporo 2.39 CTIMER pattern idle checkpoint changed" >&2
     tail -n 4 "$run_dir/first.log" >&2

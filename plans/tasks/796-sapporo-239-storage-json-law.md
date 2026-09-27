@@ -2,16 +2,17 @@
 
 **Status:** ready
 **Phase:** 7
-**Dependencies:** 777
+**Dependencies:** 729, 768
 
 ## Goal
 
 Extend the Sapporo 2.39 compat logical-file law so the guest's native
 storage JSON persistence (`storage/<key>/data.jsn`, observed key prefix
 `38d123`) is modeled with the same named, hash-pinned, opt-in, hit-bounded,
-logged treatment as the existing table paths, unblocking the six era
+logged treatment as the existing table paths, unblocking the thirteen era
 scripts that currently end at the fail-closed unknown-writable-path
-refusal.
+refusal wall (six GPS/settings scripts plus the seven windows listed in
+the baseline).
 
 ## Execution Budget
 
@@ -40,6 +41,19 @@ entry). The path is absent from `semu_s239_file_paths`; the refusal is
 correct fail-closed behavior for an unmodeled path. The six scripts' pinned
 choreographies (GPS awake 32.7 s, five-pulse 37.9 s, settings budgets) are
 unreachable past 2.83 s guest time.
+
+Batch classification (2026-09-27, re-pin stage final report): the wall
+extends beyond the six — `activity_budget` (logo window, rc-0-expected),
+`ctimer13_inten`, `ongoing`, `quiet_read`, `widgets`, `zip_read`, and
+`wbsto_cache` all carry pinned windows past the same refusal (wall
+fingerprint cold+layer+normal-frame: first.log sha
+`47e8aaa79662999c941660034c956fcad2befe9e26c7b53395d5199c3e7dca8d`,
+first.sems sha
+`d1582e694a5132475d935332f654380ec0035218e84fc6b43ac90148adf7a0e7`;
+refusal tuple 442856246 / 2176971322 at pc 0x000920b4). Thirteen era
+scripts total are unreachable past the wall; their windows recover only
+when this ticket lands. A separate OHR2 BSL semantics change (ticket 797)
+and the cap-redistribution windows are NOT this ticket's scope.
 
 ## Allowed Files
 
@@ -82,8 +96,8 @@ RECOVER their original shapes, not be re-pinned to the early refusal.
 `make test TEST_FILTER=sapporo_239` (or the focused module), `make check`,
 `make sanitize`, and the six era scripts twice each with
 `SEMU_EMULATOR/TEST_PROFILE/SEMU_FIRMWARE_MANIFEST/SEMU_SAPPORO_239_FULL_FLASH`
-set; `make check-era` census improving from 31 red to 25 red before the
-25 re-pin batch, then green as 777 completes.
+set; `make check-era` census improving from 24 red toward green as this
+ticket and the 777 follow-up stages complete.
 
 ## Acceptance
 

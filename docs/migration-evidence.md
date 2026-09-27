@@ -7592,3 +7592,32 @@ classes and are re-derived on this final binary in the same batch, twice
 per script, reported separately. Scope: authorizes the inspector codec
 registration, the classification census, and ticket 796; authorizes no
 compat-law extension and no re-pin of the six blocked scripts.
+
+Addendum (same day, batch final): the re-pin stage classified all 25 —
+7 re-pinned green twice with value-only substitutions
+(ctimer_combined_inten, file_seek, haptic, haptic_calibration, lps22,
+ohr2_command2, timer_pattern; the last attributed by rebuild-bisect to
+exactly `d8bfba9` "align MAX17050 AvgVCell fixture 0x19 to current lane
+table", with cd1de52, 2f22137, and d8bfba9^ reproducing the old value and
+park pc 0x000e955a unchanged), and 18 blocked on three named causes:
+B1 the ticket-796 storage-JSON wall at 442,856,246 instructions
+(fingerprint first.log sha
+`47e8aaa79662999c941660034c956fcad2befe9e26c7b53395d5199c3e7dca8d`,
+first.sems sha
+`d1582e694a5132475d935332f654380ec0035218e84fc6b43ac90148adf7a0e7`;
+blocks activity_budget, ctimer13_inten, ongoing, quiet_read, widgets,
+zip_read, wbsto_cache beyond the six gps/budget scripts), B2
+choreography redistribution past pinned caps (file_size 595→456
+ordinals with tss.bin ops absent; history_budget 75764→865 with sleep
+reads 0 vs 35712; preload1 trigger 0 vs 1; logical_files
+wbsto-preload-result trigger absent through 440M while still registered
+at `src/compat/sapporo_239.c:27`), and B3 an OHR2 BSL refuse→ok
+device-semantics change (7 scripts; zero refused OHR transactions
+through 440M; boot completes 0x0010→0x0000→0x0003 all-ok where six
+pinned refusals stood; session relocated ~+2.34M instructions) — split
+to ticket 797. A 69b1b35 control build reproduces the old pin sets
+exactly, so all movement is accepted-batch era drift. Final census on
+947f4bb with the 7 re-pins: 24 of 43 red (18 blocked + 6 gps/budget),
+19 green, reproducing the batch classification; the audit's "25
+timing-only" classification is superseded. Scratch logs
+`/tmp/sap239-era/repin/<script>-{1,2}.log` and `-green{1,2}.log`.

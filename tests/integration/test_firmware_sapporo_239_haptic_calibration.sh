@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=3aee5f2f3271f54448ab2ca681908e6dfa766348b4dfbe0e2099add4c7b24ca7
-expected_snapshot_hash=c287c2c1e256e55c100b083a6db1b35730a646ad9aabeea21600347873a9e95e
+expected_log_hash=2383b9f58f3da88f8d1e9a269dd84c623835140f919a54acfea653d850a7765d
+expected_snapshot_hash=bde1acbe41981f6070d271fe1ea97baf7d15feb4b2e020c631cbbcdb773e5538
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 haptic calibration runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -69,7 +69,7 @@ if [ "$(shasum -a 256 "$run_dir/first.log" | awk '{print $1}')" != \
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000cceb2 instructions=357033113 virtual_time_ns=1878381357' \
+    'stop=budget pc=0x000a7efe instructions=357033113 virtual_time_ns=1570612271' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|unknown Sapporo' \
     "$run_dir/first.log"; then
@@ -93,7 +93,7 @@ else
     resume_code=$?
 fi
 if [ "$resume_code" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x001c0db4 instructions=357033114 virtual_time_ns=1878381358' \
+    'stop=budget pc=0x000a7f00 instructions=357033114 virtual_time_ns=1570612272' \
     "$run_dir/resume.log"; then
     echo "error: Sapporo 2.39 haptic calibration boundary changed" >&2
     cat "$run_dir/resume.log" >&2
