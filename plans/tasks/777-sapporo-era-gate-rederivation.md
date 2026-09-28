@@ -322,7 +322,15 @@ post-admission save as `storage/f8572579/data.jsn` (string offset
 family extends to sub-keyed paths; none of f8572579/9ea0dac9/2e3fa8d2
 cracked from the 6710-token resource/app string census yet (cracking
 scripts /tmp/sap239-era/re796/*.py). Next B3 steps: (i) crack or
-model the nested-key law from the builder at 0x00198960 callers;
+model the nested-key law from the builder at 0x00198960 callers
+[update same day: the second-wall path cracked —
+`storage/f8572579/data.jsn` = FNV-1("/dive/surfacetimesnapshot"),
+i.e. it IS a storage-family key; census + bounded negative for
+ac100d90/faed64e2 recorded in E-SAP239-REPO38D123-001. The wall is a
+NESTED storage path storage/<key>/<sub>/data.jsn, so the next law
+question is whether the builder admits the nested form as a storage
+path (pathjoin %s%x composes key1/key2) and whether 34-byte capacity
+and the name-table shape extend to nested names];
 (ii) ±1-bisect each window's relocated boundary by scanning log-line
 fractions against capped runs (ongoing events sit at line fraction
 0.9934 of the 474153646-line pre-wall log); (iii) re-pin or fold each
