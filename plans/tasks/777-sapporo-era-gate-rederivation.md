@@ -335,3 +335,28 @@ and the name-table shape extend to nested names];
 fractions against capped runs (ongoing events sit at line fraction
 0.9934 of the 474153646-line pre-wall log); (iii) re-pin or fold each
 window per the E-SAP239-B2-CAPSTAGE-001 negative-observation rule.
+
+Stage note 2026-09-27 (B3 wall-entangled re-observation): direct cap
+runs on 796 confirm the wall-entangled windows cannot be mechanically
+re-pinned: at cap 439081594 (history_budget "first") the new binary
+reports stop=budget pc=0x000d160e instructions=439081594
+virtual_time_ns=2173196670 with ZERO sleep.bin record reads (old anchor:
+35,712 reads, stop vt 1,978,038,136, pc 0x000920b4 refusal) - the guest
+no longer reaches the sleep scan before this cap because the four
+admitted storage sessions change the post-boot flow that previously
+stalled at the first wall. The pre-wall prefix at cap 435333559 is
+unchanged (twice byte-identical log c1461588…, sems 30139dde…, and
+byte-identical to the f413e23 baseline - the prefix predates the storage
+family). Consequence: the history_budget/ongoing/quiet_read/zip_read/
+general/personal/widgets/ctimer13/activity_budget windows each need the
+RE-observed NEW choreography (the relocated lifecycle anchors) before
+re-pinning; the vt-instruction offset is NOT a global constant across
+the wall (vt-instruction = 216172480 at 439M new vs 1519791848 on the
+pristine segment), so each anchor is an independent observation, not an
+offset. gps_five baseline vs new: identical PRE-EXISTING red (fails the
+unknown-writable-path gate on both binaries; new wall vt 2862236294 vs
+old 2820942891). The general_budget/personal_budget probes fail in the
+cold 700M stage (prefix hash) because that stage now crosses the wall.
+Next: RE-observe the relocated sleep/ongoing/general anchors under the
+new choreography (log-line fraction scan + ±1 bisection per E-SAP239-
+OHR2-REPIN-001) and decide re-pin vs B2-style negative fold.
