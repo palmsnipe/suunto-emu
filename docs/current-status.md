@@ -124,6 +124,24 @@ path at `stop=compat-refused pc=0x000920b4
 instructions=474153646 virtual_time_ns=2208268722`; pre-wall and
 cross-wall snapshot resumes verified equivalent to direct runs; era
 re-derivation of the 16 wall-entangled windows follows under 777.
+First 777 B3 result (2026-09-27): wbsto_cache re-derived green twice
+byte-identically (layer-off sentinel 0x00070378 at the unchanged
+72774982/521257564 boundary - E-ULS-0041 class, identical at f413e23;
+layer-on advanced checkpoint = the new-wall stop, cold log sha
+a1e305b5…; session-cache trigger held, preload-result pinned absent -
+verified 0 at f413e23 too; reset/underflow guards held), census 28 of
+43 green with the census reproduced twice (census1 == census2
+byte-identical, and the red set identical on the f413e23 baseline
+binary: the 796 law flipped no script green<->red). Second-wall RE
+cracked (E-SAP239-REPO38D123-001 census): the refused write is the
+storage family's NESTED form, storage/f8572579/data.jsn =
+FNV-1("/dive/surfacetimesnapshot"), with nested sub-key forms visible
+in guest RAM; the flat-path crack is a bounded negative for
+ac100d90/faed64e2 (pathjoin %s%x runtime inputs). Consequence recorded
+on 777: the past-wall windows (history/ongoing/quiet_read/zip_read/
+general/personal/widgets/gps_five + the C-probe nav harness) are
+blocked behind modeling the nested-key admission law, not behind
+re-pinning.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
