@@ -360,3 +360,26 @@ cold 700M stage (prefix hash) because that stage now crosses the wall.
 Next: RE-observe the relocated sleep/ongoing/general anchors under the
 new choreography (log-line fraction scan + ±1 bisection per E-SAP239-
 OHR2-REPIN-001) and decide re-pin vs B2-style negative fold.
+
+Stage note 2026-09-27 (goal-critical harness diagnosis): the
+display/button-navigation goldens the objective centers on - the
+five-pulse C harness gps_five (general_budget/personal_budget share the
+same shape) - drive MIDDLE-button INPUT events and check rendered
+frames/CRC/SHA at anchors BASE=3960123530 (cold prefix), the five-pulse
+phases, and finals at 4071207676 (prefix branch) / 4345171340 (middle
+branch). Every one of these anchors is an instruction count FAR past the
+wall, and the run reaches them only by crossing the writable-path wall.
+The 796 admission law MOVED the wall (442856246 -> 474153646) but did
+NOT remove it: the cold run still stops compat-refused at 474153646 on
+the SECOND unmodeled write (cracked same day: nested storage key
+storage/f8572579/data.jsn = FNV-1("/dive/surfacetimesnapshot"), see
+E-SAP239-REPO38D123-001 census). Therefore gps_five/general_budget/
+personal_budget and the past-wall half of every wall-entangled window
+CANNOT go green by re-pinning alone - re-derivation is blocked behind
+MODELING THE NEXT WALL WRITES. Correct 777 B3 sequence: (1) extend the
+storage admission law to the nested storage/<key>[/<sub>]/data.jsn form
+(need the RE pathjoin caller-input observation past the current wall -
+the current save already shows the nested path string in guest RAM);
+(2) re-capture; (3) re-observe the relocated anchors; (4) re-pin. Until
+(1) lands the wall-entangled scripts legitimately stay red with the
+documented cause "second-wall unmodeled write", NOT silent drift.
