@@ -160,4 +160,4 @@ id	phase	title	status	dependencies	ticket
 795	7	Sapporo 2.33.16 First-Fault Attribution And Boot Refusal Closure	done	504,513,761,762,764	plans/tasks/795-sapporo-233-first-fault-attribution.md
 796	7	Sapporo 2.39 Native Storage JSON Write Law	in-progress	729,768	plans/tasks/796-sapporo-239-storage-json-law.md
 797	7	Sapporo 2.39 OHR2 BSL Refusal-Semantics Attribution	done	729	plans/tasks/797-sapporo-239-ohr2-bsl-attribution.md
-798	7	Sapporo 2.39 Refused-Path Observability For Wall Keys	ready	729	plans/tasks/798-sapporo-239-refused-path-observability.md
+798	7	Sapporo 2.39 Refused-Path Observability For Wall Keys	in-progress	729	plans/tasks/798-sapporo-239-refused-path-observability.md

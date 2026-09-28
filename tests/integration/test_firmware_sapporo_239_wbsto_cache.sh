@@ -23,7 +23,7 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
 # path`; the underflow write 0x0f676e34 stays asserted absent and the
 # machine-reset guard stays asserted absent.
-expected_log_hash=a1e305b594d06e1d5874b729ba9f0b0e242e4bd516cee5e0e8427e842fab30af
+expected_log_hash=3808c8ff46e7e35b7f6e881cad6dbc6eb3c32319358ab31a24c9492919c5096d
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 WbStorage cache runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -113,7 +113,7 @@ if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=compat-refused pc=0x000920b4 instructions=474153646 virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file path' \
+    'stop=compat-refused pc=0x000920b4 instructions=474153646 virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file path: storage/2e3fa8d2/b51799fe/data.jsn' \
     "$run_dir/first.log" ||
    grep -F -q '0x0f676e34' "$run_dir/first.log";
 then

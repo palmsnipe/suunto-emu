@@ -7833,3 +7833,32 @@ them needs the pathjoin caller input, only observable past the second
 wall at `storage/f8572579/data.jsn`, which is the next RE target. The
 depth-2 negative is itself the census; no admitted behavior depends on
 the two uncracked keys (admitted by family shape per this entry).
+E-SAP239-REFUSED-PATH-001 (2026-09-27, ticket 798; owner-approved
+observability step under the blocked-goal resolution): the Sapporo 2.39
+logical-file hook refusals now append the already-validated guest path
+after the verbatim message prefix (refuse_path in
+src/compat/sapporo_239_file_hook.c: unknown-writable-path, storage
+shape, slot-pool exhaustion, open-mode). Codes, budgets, ordinals,
+snapshot bytes and the refusal set are unchanged; the path is bounded
+to 64 chars by read_path's whitelist, so no firmware bytes beyond the
+validated ASCII path subset enter the log. Capture census, twice
+byte-identical (deep run, cap 3,000,000,000 / time 100,000,000,000 ns,
+layer sapporo-2.39-synthetic-wbsto, fixture flash
+37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb,
+binary at ticket-798 commit): stop=compat-refused pc=0x000920b4
+instructions=474153646 virtual_time_ns=2208268722 detail=unknown
+Sapporo 2.39 writable file path: storage/2e3fa8d2/b51799fe/data.jsn —
+FIRST NAMED CAPTURE: the second wall is the nested storage family
+form `storage/<key1>/<key2>/data.jsn` (2e3fa8d2/b51799fe), matching
+the guest-RAM strings recorded in E-SAP239-REPO38D123-001 (path-join
+nested form `storage/%s/<sub>`). Consequence: the next admission law
+must decide the nested-form shape (segment count, per-segment hex-key
+shape) from the pinned RE (builder 0x00198960 composes it), not from a
+guess; the flat-shape refusal for a nested path stays fail-closed
+until then. Era drift introduced HERE by design (recorded for 777):
+every era script pin using `grep -F -x -q '...detail=unknown ...'`
+exact-line matches and pinned log hashes now drift by the appended
+": <path>" suffix; `grep -F -q` prefix anchors are unaffected. Unit
+coverage: refusal text names the path, mode/shape classes keep
+prefixes, codes unchanged (test_sapporo_239_files, 6/6;
+make sanitize TEST_FILTER=sapporo_239_files clean).

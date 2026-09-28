@@ -27,6 +27,18 @@ static semu_status refuse(semu_error *error, const char *message)
     return SEMU_ERR_STATE;
 }
 
+/* E-SAP239-REFUSED-PATH-001 (ticket 798): the message prefix stays
+   verbatim for the era scripts' grep -F -q anchors; the already-
+   validated path (read_path whitelist, 64-byte bound) is appended
+   after ": " so offline RE captures the next unmodeled write at each
+   wall. Codes and behavior are unchanged. */
+static semu_status refuse_path(semu_error *error, const char *message,
+                               const char *path)
+{
+    semu_error_set(error, SEMU_ERR_STATE, "%s: %s", message, path);
+    return SEMU_ERR_STATE;
+}
+
 static semu_status read_path(semu_bus *bus, uint32_t address, char path[65],
                              semu_error *error)
 {
@@ -83,7 +95,7 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
     /* E-SAP-COMPAT-QUIET-READ-239-001: do not bypass table-owned state. */
     if (mode == 9u && index < 0) return SEMU_OK;
     if (mode < 1u || mode > 3u)
-        return refuse(error, "unknown Sapporo 2.39 file open mode");
+        return refuse_path(error, "unknown Sapporo 2.39 file open mode", path);
     if (index < 0) {
         /* E-SAP239-REPO38D123-001: admit the storage/<key>/data.jsn family
            on its write-create open only (guest mode 2, observed value); the
@@ -94,19 +106,20 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
                name appends. */
             storage_slot = semu_s239_storage_admit(files, path);
             if (storage_slot == -(int)SEMU_ERR_STATE)
-                return refuse(error,
-                    "invalid Sapporo 2.39 storage path shape");
+                return refuse_path(error,
+                    "invalid Sapporo 2.39 storage path shape", path);
             if (storage_slot == -(int)SEMU_ERR_NOMEM) {
                 semu_error_set(error, SEMU_ERR_NOMEM,
                     "cannot allocate Sapporo 2.39 storage file");
                 return SEMU_ERR_NOMEM;
             }
             if (storage_slot < 0)
-                return refuse(error,
-                    "Sapporo 2.39 storage slot pool exhausted");
+                return refuse_path(error,
+                    "Sapporo 2.39 storage slot pool exhausted", path);
             index = semu_s239_storage_index(files, path);
         } else if (mode == 2u) {
-            return refuse(error, "unknown Sapporo 2.39 writable file path");
+            return refuse_path(error,
+                "unknown Sapporo 2.39 writable file path", path);
         } else {
             return SEMU_OK;
         }

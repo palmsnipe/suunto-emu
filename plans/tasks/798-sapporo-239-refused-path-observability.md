@@ -1,6 +1,6 @@
 # 798 — Sapporo 2.39 Refused-Path Observability For Wall Keys
 
-**Status:** ready
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 729
 

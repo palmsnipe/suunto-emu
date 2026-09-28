@@ -208,12 +208,27 @@ static void test_storage_admit_capacity_and_refusals(
     char path[80];
     static const uint8_t payload[34] = {1u, 2u, 3u, 4u};
     SEMU_TEST_ASSERT(context, fixture_init(&f));
-    /* Shape refusals keep the historical unknown-path message. */
+    /* E-SAP239-REFUSED-PATH-001: refusals keep the message prefix and
+       name the path (ticket 798), codes unchanged. */
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/zz1234/data.jsn", 2u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, "unknown Sapporo 2.39 writable file path") != NULL);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, ": storage/zz1234/data.jsn") != NULL);
     semu_error_clear(&f.error);
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/38d123/list.jsn", 2u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, "unknown Sapporo 2.39 writable file path") != NULL);
+    semu_error_clear(&f.error);
+    /* An unknown writable path names the guest path in the refusal. */
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "dive/surface.bin", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, "unknown Sapporo 2.39 writable file path") != NULL);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, ": dive/surface.bin") != NULL);
     semu_error_clear(&f.error);
     /* Read mode never admits a storage slot. */
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/38d123/data.jsn", 1u));
