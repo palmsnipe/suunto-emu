@@ -143,7 +143,18 @@ general/personal/widgets/gps_five + the C-probe nav harness) are
 blocked behind modeling the nested-key admission law, not behind
 re-pinning. `make check-era` on the committed tree reports 28 of 43
 Sapporo 2.39 era scripts green (the tool counts FAILs; 15 fail),
-consistent with the manual twice-run census.
+consistent with the manual twice-run census. Ticket 798 then landed
+the refusal-path capture channel (E-SAP239-REFUSED-PATH-001): every
+unknown-path refusal names the validated guest path (codes and
+machine-visible behavior unchanged; `grep -F -q` prefix anchors
+unaffected, exact-line `detail=` pins and pinned log hashes drift by
+the ": <path>" suffix — wbsto_cache re-derived twice to
+3808c8ff…, census stays 28/43). The first named capture identifies
+the second wall as the NESTED storage form
+`storage/2e3fa8d2/b51799fe/data.jsn`; the next admission law must
+derive the nested-shape rule from the pinned RE (builder
+`0x00198960`/pathjoin `0x00198912` composes it), tracked as the 796
+continuation.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
