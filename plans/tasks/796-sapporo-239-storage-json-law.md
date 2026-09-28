@@ -1,6 +1,6 @@
 # 796 — Sapporo 2.39 Native Storage JSON Write Law
 
-**Status:** ready
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 729, 768
 
