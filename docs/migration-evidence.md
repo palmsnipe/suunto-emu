@@ -7862,3 +7862,55 @@ exact-line matches and pinned log hashes now drift by the appended
 coverage: refusal text names the path, mode/shape classes keep
 prefixes, codes unchanged (test_sapporo_239_files, 6/6;
 make sanitize TEST_FILTER=sapporo_239_files clean).
+E-SAP239-REPO38D123-001 addendum B (2026-09-27, nested-key admission
+step, ticket-796 law extension): the refusal capture
+(E-SAP239-REFUSED-PATH-001) named the second wall as the nested form
+`storage/2e3fa8d2/b51799fe/data.jsn`. The key-region shape law was
+extended from single hex segments to hex segments separated by single
+interior slashes (no leading/trailing/doubled separator; flat form
+byte-identical to the historical shape check), keeping the fail-closed
+refusal for every other shape. Guest write sequence at the nested open
+(deep run cap 3e9, layer sapporo-2.39-synthetic-wbsto, twice-reproduced
+capture `stop=compat-refused pc=0x000921a8
+instructions=474153673 virtual_time_ns=2208268749
+detail=Sapporo 2.39 logical file exceeds capacity`): after the open
+(handle 0x10161400, ordinal after the faed64e2 close at 2207268207)
+the guest issues writes whose total EXCEEDS the modeled 34-byte
+capacity, and the emulator's capacity refusal fires — the FIRST stop
+not caused by an unknown path. This observation bounds the next law
+question: the 34-byte capacity census ("observed payloads end exactly
+at 34") covered only flat files; the nested snapshot write exceeds it,
+so the capacity law must be re-derived from the RE (serialized_size
+census in storage_dir_census.json shows real data.jsn records up to
+782 bytes: 220, 782, ... in the pinned flash resource partition)
+before the nested admission can pass. The nested admission is
+therefore NOT yet era-green: it converts the second wall from
+unknown-path to the capacity law, exposing the next measured law.
+Capacity census for the re-derivation: pinned-partition data_jsn
+serialized sizes [8,1,8,41,782,5,4,43,41,...] (storage_dir_census.json,
+69 dirs); write-sequence tail at 474153673 (this addendum's log) is
+the guest-side size bound.
+E-SAP239-REPO38D123-001 addendum C (2026-09-27, capacity correction):
+addendum B's phrase "the guest issues writes whose total EXCEEDS the
+34-byte capacity" was WRONG: the refusal fires in stage_write BEFORE
+any log line, so no write line exists; a one-shot temporary probe
+(noted cursor/count/capacity in the refusal detail; reverted, never
+committed) captured the guest's FIRST nested write exactly: cursor=0
+count=87 capacity=34 at pc=0x000921a8 instructions=474153673
+virtual_time_ns=2208268749 (stop otherwise unchanged, twice). So a
+SINGLE write requests 87 bytes — the 34-byte capacity law
+("observed payloads end exactly at 34") is proven FLAT-SCOPE ONLY: it
+was observed over exactly four flat watchface/alarmclock files and
+does not extend to nested keys. Pinned-partition record-size census
+(62 data_jsn records, storage_dir_census.json): max 782 (d712231a),
+and 2e3fa8d2 itself is NOT a pinned-partition directory — it is a
+runtime-created key. RE buffer bound at repo_read 0x00198b8a is
+movw r5, #0x40d (1037 bytes, shared buffer); no static per-key
+capacity constant was found in the repo builder chain
+(0x198960/0x198a34/0x198b40). Next-law rule: the storage capacity
+must be re-derived (writer-side serialization bound or guest-side
+buffer size at the caller), NOT guessed; the emulator keeps the
+fail-closed 34-byte refusal until that derivation lands. The nested
+shape admission (hex segments separated by single slashes; flat form
+unchanged) stays committed: it is path-shape evidence from
+E-SAP239-REFUSED-PATH-001; capacity remains the open law.

@@ -48,11 +48,28 @@ int semu_s239_storage_path(const char *path)
     if (memcmp(path, S239_STORAGE_PREFIX, prefix) != 0) return 0;
     if (memcmp(path + length - suffix, S239_STORAGE_SUFFIX, suffix) != 0)
         return 0;
-    for (i = prefix; i + suffix < length; ++i) {
-        char c = path[i];
-        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return 0;
+    /* E-SAP239-REFUSED-PATH-001 capture (ticket 798, twice-identical):
+       the guest builder (0x00198960, "%s%x" pathjoin) composes nested
+       key regions; a valid key region is hex segments separated by
+       single interior slashes - never a leading, trailing, or doubled
+       slash. Flat single-segment keys keep their historical shape. */
+    {
+        int hex_seen = 0;
+        for (i = prefix; i + suffix < length; ++i) {
+            char c = path[i];
+            if (c == '/') {
+                /* A slash right after the prefix or another slash, or
+                   one just before the suffix, is not a separator. */
+                if (!hex_seen) return 0;
+                hex_seen = 0;
+                continue;
+            }
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+                return 0;
+            hex_seen = 1;
+        }
+        return hex_seen;
     }
-    return 1;
 }
 
 int semu_s239_storage_index(const semu_sapporo_239_files *files,

@@ -181,3 +181,14 @@ layer-off pins of wbsto_cache/logical_files drift is
 `pc=0x00070378` at cap 72774982 (pre-existing at f413e23, not caused by
 796; bisection: the layer-on path at that cap changed when the storage
 wall moved). Ticket stays in-progress until 777 re-derivation lands.
+
+## Continuation 2026-09-27 (798 capture, integrator, E-SAP239-
+REPO38D123-001 addenda B/C): nested shape `storage/<hex>[/<hex>...]/
+data.jsn` admitted (unit-covered twice, boundary at 63 names
+including nested slots); the second wall is now a CAPACITY refusal,
+not unknown-path: first nested write cursor=0 count=87 > capacity=34.
+Open law: per-key storage capacity must be RE-derived (writer-side
+serialization bound / repo caller buffer; repo_read buffer 1037 at
+0x00198b8a is a read-side shared buffer, not the record law; pinned
+partition shows real records up to 782). No guessed bump. Flat 34 law
+byte-unchanged.

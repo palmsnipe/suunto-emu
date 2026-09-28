@@ -230,10 +230,40 @@ static void test_storage_admit_capacity_and_refusals(
     SEMU_TEST_ASSERT(context,
         strstr(f.error.text, ": dive/surface.bin") != NULL);
     semu_error_clear(&f.error);
-    /* Read mode never admits a storage slot. */
+    /* E-SAP239-REFUSED-PATH-001 capture: the nested hex-segment form
+       (observed at the second wall: storage/2e3fa8d2/b51799fe/data.jsn)
+       joins the admitted family; malformed key regions stay fail-closed
+       with the same refusal naming the path. */
+    handle = open_path(&f, "storage/2e3fa8d2/b51799fe/data.jsn", 2u);
+    SEMU_TEST_ASSERT(context, handle != 0u);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_load(f.bus, DATA, payload, sizeof(payload), &f.error));
+    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 7u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000921a8)));
+    SEMU_TEST_EQ_U64(context, 7u, semu_sapporo_239_file_size(f.files,
+        "storage/2e3fa8d2/b51799fe/data.jsn"));
+    f.cpu.r[0] = handle;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage//aa/data.jsn", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    semu_error_clear(&f.error);
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/aa//data.jsn", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    semu_error_clear(&f.error);
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/aa//bb/data.jsn", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    semu_error_clear(&f.error);
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/aa/bb/.jsn", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    semu_error_clear(&f.error);
+    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/aa/gg/data.jsn", 2u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    semu_error_clear(&f.error);
+    /* Read mode never admits a storage slot (the earlier admitted
+       nested slot stays closed, so the count stays one). */
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/38d123/data.jsn", 1u));
     SEMU_TEST_EQ_U64(context, UINT32_C(0x000920b4), f.cpu.r[15]);
-    SEMU_TEST_EQ_U64(context, 0u, semu_sapporo_239_files_count(f.files));
+    SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_files_count(f.files));
     /* Admit on mode 2; write exactly to the 34-byte capacity. */
     handle = open_path(&f, "storage/38d123/data.jsn", 2u);
     SEMU_TEST_ASSERT(context, handle != 0u);
@@ -263,8 +293,10 @@ static void test_storage_admit_capacity_and_refusals(
         semu_sapporo_239_file_size(f.files, "storage/38d123/data.jsn"));
     f.cpu.r[0] = handle;
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
-    /* Slot pool: exactly 63 distinct names total, then exhaustion. */
-    for (i = 1u; i < 63u; ++i) {
+    /* Slot pool: exactly 63 distinct names total (the admitted nested
+       slot from the shape-capture case above already occupies one),
+       then exhaustion. */
+    for (i = 1u; i < 61u; ++i) {
         (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn",
             (unsigned)i);
         handle = open_path(&f, path, 2u);
@@ -273,6 +305,8 @@ static void test_storage_admit_capacity_and_refusals(
         SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
     }
     (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn", 63u);
+    SEMU_TEST_ASSERT(context, open_path(&f, path, 2u) != 0u);
+    (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn", 64u);
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, path, 2u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
     fixture_destroy(&f);
