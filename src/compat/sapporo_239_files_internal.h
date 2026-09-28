@@ -12,7 +12,9 @@
 #define S239_FILE_COUNT 12u
 /* E-SAP239-REPO38D123-001: session-local slots for the admitted
    storage/<key>/data.jsn family (REPO persistence writes). File index
-   space: 0..11 fixed table; 12.. are storage slots. */
+   space: 0..11 fixed table; 12.. are storage slots. The slot count is
+   S239_FILE_MAX_HANDLES - 1 (63) so the derived file index
+   S239_FILE_COUNT + slot stays inside the uint8 handle->file field. */
 #define S239_STORAGE_SLOTS 63u
 #define S239_STORAGE_NAME_MAX 65u /* Same capture budget as file paths. */
 #define S239_STORAGE_CAPACITY 34u
@@ -43,6 +45,12 @@ typedef struct s239_handle_slot {
 /* File index space: 0..S239_FILE_COUNT-1 are the fixed table paths;
    index S239_FILE_COUNT+i is storage slot i. */
 #define S239_FILE_INDEX_STORAGE UINT32_C(S239_FILE_COUNT)
+
+/* The derived storage index passes through the uint8 handle->file field
+   on its way into the uint32 operate_file local, so the slot table must
+   stop below an index overflow (63 + 12 = 75). */
+typedef char s239_storage_index_fits_uint8_check[
+    (S239_FILE_COUNT + S239_STORAGE_SLOTS <= UINT32_C(255)) ? 1 : -1];
 
 struct semu_sapporo_239_files {
     s239_file_slot files[S239_FILE_COUNT];
