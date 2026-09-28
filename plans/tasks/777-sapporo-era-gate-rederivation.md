@@ -383,3 +383,22 @@ the current save already shows the nested path string in guest RAM);
 (2) re-capture; (3) re-observe the relocated anchors; (4) re-pin. Until
 (1) lands the wall-entangled scripts legitimately stay red with the
 documented cause "second-wall unmodeled write", NOT silent drift.
+
+Stage note 2026-09-27 (798 capture census - wall paths now named,
+twice byte-identical, binary e2fbcda tree, deep run cap 3e9):
+the previously unknown writable-path refusals are captured as
+concrete storage-family paths. Second wall (flat): the refusal at
+474153646/2208268722 names `storage/2e3fa8d2/b51799fe/data.jsn` -
+the NESTED form (key1/key2), NOT admitted by the flat law
+(E-SAP239-REFUSED-PATH-001). Pre-admission layer-off path census
+(cap 935400000): zero storage opens exist below the old wall - all
+storage-family activity is layer-gated behind the synthetic layer's
+session cache, consistent with the lane research note. Admission
+next-law decision recorded: model the nested shape (2 segments) only
+after the guest's nested pathjoin composition is RE-confirmed from
+the builder (0x00198960 composes '%s%x' + '/data.jsn'); the current
+nested-path refusal stays fail-closed. Crack status: 2e3fa8d2/
+b51799fe/9ea0dac9/91b4709a/ac100d90/faed64e2 all bounded negatives
+over the app+resource token+path censuses (runtime composition;
+the refusal channel now captures composed forms directly, so static
+cracking is no longer on the critical path).
