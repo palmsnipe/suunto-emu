@@ -15,10 +15,15 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # former advanced checkpoint pinned a run-ending unmapped write to 0x0f676e34
 # (E-SAP-COMPAT-WBSTO-239-001). Ticket 729's logical writable-files layer
 # (E-SAP-COMPAT-FILES-239-001, this gate's dependency) removed that FAT
-# underflow as accepted behavior, so the cache-layer era now runs fault-free
-# to the full 500,000,000-instruction budget cap; that cap stop line is the
-# re-derived advanced checkpoint and the underflow is now asserted absent.
-expected_log_hash=6682af6ef5457a2155866229c29e25dda161cbb787e4c140619d79358d379d2d
+# underflow as accepted behavior.
+# E-SAP239-REPO38D123-001 follow-up (ticket 777 B3): with the storage
+# write law admitted, the cache-layer cold run reaches the SECOND
+# unmodeled writable path and stops there (rc=3), twice-identically at
+# `stop=compat-refused pc=0x000920b4 instructions=474153646
+# virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
+# path`; the underflow write 0x0f676e34 stays asserted absent and the
+# machine-reset guard stays asserted absent.
+expected_log_hash=a1e305b594d06e1d5874b729ba9f0b0e242e4bd516cee5e0e8427e842fab30af
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 WbStorage cache runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -61,9 +66,13 @@ run_once()
     fi
 }
 
+# E-SAP239-REPO38D123-001 follow-up (ticket 777 B3): layer-off sentinel
+# re-observed on twice-identical runs (E-ULS-0041 drift class). The
+# observed retire PC at this cap is 0x00070378; the instruction and
+# virtual-time budget boundary are unchanged (72774982 / 521257564).
 run_once "$run_dir/layer-off.log" 3 72774982
 if ! grep -F -x -q \
-    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+    'stop=budget pc=0x00070378 instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/layer-off.log";
 then
     echo "error: Sapporo 2.39 layer-off checkpoint changed" >&2
@@ -84,20 +93,27 @@ if [ "$(shasum -a 256 "$run_dir/first.log" | awk '{print $1}')" != \
     cat "$run_dir/first.log" >&2
     exit 1
 fi
-for trigger in wbsto-session-cache wbsto-preload-result; do
-    if [ "$(grep -c "trigger=$trigger ordinal=1" "$run_dir/first.log")" -ne 1 ]; then
-        echo "error: Sapporo 2.39 intervention $trigger count changed" >&2
-        cat "$run_dir/first.log" >&2
-        exit 1
-    fi
-done
+# wbsto-session-cache fires once before the wall. wbsto-preload-result
+# (cmd-1 callback) is NOT reached below the E-SAP239-REPO38D123-001 wall
+# on either side of 796 (verified identical at f413e23 and here); it is
+# pinned absent until the wall moves again.
+if [ "$(grep -c "trigger=wbsto-session-cache ordinal=1" "$run_dir/first.log")" -ne 1 ]; then
+    echo "error: Sapporo 2.39 intervention wbsto-session-cache count changed" >&2
+    cat "$run_dir/first.log" >&2
+    exit 1
+fi
+if [ "$(grep -c "trigger=wbsto-preload-result ordinal=1" "$run_dir/first.log")" -ne 0 ]; then
+    echo "error: Sapporo 2.39 intervention wbsto-preload-result appeared below the wall" >&2
+    cat "$run_dir/first.log" >&2
+    exit 1
+fi
 if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     echo "error: Sapporo 2.39 WbStorage cache run reset" >&2
     cat "$run_dir/first.log" >&2
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x00070f3e instructions=500000000 virtual_time_ns=2038956542' \
+    'stop=compat-refused pc=0x000920b4 instructions=474153646 virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file path' \
     "$run_dir/first.log" ||
    grep -F -q '0x0f676e34' "$run_dir/first.log";
 then
