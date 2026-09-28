@@ -277,8 +277,18 @@ ctimer13_inten, gps_startup and the layer-off halves of wbsto_cache and
 logical_files (pin pc=0x00079e1e sentinel vs observed 0x00070378 at cap
 72774982, verified identical at f413e23): the documented E-ULS-0041
 sentinel-relocation drift, re-pin mechanically (stop line + artifact
-shas, guards intact). Census run 2 completed: run1.txt = run2.txt byte-identical
+shas, guards intact). [Superseded by the correction below - keep for
+the record.] Census run 2 completed: run1.txt = run2.txt byte-identical
 (`diff` clean), so the 27/16 split and the red-set identity against the
-pre-796 binary are twice-reproduced. Every
+pre-796 binary are twice-reproduced. (b) correction (same day, direct
+observation): the split is 14 wall-entangled + 2 wall-crossing
+layer-off, NOT 11+5. activity_budget and ctimer13_inten cap past the
+wall WITH the wbsto layer: at f413e23 their cold runs refused at the OLD
+wall 442856246 (rc=3 == their pinned exit codes, so both were red on
+"artifact differs", not on exit code); on 796 the refusal moves to
+474153646 keeping rc=3 - same failure line, wall-moved artifacts.
+gps_startup is purely pre-existing (assert-layer cold run, no file layer,
+identical failure on both binaries - the documented sentinel/gate drift).
+Every
 re-derivation lands with twice byte-identical runs per E-SAP239-OHR2-
 REPIN-001 method.
