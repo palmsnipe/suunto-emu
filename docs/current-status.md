@@ -141,7 +141,9 @@ ac100d90/faed64e2 (pathjoin %s%x runtime inputs). Consequence recorded
 on 777: the past-wall windows (history/ongoing/quiet_read/zip_read/
 general/personal/widgets/gps_five + the C-probe nav harness) are
 blocked behind modeling the nested-key admission law, not behind
-re-pinning.
+re-pinning. `make check-era` on the committed tree reports 28 of 43
+Sapporo 2.39 era scripts green (the tool counts FAILs; 15 fail),
+consistent with the manual twice-run census.
 Verification: `make check` 998 PASS,
 `make sanitize` zero findings, all nine 2.35 firmware runners, `check-sdl`,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
