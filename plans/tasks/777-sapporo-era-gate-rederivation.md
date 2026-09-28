@@ -292,3 +292,38 @@ identical failure on both binaries - the documented sentinel/gate drift).
 Every
 re-derivation lands with twice byte-identical runs per E-SAP239-OHR2-
 REPIN-001 method.
+
+Stage note 2026-09-27 (B3 first re-derivation, wbsto_cache): wbsto_cache
+re-derived green twice (third run confirmatory) on 5f1bf4c: (a) layer-off
+sentinel re-pin 0x00079e1e -> observed 0x00070378 at the unchanged
+72774982/521257564 boundary (E-ULS-0041 drift class, identical at
+f413e23); (b) layer-on advanced checkpoint re-derived from the old
+fault-free 500M-cap stop to the E-SAP239-REPO38D123-001 second-wall stop
+`stop=compat-refused pc=0x000920b4 instructions=474153646
+virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
+path` (cold-run log sha a1e305b5…, twice byte-identical); guards held
+(session-cache trigger==1, preload-result now pinned ABSENT - verified 0
+at f413e23 as well, reset guard, underflow 0x0f676e34 guard). Census
+28/43 green. REPROBING RESULT for the remaining file-window scripts
+(ongoing/quiet_read/zip_read/widgets/history/gps family): their asserted
+native lifecycles (ongoing.bin 20 ops at vt ~2186664635, ZIP/general/
+personal scans) occur in the full admission run only in the FINAL
+~0.7% of pre-wall log lines - instruction-wise beyond every tested cap
+473500000/474000000/474100000/474153645 (0 occurrences) - because the
+four admitted storage JSON sessions INSERT instructions before them on
+the post-796 path, so pinned (instruction, vt) pairs moved by a
+non-uniform delta (the vt-instruction law holds per pristine segment,
+not across the inserted sessions). RE-OBSERVATION RESULT for the new
+wall: the next unknown writable path materializes in guest RAM at the
+post-admission save as `storage/f8572579/data.jsn` (string offset
+1505113 in rt-i.sems); nearby snapshot strings reveal NESTED keying
+(`storage/%s` + `<key>/<subkey>/data.jsn` forms: storage/9ea0dac9/
+91b4709a, storage/2e3fa8d2/b51799fe/data.jsn) - the FNV-1 top-level
+family extends to sub-keyed paths; none of f8572579/9ea0dac9/2e3fa8d2
+cracked from the 6710-token resource/app string census yet (cracking
+scripts /tmp/sap239-era/re796/*.py). Next B3 steps: (i) crack or
+model the nested-key law from the builder at 0x00198960 callers;
+(ii) ±1-bisect each window's relocated boundary by scanning log-line
+fractions against capped runs (ongoing events sit at line fraction
+0.9934 of the 474153646-line pre-wall log); (iii) re-pin or fold each
+window per the E-SAP239-B2-CAPSTAGE-001 negative-observation rule.
