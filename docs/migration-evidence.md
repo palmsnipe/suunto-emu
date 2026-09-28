@@ -7914,3 +7914,27 @@ fail-closed 34-byte refusal until that derivation lands. The nested
 shape admission (hex segments separated by single slashes; flat form
 unchanged) stays committed: it is path-shape evidence from
 E-SAP239-REFUSED-PATH-001; capacity remains the open law.
+E-SAP239-REPO38D123-001 addendum D (2026-09-27, observe-only capacity
+sweep): to bound the capacity law WITHOUT guessing it, a temporary
+local build raised S239_STORAGE_CAPACITY to the repo_read buffer
+bound 1037 (0x40d at 0x00198b8a) — an OBSERVE-ONLY experiment,
+reverted immediately, never committed. Result (layer synthetic-wbsto,
+cap 640300000): the guest completes its whole session storage burst
+with ZERO further refusals and reaches `stop=user pc=0x000a7ac4
+instructions=640300000 virtual_time_ns=2487119465` (the user-input
+stop the 2.39 boot expects at that point). Complete storage lifecycle
+observed, sizes final-at-close: 2e3fa8d2/b51799fe 89 (87+2),
+a70366e1 29 (27+2, flat), 9ea0dac9/b51799fe 9 (7+2, nested),
+bff517c6 96 (94+2, flat) — every file's close size equals the sum of
+its writes; the +2 tail write matches the flat files' pattern exactly
+(faed64e2 27+2=29). Capacity law derivation: guest commit sizes are
+RUNTIME-SIZED and exceed 34 (96 observed within this session alone;
+the pinned partition shows records to 782); the emulator's admission
+buffer must therefore be a capacity >= the largest the guest commits
+at runtime, with the repo buffer bound 1037 as the observed hard
+ceiling — the honest next-law candidate, pending an integrator
+decision between (a) uniform 1037 (the guest's own buffer bound,
+fail-closed above it) or (b) further RE of the writer-side
+serialization bound. The sweep log (/tmp, sha per lane convention,
+volatile) is reproducible from this entry's constants + the pre-796
+provenance chain.
