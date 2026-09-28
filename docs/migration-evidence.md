@@ -7810,3 +7810,26 @@ present); v1 artifacts byte-identical, open storage handles legal only
 in v2; capacity-overflow writes follow the shared writer's
 stage-then-commit law (observed sequences never exceed capacity).
 Unknown writable paths keep the historical refusal message verbatim.
+
+Key-preimage census follow-up (2026-09-27, ticket 777 B3; deterministic
+offline crack, twice-reproduced): the 2.39 application partition
+`app.raw` (sha256 above) yields a token census of 6002 alphanumeric
+lower-cased strings (`strings -a`, 2<=len<50, alnum/_/- only; combined
+census SHA-256 prefix b325aa9a2cb64d23). Exhaustive FNV-1 depth-1 and
+depth-2 path search `/{token}` and `/{A}/{B}` over that census
+reproduces the known preimages (`/multiple/alarmclock/list`->38d123,
+`/settings/zapp/watchface/id`->e0759d86) and cracks the second-wall
+path `storage/f8572579/data.jsn` -> `/dive/surfacetimesnapshot`
+(the guest's first post-boot unknown write, observed as a live path
+string at snapshot byte 1505113 of the post-admission save). It yields
+a BOUNDED NEGATIVE for `ac100d90` and `faed64e2`: neither is the FNV-1
+of any `/A`, `/A/B`, `/A/B/C`, `.->/`, or PTH-dot variant over the
+app+resource (`<PTH>` 750 entries) token census, confirming they are
+pathjoin (`%s%x`) runtime compositions whose inputs are register
+values not present as static strings (the snapshot shows nested-key
+forms `storage/<k1>/<k2>` and `storage/<k1>/<k2>/data.jsn`, e.g.
+`storage/9ea0dac9/91b4709a` and `storage/2e3fa8d2/b51799fe`). Cracking
+them needs the pathjoin caller input, only observable past the second
+wall at `storage/f8572579/data.jsn`, which is the next RE target. The
+depth-2 negative is itself the census; no admitted behavior depends on
+the two uncracked keys (admitted by family shape per this entry).
