@@ -110,16 +110,31 @@ static void test_fallthrough_and_capacity_refusal(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "unknown/write.bin", 2u));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
     semu_error_clear(&f.error);
+    /* Fixed-table admission bound = max(partition size, 1037) (the
+       serializer buffer bound; partition sizes are INITIAL sizes —
+       guest growth past them is guest-normal, observed on zapp/
+       storage.sbm @1129953745). uiv2.txt (235 bytes pinned) admits
+       growth to 1037: 234 bytes succeed; the write that crosses 1037
+       refuses fail-closed. */
     handle = open_path(&f, "settings/uiv2.txt", 2u);
     SEMU_TEST_ASSERT(context, handle != 0u);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_load(f.bus, DATA, payload, sizeof(payload), &f.error));
-    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = sizeof(payload);
+    f.cpu.r[0] = handle; f.cpu.r[1] = 800u; f.cpu.r[2] = 0u; /* SEEK_SET */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x00092182)));
+    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 234u; /* 800..1034 */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        hook(&f, UINT32_C(0x000921a8)));
+    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 4u; /* crosses 1037 */
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
         hook(&f, UINT32_C(0x000921a8)));
-    SEMU_TEST_EQ_U64(context, 0u,
-        semu_sapporo_239_file_size(f.files, "settings/uiv2.txt"));
-    SEMU_TEST_EQ_U64(context, 1u, f.layer.hits);
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, ": settings/uiv2.txt") != NULL);
+    SEMU_TEST_ASSERT(context, semu_sapporo_239_file_size(f.files,
+        "settings/uiv2.txt") >= 1034u);
+    /* Successful interventions consumed: open + seek + one write (the
+       capacity refusal applies nothing). */
+    SEMU_TEST_EQ_U64(context, 3u, f.layer.hits);
     ((semu_layer_intervention *)
         &f.layer.descriptor->interventions[
             SEMU_SAPPORO_239_IV_LOGICAL_FILE])->hits =
@@ -127,8 +142,8 @@ static void test_fallthrough_and_capacity_refusal(semu_test_context *context)
     f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 1u;
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
         hook(&f, UINT32_C(0x000921a8)));
-    SEMU_TEST_EQ_U64(context, 0u,
-        semu_sapporo_239_file_size(f.files, "settings/uiv2.txt"));
+    SEMU_TEST_ASSERT(context, semu_sapporo_239_file_size(f.files,
+        "settings/uiv2.txt") >= 1034u); /* budget refusal mutates nothing */
     fixture_destroy(&f);
 }
 
@@ -204,6 +219,7 @@ static void test_storage_admit_capacity_and_refusals(
 {
     fixture f;
     uint32_t handle;
+    unsigned k;
     char path[80];
     static const uint8_t payload[34] = {1u, 2u, 3u, 4u};
     SEMU_TEST_ASSERT(context, fixture_init(&f));
@@ -323,9 +339,23 @@ static void test_storage_admit_capacity_and_refusals(
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, hook(&f, UINT32_C(0x000921a8)));
     SEMU_TEST_ASSERT(context,
         strstr(f.error.text, "exceeds capacity") != NULL);
+    /* Capacity refusals name the file (E-SAP239-REFUSED-PATH-001). */
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text,
+            ": storage/2e3fa8d2/b51799fe/data.jsn") != NULL);
     semu_error_clear(&f.error);
     f.cpu.r[0] = handle;
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+    /* Handle recycling (observed @1118180845: the guest opened and
+       closed 64 handles then opened a 65th; only 64 CONCURRENT
+       handles is the pool law): 70 sequential open/close cycles on
+       one path must all succeed and reuse slots. */
+    for (k = 0u; k < 70u; ++k) {
+        uint32_t h = open_path(&f, "storage/38d123/data.jsn", 2u);
+        SEMU_TEST_ASSERT(context, h != 0u);
+        f.cpu.r[0] = h;
+        SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+    }
     /* Slot pool law (E-SAP239-REPO38D123-001): the append-only name
        table admits exactly S239_STORAGE_SLOTS (63) distinct names,
        counting the flat 38d123 and the nested 2e3fa8d2/b51799fe slots

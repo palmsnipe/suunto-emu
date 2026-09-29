@@ -121,8 +121,12 @@ size_t semu_s239_file_capacity(const semu_sapporo_239_files *files,
                                uint32_t file_index)
 {
     (void)files;
-    return file_index < FILE_COUNT ? semu_s239_file_capacities[file_index]
-                                   : S239_STORAGE_CAPACITY;
+    if (file_index < FILE_COUNT)
+        return semu_s239_file_capacities[file_index] >
+                       S239_FILE_RUNTIME_CAPACITY
+            ? semu_s239_file_capacities[file_index]
+            : S239_FILE_RUNTIME_CAPACITY;
+    return S239_STORAGE_CAPACITY;
 }
 
 int semu_s239_slot_present(const semu_sapporo_239_files *files,
@@ -310,16 +314,24 @@ static semu_status read_files(semu_sapporo_239_files *temp,
         if (!present) continue;
         if (semu_snapshot_reader_u32(reader, &size, error) != SEMU_OK)
             return error->code;
-        if (size > semu_s239_file_capacities[i]) goto invalid;
-        if (semu_s239_file_capacities[i] != 0u) {
-            temp->files[i].data = (uint8_t *)malloc(
-                semu_s239_file_capacities[i]);
-            if (temp->files[i].data == NULL) {
-                semu_error_set(error, SEMU_ERR_NOMEM,
-                               "cannot restore Sapporo 2.39 logical file");
-                return SEMU_ERR_NOMEM;
+        /* Restore bound follows the runtime capacity law
+           max(partition size, 1037): guest growth is session state and
+           must round-trip; oversized payloads stay fail-closed. */
+        {
+            size_t bound = semu_s239_file_capacities[i] >
+                    S239_FILE_RUNTIME_CAPACITY
+                ? semu_s239_file_capacities[i]
+                : S239_FILE_RUNTIME_CAPACITY;
+            if (size > bound) goto invalid;
+            if (bound != 0u) {
+                temp->files[i].data = (uint8_t *)malloc(bound);
+                if (temp->files[i].data == NULL) {
+                    semu_error_set(error, SEMU_ERR_NOMEM,
+                                   "cannot restore Sapporo 2.39 logical file");
+                    return SEMU_ERR_NOMEM;
+                }
+                memset(temp->files[i].data, 0, bound);
             }
-            memset(temp->files[i].data, 0, semu_s239_file_capacities[i]);
         }
         if (semu_snapshot_reader_bytes(reader, temp->files[i].data,
                 size, error) != SEMU_OK) return error->code;

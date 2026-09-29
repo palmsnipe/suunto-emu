@@ -59,13 +59,21 @@ static void log_reset_request(semu_machine *machine,
                               const semu_cpu_state *state,
                               uint64_t virtual_time)
 {
+    uint32_t fault_address = 0u;
+    int has_fault = semu_cpu_fault_address(machine->cpu, &fault_address);
+    char fault_text[40];
     semu_log_set_time(machine->logger, virtual_time);
+    if (has_fault != 0)
+        snprintf(fault_text, sizeof(fault_text), " fault_address=0x%08x",
+                 (unsigned)fault_address);
+    else
+        fault_text[0] = '\0';
     semu_log_write(machine->logger, SEMU_LOG_WARNING, "cpu",
         "machine-reset-request",
         "pc=0x%08x lr=0x%08x sp=0x%08x r0=0x%08x "
         "r1=0x%08x r2=0x%08x r3=0x%08x xpsr=0x%08x "
         "reset_count=%llu compat_hits=%llu instructions=%llu "
-        "virtual_time_ns=%llu",
+        "virtual_time_ns=%llu%s",
         (unsigned)state->r[15], (unsigned)state->r[14],
         (unsigned)state->r[13], (unsigned)state->r[0],
         (unsigned)state->r[1], (unsigned)state->r[2],
@@ -74,7 +82,7 @@ static void log_reset_request(semu_machine *machine,
         (unsigned long long)(machine->layer_count != 0u
             ? machine->layers[0].hits : 0u),
         (unsigned long long)state->instructions,
-        (unsigned long long)virtual_time);
+        (unsigned long long)virtual_time, fault_text);
 }
 
 static int apply_compat_hook(semu_machine *machine,

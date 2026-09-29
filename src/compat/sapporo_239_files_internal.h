@@ -33,6 +33,14 @@
    serialization census is an OPTIONAL refinement, not a
    prerequisite (recorded owner decision). */
 #define S239_STORAGE_CAPACITY 1037u
+/* Fixed-table runtime capacity: partition sizes in the table are
+   INITIAL content sizes; the guest appends (observed: zapp/
+   storage.sbm grows past 64 and is refused at 64 @1129953745 —
+   guest-normal growth). The admission ceiling is the same serializer
+   buffer bound 1037 (E-SAP239-REPO38D123-001 addenda C/D, owner
+   ruling (a)); larger pinned data files keep their own size as the
+   bound. capacity = max(table_size, 1037). */
+#define S239_FILE_RUNTIME_CAPACITY 1037u
 #define S239_STORAGE_PREFIX "storage/"
 #define S239_STORAGE_SUFFIX "/data.jsn"
 

@@ -88,6 +88,7 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
     int index;
     int storage_slot = -1;
     size_t capacity;
+    uint32_t slot = 0u;
     if (read_path(bus, cpu->r[0], path, error) != SEMU_OK) return error->code;
     index = semu_s239_file_index(path);
     /* E-SAP-TIME-NATIVE-239-001: native storage retains this exact save. */
@@ -128,8 +129,21 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
         index < (int)S239_FILE_COUNT && !files->files[index].present &&
         mode != 2u)
         return SEMU_OK;
-    if (files->next_handle >= S239_FILE_MAX_HANDLES)
-        return refuse(error, "Sapporo 2.39 logical handle pool exhausted");
+    /* Handle slots recycle: the native guest opens and closes the same
+       logical files repeatedly, so a CLOSED slot is free again. The
+       pool law is 64 CONCURRENT handles; 64 lifetime opens (all
+       closed) is guest-normal (observed @1118180845: 64 opens, 64
+       closes, then the next open; E-SAP239-CLEANBOOT-001 observer). */
+    {
+        uint32_t free_slot;
+        for (free_slot = 0u; free_slot < S239_FILE_MAX_HANDLES; ++free_slot)
+            if (!files->handles[free_slot].active) break;
+        if (free_slot >= S239_FILE_MAX_HANDLES)
+            return refuse(error, "Sapporo 2.39 logical handle pool exhausted");
+        if (free_slot >= files->next_handle) files->next_handle = free_slot;
+        handle = &files->handles[free_slot];
+        slot = free_slot;
+    }
     capacity = semu_s239_file_capacity(files, (uint32_t)index);
     if (storage_slot < 0 && index < (int)S239_FILE_COUNT &&
         !files->files[index].present && capacity != 0u) {
@@ -161,14 +175,13 @@ static semu_status open_file(semu_sapporo_239_files *files, semu_bus *bus,
         files->files[index].size = 0u;
         files->files[index].present = 1;
     }
-    handle = &files->handles[files->next_handle];
-    handle->value = S239_FILE_HANDLE_BASE + files->next_handle *
+    handle->value = S239_FILE_HANDLE_BASE + (slot) *
                     S239_FILE_HANDLE_STRIDE;
     handle->cursor = 0u;
     handle->file = (uint8_t)index;
     handle->mode = (uint8_t)mode;
     handle->active = 1;
-    ++files->next_handle;
+    if (files->next_handle == slot) ++files->next_handle;
     semu_log_write(logger, SEMU_LOG_WARNING, "compat", "logical-file",
                    "operation=open path=%s mode=%u handle=0x%08x",
                    path, (unsigned)mode, (unsigned)handle->value);
@@ -207,11 +220,12 @@ static semu_status seek_cursor(const s239_handle_slot *handle, size_t size,
 static semu_status stage_write(size_t capacity,
                                const s239_handle_slot *handle, semu_bus *bus,
                                const semu_cpu_state *cpu, uint8_t **chunk,
-                               semu_error *error)
+                               const char *name, semu_error *error)
 {
     uint32_t count = cpu->r[2];
     if (handle->cursor > capacity || count > capacity - handle->cursor)
-        return refuse(error, "Sapporo 2.39 logical file exceeds capacity");
+        return refuse_path(error, "Sapporo 2.39 logical file exceeds capacity",
+                           name);
     *chunk = count != 0u ? (uint8_t *)malloc(count) : NULL;
     if (count != 0u && *chunk == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM,
@@ -300,7 +314,7 @@ static semu_status operate_file(semu_sapporo_239_files *files, semu_bus *bus,
         if (status == SEMU_OK) result = cpu->r[1]; /* Native wrapper ABI. */
     } else if (cpu->r[15] == FILE_WRITE) {
         operation = "write"; result = cpu->r[2];
-        status = stage_write(capacity, handle, bus, cpu, &chunk, error);
+        status = stage_write(capacity, handle, bus, cpu, &chunk, name, error);
         if (status == SEMU_OK) new_cursor = handle->cursor + result;
     } else {
         operation = "read";

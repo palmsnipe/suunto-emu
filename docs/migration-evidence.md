@@ -7975,3 +7975,72 @@ snapshot captures post-storage machine state. Re-derivation of all 15
 anchor chains against E-SAP239-CLEANBOOT-001 is tracked as the 796/777
 continuation; the clean-boot baseline is the prerequisite that was
 previously missing.
+
+E-SAP239-DEEPCLEAN-001 (2026-09-29): two guest-law corrections plus one
+observability change take the clean Sapporo 2.39 boot from the
+first-frame stop (E-SAP239-CLEANBOOT-001) to a 7 000 000 000-instruction
+single-wbsto-layer observation with ZERO refusals and ZERO machine
+reset requests (flash 37134845…, manifest 2.39.20.22297, observer =
+read-only harness calling semu_machine_run with the production nema
+backend wired exactly as src/frontends/cli.c does; stop=
+SEMU_STOP_BUDGET pc=0x000be5d8 instructions=7000000000
+virtual_time_ns=17418066429, reproducible; the 40B-instruction
+continuation of the same harness was in flight at commit time and its
+terminal stop line lands in the 777-continuation record).
+
+(1) HANDLE RECYCLING. A first observer pass (production backend
+missing: no frame callback consumer) reached instruction 1118180845 /
+virtual_time_ns=4656630258 and refused "Sapporo 2.39 logical handle
+pool exhausted" at pc=0x000920b4. Census of that log at the refusal:
+64 opens, 64 closes — every handle closed, 8 distinct storage names,
+12 fixed-table paths. The monotonic next_handle allocator therefore
+refused a handle state the native guest reaches routinely: the pool
+law is 64 CONCURRENT handles; 64 LIFETIME opens with closes between
+them is guest-normal. src/compat/sapporo_239_file_hook.c now allocates
+the first inactive slot (value law
+BASE+slot*STRIDE unchanged; snapshot header keeps next_handle as the
+high-water mark, restore validation unchanged). Unit: 70 sequential
+open/close cycles on one path must all succeed
+(tests/unit/test_sapporo_239_files.c).
+
+(2) FIXED-TABLE RUNTIME CAPACITY. Past the handle wall the guest grew
+zapp/storage.sbm past its 64-byte partition size and refused at
+64 @1129953745 (capacity refusals now name the file, see (3)). The
+partition sizes in semu_s239_file_capacities are INITIAL content
+sizes, not admission ceilings: runtime capacity =
+max(partition size, S239_FILE_RUNTIME_CAPACITY=1037), the same guest
+serializer buffer bound that ruled the storage family
+(E-SAP239-REPO38D123-001 addenda C/D, owner ruling (a)); files whose
+partition size already exceeds 1037 keep their own bound. The
+snapshot restore bound follows the same law (grown files are session
+state and round-trip). Fail-closed preserved: writes crossing 1037
+still refuse with zero mutation; oversize snapshot payloads still
+invalid. Units updated twice + sanitize clean
+(test_sapporo_239_files, test_sapporo_239_ongoing — the ongoing
+lifecycle case now exercises growth 152->1037 then the 1038-byte
+refusal, and handle-slot reuse on reopen).
+
+(3) DIAGNOSTIC NAMING. The stage_write capacity refusal now names the
+file (": <path>" suffix, E-SAP239-REFUSED-PATH-001 channel), and the
+machine-reset-request log line carries fault_address= when the CPU
+has a recorded precise fault (src/boards/machine_run.c). The latter
+immediately proved its worth: it identified the pre-(1)/(2) reset
+storm as the BusFault -> HardFault -> SYSRESETREQ chain at
+fault_address=0x400900ec — the G2D CMDRINGSTOP submission of an
+unmodelled draw state — the same signature E-ULS-0038 records for the
+2.35 era, where the remedy was modelling, never reset tolerance. With
+(1) and (2) and the production backend wired, that storm does not
+occur anywhere in the 7B observation.
+
+CENSUS EFFECT: every era pin that counts instructions, virtual time,
+handles, or file sizes below the old wall moved again; the three
+observer sweeps (agent reports 63557cfc, faa6636f, 294d78da, kept in
+the session record) are the twice-reproduced measurement set for the
+777 re-derivation. Two engine-side findings from those sweeps are
+tracked there: the C probes set no display_snapshot (snapshot save
+refuses) — probe-side fix in the 777 lane — and the gps_five/general/
+personal C-constant chains need re-derivation as C work. The
+synthetic layer's logical-file maximum_hits=76670 (height-save law,
+E-SAP-COMPAT-PERSONAL-SUFFIX-239-001) becomes the next engineered
+boundary for deep nav flows; raising it requires new evidence, not a
+silently lifted budget.

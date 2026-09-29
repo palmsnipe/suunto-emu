@@ -83,25 +83,57 @@ static void test_ongoing_capacity_and_lifecycle(semu_test_context *context)
     hits = f.layer.hits;
     f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 1u;
     f.cpu.r[15] = 0x921a8u; expected = f.cpu;
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, call(&f, 0x921a8u, handle, DATA, 1u));
+    /* Runtime capacity 1037 (max(partition, serializer bound)): a
+       1-byte write at cursor 152 is admitted (guest growth is normal;
+       pinned sizes are initial sizes). */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x921a8u, handle, DATA, 1u));
+    /* The write that crosses 1037 refuses fail-closed with no
+       mutation: seek to 153 and fill 220*4 + 4 to land exactly on
+       the bound (153+884 = 1037). */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        call(&f, 0x92182u, handle, 153u, 0u)); /* SEEK_SET 153 */
+    for (i = 0u; i < 4u; ++i)
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            call(&f, 0x921a8u, handle, DATA, 220u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        call(&f, 0x921a8u, handle, DATA, 4u)); /* cursor 1037 */
+    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 1u;
+    f.cpu.r[15] = 0x921a8u; expected = f.cpu;
+    hits = f.layer.hits; /* re-capture after the admitted growth writes */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
+        call(&f, 0x921a8u, handle, DATA, 1u)); /* 1038th byte */
     SEMU_TEST_ASSERT(context, strstr(f.error.text, "exceeds capacity") != NULL);
     SEMU_TEST_ASSERT(context, memcmp(&expected, &f.cpu, sizeof(expected)) == 0);
     SEMU_TEST_EQ_U64(context, hits, f.layer.hits);
+    /* Growth IS state: the post-growth snapshot is strictly larger
+       than the pre-growth one (ongoing 152 -> 1037). */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_sapporo_239_files_snapshot_write(f.files, &after, &f.error));
-    SEMU_TEST_EQ_U64(context, before.size, after.size);
-    SEMU_TEST_ASSERT(context, memcmp(before.data, after.data, before.size) == 0);
+    SEMU_TEST_ASSERT(context, after.size > before.size);
+    /* The over-capacity refusal added nothing: a second snapshot after
+       the refusal equals the first post-growth snapshot byte-for-byte
+       (refusal atomicity, the original invariant). */
+    semu_snapshot_writer_destroy(&before);
+    semu_snapshot_writer_init(&before);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_239_files_snapshot_write(f.files, &before, &f.error));
+    SEMU_TEST_EQ_U64(context, after.size, before.size);
+    SEMU_TEST_ASSERT(context, memcmp(before.data, after.data, after.size) == 0);
     SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x920f4u, handle, 0u, 0u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         open_path(&f, "actitmln/ongoing.bin", 2u));
-    SEMU_TEST_ASSERT(context, handle != f.cpu.r[0]);
+    /* Handle slots recycle on close (E-SAP239-CLEANBOOT-001 observer
+       @1118180845: 64 opens, 64 closes, 65th open is guest-normal),
+       so the reopened handle reuses the freed value. */
+    SEMU_TEST_ASSERT(context, handle == f.cpu.r[0]);
     handle = f.cpu.r[0];
     SEMU_TEST_EQ_U64(context, SEMU_OK, call(&f, 0x92244u, handle, 0u, 0u));
-    SEMU_TEST_EQ_U64(context, 152u, f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 1037u, f.cpu.r[0]);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         call(&f, 0x921dcu, handle, DATA + 512u, 152u));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_copy_out(f.bus, DATA + 512u, actual, sizeof(actual), &f.error));
+    SEMU_TEST_EQ_U64(context, 152u, f.cpu.r[0]);
     SEMU_TEST_ASSERT(context, memcmp(payload, actual, sizeof(actual)) == 0);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE,
         open_path(&f, "actitmln/unknown.bin", 2u));
@@ -112,8 +144,8 @@ static void test_ongoing_capacity_and_lifecycle(semu_test_context *context)
     SEMU_TEST_ASSERT(context, strstr(f.error.text, "unknown Sapporo 2.39 file open mode") != NULL);
     SEMU_TEST_EQ_U64(context, 0x920b4u, f.cpu.r[15]);
     SEMU_TEST_EQ_U64(context, hits, f.layer.hits);
-    SEMU_TEST_EQ_U64(context, 152u,
-        semu_sapporo_239_file_size(f.files, "actitmln/ongoing.bin"));
+    SEMU_TEST_ASSERT(context, semu_sapporo_239_file_size(f.files,
+        "actitmln/ongoing.bin") >= 152u); /* growth is state */
     semu_snapshot_writer_destroy(&before); semu_snapshot_writer_destroy(&after);
     destroy(&f);
 }
@@ -128,8 +160,12 @@ static void test_ongoing_snapshot_versions_and_atomic_refusal(
     uint32_t handle;
     size_t i;
     /* Count, presence, size, handle file index and cursor corruptions. */
-    static const size_t offsets[] = {8u, 8u, 8u, 8u, 27u, 28u, 193u, 189u};
-    static const uint8_t values[] = {0u, 10u, 11u, 13u, 2u, 153u, 12u, 153u};
+    static const size_t offsets[] = {8u, 8u, 8u, 8u, 27u, 28u, 193u, 192u};
+    /* Size-field corruptions must exceed the RUNTIME bound
+       max(partition, 1037) to stay fail-closed: 0x04000000 (byte0 at
+       189/193 set to 0x00 with a high byte set is messy — set byte0
+       to 0x0e = +1034 over any small partition = size > 1037). */
+    static const uint8_t values[] = {0u, 10u, 11u, 13u, 2u, 153u, 14u, 14u};
     SEMU_TEST_ASSERT(context, init(&f));
     restored = semu_sapporo_239_files_create(&f.error);
     SEMU_TEST_ASSERT(context, restored != NULL);
