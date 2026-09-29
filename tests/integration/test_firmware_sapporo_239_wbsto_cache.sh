@@ -23,7 +23,7 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
 # path`; the underflow write 0x0f676e34 stays asserted absent and the
 # machine-reset guard stays asserted absent.
-expected_log_hash=3d470de9f248bfd56ee0f81bc7fde1e8273675da7a570dbc372c83dce8bc0bcb
+expected_log_hash=f2906415d354e54f03c01013c455a40cae2b46fe7a4218ae148f1cb1f4a8a8f3
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 WbStorage cache runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -112,8 +112,13 @@ if grep -F -q 'event=machine-reset-request' "$run_dir/first.log"; then
     cat "$run_dir/first.log" >&2
     exit 1
 fi
+# The 796 continuation (owner ruling (a): capacity = guest repo buffer
+# bound 1037, addenda C/D) admits the full storage burst, so the 500M
+# checkpoint now runs through the whole session storage family to the
+# budget stop pc=0x000a27dc (twice-reproduced log f2906415...), not the
+# old per-file capacity refusal.  Guards below unchanged.
 if ! grep -F -x -q \
-    'stop=compat-refused pc=0x000921a8 instructions=474153673 virtual_time_ns=2208268749 detail=Sapporo 2.39 logical file exceeds capacity' \
+    'stop=budget pc=0x000a27dc instructions=500000000 virtual_time_ns=2346723905' \
     "$run_dir/first.log" ||
    grep -F -q '0x0f676e34' "$run_dir/first.log";
 then

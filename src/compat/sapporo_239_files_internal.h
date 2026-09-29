@@ -17,7 +17,22 @@
    S239_FILE_COUNT + slot stays inside the uint8 handle->file field. */
 #define S239_STORAGE_SLOTS 63u
 #define S239_STORAGE_NAME_MAX 65u /* Same capture budget as file paths. */
-#define S239_STORAGE_CAPACITY 34u
+/* Storage per-file capacity. The original 34-byte law
+   (E-SAP239-REPO38D123-001) is proven FLAT-SCOPE-ONLY: addendum C
+   observed a single nested write requesting 87 bytes at cursor 0,
+   and the observe-only sweep in addendum D shows the full session
+   burst (nested 89, flat 96 final sizes, universal +2 commit tail)
+   completing with zero refusals. Integrator ruling 2026-09-27
+   (ticket 796 continuation; owner-approved option (a) WITH this
+   derivation documented in place): the admitted capacity is the
+   guest's OWN repository buffer bound, repo_read 0x00198b8a
+   `movw r5, #0x40d` = 1037 bytes — the native serializer can never
+   commit a record larger than its own buffer, so the refusal above
+   1037 still means "beyond observed guest semantics" and the
+   fail-closed law shape is preserved. A writer-side per-key
+   serialization census is an OPTIONAL refinement, not a
+   prerequisite (recorded owner decision). */
+#define S239_STORAGE_CAPACITY 1037u
 #define S239_STORAGE_PREFIX "storage/"
 #define S239_STORAGE_SUFFIX "/data.jsn"
 
@@ -67,7 +82,9 @@ extern const char *const semu_s239_file_paths[S239_FILE_COUNT];
 extern const size_t semu_s239_file_capacities[S239_FILE_COUNT];
 
 int semu_s239_file_index(const char *path);
-/* Nonzero when path matches storage/<hexkey>/data.jsn exactly. */
+/* Nonzero when path matches storage/<hex>[/<hex>...]/data.jsn exactly
+   (flat single-key or nested hex-segment forms; E-SAP239-REFUSED-PATH-
+   001 capture). */
 int semu_s239_storage_path(const char *path);
 /* File index of an already-present storage slot, or -1. */
 int semu_s239_storage_index(const semu_sapporo_239_files *files,

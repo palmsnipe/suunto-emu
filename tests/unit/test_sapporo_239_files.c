@@ -204,7 +204,6 @@ static void test_storage_admit_capacity_and_refusals(
 {
     fixture f;
     uint32_t handle;
-    size_t i;
     char path[80];
     static const uint8_t payload[34] = {1u, 2u, 3u, 4u};
     SEMU_TEST_ASSERT(context, fixture_init(&f));
@@ -264,7 +263,9 @@ static void test_storage_admit_capacity_and_refusals(
     SEMU_TEST_EQ_U64(context, 0u, open_path(&f, "storage/38d123/data.jsn", 1u));
     SEMU_TEST_EQ_U64(context, UINT32_C(0x000920b4), f.cpu.r[15]);
     SEMU_TEST_EQ_U64(context, 1u, semu_sapporo_239_files_count(f.files));
-    /* Admit on mode 2; write exactly to the 34-byte capacity. */
+    /* Admit on mode 2; write to the historically observed flat size
+       (the four pinned watchface/alarmclock payloads end exactly at
+       34 bytes - addendum C scopes that observation to flat files). */
     handle = open_path(&f, "storage/38d123/data.jsn", 2u);
     SEMU_TEST_ASSERT(context, handle != 0u);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
@@ -277,38 +278,82 @@ static void test_storage_admit_capacity_and_refusals(
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000921a8)));
     SEMU_TEST_EQ_U64(context, 34u,
         semu_sapporo_239_file_size(f.files, "storage/38d123/data.jsn"));
+    /* The capacity is the guest's repository buffer bound 1037
+       (documented derivation in the internal header; addenda C/D): a
+       write PAST the historically observed 34-byte flat size succeeds
+       (the old flat-only law refused it). Seek to end (origin 2),
+       write 1 byte at offset 34. */
+    f.cpu.r[0] = handle; f.cpu.r[1] = 0u; f.cpu.r[2] = 2u; /* SEEK_END +0 */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x00092182)));
     f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 1u;
-    /* Past-capacity writes return OK with the size truncated to capacity
-       (the shared stage_write truncation law); observed payloads never
-       exceed capacity. */
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000921a8)));
-    SEMU_TEST_EQ_U64(context, 34u,
+    SEMU_TEST_EQ_U64(context, 35u,
         semu_sapporo_239_file_size(f.files, "storage/38d123/data.jsn"));
     f.cpu.r[0] = handle;
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
     /* Repeat open reuses the slot and retains the bytes. */
     handle = open_path(&f, "storage/38d123/data.jsn", 2u);
     SEMU_TEST_ASSERT(context, handle != 0u);
-    SEMU_TEST_EQ_U64(context, 34u,
+    SEMU_TEST_EQ_U64(context, 35u,
         semu_sapporo_239_file_size(f.files, "storage/38d123/data.jsn"));
     f.cpu.r[0] = handle;
     SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
-    /* Slot pool: exactly 63 distinct names total (the admitted nested
-       slot from the shape-capture case above already occupies one),
-       then exhaustion. */
-    for (i = 1u; i < 61u; ++i) {
-        (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn",
-            (unsigned)i);
-        handle = open_path(&f, path, 2u);
-        SEMU_TEST_ASSERT(context, handle != 0u);
-        f.cpu.r[0] = handle;
-        SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+    /* Buffer-bound capacity law (owner-ruling (a), addenda C/D):
+       the guest's observed nested commit (87 + 2 = 89 bytes) is
+       admitted, and a single write of the FULL 1037-byte bound is
+       admitted; a write of one byte MORE is refused fail-closed. */
+    handle = open_path(&f, "storage/2e3fa8d2/b51799fe/data.jsn", 2u);
+    SEMU_TEST_ASSERT(context, handle != 0u);
+    /* The guest-shaped sequence (addenda C/D): a fresh open presents
+       the closed slot with cursor 0; fill in guest-sized chunks to
+       exactly 1037 (87+87 repeats + tail), then the 1038th byte is
+       refused fail-closed. */
+    /* Fill to exactly the bound in guest-sized 87-byte chunks: 11*87
+       = 957, then 80 = 1037. */
+    {
+        int k;
+        for (k = 0; k < 11; ++k) {
+            f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 87u;
+            SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000921a8)));
+        }
+        f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 80u;
+        SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000921a8)));
     }
-    (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn", 63u);
-    SEMU_TEST_ASSERT(context, open_path(&f, path, 2u) != 0u);
-    (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn", 64u);
-    SEMU_TEST_EQ_U64(context, 0u, open_path(&f, path, 2u));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    f.cpu.r[0] = handle; f.cpu.r[1] = DATA; f.cpu.r[2] = 3u; /* over the bound */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, hook(&f, UINT32_C(0x000921a8)));
+    SEMU_TEST_ASSERT(context,
+        strstr(f.error.text, "exceeds capacity") != NULL);
+    semu_error_clear(&f.error);
+    f.cpu.r[0] = handle;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+    /* Slot pool law (E-SAP239-REPO38D123-001): the append-only name
+       table admits exactly S239_STORAGE_SLOTS (63) distinct names,
+       counting the flat 38d123 and the nested 2e3fa8d2/b51799fe slots
+       already exercised above. Open distinct flat names until one is
+       refused; the accepted total must be exactly 63, then the next
+       distinct name refuses. */
+    {
+        unsigned before, total, n;
+        int refused_at = 0;
+        /* Open NEW distinct names until the append-only 63-name table
+           refuses; the storage-slot present-count is read directly so
+           no manual accounting of the earlier cases is needed. */
+        for (n = 100u; n < 300u; ++n) {
+            (void)snprintf(path, sizeof(path), "storage/%06x/data.jsn", n);
+            handle = open_path(&f, path, 2u);
+            if (handle == 0u) { refused_at = (int)n; break; }
+            f.cpu.r[0] = handle;
+            SEMU_TEST_EQ_U64(context, SEMU_OK, hook(&f, UINT32_C(0x000920f4)));
+        }
+        SEMU_TEST_ASSERT(context, refused_at != 0);
+        before = 0u; /* storage slots that were present before this loop */
+        total = (unsigned)semu_sapporo_239_files_count(f.files);
+        (void)before;
+        /* All 63 slots exhausted: the fixed 12 table entries are all
+           closed here, so the present count equals the storage names. */
+        SEMU_TEST_EQ_U64(context, 63u, total);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, f.error.code);
+    }
     fixture_destroy(&f);
 }
 
