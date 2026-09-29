@@ -402,3 +402,25 @@ b51799fe/9ea0dac9/91b4709a/ac100d90/faed64e2 all bounded negatives
 over the app+resource token+path censuses (runtime composition;
 the refusal channel now captures composed forms directly, so static
 cracking is no longer on the critical path).
+
+Stage note 2026-09-29 (post-DEEPCLEAN wall census - final laws 14c791c,
+binary family 4cb606d4-era rebuilds, integrator-owned):
+the second-wall picture CHANGED under E-SAP239-DEEPCLEAN-001. With the
+handle-recycling law (pool = 64 CONCURRENT handles) and the runtime
+capacity floor 1037 (owner ruling (a)), the 474153646/2208268722
+nested-write refusal is no longer the terminal wall for the plain
+wbsto layer: cold single-layer runs pass it and drain every guest
+storage op (76 315 logical-file interventions; storage opens incl.
+nested storage/7ab0dd65/data.jsn closes at vt 2 603 849 912), then
+idle at pc 0x000be5d8 with ZERO refusals through 40B instructions
+(twice byte-identical observer sweeps). The nested-path fail-closed
+law itself is UNCHANGED and stays in force for genuinely unknown
+paths; what moved is that the guest no longer asks for an unmodeled
+nested path in the cold single-layer flow. Remaining named terminal
+refusals are the LAYER lifecycle budgets (GPS awake lifecycle
+1296811148/32775096969 pc 0x001291cc; five-pulse lifecycle
+1409719577/38250007180), now pinned as first-class terminal goldens
+per the re-pin sweep (E-SAP239-REPINSWEEP-001). The maximum_hits=
+76670 logical-file budget was never reached (76 315 max observed);
+raising it remains evidence-gated. 798's captured path remains the
+canonical second-wall record; no crack work is pending on it.
