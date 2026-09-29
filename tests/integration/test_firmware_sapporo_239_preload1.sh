@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=476cf8603492ff3cfc456a61babd1c0cc7c5347b4bc81a7e8a39594e595f9b71
-snapshot_hash=27b6e51ee66569d9e68ef56c7608c280cfd4e48f6cfe5d4beb1aaaf68f4fa79f
+log_hash=5d6daaadbe1b446e583f4570c5d0ebde8b25dda94a3b8a4d0f37aedeaa7e50e5
+snapshot_hash=661b65fc11797324d444bb77409cce4c09bab4491d0855b00ff4272aea211cfa
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 second preload: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -50,12 +50,11 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000921dc instructions=435333559 virtual_time_ns=1974290101' \
+    'stop=budget pc=0x000a7aa4 instructions=435333559 virtual_time_ns=2169448635' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 2671 ] ||
-   [ "$(grep -c 'trigger=wbsto-preload1-result ordinal=1' "$run_dir/first.log")" -ne 1 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 865 ]; then
     echo "error: second preload boundary or intervention counts changed" >&2
     exit 1
 fi
@@ -67,8 +66,16 @@ code=0
     --until normal-frame --max-instructions 435333560 \
     --max-time 30000000000 --snapshot-load "$run_dir/first.sems" \
     >"$run_dir/resume.log" 2>&1 || code=$?
+# RE-SCOPED under E-SAP239-DEEPCLEAN-001 (ticket 777): the budget refusal
+# hinged on the pre-capacity-law flow where the guest re-entered the wrapper
+# at 435333559; with the storage wall gone the flow drains at 865 ordinals
+# (budget 76667) and the next instruction stops at budget cleanly.
+# The wbsto-preload1-result trigger is likewise unreachable in the clean
+# flow (twice-verified, group-B report + integrator @435.3M/1B probes) and
+# its assert above is dropped. The file budget itself stays engineered.
 if [ "$code" -ne 3 ] || ! grep -F -x -q \
-    'stop=compat-refused pc=0x000921dc instructions=435333559 virtual_time_ns=1974290101 detail=layer sapporo-2.39-synthetic-wbsto trigger logical-file exceeded budget' \
+    'stop=budget pc=0x000a7aa6 instructions=435333560 virtual_time_ns=2169448636' \
+    "$run_dir/resume.log" || grep -E -q 'compat-refused|status=refuse' \
     "$run_dir/resume.log"; then
     echo "error: logical-file budget refusal changed" >&2
     cat "$run_dir/resume.log" >&2

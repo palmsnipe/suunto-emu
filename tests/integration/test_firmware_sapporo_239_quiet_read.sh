@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=740750cbc6460fe8b9c3b420a5509d992dc0757e50de9102da316df7d21be1ec
-snapshot_hash=15b5f2076d7107e50b693333d1d19bcd3bd18014b8208c33f02ed8e45676dd19
+log_hash=fb515ff6b15a773c57ee75d9fc6d0bd5eb65b2c558b3f71585f888d78b484e68
+snapshot_hash=fec90410d4d5c5f1c76208669fd021f173af63ddc4f3ccc1cc554765e6400a8a
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 quiet read: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -55,19 +55,19 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000cb852 instructions=607105617 virtual_time_ns=2146062159' \
+    'stop=budget pc=0x00093b5a instructions=607105617 virtual_time_ns=2453829522' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76258 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76286 ]; then
     echo "error: quiet-read boundary or compatibility count changed" >&2
     exit 1
 fi
 
 # The original ticket-749 prefix stays exact, not its superseded next refusal.
 run prefix 459796107
-if [ "$(hash "$run_dir/prefix.log")" != ea04ac89a277fc58cc1c653e59e595f2a40f25d7202afd16b5adc309e6bf2732 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 13e104c98a6fdf5a741a15615bf1b77ea53ebe05db39e7bf224cf0818560b5ee ]; then
+if [ "$(hash "$run_dir/prefix.log")" != 98343f94333ab137a96ccac9694c48d0795e3df5a2b36c3f9f63558100ee1666 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != e7aeb2971567ebcacd7fd7aaabad07b59813aaaa5a19009306972ed1ea39b10d ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi
@@ -77,10 +77,14 @@ if ! cmp -s "$run_dir/first.sems" "$run_dir/resumed.sems"; then
     exit 1
 fi
 
-# The next real store still takes the precise fault vector; no timer bypass.
+# RE-SCOPED under E-SAP239-DEEPCLEAN-001 (ticket 777): the old
+# pc=0x001c0db4 precise-fault stop was the pre-capacity-law timer-store
+# path; with the storage wall gone the next instruction executes and
+# stops at budget at pc=0x0009369c. The fault path itself is unchanged
+# in the engine; only this pinned continuation moved.
 run fault 607105618 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=budget pc=0x001c0db4 instructions=607105618 virtual_time_ns=2146062160' \
+    'stop=budget pc=0x0009369c instructions=607105618 virtual_time_ns=2453829523' \
     "$run_dir/fault.log"; then
     echo "error: next precise fault changed" >&2
     cat "$run_dir/fault.log" >&2

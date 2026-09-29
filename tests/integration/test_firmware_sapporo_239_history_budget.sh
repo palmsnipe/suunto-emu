@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=6f47fad1eeb3b6032955b463e2c4ba26310dbf5ddc453ae3f0f350acf15a9348
-snapshot_hash=3c56bfb5f3f7b541433ca05a3de999c941df3151484a5e080ad09a89b3672ae1
+log_hash=6e39f50a92c4ab8b069983de8dc24e31fe0ab192a6cd84617803d8f983449948
+snapshot_hash=ab7c3b6b6e2288eb2c75a761e4321ceaf5a46176c415d4228a33936da12ceec8
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 history budget: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -58,13 +58,13 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000920b4 instructions=439081594 virtual_time_ns=1978038136' \
+    'stop=budget pc=0x000d160e instructions=439081594 virtual_time_ns=2173196670' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 75764 ] ||
-   [ "$(grep -c 'operation=read path=sleepln/sleep.bin result=72 ' "$run_dir/first.log")" -ne 35712 ] ||
-   [ "$(grep -c 'operation=seek path=sleepln/sleep.bin ' "$run_dir/first.log")" -ne 35714 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 865 ] ||
+   [ "$(grep -c 'operation=read path=sleepln/sleep.bin result=72 ' "$run_dir/first.log")" -ne 0 ] ||
+   [ "$(grep -c 'operation=seek path=sleepln/sleep.bin ' "$run_dir/first.log")" -ne 2 ]; then
     echo "error: native history scans or boundary changed" >&2
     exit 1
 fi
@@ -73,8 +73,8 @@ fi
 
 # Preserve the actual ticket-746 prefix, not its superseded next-step refusal.
 run prefix 435333559
-if [ "$(hash "$run_dir/prefix.log")" != 476cf8603492ff3cfc456a61babd1c0cc7c5347b4bc81a7e8a39594e595f9b71 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 27b6e51ee66569d9e68ef56c7608c280cfd4e48f6cfe5d4beb1aaaf68f4fa79f ]; then
+if [ "$(hash "$run_dir/prefix.log")" != 5d6daaadbe1b446e583f4570c5d0ebde8b25dda94a3b8a4d0f37aedeaa7e50e5 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != 661b65fc11797324d444bb77409cce4c09bab4491d0855b00ff4272aea211cfa ]; then
     echo "error: historical pre-refusal checkpoint changed" >&2
     exit 1
 fi
@@ -84,10 +84,15 @@ if ! cmp -s "$run_dir/first.sems" "$run_dir/resumed.sems"; then
     exit 1
 fi
 
-# Unknown create refuses before any instruction, file, or guest-memory mutation.
+# RE-SCOPED under E-SAP239-DEEPCLEAN-001 (ticket 777): the old
+# unknown-writable-path refusal at 439081595 was the pre-capacity-law
+# wall; the guest now continues through 4e9 instructions with zero
+# refusals (twice-verified at 439081595, 442856246, and 4e9 caps).
+# The next instruction is pinned as a clean budget continuation.
 run refusal 439081595 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=compat-refused pc=0x000920b4 instructions=439081594 virtual_time_ns=1978038136 detail=unknown Sapporo 2.39 writable file path' \
+    'stop=budget pc=0x000d1612 instructions=439081595 virtual_time_ns=2173196671' \
+    "$run_dir/refusal.log" || grep -E -q 'compat-refused|status=refuse' \
     "$run_dir/refusal.log"; then
     echo "error: unknown writable-path refusal changed" >&2
     cat "$run_dir/refusal.log" >&2

@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=ea04ac89a277fc58cc1c653e59e595f2a40f25d7202afd16b5adc309e6bf2732
-snapshot_hash=13e104c98a6fdf5a741a15615bf1b77ea53ebe05db39e7bf224cf0818560b5ee
+log_hash=98343f94333ab137a96ccac9694c48d0795e3df5a2b36c3f9f63558100ee1666
+snapshot_hash=e7aeb2971567ebcacd7fd7aaabad07b59813aaaa5a19009306972ed1ea39b10d
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 native ZIP read: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -57,19 +57,19 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000920b4 instructions=459796107 virtual_time_ns=1998752649' \
+    'stop=budget pc=0x000d2090 instructions=459796107 virtual_time_ns=2193911183' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76258 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76200 ]; then
     echo "error: native ZIP boundary or compatibility count changed" >&2
     exit 1
 fi
 
 # Preserve the ticket-748 prefix; only its next-step mode refusal is superseded.
 run prefix 451511675
-if [ "$(hash "$run_dir/prefix.log")" != 33f75a3051a8487405a4f5221d9db36a806fc54b2cf26fee8ebff5082bf62a7e ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 42de6549afe8bef32603a4acd497f2aee0bb41a92a77f59022064c23e194998b ]; then
+if [ "$(hash "$run_dir/prefix.log")" != f9b42d8b79236485d5d7c67ade597972fde425a488738b6bdd559e341f82efb2 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != 705b94e58c4e173102e5c60cb6e3973447b8a6a91393696c8b3550934f96375f ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi
@@ -79,8 +79,12 @@ if ! cmp -s "$run_dir/first.sems" "$run_dir/resumed.sems"; then
     exit 1
 fi
 run refusal 459796108 --snapshot-load "$run_dir/first.sems"
+# RE-SCOPED under E-SAP239-DEEPCLEAN-001 (ticket 777): the mode-nine
+# open-mode refusal is superseded by the file law (guest mode=3 admitted);
+# the next instruction now runs as recorded and stops at budget.
 if ! grep -F -x -q \
-    'stop=compat-refused pc=0x000920b4 instructions=459796107 virtual_time_ns=1998752649 detail=unknown Sapporo 2.39 file open mode' \
+    'stop=budget pc=0x000d2092 instructions=459796108 virtual_time_ns=2193911184' \
+    "$run_dir/refusal.log" || grep -E -q 'compat-refused|status=refuse' \
     "$run_dir/refusal.log"; then
     echo "error: unhandled mode-nine path refusal changed" >&2
     cat "$run_dir/refusal.log" >&2
