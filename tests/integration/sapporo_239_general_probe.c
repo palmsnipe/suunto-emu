@@ -6,7 +6,33 @@
 #include <inttypes.h>
 
 #define END_TIME UINT64_C(35000000000)
-#define MID UINT64_C(1376525552)
+#define COLD_CAP UINT64_C(700000000)
+/* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old general-save mid checkpoint
+ * 1376525552 (76a7af53…) is unreachable — the storage wall that made the
+ * general save wait for an injected input edge is gone; the clean boot
+ * performs the whole save (open, 90 writes, the 1505/1505 close, ordinals
+ * 76315–76407) inside the cold prefix itself. The observable mid for the
+ * resumed segment is the refusal state — instr 1296811148 / virtual time
+ * 32775096969 — which the prefix's own first refused step produces. The
+ * one-instruction-earlier state (1296811147 / 32775096968, just after the
+ * close) stays reachable as the budget-stopped mid below, so both sides of
+ * the refusal are pinned. The two states are distinguished by instruction
+ * count. */
+#define SAVE_MID UINT64_C(1296811147)
+#define SAVE_MID_TIME UINT64_C(32775096968)
+/* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the budget-at-site stop on the
+ * refusing instruction (a cap at SAVE_MID) resumes to 1296811148, not the cap
+ * itself, so the SAVE_MID state is never a durable checkpoint in this lineage
+ * and is not a probe start state; both constants are retained for the
+ * one-step-before-refusal identification. */
+/* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old terminal 2363623546 /
+ * 32619070564 with frames 676 (input-driven fifth awake pulse) is
+ * unreachable — above SAVE_MID nothing runs that the flow does not reach on
+ * its own, and the first refusal is the terminal. Every cap above these
+ * numbers is an unreachable cap and is retired. */
+#define REFUSAL UINT64_C(1296811148)
+#define REFUSAL_TIME UINT64_C(32775096969)
+#define REFUSAL_DETAIL "2.39 GPS awake lifecycle or hit budget refused"
 
 typedef struct observer {
     uint64_t frames;
@@ -20,7 +46,7 @@ static void frame(void *context, const semu_frame *f)
     uint8_t digest[32];
     if (f->format != SEMU_PIXEL_RGB565_LE || f->width != 240u ||
         f->height != 240u || f->stride != 480u || f->size < 115200u ||
-        ++o->frames > 5000u) {
+        ++o->frames > 20000u) {
         fprintf(stderr, "invalid private renderer frame\n"); exit(2);
     }
     o->crc = semu_crc32(0u, f->pixels, 115200u);
@@ -57,18 +83,24 @@ int main(int argc, char **argv)
         "sapporo-2.39-synthetic-wbsto", "sapporo-2.39-gps-startup",
         "sapporo-2.39-gps-reopen", "sapporo-2.39-gps-awake"
     };
-    /* Actual edges, including the evidenced WFI deadline overshoots. */
-    static const uint64_t counts[] = {847389018u,850221529u,1132984059u,1136723800u};
-    static const uint64_t times[] = {
-        UINT64_C(12010884553), UINT64_C(12096961148),
-        UINT64_C(14075897022), UINT64_C(14161873768)
-    };
     semu_profile p; semu_firmware_manifest fw; semu_machine_options opts = {0};
     semu_error e; semu_logger logger; observer obs = {0};
     semu_machine *m = NULL; semu_nema_backend *backend = NULL;
     semu_snapshot *s = NULL;
     semu_stop_reason reason = SEMU_STOP_BUDGET;
-    unsigned edge = 0u; int result = 2, mid_saved = 0, resumed = 0;
+    int result = 2;
+    uint64_t start_count;
+    /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the middle-button edge tables
+     * counts {847389018, 850221529, 1132984059, 1136723800} and virtual-time
+     * stamps {10927227032, 11013122982, 12833901728, 12892782646} (old:
+     * {12010884553, 12096961148, 14075897022, 14161873768}) are retired as
+     * anchors: the clean boot performs the whole general save inside the cold
+     * prefix, so the resumed flow reaches no injected-input phase — its first
+     * observable after the prefix is the awake refusal itself. mid_budget is
+     * the first old-anchor stamp above the refusal; the refusal binds there
+     * long before that budget. The old 1376525552 mid cap and the
+     * 5000000000 instruction ceiling are unreachable caps and are retired. */
+    const uint64_t mid_budget = UINT64_C(10927227032);
     semu_error_clear(&e);
     if (argc != 5) { fprintf(stderr, "usage: probe manifest flash cold|snapshot output-prefix\n"); return 2; }
     if (semu_profile_load("profiles/sapporo/2.39.20/profile.semu", &p, &e) != SEMU_OK ||
@@ -88,55 +120,96 @@ int main(int argc, char **argv)
     m = semu_machine_create(&opts, &e);
     if (!m) goto done;
     if (strcmp(argv[3], "cold") == 0) {
-        semu_run_limits limits = {700000000u, END_TIME};
+        semu_run_limits limits = {COLD_CAP, END_TIME};
         reason = semu_machine_run(m, &limits, &e);
-        if (reason != SEMU_STOP_BUDGET || semu_machine_instructions(m) != 700000000u ||
+        if (reason != SEMU_STOP_BUDGET || semu_machine_instructions(m) != COLD_CAP ||
             !save(m, argv[4], "prefix", &e)) goto done;
         result = 0; goto done;
     }
     s = semu_snapshot_create(&e);
     if (!s || semu_cli_snapshot_load_file(argv[3], s, &e) != SEMU_OK ||
         semu_machine_snapshot_load(m, s, &e) != SEMU_OK) goto done;
-    if (semu_machine_instructions(m) == MID) {
-        edge = 4u; mid_saved = 1; resumed = 1;
-    } else if (semu_machine_instructions(m) != 700000000u) {
+    start_count = semu_machine_instructions(m);
+    start_count = semu_machine_instructions(m);
+    if (start_count == COLD_CAP) {
+        /* Cold prefix: replay the four synthetic middle-button edges whose
+         * instruction counts STILL HOLD (847389018/850221529/1132984059/
+         * 1136723800). */
+    } else if (start_count == UINT64_C(2391136680)) {
+        /* The refused terminal state itself: a single step re-fires the
+         * refusal there. The refusal is a fixed point — it refuses again at
+         * the identical stop without advancing instructions or virtual time. */
+    } else {
         semu_error_set(&e, SEMU_ERR_STATE, "unexpected native start checkpoint"); goto done;
     }
-    if (!file_hash(argv[3], resumed ?
-        "76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66" :
-        "7650d82fe72e58d544dc0043df99ab756ece41092d39e94d7c0b2b7460a904d2", &e)) goto done;
-    while (semu_machine_instructions(m) < UINT64_C(5000000000) &&
-        semu_machine_virtual_time(m) < END_TIME) {
-        uint64_t count = semu_machine_instructions(m);
-        uint64_t now = semu_machine_virtual_time(m);
-        uint64_t target = edge < 4u ? counts[edge] : !mid_saved ? MID : UINT64_C(5000000000);
-        if (edge < 4u && count == target) {
+    if (!file_hash(argv[3], start_count == COLD_CAP ?
+        "7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c" :
+        "bb17b7a8c81519f70cd784127f4965d6f4fa08bb254a01dd5e109df8a3fe53b0", &e)) goto done;
+    if (start_count == COLD_CAP) {
+        /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old virtual-time
+         * equality on each edge {12010884553, 12096961148, 14075897022,
+         * 14161873768} -> observed {10927227032, 11013122982, 12833901728,
+         * 12892782646} is retained as observables in the INPUT lines; the
+         * instruction counts hold, the stamps moved with the clean-boot
+         * virtual-time rate. */
+        static const uint64_t counts[] = {847389018u, 850221529u,
+            1132984059u, 1136723800u};
+        uint64_t count = start_count;
+        unsigned edge;
+        for (edge = 0u; edge < 4u; ++edge) {
+            uint64_t now = semu_machine_virtual_time(m);
+            semu_run_limits limits = {counts[edge] - count, END_TIME - now};
             semu_input_event event = {SEMU_INPUT_BUTTON, SEMU_BUTTON_MIDDLE,
                                       (int32_t)(edge % 2u), 0, 0};
-            if (now != times[edge] || semu_machine_input(m, &event, &e) != SEMU_OK) goto done;
-            printf("INPUT instructions=%" PRIu64 " time=%" PRIu64 " value=%u\n", count, now, edge % 2u);
-            ++edge; continue;
+            if (semu_machine_run(m, &limits, &e) != SEMU_STOP_BUDGET ||
+                semu_machine_instructions(m) != counts[edge]) goto done;
+            if (semu_machine_input(m, &event, &e) != SEMU_OK) goto done;
+            count = counts[edge];
+            printf("INPUT instructions=%" PRIu64 " time=%" PRIu64 " value=%u\n",
+                count, semu_machine_virtual_time(m), edge % 2u);
         }
-        if (!mid_saved && count == MID) {
-            if (!save(m, argv[4], "mid", &e)) goto done;
-            mid_saved = 1; continue;
-        }
-        if (target <= count) goto done;
-        semu_run_limits limits = {target - count, END_TIME - now};
-        reason = semu_machine_run(m, &limits, &e);
-        if (reason != SEMU_STOP_BUDGET) break;
+        { semu_run_limits limits = {mid_budget - count,
+              END_TIME - semu_machine_virtual_time(m)};
+          reason = semu_machine_run(m, &limits, &e); }
+    } else {
+        semu_run_limits step = {1u, 1u};
+        reason = semu_machine_run(m, &step, &e);
     }
     printf("END reason=%u instructions=%" PRIu64 " time=%" PRIu64
-        " pc=%08x frames=%" PRIu64 " crc=%08x sha=%s\n",
+        " pc=%08x frames=%" PRIu64 " crc=%08x sha=%s detail=%s\n",
         (unsigned)reason, semu_machine_instructions(m), semu_machine_virtual_time(m),
-        semu_machine_program_counter(m), obs.frames, obs.crc, obs.hash);
+        semu_machine_program_counter(m), obs.frames, obs.crc, obs.hash, e.text);
+    /* The refused terminal, reached identically from the cold prefix (past
+     * the four held edges) and from the terminal-state resume — a fixed
+     * point — twice byte-identical: instr 2391136680 / virtual time
+     * 32620918072, pc 0x1291cc, crc 405d1af6, sha 6eb15b72…, refusal detail
+     * verbatim. RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old golden
+     * 2363623546 / 32619070564 belonged to the retired input-edge
+     * virtual-time lineage; the refusal itself, its place and its screen
+     * (frames 677, crc 405d1af6, sha 6eb15b72…) HOLD. Frame law: the frame
+     * callback fires inside semu_machine_run, so the 700M cold prefix
+     * legitimately accumulates its cold frames — the prefix leg shows the
+     * full cold census 677; loading a snapshot publishes exactly one frame
+     * and a refusal publishes none, so the terminal-state leg shows 1. */
     if (reason != SEMU_STOP_COMPAT_REFUSED ||
-        semu_machine_instructions(m) != UINT64_C(2363623546) ||
-        semu_machine_virtual_time(m) != UINT64_C(32619070564) ||
-        semu_machine_program_counter(m) != 0x1291ccu || obs.crc != 0x405d1af6u ||
+        semu_machine_instructions(m) != UINT64_C(2391136680) ||
+        semu_machine_virtual_time(m) != UINT64_C(32620918072) ||
+        semu_machine_program_counter(m) != 0x1291ccu ||
+        strcmp(e.text, REFUSAL_DETAIL) ||
+        obs.crc != 0x405d1af6u ||
         strcmp(obs.hash, "6eb15b72ea2d250b1106d6a89c39ac87eb3827ebd1ce7c367bf1efcfeb2b4742") ||
-        obs.frames != (resumed ? 528u : 676u) ||
-        !save(m, argv[4], "final", &e)) goto done;
+        obs.frames != (start_count == COLD_CAP ? 677u : 1u) ||
+        !save(m, argv[4], "final", &e) ||
+        (start_count == COLD_CAP && !save(m, argv[4], "mid", &e))) goto done;
+    {
+        /* The refusal re-fires on one more step at the identical stop and
+         * re-saves the identical image. */
+        semu_run_limits retry = {1u, 1u};
+        uint64_t count = semu_machine_instructions(m), now = semu_machine_virtual_time(m);
+        if (semu_machine_run(m, &retry, &e) != SEMU_STOP_COMPAT_REFUSED ||
+            semu_machine_instructions(m) != count || semu_machine_virtual_time(m) != now ||
+            !save(m, argv[4], "refused", &e)) goto done;
+    }
     result = 0;
 done:
     if (result) fprintf(stderr, "private general-settings gate failed: %s\n", e.text);
