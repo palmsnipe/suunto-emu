@@ -106,6 +106,7 @@ int main(int argc, char **argv)
     o.profile = &p; o.firmware = &fw; o.logger = &logger;
     o.external_flash_path = argv[2]; o.layers = layers; o.layer_count = 4u;
     o.display_backend = &semu_nema_backend_ops; o.display_backend_context = backend;
+    o.display_snapshot = &semu_nema_backend_snapshot_ops;
     o.frame_callback = frame; o.frame_context = &obs;
     m = semu_machine_create(&o, &e); if (!m) goto done;
     if (!cold) {

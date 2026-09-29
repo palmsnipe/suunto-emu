@@ -103,6 +103,7 @@ int main(int argc, char **argv)
     opts.layers = layers; opts.layer_count = SEMU_ARRAY_LEN(layers);
     opts.external_flash_path = argv[2];
     opts.display_backend = &semu_nema_backend_ops; opts.display_backend_context = backend;
+    opts.display_snapshot = &semu_nema_backend_snapshot_ops;
     opts.frame_callback = frame; opts.frame_context = &obs;
     m = semu_machine_create(&opts, &e);
     if (!m) goto done;
