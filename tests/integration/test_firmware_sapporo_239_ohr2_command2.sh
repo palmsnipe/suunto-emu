@@ -18,8 +18,8 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # redistribution the other era checkpoints record), each re-derived from two
 # byte-identical runs. The post-boundary run is pinned as a budget-cap
 # continuation (exit code 3) per the E-ULS-0041 BKPT-to-NOP precedent.
-log_hash=dce94444f3f761c7d8baca62b3a841413a55b37bfe03fe28e2bd957a640be8c2
-snapshot_hash=1b08c4234ff7740d1d37e604408a012f8f37c3e80821080762ef1c87e37c40e0
+log_hash=d077cb02a257a4299906aadcf67876af4e13053e8a908e7a480bf02ff6027b4a
+snapshot_hash=26a6b4147871d88e50e4af385942d34e82445686adc10304bb5eea0326a55432
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 command 2: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0

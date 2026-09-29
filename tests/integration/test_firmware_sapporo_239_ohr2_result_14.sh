@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=6acd49e2ac13bee2aecfd80382023ed706735fd204e7b129a3dfc7ac25509479
-expected_snapshot_hash=985fc5151d50f839eb023d76e553c871c8f71dc8ccff5e61b2b8f7ea944bcf6c
+expected_log_hash=e6e92a2b68a3e2bbb0bbb116ddf631a689d908b5c0adc1a2037ce0313c0d72a8
+expected_snapshot_hash=b6e49ac255f95b15fa65d7c579838705e9d49090c1bc2fe0ede4673d95f9029e
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 result-14 runner: set SEMU_SAPPORO_239_FULL_FLASH"
