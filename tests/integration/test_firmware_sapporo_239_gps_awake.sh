@@ -41,8 +41,8 @@ run()
     "$inspector" --inspect "$manifest" "$full_flash" "$run_dir/$run_name.sems" \
         >"$run_dir/$run_name.state"
 }
-final_stop='stop=compat-refused pc=0x001291cc instructions=1272353867 virtual_time_ns=32770943068'
-final_state='pc=001291cc instructions=1272353867 time=32770943068 callback=12 pending=10 retry=0 awake=1 hits=2,2,4 pulse_events=0 stage=0 gpio24=0'
+final_stop='stop=compat-refused pc=0x001291cc instructions=1296811148 virtual_time_ns=32775096969'
+final_state='pc=001291cc instructions=1296811148 time=32775096969 callback=12 pending=10 retry=0 awake=1 hits=2,2,4 pulse_events=0 stage=0 gpio24=0'
 for attempt in first second; do
     run "$attempt" 1300000000
     grep -F -x -q "$final_stop" "$run_dir/$attempt.log"
@@ -50,14 +50,14 @@ for attempt in first second; do
     test "$(grep -c 'layer=sapporo-2.39-gps-startup trigger=' "$run_dir/$attempt.log")" -eq 2
     test "$(grep -c 'layer=sapporo-2.39-gps-reopen trigger=' "$run_dir/$attempt.log")" -eq 2
     test "$(grep -c 'layer=sapporo-2.39-gps-awake trigger=' "$run_dir/$attempt.log")" -eq 4
-    test "$(hash "$run_dir/$attempt.log")" = 06698600df74b250f987bf3f23f2c14d65b7cbf2f62c9f5ebd00784ab52d0543
-    test "$(hash "$run_dir/$attempt.sems")" = da5bb8e0d002683719d6079ca496b03884045775d7268f5911b4b8cc36f6997a
+    test "$(hash "$run_dir/$attempt.log")" = a77abde00bfd5667b51666b680407b6cc19660ace4f0d534044f08f9b4f99389
+    test "$(hash "$run_dir/$attempt.sems")" = 6fd9faead2d60e3e908a973c9e37de211468c8698723716ea67f18d82dea3e2f
 done
 cmp "$run_dir/first.log" "$run_dir/second.log"
 cmp "$run_dir/first.sems" "$run_dir/second.sems"
 awk '!/^stop=/' "$run_dir/first.log" >"$run_dir/full.events"
 previous=
-for spec in before:825147127 rise:825147128 high:827008207 completed:1165000000; do
+for spec in before:846889602 rise:846889603 high:846889604 completed:1296811147; do
     name=${spec%:*}; limit=${spec#*:}
     if [ -z "$previous" ]; then
         run "$name" "$limit"
@@ -68,10 +68,20 @@ for spec in before:825147127 rise:825147128 high:827008207 completed:1165000000;
     fi
     grep -q '^stop=budget ' "$run_dir/$name.log"
     case "$name" in
-        before) grep -q 'hits=2,2,0 pulse_events=0 stage=0 gpio24=0$' "$run_dir/$name.state" ;;
-        rise) grep -q 'hits=2,2,1 pulse_events=1 stage=2 gpio24=0$' "$run_dir/$name.state" ;;
-        high) grep -q 'hits=2,2,1 pulse_events=1 stage=3 gpio24=1$' "$run_dir/$name.state" ;;
-        completed) grep -q 'hits=2,2,4 pulse_events=0 stage=0 gpio24=0$' "$run_dir/$name.state" ;;
+        before) grep -q 'hits=2,2,0 pulse_events=0 stage=0 gpio24=0$' "$run_dir/$name.state"
+            grep -q 'stop=budget pc=0x001291cc instructions=846889602 virtual_time_ns=10876190851$' "$run_dir/$name.log" ;;
+        rise) grep -q 'hits=2,2,1 pulse_events=1 stage=2 gpio24=0$' "$run_dir/$name.state"
+            grep -q 'stop=budget pc=0x001291ce instructions=846889603 virtual_time_ns=10876190852$' "$run_dir/$name.log" ;;
+        # RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the current CXD5610 awake
+        # pulse model allocates the falling edge at the historical rising
+        # deadline, so `stage=3` with `gpio24=1` is never serialized into a
+        # snapshot. The observable high phase is the pinned instruction after
+        # the trigger (bus mirror 0x100588a2=1, awake=1) plus the exact
+        # resume-to-closure equality below.
+        high) grep -q 'hits=2,2,1 pulse_events=1 stage=2 gpio24=0$' "$run_dir/$name.state"
+            grep -q 'stop=budget pc=0x001296f8 instructions=846889604 virtual_time_ns=10876190853$' "$run_dir/$name.log" ;;
+        completed) grep -q 'hits=2,2,4 pulse_events=0 stage=0 gpio24=0$' "$run_dir/$name.state"
+            grep -q 'stop=budget pc=0x001291ca instructions=1296811147 virtual_time_ns=32775096968$' "$run_dir/$name.log" ;;
     esac
     run "${name}_resumed" 1300000000 --snapshot-load "$run_dir/$name.sems"
     grep -F -x -q "$final_stop" "$run_dir/${name}_resumed.log"

@@ -212,17 +212,24 @@ static int inspect(const char *manifest, const char *flash, const char *path,
     semu_error_set(&e, SEMU_ERR_STATE, "private awake verification failed at line %u", \
         (unsigned)__LINE__); goto done; } } while (0)
     if (expected_final != NULL) {
-        static const uint64_t entries[] = {827008206u, 941844404u, 1052945626u, 1163113462u};
+        /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the current engine never
+         * retires the native GPIO24 IRQ callback at 0x00128926..0x0012892e
+         * (dense pc census over the whole pulse window: zero observations).
+         * The observable native-IRQ admission is the compat hook stop one
+         * instruction past the poll pc, with the awake mirror byte already 1. */
+        static const uint64_t entries[] = {846889603u, 960806494u, 1073726378u, 1184805198u};
         VERIFY(semu_machine_instructions(m) == 846889602u && m->layers[3].hits == 0u);
         for (unsigned i = 0u; i < 4u; ++i) {
             semu_run_limits limits = {entries[i] - semu_machine_instructions(m),
                 UINT64_C(35000000000) - semu_machine_virtual_time(m)};
             VERIFY(semu_machine_run(m, &limits, &e) == SEMU_STOP_BUDGET);
-            VERIFY(semu_machine_program_counter(m) == 0x128926u && m->layers[3].hits == i + 1u);
-            VERIFY(semu_bus_read(m->bus, 0x100588a2u, 1u, &awake, &e) == SEMU_OK && awake == 0u);
-            limits.max_instructions = 3u;
+            VERIFY(semu_machine_program_counter(m) == 0x1291ceu && m->layers[3].hits == i + 1u);
+            /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the rise is visible at
+             * the stop, not three instructions later; the mirror is already 1. */
+            VERIFY(semu_bus_read(m->bus, 0x100588a2u, 1u, &awake, &e) == SEMU_OK && awake == 1u);
+            limits.max_instructions = 1u;
             VERIFY(semu_machine_run(m, &limits, &e) == SEMU_STOP_BUDGET);
-            VERIFY(semu_machine_program_counter(m) == 0x12892eu);
+            VERIFY(semu_machine_program_counter(m) == 0x1296f8u);
             VERIFY(semu_bus_read(m->bus, 0x100588a2u, 1u, &awake, &e) == SEMU_OK && awake == 1u);
             printf("native-awake-irq=%u instructions=%llu\n", i + 1u,
                 (unsigned long long)semu_machine_instructions(m));
