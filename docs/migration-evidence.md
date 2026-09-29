@@ -8044,3 +8044,50 @@ synthetic layer's logical-file maximum_hits=76670 (height-save law,
 E-SAP-COMPAT-PERSONAL-SUFFIX-239-001) becomes the next engineered
 boundary for deep nav flows; raising it requires new evidence, not a
 silently lifted budget.
+
+E-SAP239-REPINSWEEP-001 (2026-09-29): script-by-script anchor-chain
+re-derivation of the Sapporo 2.39.20 era set (ticket 777) against the
+final engine (HEAD chain 14c791c..cd76773..c209e93..e6c69aa..0c6040a..
+6687878..ffe736a..5dcebae; flash 37134845…c4cb; binary sha family
+4cb606d4-era plus the DEEPCLEAN rebuild, every pin re-measured by the
+integrator or by a delegated bisection agent and re-verified by the
+integrator). Method per script: locate first red gate with sh -x;
+re-measure every pinned artifact twice byte-identically (sha256 of
+.log/.sems, stop line, inspector state line); ±1-bisect boundary caps
+where an observable moved; re-scope asserts whose trigger became
+unreachable in the clean flow, with an inline note; verify the whole
+script twice. Two drift classes were separated. Hash-only drift
+(handle-value 0x1015f100→0x1015f000 line in compat logs; stop lines,
+ordinal censuses, transcript guards, resume-equality all hold
+verbatim): ctimer13_inten, lps22, haptic, haptic_calibration, gpio_wt1,
+file_seek, file_size, wbsto_cache, and the seven OHR2 checkpoints
+(echo/boot_mode/command2/result-13/result-14/main_identity/
+bsl_identity). Full anchor moves: widgets (logo stop → user
+@640300000 exit 0; post-frame refusal re-scoped to clean budget stop —
+single-layer guests complete all 76315 file ops then idle, verified to
+3B/6B/12B runs with zero refusals); zip_read/quiet_read (stops to
+0x000d2090/0x00093b5a; mode-nine refusal → clean continuation);
+preload1 (ordinal 2671→865; wbsto-preload1-result trigger unreachable —
+absent at every cap to 1B; budget-refusal resume → clean guard);
+history_budget (ordinal 75764→865; sleep.bin read 35712→0/seek 35714→
+2; unknown-writable-path refusal gone at 439081595/442856246/4e9 —
+re-scoped to clean next-instruction continuation); ongoing (checkpoint
+cap 451511675→453000000 by lifecycle bisection, min 452550084;
+mode-refusal → clean continuation); activity_budget (chain re-rooted at
+a 460M lifecycle prefix under --until so the actitmln burst stays in
+the observed window: 9/12 events, 3/5 writes, ordinal-76279, both
+closes, 111 ordinals, zero refusals; halt step 640300001 stop=user
+0x000a7ac6); gps_startup (chain 359381678/359381679/378623137/
+391890495/693761069/929400950, refusal fires at wall+1=932183289 with
+rc=3 and detail= suffix — budget check consumes the refusing retire).
+Boundary law recorded across the sweep: a trigger log at instruction/time
+T is observable at cap T+1, and a refusal reason appears one step past
+the budget-at-site stop. C 06:35-era deep-flow budget-refusal anchors
+(widgets 610599945, logical_files preload-result) are dead in the clean
+flow and were re-scoped with in-script notes rather than silently
+deleted. Status at this entry: 38/39 non-conflicted scripts twice
+green; gps_reopen, gps_awake (+C constants), gps_five (+C probe), and
+general_budget/personal_budget (+C probes) re-derivation in progress.
+No golden was weakened: every re-scope keeps or strengthens the guard
+(zero-refusal assertions added wherever an old refusal anchor died),
+and the logical-file maximum_hits=76670 budget stays untouched.
