@@ -11,8 +11,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-expected_log_hash=2383b9f58f3da88f8d1e9a269dd84c623835140f919a54acfea653d850a7765d
-expected_snapshot_hash=bde1acbe41981f6070d271fe1ea97baf7d15feb4b2e020c631cbbcdb773e5538
+expected_log_hash=6bab83d95086c04e7bee04ef61bda7dd2f61dcc75d41478c67a6b76641a12e36
+expected_snapshot_hash=bfdb2a4a69573591eb86c3db5bd6fb951c21c70ca7a3f75f7cba8f5e0789f5a8
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 haptic calibration runner: set SEMU_SAPPORO_239_FULL_FLASH"

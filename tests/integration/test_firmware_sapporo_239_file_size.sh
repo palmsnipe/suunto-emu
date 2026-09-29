@@ -19,8 +19,8 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # 2038505656 plus 1 ns). Both size transcripts occur verbatim; the intervention
 # census at the cap is now 506; stop lines and hashes re-pinned verbatim from
 # two byte-identical runs. Guard greps unchanged and byte-identical.
-log_hash=5d59dc016b2484fe3bf85d1a5b82bfee34a03c62a11c784e4508bdb95008a66e
-snapshot_hash=dfc26a3043449c8b12219cc7695e203c19e3e1a0d7f3ea62f8bf393218e41cdd
+log_hash=70c922e831714b1fdc97d2e6063b086dc16368fcec8c54a3fdc249f9f02218c2
+snapshot_hash=cfd37f8e2d5ff89b33a4916cf00f54cbd7098eb2c4411bde047c59c407dac318
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical file size: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0

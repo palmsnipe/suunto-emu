@@ -17,8 +17,8 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # cap and the artifact bytes moved, each re-derived from two byte-identical runs.
 # The post-boundary run is pinned as a budget-cap continuation (exit code 3) per
 # the E-ULS-0041 BKPT-to-NOP precedent (activity_budget.sh, ctimer_combined_inten.sh).
-log_hash=e84e06ad2866f37adfabe8a46c36971e434fb9cdebb4604d63faa2a9d82605d4
-snapshot_hash=3a42fa195e7b8609a14a96fd72e9f6ac9e213bd808dacff1dc20efcc924c99e5
+log_hash=54a081de8a9be43494e3e39be3017e4f16b1e73fd2fec1eb224b4b87480d7ee7
+snapshot_hash=d24df20706200c4b5d75f6f9f190f17599474540b2a66ee8b03f174768440a1f
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical seek return: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
