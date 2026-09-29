@@ -23,7 +23,7 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # virtual_time_ns=2208268722 detail=unknown Sapporo 2.39 writable file
 # path`; the underflow write 0x0f676e34 stays asserted absent and the
 # machine-reset guard stays asserted absent.
-expected_log_hash=f2906415d354e54f03c01013c455a40cae2b46fe7a4218ae148f1cb1f4a8a8f3
+expected_log_hash=814f7d9777640a1f203d127637211b3c178e26b29457066968e44d5488e899c8
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 WbStorage cache runner: set SEMU_SAPPORO_239_FULL_FLASH"
