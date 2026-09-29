@@ -160,6 +160,24 @@ Verification: `make check` 998 PASS,
 the scroll/startup/snapshot SDL gates, and 2.35 era scripts all green with
 zero pin drift.
 
+### 2.39 era re-pin sweep on the clean-boot engine — ticket 777, 2026-09-29
+
+With the DEEPCLEAN engine (handle recycling, runtime capacity 1037,
+named refusals; E-SAP239-DEEPCLEAN-001) taking the cold boot to the
+first-frame stop and past it with zero refusals (twice-verified to 40B
+instructions deep; E-SAP239-REPINSWEEP-001), the full 43-script 2.39 era
+set was re-derived script-by-script (owner-approved). 38 of 39
+non-conflicted scripts are twice green at HEAD 145faa9: 10 hash-only
+re-pins plus full anchor-chain moves for widgets, zip_read, quiet_read,
+preload1, history_budget, ongoing, activity_budget, ctimer13_inten,
+logical_files, and gps_startup (chain + wall+1 refusal law). The 2.35.34
+era stays 0 red of 8; `make check` is 1014 tests 0 failed (193 suites).
+In flight: gps_reopen, gps_awake (+ its C-inspector constants),
+gps_five (+ its C-probe chain), general_budget and personal_budget
+(+ C-probe chains); dead-trigger asserts are re-scoped with in-script
+notes and zero-refusal guards, never silently deleted, and the
+logical-file maximum_hits=76670 budget stays untouched.
+
 ### Sapporo 2.35 bounce family rasters through the 788 codec — ticket 793 scope extension, 2026-09-27
 
 E-SAP-0041-EXT6: the 103 draw-refused repaints are one census family — a
