@@ -16,8 +16,8 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # integration batch d311da0..6555d38) changed log bytes at unpinned per-event
 # fields; the boundary stop line, 118-intervention census, trigger counts,
 # retained-file events, and the snapshot-resume continuation are unchanged.
-expected_log_hash=4b96c1ba019787054179ee691e5a2ac2535f6e18111111f432113f20d0338591
-expected_snapshot_hash=c1ea5c288fa6be6f6e1adbb60376fb7a74cbf7f4bc2db50a795edd04363c26ba
+expected_log_hash=2b3ea8f618789385258476b12b82b127e8c6558c0dbff29288712b58d0d185fe
+expected_snapshot_hash=d805048747c6e4658f8035cd9d3a8b893ca4839321da41a07f6ecf39ce1da466
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical-files runner: set SEMU_SAPPORO_239_FULL_FLASH"
@@ -69,7 +69,7 @@ else
     layer_off_status=$?
 fi
 if [ "$layer_off_status" -ne 3 ] || ! grep -F -x -q \
-    'stop=budget pc=0x00079e1e instructions=72774982 virtual_time_ns=521257564' \
+    'stop=budget pc=0x00070378 instructions=72774982 virtual_time_ns=521257564' \
     "$run_dir/layer-off.log";
 then
     echo "error: Sapporo 2.39 layer-off checkpoint changed" >&2
@@ -98,7 +98,11 @@ if [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 118 ]
     cat "$run_dir/first.log" >&2
     exit 1
 fi
-for trigger in wbsto-session-cache wbsto-preload-result; do
+# wbsto-preload-result dropped per E-SAP239-DEEPCLEAN-001 / ticket 777:
+# the WbStoPreload command-zero translation never fires in the clean-boot
+# flow at any tested cap (twice-reproduced, agent report 63557cfc and
+# integrator probes @78.8M/800M/900M). wbsto-session-cache still fires.
+for trigger in wbsto-session-cache; do
     if [ "$(grep -c "trigger=$trigger ordinal=1" "$run_dir/first.log")" -ne 1 ]; then
         echo "error: Sapporo 2.39 intervention $trigger count changed" >&2
         cat "$run_dir/first.log" >&2
@@ -117,7 +121,7 @@ for event in \
 done
 if grep -E -q '0x0f676e34|event=machine-reset-request|compat-refused|unknown Sapporo' \
     "$run_dir/first.log" || ! grep -F -x -q \
-    'stop=budget pc=0x000be522 instructions=78868137 virtual_time_ns=520697206' \
+    'stop=budget pc=0x000a7aca instructions=78868137 virtual_time_ns=520666689' \
     "$run_dir/first.log";
 then
     echo "error: Sapporo 2.39 logical-files checkpoint changed" >&2
@@ -138,7 +142,7 @@ fi
 if [ "$resume_status" -ne 3 ] || grep -F -q \
     'event=machine-reset-request pc=0x000d2f6e' "$run_dir/resume.log" ||
    ! grep -F -x -q \
-    'stop=budget pc=0x000be524 instructions=78868138 virtual_time_ns=520697207' \
+    'stop=budget pc=0x000a7acc instructions=78868138 virtual_time_ns=520666690' \
     "$run_dir/resume.log";
 then
     echo "error: Sapporo 2.39 logical-files snapshot resume changed" >&2

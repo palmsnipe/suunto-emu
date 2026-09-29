@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=63eb4997ff645958e70ed0586613762f88ee5e6e699434c1fbae48f0f435528b
-snapshot_hash=30050924fa4986412226750eb422aaccfca934a485ad7813e349e6b1da8b01a3
+log_hash=1ae47f317dffb829a058f8de8f49db0fb0a2797d1b580c036f5c5b343a2595e8
+snapshot_hash=ffbabbf614344ee4657f7efd22d2a14364e55d493e1880616d1f1d3371286bfd
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 Widgets: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -56,11 +56,11 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=user pc=0x00093be2 instructions=609300000 virtual_time_ns=2148256583' \
+    'stop=user pc=0x000a7ac4 instructions=640300000 virtual_time_ns=2487119465' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76258 ] ||
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76311 ] ||
    [ "$(grep -c 'provenance=E-SAP-COMPAT-WIDGETS-NATIVE-239-001' "$run_dir/first.log")" -ne 1 ]; then
     echo "error: Widgets frame boundary or compatibility counts changed" >&2
     exit 1
@@ -69,7 +69,7 @@ fi
 # Pre-install history remains exact; obsolete JSON-bearing snapshots do not.
 run prefix 40000000 3
 if [ "$(hash "$run_dir/prefix.log")" != 253ffdd99ca7b8fb972518ad7e50701f37306436d67a5114085d94bda01ae11b ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != d2ae7cd38834b3488f9a5785235bd69005e773b129497bf0fa68ac6fa0b47fce ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != 8023099932780a6e40ec30fb3551bc05db677c0d021b5259642467987a6abdff ]; then
     echo "error: pre-install checkpoint changed" >&2
     exit 1
 fi
@@ -98,11 +98,19 @@ code=0
     --full-flash "$full_flash" --layer sapporo-2.39-synthetic-wbsto \
     --max-instructions 1000000000 --max-time 30000000000 \
     --snapshot-load "$run_dir/first.sems" >"$run_dir/refused.log" 2>&1 || code=$?
+# RE-SCOPED under E-SAP239-DEEPCLEAN-001 (ticket 777): the cold-layer run
+# no longer exhausts the logical-file hit budget at 1e9 instructions
+# (single-wbsto-layer guests complete all 76315 file ops once, then idle;
+# the old refusal at 610599945 "unknown writable path" was the
+# pre-capacity-law wall). The engine's own terminal state for this flow is
+# a clean budget stop; the guard becomes: the run must stop at budget with
+# file ops recorded and NO compatibility refusal anywhere.
 if [ "$code" -ne 3 ] || ! grep -F -q \
-    'stop=compat-refused pc=0x000920b4 instructions=610599945 virtual_time_ns=2149556528' \
+    'stop=budget pc=0x000be5d8 instructions=1000000000 virtual_time_ns=11418066429' \
     "$run_dir/refused.log" || ! grep -F -q \
-    'trigger logical-file exceeded budget' "$run_dir/refused.log"; then
-    echo "error: next file-budget refusal changed" >&2
+    'trigger=logical-file ordinal=' "$run_dir/refused.log" || \
+   grep -E -q 'compat-refused|status=refuse' "$run_dir/refused.log"; then
+    echo "error: post-frame continuation is not a clean budget stop" >&2
     cat "$run_dir/refused.log" >&2
     exit 1
 fi

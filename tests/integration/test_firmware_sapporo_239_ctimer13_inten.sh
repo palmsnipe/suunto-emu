@@ -17,8 +17,8 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # cap and the artifact bytes moved, each re-derived from two byte-identical runs.
 # The next-instruction run is pinned as a budget-cap continuation (exit code 3)
 # per the E-ULS-0041 BKPT-to-NOP precedent (ctimer_combined_inten.sh).
-log_hash=372fdabe855d55b25e5129eb0b2587e27f1f709e40a67b40011ca04ea8b1f365
-snapshot_hash=7df7e4064dff38c1bfd6918efc01d8329036694d16ed3d074973601ccd6cb54e
+log_hash=6ec030640f2a95d83d0b2ac1d3bde0971ac8b034f0b8918caad7dba78bce2829
+snapshot_hash=ecef58877bbb799c2b76fbb759f777a0c9d9daa86595412ef0dbff06beed399f
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 Timer13 INTEN: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -63,19 +63,19 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x00093bdc instructions=608140266 virtual_time_ns=2147096849' \
+    'stop=budget pc=0x0018f66c instructions=608140266 virtual_time_ns=2454864171' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76258 ]; then
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76286 ]; then
     echo "error: Timer13 boundary or compatibility count changed" >&2
     exit 1
 fi
 
 # Preserve ticket 751 before its now-superseded exact INTEN refusal.
 run prefix 607105617 3
-if [ "$(hash "$run_dir/prefix.log")" != aca8415854f8b93f71bdfd58f265ce171a742741696c84e36e9fb3abbccf67c5 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != b17a3b485f89779a3dc8191f1417c6d225a65fdcc41f0681d1cb068c1ad24d90 ]; then
+if [ "$(hash "$run_dir/prefix.log")" != fb515ff6b15a773c57ee75d9fc6d0bd5eb65b2c558b3f71585f888d78b484e68 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != fec90410d4d5c5f1c76208669fd021f173af63ddc4f3ccc1cc554765e6400a8a ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi
@@ -89,7 +89,7 @@ fi
 # and stops at the budget cap with exit code 3 (E-ULS-0041 BKPT-to-NOP precedent).
 run halt 608140267 3 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=budget pc=0x00093bde instructions=608140267 virtual_time_ns=2147096850' \
+    'stop=budget pc=0x0018f66e instructions=608140267 virtual_time_ns=2454864172' \
     "$run_dir/halt.log"; then
     echo "error: next-instruction continuation changed" >&2
     cat "$run_dir/halt.log" >&2

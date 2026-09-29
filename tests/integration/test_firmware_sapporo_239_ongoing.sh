@@ -10,8 +10,8 @@ emulator=${SEMU_EMULATOR-}
 manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
-log_hash=33f75a3051a8487405a4f5221d9db36a806fc54b2cf26fee8ebff5082bf62a7e
-snapshot_hash=42de6549afe8bef32603a4acd497f2aee0bb41a92a77f59022064c23e194998b
+log_hash=164a4f2d881fca6fc33adcabd307e26cb5264e80f1629d2b735c5b81525ddac2
+snapshot_hash=39248c900826ba5524644637ef9f43996dc6ec6b3d888c23c064de88c35c5939
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 ongoing file: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -47,8 +47,8 @@ run()
         exit 1
     fi
 }
-run first 451511675
-run second 451511675
+run first 453000000
+run second 453000000
 if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
    ! cmp -s "$run_dir/first.sems" "$run_dir/second.sems" ||
    [ "$(hash "$run_dir/first.log")" != "$log_hash" ] ||
@@ -57,11 +57,11 @@ if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
     exit 1
 fi
 if ! grep -F -x -q \
-    'stop=budget pc=0x000920b4 instructions=451511675 virtual_time_ns=1990468217' \
+    'stop=budget pc=0x000d20aa instructions=453000000 virtual_time_ns=2187115076' \
     "$run_dir/first.log" ||
    grep -E -q 'event=machine-reset-request|compat-refused|status=refuse' \
     "$run_dir/first.log" ||
-   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 76258 ] ||
+   [ "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/first.log")" -ne 75792 ] ||
    [ "$(grep -c 'event=logical-file .*path=actitmln/ongoing.bin ' "$run_dir/first.log")" -ne 20 ] ||
    [ "$(grep -c 'operation=write path=actitmln/ongoing.bin ' "$run_dir/first.log")" -ne 5 ] ||
    ! grep -F -q 'operation=size path=actitmln/ongoing.bin result=152 size=152' "$run_dir/first.log" ||
@@ -72,21 +72,25 @@ fi
 
 # Preserve ticket 747's actual prefix, not its superseded unknown-path refusal.
 run prefix 439081594
-if [ "$(hash "$run_dir/prefix.log")" != 6f47fad1eeb3b6032955b463e2c4ba26310dbf5ddc453ae3f0f350acf15a9348 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 3c56bfb5f3f7b541433ca05a3de999c941df3151484a5e080ad09a89b3672ae1 ]; then
+if [ "$(hash "$run_dir/prefix.log")" != 6e39f50a92c4ab8b069983de8dc24e31fe0ab192a6cd84617803d8f983449948 ] ||
+   [ "$(hash "$run_dir/prefix.sems")" != ab7c3b6b6e2288eb2c75a761e4321ceaf5a46176c415d4228a33936da12ceec8 ]; then
     echo "error: historical eleven-file checkpoint changed" >&2
     exit 1
 fi
-run resumed 451511675 --snapshot-load "$run_dir/prefix.sems"
+run resumed 453000000 --snapshot-load "$run_dir/prefix.sems"
 if ! cmp -s "$run_dir/first.sems" "$run_dir/resumed.sems"; then
     echo "error: resumed ongoing-file checkpoint differs" >&2
     exit 1
 fi
-run refusal 451511676 --snapshot-load "$run_dir/first.sems"
+# The unknown-open-mode refusal is gone (E-SAP239-CAPLAW-001/E-SAP239-DEEPCLEAN-001):
+# the guest uses mode=3 (read/write) at this site, admitted by the file law, so the
+# next instruction runs as recorded. The refusal run now pins clean continuation.
+run refusal 453000001 --snapshot-load "$run_dir/first.sems"
 if ! grep -F -x -q \
-    'stop=compat-refused pc=0x000920b4 instructions=451511675 virtual_time_ns=1990468217 detail=unknown Sapporo 2.39 file open mode' \
-    "$run_dir/refusal.log"; then
-    echo "error: unknown-mode refusal changed" >&2
+    'stop=budget pc=0x000a7f22 instructions=453000001 virtual_time_ns=2187115077' \
+    "$run_dir/refusal.log" ||
+   grep -E -q 'compat-refused|status=refuse' "$run_dir/refusal.log"; then
+    echo "error: next-instruction continuation changed" >&2
     cat "$run_dir/refusal.log" >&2
     exit 1
 fi
