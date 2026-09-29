@@ -172,11 +172,15 @@ re-pins plus full anchor-chain moves for widgets, zip_read, quiet_read,
 preload1, history_budget, ongoing, activity_budget, ctimer13_inten,
 logical_files, and gps_startup (chain + wall+1 refusal law). The 2.35.34
 era stays 0 red of 8; `make check` is 1014 tests 0 failed (193 suites).
-In flight: gps_reopen, gps_awake (+ its C-inspector constants),
-gps_five (+ its C-probe chain), general_budget and personal_budget
-(+ C-probe chains); dead-trigger asserts are re-scoped with in-script
-notes and zero-refusal guards, never silently deleted, and the
-logical-file maximum_hits=76670 budget stays untouched.
+In flight (five windows across four scripts): gps_reopen, gps_awake (+
+its C-inspector constants), gps_five (+ its C-probe chain), and
+general_budget + personal_budget (+ C-probe chains; the personal probe
+was additionally blocked by an independent probe-side defect —
+`semu_machine_create` failing at the 1.966G cold-load cap while CLI
+loads the same state fine; fix in the 777 lane). Dead-trigger asserts
+are re-scoped with in-script notes and zero-refusal guards, never
+silently deleted, and the logical-file maximum_hits=76670 budget stays
+untouched.
 
 ### Sapporo 2.35 bounce family rasters through the 788 codec — ticket 793 scope extension, 2026-09-27
 

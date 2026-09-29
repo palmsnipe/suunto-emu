@@ -213,7 +213,7 @@ static int inspect(const char *manifest, const char *flash, const char *path,
         (unsigned)__LINE__); goto done; } } while (0)
     if (expected_final != NULL) {
         static const uint64_t entries[] = {827008206u, 941844404u, 1052945626u, 1163113462u};
-        VERIFY(semu_machine_instructions(m) == 825147127u && m->layers[3].hits == 0u);
+        VERIFY(semu_machine_instructions(m) == 846889602u && m->layers[3].hits == 0u);
         for (unsigned i = 0u; i < 4u; ++i) {
             semu_run_limits limits = {entries[i] - semu_machine_instructions(m),
                 UINT64_C(35000000000) - semu_machine_virtual_time(m)};
