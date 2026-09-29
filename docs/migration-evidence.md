@@ -7938,3 +7938,40 @@ fail-closed above it) or (b) further RE of the writer-side
 serialization bound. The sweep log (/tmp, sha per lane convention,
 volatile) is reproducible from this entry's constants + the pre-796
 provenance chain.
+E-SAP239-CLEANBOOT-001 (2026-09-27): with the storage capacity law =
+guest repo buffer bound 1037 (owner ruling (a), E-SAP239-REPO38D123-001
+addenda C/D) and the nested-key admission (796 continuation) in place,
+the Sapporo 2.39 boot sequence runs to completion with ZERO
+compat-refusals for the first time. Two-run byte-identical observation
+(flash 37134845…, manifest 2.39.20.22297, layer
+sapporo-2.39-synthetic-wbsto, --until normal-frame, cap 1000000000):
+`stop=user pc=0x000a7ac4 instructions=640300000
+virtual_time_ns=2487119465`. The whole session storage family
+completes inside this boot window: 8 files (flat 38d123/a70366e1/
+ac100d90/bff517c6/c459d94/faed64e2 + nested 2e3fa8d2/b51799fe,
+9ea0dac9/b51799fe), each with the observed 87/94/7/27/... + 2 commit
+tail, closed. For contrast the pre-change baseline
+/tmp/sap239-era/wt-f413e23 (nested+capacity not yet in) stops at
+`stop=compat-refused pc=0x000920b4 instructions=442856246
+virtual_time_ns=2176971322 detail=unknown Sapporo 2.39 writable file
+path`. This is the goal-critical wall removal: the guest reaches its
+natural first user-input wait instead of a spurious refusal.
+CENSUS EFFECT (era scripts, TEST_PROFILE=sapporo-2.39.20, 43 scripts):
+green count unchanged at 28/43, red set BYTE-IDENTICAL before
+(census5, pre-796-nested) and after (census6, post-capacity). No script
+newly red, none newly green — because each of the 15 wall-entangled
+scripts pins an anchor CHAIN whose entire downstream choreography
+shifted once the boot completes; every anchor must be re-derived
+against the clean-boot baseline. Classification of the 15:
+plain-CLI re-pinnable (12): activity_budget history_budget
+logical_files ongoing widgets zip_read quiet_read preload1
+ctimer13_inten gps_startup gps_awake gps_reopen. C-probe deep goldens
+(3, hardcoded C-constant anchor chains, red since before this change):
+general_budget personal_budget gps_five. Boot-logo goldens that were
+pinned to a refusal-stopped boot now legitimately move (e.g.
+activity_budget logo checkpoint log 63eb4997… -> daabf464…, sems
+30050924… -> d751ac61…, both twice byte-identical) because the logo
+snapshot captures post-storage machine state. Re-derivation of all 15
+anchor chains against E-SAP239-CLEANBOOT-001 is tracked as the 796/777
+continuation; the clean-boot baseline is the prerequisite that was
+previously missing.
