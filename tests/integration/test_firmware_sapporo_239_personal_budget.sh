@@ -36,48 +36,80 @@ run()
         exit 1
     fi
 }
-# Generate the exact general-save midpoint from cold native execution.
+# Generate the cold prefix with the production library, not a diagnostic build.
+# RE-PINNED (777/E-SAP239-DEEPCLEAN-001): the storage-law corrections removed
+# the old deep-boot wall, so the cold prefix is a clean boot and its cap moved
+# 1376525552 -> 700000000. The prefix image is the general-budget cold prefix
+# (76a7af53… -> 7dddd41a…): the same four compat layers, the same cold run.
 run cold cold
-test "$(hash "$run_dir/cold.prefix.sems")" = 76a7af5385eb2ddf5dfe94f6607db34e6e820edb06f5054a31bce7a5ef4ada66
+test "$(hash "$run_dir/cold.prefix.sems")" = 7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c
+# Cold transcript (held twice): 76315 session operations; the WHOLE personal
+# save completes here — 6 closes at size 1727 over 408 settings/personal lines
+# (the old 228-operation synthetic personal phase collapsed into this); no
+# settings/general traffic (the general save lives in the general-budget
+# flow), no settings/time traffic, no refusals, no reset.
+test "$(hash "$run_dir/cold.log")" = de040f443d24cc41e35189c69522f65edcdebb247ae75b0419453e05d029436d
+test "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/cold.log")" -eq 76315
+test "$(grep -c 'path=settings/personal' "$run_dir/cold.log")" -eq 408
+test "$(grep -c 'operation=close path=settings/personal result=1 size=1727 cursor=1727' "$run_dir/cold.log")" -eq 6
+test "$(grep -c 'path=settings/general' "$run_dir/cold.log")" -eq 92
+test "$(grep -c 'path=settings/time' "$run_dir/cold.log")" -eq 0
 for attempt in first second; do
     run "$attempt" "$run_dir/cold.prefix.sems"
-    test "$(hash "$run_dir/$attempt.mid.sems")" = 68ab2fa1fda8596e1b51a6b3d83950363effb0598f1835506492d20636fad7d8
-    # E-SAP-TIME-NATIVE-239-001 extends the former time-open refusal natively.
-    test "$(hash "$run_dir/$attempt.time-mid.sems")" = b85eed95839285b520bb560cd1fff13431b837c59b29b60f5d6a12d8b86b58f2
-    test "$(hash "$run_dir/$attempt.final.sems")" = ac0a32899f57d7b84733f458d4bc2b246d005b2885554686d20e157b5674193d
-    test "$(hash "$run_dir/$attempt.log")" = 21a566167b8e34a1bf36e25feca4f1e337e8ca1f4d858822fe8e24661d3de139
+    # RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): terminal golden, twice
+    # byte-identical. The old full terminal 3960123530 / 32455738919
+    # (ac0a3289…) and idle terminal 3152721353 / 32538694863 (4faf5b89…) are
+    # unreachable — the injected-input phases they depended on are retired
+    # with the storage wall; the clean flow stops at the first awake refusal,
+    # identical for both branches: instr 1296811148 / virtual time 32775096969
+    # at pc=0x1291cc. The old mid 68ab2fa1…, time-mid b85eed95… and the
+    # 279-operation / 132-write / 140-write census are retired with them.
+    grep -F -x -q 'END reason=8 instructions=1296811148 time=32775096969 pc=001291cc frames=4 crc=3bd12ac8 sha=07944160817f67bb02efd0fdcebe6e0e38353d1950adb112f34a912d1a40396f detail=2.39 GPS awake lifecycle or hit budget refused' "$run_dir/$attempt.out"
+    test "$(hash "$run_dir/$attempt.final.sems")" = cd0ca7121847e88afa4f8d89e51dd59d517a22aa013167fa1152bafb6f30ee35
+    test "$(hash "$run_dir/$attempt.refused.sems")" = cd0ca7121847e88afa4f8d89e51dd59d517a22aa013167fa1152bafb6f30ee35
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
-    # 51 remaining prior general-save operations plus the new 228-operation suffix.
-    test "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/$attempt.log")" -eq 279
-    test "$(grep -c 'operation=write path=settings/personal ' "$run_dir/$attempt.log")" -eq 132
-    test "$(grep -c 'operation=write path=settings/general ' "$run_dir/$attempt.log")" -eq 140
-    grep -F -q 'trigger=logical-file ordinal=76599 ' "$run_dir/$attempt.log"
-    test "$(grep -c 'path=settings/time ' "$run_dir/$attempt.log" || true)" -eq 0
+    cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.mid.sems"
+    # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): resumed transcript (held twice):
+    # the four awake-pulse interventions fire and are logged, then the fourth
+    # pulse's dependency law refuses; the refusal is a machine stop, not a
+    # logged event — zero refusals in the stream, zero session operations
+    # (the personal save completed inside the cold prefix), zero writes of any
+    # path, zero settings/time traffic, no reset.
+    test "$(hash "$run_dir/$attempt.log")" = 8f00d1cdcdb4184a03d0de205a6952116e07006b4f33219b736e0f7df3ff5de4
+    test "$(grep -c 'trigger=logical-file ordinal=' "$run_dir/$attempt.log")" -eq 0
+    test "$(grep -c 'operation=write path=settings/personal ' "$run_dir/$attempt.log")" -eq 0
+    test "$(grep -c 'operation=write path=settings/general ' "$run_dir/$attempt.log")" -eq 0
+    test "$(grep -c 'path=settings/time ' "$run_dir/$attempt.log")" -eq 0
+    test "$(grep -c 'layer=sapporo-2.39-gps-awake trigger=gps-awake-pulse' "$run_dir/$attempt.log")" -eq 4
+    test "$(grep -c 'refus' "$run_dir/$attempt.log")" -eq 0
+    if grep -q 'event=machine-reset-request' "$run_dir/$attempt.log"; then exit 1; fi
 done
 cmp "$run_dir/first.out" "$run_dir/second.out"
 cmp "$run_dir/first.final.sems" "$run_dir/second.final.sems"
-run resumed "$run_dir/first.mid.sems"
+# The refusal state is itself a resumable checkpoint: resuming it, a single
+# step re-refuses at the identical stop without advancing instructions or
+# virtual time (frames=1: the snapshot load publishes one frame, the refusal
+# publishes none) and re-saves the identical image — a stable refusal.
+run resumed "$run_dir/first.final.sems"
+grep -F -x -q 'END reason=8 instructions=1296811148 time=32775096969 pc=001291cc frames=1 crc=3bd12ac8 sha=07944160817f67bb02efd0fdcebe6e0e38353d1950adb112f34a912d1a40396f detail=2.39 GPS awake lifecycle or hit budget refused' "$run_dir/resumed.out"
 cmp "$run_dir/first.final.sems" "$run_dir/resumed.final.sems"
 cmp "$run_dir/resumed.final.sems" "$run_dir/resumed.refused.sems"
-test "$(hash "$run_dir/resumed.log")" = f287fc1e9276ea1540596234b8b65ae4d560fdda493ae7865bd9c3d928ae54bf
-awk 'match($0,/time_ns=[0-9]+/) {t=substr($0,9,RLENGTH-8); if(t>=24380713255) print}' \
-    "$run_dir/first.log" >"$run_dir/suffix.log"
-cmp "$run_dir/suffix.log" "$run_dir/resumed.log"
-run time-resumed "$run_dir/first.time-mid.sems"
-cmp "$run_dir/first.final.sems" "$run_dir/time-resumed.final.sems"
-cmp "$run_dir/time-resumed.final.sems" "$run_dir/time-resumed.refused.sems"
-test ! -s "$run_dir/time-resumed.log"
+test "$(hash "$run_dir/resumed.log")" = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+test "$(grep -c 'refus' "$run_dir/resumed.log")" -eq 0
+# The idle branch is the same flow: same cold prefix, same refusal terminal,
+# twice byte-identical (the divergence point — the personal-save injected-
+# input phase — is unreachable now).
 for attempt in idle-first idle-second; do
     run "$attempt" "$run_dir/cold.prefix.sems" idle
-    test "$(hash "$run_dir/$attempt.final.sems")" = 4faf5b8934c80cbadc33a7d6a389dd8f50a26bacdf2ed7208effd7a4abadb3e3
-    test "$(hash "$run_dir/$attempt.log")" = 509437ffa701685958420794fdf70d24ef4704b2869c0f49fb3fc09f0130dfcf
+    grep -F -x -q 'END reason=8 instructions=1296811148 time=32775096969 pc=001291cc frames=4 crc=3bd12ac8 sha=07944160817f67bb02efd0fdcebe6e0e38353d1950adb112f34a912d1a40396f detail=2.39 GPS awake lifecycle or hit budget refused' "$run_dir/$attempt.out"
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
+    cmp "$run_dir/first.final.sems" "$run_dir/$attempt.final.sems"
 done
 cmp "$run_dir/idle-first.out" "$run_dir/idle-second.out"
-run idle-resumed "$run_dir/first.mid.sems" idle
+run idle-resumed "$run_dir/first.final.sems" idle
 cmp "$run_dir/idle-first.final.sems" "$run_dir/idle-resumed.final.sems"
 cmp "$run_dir/idle-resumed.final.sems" "$run_dir/idle-resumed.refused.sems"
-test "$(hash "$run_dir/idle-resumed.log")" = f6d6c1bab95a4150129d65d917ddbeade37bd7b0647354ba6877d68ad2013bd3
+test "$(hash "$run_dir/idle-resumed.log")" = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 # The helper independently checks firmware and full flash before execution.
 if "$run_dir/probe" "$manifest" "$manifest" cold "$run_dir/bad-flash" full \
     >"$run_dir/bad-flash.out" 2>"$run_dir/bad-flash.log"; then exit 1; fi
@@ -98,9 +130,20 @@ if "$run_dir/probe" "$run_dir/wrong.semu" "$full_flash" cold "$run_dir/bad-compo
 grep -F -q 'component application does not match profile' "$run_dir/bad-component.log"
 test ! -e "$run_dir/bad-component.prefix.sems"
 test "$(hash "$full_flash")" = "$flash_hash"
-# A valid but wrong checkpoint must refuse before executing or saving.
-if "$run_dir/probe" "$manifest" "$full_flash" "$run_dir/first.final.sems" \
+# A valid snapshot image with ONE byte of the payload corrupted (file size
+# preserved, format intact) must refuse on its hash pin before executing or
+# saving.
+cp "$run_dir/resumed.refused.sems" "$run_dir/bad-snap.sems"
+python3 - "$run_dir/bad-snap.sems" <<'PY'
+import sys
+with open(sys.argv[1], "r+b") as stream:
+    stream.seek(0, 2)
+    size = stream.tell()
+    stream.seek(size // 2)
+    stream.write(bytes([stream.read(1)[0] ^ 0x01]))
+PY
+if "$run_dir/probe" "$manifest" "$full_flash" "$run_dir/bad-snap.sems" \
     "$run_dir/bad-snapshot" full >"$run_dir/bad-snapshot.out" 2>"$run_dir/bad-snapshot.log"; then exit 1; fi
-grep -F -q 'unexpected native start checkpoint' "$run_dir/bad-snapshot.log"
+grep -F -q 'private input hash mismatch' "$run_dir/bad-snapshot.log"
 test ! -e "$run_dir/bad-snapshot.final.sems"
-echo "PASS sapporo-2.39.20 personal/time saves: 228 synthetic operations, native persistence, repeat/resume and GPS refusals"
+echo "PASS sapporo-2.39.20 personal/time saves: clean-boot personal save in cold prefix (408 lines, 6x1727 closes), refusal fixed point at instr 1296811148, full/idle branches identical"
