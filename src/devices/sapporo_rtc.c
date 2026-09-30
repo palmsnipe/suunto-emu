@@ -21,6 +21,8 @@
 #include "sapporo_rtc_time.h"
 
 #include "semu/scheduler.h"
+#include "../core/scheduler_internal.h"
+#include "../core/snapshot_io.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -204,9 +206,11 @@ static void rtc_reschedule(sapporo_rtc_state *s, uint64_t after_ns)
     }
     s->interval_ticks = period;
     s->next_tick = cand;
-    if (semu_scheduler_schedule(s->scheduler,
-                                cand * SRTC_TICK_NS - clock, rtc_alarm_cb, s,
-                                &s->alarm_event, &error) == SEMU_OK) {
+    if (semu_scheduler_schedule_tagged(s->scheduler,
+                                      cand * SRTC_TICK_NS - clock,
+                                      SEMU_SCHED_EVENT_SAP235_RTC_ALARM, 0u,
+                                      rtc_alarm_cb, s,
+                                      &s->alarm_event, &error) == SEMU_OK) {
         s->alarm_pending = 1;
     }
 }
@@ -227,8 +231,10 @@ static void rtc_alarm_cb(void *context, uint64_t now_ns)
         rtc_reschedule(s, now_ns);
         return;
     }
-    if (semu_scheduler_schedule(s->scheduler, t_ns - clock, rtc_alarm_cb, s,
-                                &s->alarm_event, &error) == SEMU_OK) {
+    if (semu_scheduler_schedule_tagged(s->scheduler, t_ns - clock,
+                                       SEMU_SCHED_EVENT_SAP235_RTC_ALARM, 0u,
+                                       rtc_alarm_cb, s,
+                                       &s->alarm_event, &error) == SEMU_OK) {
         s->alarm_pending = 1;
     }
 }
@@ -508,4 +514,235 @@ int semu_sapporo_rtc_probe_pending(const semu_sapporo_rtc *s, int *line_high)
         *line_high = s->line_high;
     }
     return s->alarm_pending != 0 ? 1 : 0;
+}
+
+/* --- Ticket 792: live RTC snapshot codec (E-SAP-0035 state only). --- */
+
+semu_status semu_sapporo_rtc_snapshot_write(
+    const semu_sapporo_rtc *rtc, semu_snapshot_writer *writer,
+    semu_error *error)
+{
+    const sapporo_rtc_state *s = rtc;
+    if (s == NULL || writer == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo RTC snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    /* A never-touched instance serializes the same cold state a first
+     * guest access would establish; the lazy init is idempotent and
+     * cannot drive the sink (the cold line starts low). */
+    if (!s->init_done) {
+        rtc_ensure_init((sapporo_rtc_state *)s);
+    }
+    if (semu_snapshot_writer_u32(writer, s->ctrl, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->write_busy, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->cterr, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->lower_valid, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->running, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->cb, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->ceb, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->stat, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->inten, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->line_high, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->init_done, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, (uint8_t)s->alarm_pending, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_hun, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_sec, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_min, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_hr, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_day, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_mon, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_yr, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->f_wd, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->a100, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->asec, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->amin, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->ahr, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->aday, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->amon, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, s->awd, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->base_ns, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->epoch_ns, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->refresh_tick, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->lower_tick, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->next_tick, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->interval_ticks, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->alarm_event, error) != SEMU_OK ||
+        semu_snapshot_writer_u64(writer, s->high_water, error) != SEMU_OK)
+        return error->code;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_rtc_snapshot_read(
+    semu_sapporo_rtc *rtc, semu_snapshot_reader *reader, semu_error *error)
+{
+    sapporo_rtc_state *s = rtc;
+    sapporo_rtc_state candidate;
+    if (s == NULL || reader == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo RTC snapshot arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    candidate = *s;
+    if (semu_snapshot_reader_u32(reader, &candidate.ctrl, error) != SEMU_OK)
+        return error->code;
+    {
+        uint8_t flags[11];
+        size_t index;
+        for (index = 0u; index < sizeof(flags); ++index) {
+            if (semu_snapshot_reader_u8(reader, &flags[index], error) != SEMU_OK)
+                return error->code;
+        }
+        candidate.write_busy = flags[0];
+        candidate.cterr = flags[1];
+        candidate.lower_valid = flags[2];
+        candidate.running = flags[3];
+        candidate.cb = flags[4];
+        candidate.ceb = flags[5];
+        candidate.stat = flags[6];
+        candidate.inten = flags[7];
+        candidate.line_high = flags[8];
+        candidate.init_done = flags[9];
+        candidate.alarm_pending = flags[10];
+    }
+    if (semu_snapshot_reader_u32(reader, &candidate.f_hun, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_sec, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_min, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_hr, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_day, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_mon, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_yr, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.f_wd, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.a100, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.asec, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.amin, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.ahr, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.aday, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.amon, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.awd, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.base_ns, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.epoch_ns, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.refresh_tick, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.lower_tick, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.next_tick, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.interval_ticks, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.alarm_event, error) != SEMU_OK ||
+        semu_snapshot_reader_u64(reader, &candidate.high_water, error) != SEMU_OK)
+        return error->code;
+    /* Only states the E-SAP-0035 write law can produce round-trip; the
+     * field maxima are the lane hex-compare bounds and the line/pending
+     * identities are the register law's own invariants. */
+    if (candidate.ctrl > 0x1fu ||
+        candidate.write_busy > 1 || candidate.cterr > 1 ||
+        candidate.lower_valid > 1 || candidate.running > 1 ||
+        candidate.cb > 1 || candidate.ceb > 1 ||
+        candidate.stat > 1 || candidate.inten > 1 ||
+        candidate.line_high > 1 || candidate.init_done > 1 ||
+        candidate.alarm_pending > 1 ||
+        candidate.f_hun > 0x99u || candidate.f_sec > 0x59u ||
+        candidate.f_min > 0x59u || candidate.f_hr > 0x23u ||
+        candidate.f_day > 0x31u || candidate.f_day == 0u ||
+        candidate.f_mon > 0x12u || candidate.f_mon == 0u ||
+        candidate.f_yr > 0x99u || candidate.f_wd > 6u ||
+        candidate.a100 > 0x99u || candidate.asec > 0x59u ||
+        candidate.amin > 0x59u || candidate.ahr > 0x23u ||
+        candidate.aday > 0x31u || candidate.amon > 0x12u ||
+        candidate.awd > 6u ||
+        (candidate.line_high != 0) !=
+            (candidate.inten != 0 && candidate.stat != 0) ||
+        (candidate.alarm_pending != 0 &&
+         (candidate.running == 0 || candidate.alarm_event == 0u ||
+          candidate.interval_ticks !=
+              rtc_period_ticks((candidate.ctrl >> 1) & 7u)))) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "Sapporo RTC snapshot state is unreachable");
+        return SEMU_ERR_FORMAT;
+    }
+    *s = candidate;
+    return SEMU_OK;
+}
+
+semu_status semu_sapporo_rtc_snapshot_resolve_event(
+    semu_sapporo_rtc *rtc, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error)
+{
+    sapporo_rtc_state *s = rtc;
+    if (s == NULL || callback == NULL || context == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo RTC snapshot event arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (subject == 0u && s->alarm_pending && s->alarm_event != 0u) {
+        *callback = rtc_alarm_cb;
+        *context = s;
+        return SEMU_OK;
+    }
+    semu_error_set(error, SEMU_ERR_CONFLICT,
+                   "Sapporo RTC snapshot event is not present");
+    return SEMU_ERR_CONFLICT;
+}
+
+semu_status semu_sapporo_rtc_snapshot_event_id_matches(
+    const semu_sapporo_rtc *rtc, uint32_t subject, semu_event_id event_id,
+    semu_error *error)
+{
+    const sapporo_rtc_state *s = rtc;
+    if (s != NULL && subject == 0u && s->alarm_pending &&
+        s->alarm_event == event_id && event_id != 0u)
+        return SEMU_OK;
+    semu_error_set(error, SEMU_ERR_FORMAT,
+                   "Sapporo RTC snapshot event identity does not match device");
+    return SEMU_ERR_FORMAT;
+}
+
+semu_status semu_sapporo_rtc_snapshot_event_links_match(
+    const semu_sapporo_rtc *rtc, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error)
+{
+    const sapporo_rtc_state *s = rtc;
+    const semu_scheduled_event_state *found = NULL;
+    uint64_t due;
+    size_t index;
+    if (s == NULL || (events == NULL && count != 0u)) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Sapporo RTC snapshot linkage arguments are invalid");
+        return SEMU_ERR_ARGUMENT;
+    }
+    if (!s->alarm_pending) {
+        return SEMU_OK;
+    }
+    for (index = 0u; index < count; ++index) {
+        if (events[index].kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM &&
+            events[index].subject == 0u &&
+            events[index].id == s->alarm_event) {
+            found = &events[index];
+            break;
+        }
+    }
+    if (found == NULL) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "Sapporo RTC alarm has no scheduler event");
+        return SEMU_ERR_FORMAT;
+    }
+    /* The armed delay is cand*TICK - clock, so the absolute due time is
+     * exactly next_tick*TICK + base_ns - epoch_ns; require it. */
+    if (s->next_tick > UINT64_MAX / SRTC_TICK_NS) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "Sapporo RTC alarm tick overflows");
+        return SEMU_ERR_FORMAT;
+    }
+    due = s->next_tick * SRTC_TICK_NS;
+    if (due > UINT64_MAX - s->base_ns || due + s->base_ns < s->epoch_ns) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "Sapporo RTC alarm due time is unreachable");
+        return SEMU_ERR_FORMAT;
+    }
+    due += s->base_ns;
+    due -= s->epoch_ns;
+    if (found->due_ns != due) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "Sapporo RTC alarm due time disagrees with the event");
+        return SEMU_ERR_FORMAT;
+    }
+    return SEMU_OK;
 }

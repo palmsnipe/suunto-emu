@@ -10,6 +10,9 @@
 #define IOM_DMA_STATUS_ERROR UINT32_C(0x04)
 #define IOM_SUBMODCTRL_RESET UINT32_C(0x00000e20)
 #define IOM_FIFO_STATUS_RESET UINT32_C(0x00000004)
+/* E-SAP-0039 pressure profile admits the probe's DMA config writes
+ * (iom.c masks them to 0x103) where the shared law keeps 0x03. */
+#define IOM_DMA_CONFIG_PRESSURE235_MASK UINT32_C(0x103)
 
 semu_status semu_apollo4_iom_snapshot_write(
     const semu_apollo4_iom *iom, semu_snapshot_writer *writer,
@@ -28,10 +31,6 @@ semu_status semu_apollo4_iom_snapshot_write(
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "IOM snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
-    }
-    if (iom->pressure235) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "2.35 IOM2 snapshots are unsupported");
-        return SEMU_ERR_UNSUPPORTED;
     }
     if (semu_snapshot_writer_u8(writer, (uint8_t)(iom->endpoint_attached != 0), error) != SEMU_OK ||
         semu_snapshot_writer_u8(writer, (uint8_t)(iom->irq_level != 0), error) != SEMU_OK)
@@ -58,10 +57,6 @@ semu_status semu_apollo4_iom_snapshot_read(
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "IOM snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
-    }
-    if (iom->pressure235) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "2.35 IOM2 snapshots are unsupported");
-        return SEMU_ERR_UNSUPPORTED;
     }
     candidate = *iom;
     if (semu_snapshot_reader_u8(reader, &attached, error) != SEMU_OK ||
@@ -90,7 +85,9 @@ semu_status semu_apollo4_iom_snapshot_read(
         if (semu_snapshot_reader_u32(reader, &candidate.observed_registers[index], error) != SEMU_OK)
             return error->code;
     if ((candidate.dma_trig_en & ~IOM_DMA_TRIG_EN_MASK) != 0u ||
-        (candidate.dma_config & ~IOM_DMA_CONFIG_MASK) != 0u ||
+        (candidate.dma_config &
+         ~(candidate.pressure235 ? IOM_DMA_CONFIG_PRESSURE235_MASK
+                                 : IOM_DMA_CONFIG_MASK)) != 0u ||
         (candidate.dma_count & ~IOM_DMA_COUNT_MASK) != 0u ||
         (candidate.dma_target & ~IOM_DMA_TARGET_MASK) != 0u ||
         (candidate.dma_trig_stat & ~IOM_DMA_TRIG_TOTAL) != 0u ||

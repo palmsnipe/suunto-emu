@@ -274,7 +274,7 @@ semu_status semu_scheduler_restore_event(semu_scheduler *scheduler,
         state->id == 0u || state->sequence >= scheduler->next_sequence ||
         state->id >= scheduler->next_id || state->due_ns < scheduler->now_ns ||
         state->kind == SEMU_SCHED_EVENT_NONE ||
-        state->kind > SEMU_SCHED_EVENT_NEMA_COMPLETION) {
+        state->kind > SEMU_SCHED_EVENT_SAP235_RTC_ALARM) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid scheduler snapshot event");
         return SEMU_ERR_FORMAT;

@@ -180,7 +180,7 @@ static void test_scheduler_restore_kind_refusal(semu_test_context *context)
     event_log log = {{0u}, 0u};
     event_item item = {&log, 1u};
     semu_scheduled_event_state state = {
-        0u, 0u, 1u, SEMU_SCHED_EVENT_NEMA_COMPLETION + 1u, 0u
+        0u, 0u, 1u, SEMU_SCHED_EVENT_SAP235_RTC_ALARM + 1u, 0u
     };
 
     SEMU_TEST_ASSERT(context, scheduler != NULL);

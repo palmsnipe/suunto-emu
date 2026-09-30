@@ -64,7 +64,8 @@ static semu_status resolve_event(semu_machine *machine,
     if (state->kind == SEMU_SCHED_EVENT_CTIMER ||
         state->kind == SEMU_SCHED_EVENT_STIMER ||
         state->kind == SEMU_SCHED_EVENT_UART_RX ||
-        state->kind == SEMU_SCHED_EVENT_UART_TX)
+        state->kind == SEMU_SCHED_EVENT_UART_TX ||
+        state->kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM)
         return semu_apollo4_snapshot_resolve_event(machine->soc, state->kind,
                                                    state->subject, callback, context, error);
     if (state->kind == SEMU_SCHED_EVENT_CXD_RX ||

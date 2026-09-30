@@ -148,21 +148,51 @@ static void test_sapporo_235_pressure_profile_isolation(semu_test_context *c)
     destroy(&a);
 }
 
-static void test_sapporo_235_pressure_snapshot_refuses(semu_test_context *c)
+/* Ticket 792: the pressure IOM2 state is codec-covered now. The probe
+ * state round-trips; only a wrong-profile consumer refuses the image. */
+static void test_sapporo_235_pressure_snapshot_roundtrip(semu_test_context *c)
 {
     fixture f;
+    fixture g;
+    fixture stub;
     semu_snapshot_writer writer;
     semu_snapshot_reader reader;
     SEMU_TEST_ASSERT(c, create(&f, "sapporo-2.35.34"));
+    SEMU_TEST_ASSERT(c, create(&g, "sapporo-2.35.34"));
+    SEMU_TEST_ASSERT(c, create(&stub, "sapporo-2.22.60"));
+    prepare(c, &f, 0x5du);
+    write_reg(c, &f, 0x120u, 0x0f000112u);
     semu_snapshot_writer_init(&writer);
-    semu_snapshot_reader_init(&reader, NULL, 0u);
-    SEMU_TEST_EQ_U64(c, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(c, SEMU_OK,
         semu_apollo4_iom_snapshot_write(f.soc->iom2, &writer, &f.error));
-    SEMU_TEST_EQ_U64(c, 0u, writer.size);
-    SEMU_TEST_EQ_U64(c, SEMU_ERR_UNSUPPORTED,
-        semu_apollo4_iom_snapshot_read(f.soc->iom2, &reader, &f.error));
-    SEMU_TEST_EQ_U64(c, 0u, reader.offset);
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    SEMU_TEST_EQ_U64(c, SEMU_OK,
+        semu_apollo4_iom_snapshot_read(g.soc->iom2, &reader, &g.error));
+    SEMU_TEST_ASSERT(c, semu_snapshot_reader_done(&reader));
+    read_reg(c, &g, 0x204u, 0x442u);
+    read_reg(c, &g, 0x214u, 4u);
+    read_reg(c, &g, 0x218u, 0x100u);
+    read_reg(c, &g, 0x224u, 2u);
+    SEMU_TEST_EQ_U64(c, f.soc->iom2->device_config,
+                     g.soc->iom2->device_config);
+    SEMU_TEST_EQ_U64(c, f.soc->iom2->inten, g.soc->iom2->inten);
+    SEMU_TEST_EQ_U64(c, f.soc->iom2->dma_count, g.soc->iom2->dma_count);
+    SEMU_TEST_EQ_U64(c, f.soc->iom2->dma_target, g.soc->iom2->dma_target);
+    SEMU_TEST_ASSERT(c, f.soc->iom2->endpoint_attached ==
+                     g.soc->iom2->endpoint_attached);
+    SEMU_TEST_ASSERT(c, f.soc->iom2->irq_level == g.soc->iom2->irq_level);
+    SEMU_TEST_ASSERT(c, memcmp(f.soc->iom2->observed_registers,
+                               g.soc->iom2->observed_registers,
+                               sizeof(f.soc->iom2->observed_registers)) == 0);
+    /* A stub-profile IOM2 refuses the pressure image: the probe's
+     * DMA config lies outside the shared-law mask. */
+    semu_snapshot_reader_init(&reader, writer.data, writer.size);
+    semu_error_clear(&stub.error);
+    SEMU_TEST_EQ_U64(c, SEMU_ERR_FORMAT,
+        semu_apollo4_iom_snapshot_read(stub.soc->iom2, &reader, &stub.error));
     semu_snapshot_writer_destroy(&writer);
+    destroy(&stub);
+    destroy(&g);
     destroy(&f);
 }
 
@@ -207,7 +237,7 @@ int main(void)
         SEMU_TEST_CASE(test_sapporo_235_pressure_negative_probe),
         SEMU_TEST_CASE(test_sapporo_235_pressure_refusal_atomic),
         SEMU_TEST_CASE(test_sapporo_235_pressure_profile_isolation),
-        SEMU_TEST_CASE(test_sapporo_235_pressure_snapshot_refuses),
+        SEMU_TEST_CASE(test_sapporo_235_pressure_snapshot_roundtrip),
         SEMU_TEST_CASE(test_sapporo_235_pressure_mmio_refuses)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

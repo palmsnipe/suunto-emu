@@ -1,6 +1,8 @@
 #include "apollo4_internal.h"
 
 #include "../../core/scheduler_internal.h"
+#include "../../devices/sapporo_iom4.h"
+#include "../../devices/sapporo_rtc.h"
 #include "stimer_internal.h"
 #include "timer_internal.h"
 #include "uart_internal.h"
@@ -27,6 +29,16 @@ static semu_status write_child(const semu_apollo4 *soc,
         semu_apollo4_mspi_snapshot_write(soc->mspi2, writer, error) != SEMU_OK ||
         semu_apollo4_mram_snapshot_write(soc->mram, writer, error) != SEMU_OK)
         return error->code;
+    /* Ticket 792: the live 2.35 modules follow the shared block, in the
+     * fixed order RTC then IOM4, exactly when the profile gate armed
+     * them. Snapshot identity pins the profile, so presence is
+     * unambiguous for both directions. */
+    if (soc->rtc_live != 0 &&
+        semu_sapporo_rtc_snapshot_write(soc->rtc, writer, error) != SEMU_OK)
+        return error->code;
+    if (soc->iom4_live != NULL &&
+        semu_sapporo_iom4_snapshot_write(soc->iom4_live, writer, error) != SEMU_OK)
+        return error->code;
     return SEMU_OK;
 }
 
@@ -38,13 +50,11 @@ semu_status semu_apollo4_snapshot_write(
                        "Apollo4 snapshot arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
-    /* E-SAP-0036: the live 2.35 RTC/IOM4 state has no snapshot codec.
-     * Never emit a seemingly complete image that silently loses it.
-     * Restore also takes this path to build its rollback image before reads. */
-    if (soc->rtc_live != 0 || soc->iom4_live != NULL) {
-        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
-                       "Sapporo 2.35 RTC/IOM4 snapshots are not supported");
-        return SEMU_ERR_UNSUPPORTED;
+    if ((soc->rtc_live != 0 && soc->rtc == NULL) ||
+        (soc->rtc_live == 0 && soc->iom4_live != NULL)) {
+        semu_error_set(error, SEMU_ERR_STATE,
+                       "Apollo4 live-module bindings are inconsistent");
+        return SEMU_ERR_STATE;
     }
     return write_child(soc, writer, error);
 }
@@ -82,6 +92,15 @@ static semu_status read_child(
         semu_apollo4_mspi_snapshot_read(candidate.mspi1, reader, error) != SEMU_OK ||
         semu_apollo4_mspi_snapshot_read(candidate.mspi2, reader, error) != SEMU_OK ||
         semu_apollo4_mram_snapshot_read(candidate.mram, reader, error) != SEMU_OK)
+        return error->code;
+    /* Ticket 792: consume the live-module bytes iff this machine's own
+     * profile gate armed them; a mismatched image fails as trailing or
+     * missing data instead of silently reinterpreting the sections. */
+    if (candidate.rtc_live != 0 &&
+        semu_sapporo_rtc_snapshot_read(candidate.rtc, reader, error) != SEMU_OK)
+        return error->code;
+    if (candidate.iom4_live != NULL &&
+        semu_sapporo_iom4_snapshot_read(candidate.iom4_live, reader, error) != SEMU_OK)
         return error->code;
     *soc = candidate;
     return SEMU_OK;
@@ -145,6 +164,9 @@ semu_status semu_apollo4_snapshot_resolve_event(
     if (kind == SEMU_SCHED_EVENT_UART_RX || kind == SEMU_SCHED_EVENT_UART_TX)
         return semu_apollo4_uart_snapshot_resolve_event(
             soc->uart, kind, subject, callback, context, error);
+    if (kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM)
+        return semu_sapporo_rtc_snapshot_resolve_event(
+            soc->rtc, subject, callback, context, error);
     semu_error_set(error, SEMU_ERR_CONFLICT,
                    "Apollo4 snapshot event kind is not present");
     return SEMU_ERR_CONFLICT;
@@ -177,6 +199,15 @@ semu_status semu_apollo4_snapshot_event_id_matches(
             if (rx->slot == subject && rx->id == event_id)
                 return SEMU_OK;
         }
+    }
+    if (kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM) {
+        if (soc->rtc == NULL) {
+            semu_error_set(error, SEMU_ERR_ARGUMENT,
+                           "Apollo4 RTC event identity requires the live RTC");
+            return SEMU_ERR_ARGUMENT;
+        }
+        return semu_sapporo_rtc_snapshot_event_id_matches(
+            soc->rtc, subject, event_id, error);
     }
     semu_error_set(error, SEMU_ERR_FORMAT,
                    "Apollo4 snapshot event identity does not match device");
@@ -243,5 +274,8 @@ semu_status semu_apollo4_snapshot_event_links_match(
             return SEMU_ERR_FORMAT;
         }
     }
+    if (soc->rtc != NULL)
+        return semu_sapporo_rtc_snapshot_event_links_match(
+            soc->rtc, events, count, error);
     return SEMU_OK;
 }

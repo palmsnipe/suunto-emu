@@ -4,6 +4,8 @@
 #include "semu/apollo4.h"
 #include "semu/bus.h"
 #include "semu/scheduler.h"
+#include "../core/scheduler_internal.h"
+#include "../core/snapshot_io.h"
 
 /*
  * Sapporo-2.35.34 live RTC block at 0x40004800 (E-SAP-0035): the
@@ -40,5 +42,24 @@ void semu_sapporo_rtc_destroy(semu_sapporo_rtc *rtc);
  * pending/line state via the return and out parameter. */
 uint32_t semu_sapporo_rtc_probe(semu_sapporo_rtc *rtc, uint32_t offset);
 int semu_sapporo_rtc_probe_pending(const semu_sapporo_rtc *rtc, int *line_high);
+
+/* Ticket 792: v2 snapshot codec for the live 2.35 RTC (E-SAP-0035 state).
+ * Round-trips only state the running model exposes; bindings (scheduler,
+ * IRQ sink) stay with the instance. The pending one-second alarm keeps its
+ * scheduler identity: resolve/match serve the tagged alarm event. */
+semu_status semu_sapporo_rtc_snapshot_write(
+    const semu_sapporo_rtc *rtc, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_sapporo_rtc_snapshot_read(
+    semu_sapporo_rtc *rtc, semu_snapshot_reader *reader, semu_error *error);
+semu_status semu_sapporo_rtc_snapshot_resolve_event(
+    semu_sapporo_rtc *rtc, uint32_t subject,
+    semu_event_callback *callback, void **context, semu_error *error);
+semu_status semu_sapporo_rtc_snapshot_event_id_matches(
+    const semu_sapporo_rtc *rtc, uint32_t subject, semu_event_id event_id,
+    semu_error *error);
+semu_status semu_sapporo_rtc_snapshot_event_links_match(
+    const semu_sapporo_rtc *rtc, const semu_scheduled_event_state *events,
+    size_t count, semu_error *error);
 
 #endif

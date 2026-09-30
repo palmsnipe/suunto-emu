@@ -3,6 +3,7 @@
 
 #include "semu/bus.h"
 #include "semu/types.h"
+#include "../core/snapshot_io.h"
 
 /*
  * Sapporo-2.35.34 live IOM4 block at 0x40054000 (E-SAP-0036). The law
@@ -40,5 +41,14 @@ semu_status semu_sapporo_iom4_read(semu_sapporo_iom4 *iom4,
 semu_status semu_sapporo_iom4_write(semu_sapporo_iom4 *iom4,
                                     uint32_t offset, unsigned width,
                                     uint32_t value, semu_error *error);
+
+/* Ticket 792: v2 snapshot codec for the live mirror state. Bus and IRQ
+ * bindings stay with the instance; mid-command or loaded-DMA state
+ * refuses on both save and load. */
+semu_status semu_sapporo_iom4_snapshot_write(
+    const semu_sapporo_iom4 *iom4, semu_snapshot_writer *writer,
+    semu_error *error);
+semu_status semu_sapporo_iom4_snapshot_read(
+    semu_sapporo_iom4 *iom4, semu_snapshot_reader *reader, semu_error *error);
 
 #endif

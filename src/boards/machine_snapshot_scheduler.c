@@ -21,7 +21,7 @@ semu_status semu_machine_snapshot_write_scheduler(
             return SEMU_ERR_STATE;
         }
         if (event->kind == SEMU_SCHED_EVENT_NONE ||
-            event->kind > SEMU_SCHED_EVENT_NEMA_COMPLETION) {
+            event->kind > SEMU_SCHED_EVENT_SAP235_RTC_ALARM) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "scheduler snapshot event kind is unsupported");
             return SEMU_ERR_FORMAT;
@@ -84,7 +84,7 @@ semu_status semu_machine_snapshot_read_scheduler(
         if (event->id == 0u || event->sequence >= image->next_sequence ||
             event->id >= image->next_id || event->due_ns < image->now ||
             event->kind == SEMU_SCHED_EVENT_NONE ||
-            event->kind > SEMU_SCHED_EVENT_NEMA_COMPLETION) {
+            event->kind > SEMU_SCHED_EVENT_SAP235_RTC_ALARM) {
             free(image->events);
             image->events = NULL;
             image->count = 0u;
