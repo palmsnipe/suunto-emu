@@ -457,7 +457,16 @@ int main(int argc, char **argv)
     /* Hold the presented frame after any non-failed run — including the
      * budget and compatibility-fixture stops (exit 3) — so an
      * interactive session keeps the last watch face on screen until the
-     * user closes the window.  The exit code is unchanged. */
+     * user closes the window.  The exit code is unchanged, and the
+     * title names why the run ended (the terminal keeps the exact stop
+     * line with detail). */
+    if (frontend.frame_count > 0u && !frontend.failed) {
+        sdl_presenter_set_status(frontend.presenter,
+            result == 0
+                ? "stopped: completed — close the window to exit"
+                : "STOPPED: budget or firmware-fixture boundary — see "
+                  "terminal; close the window to exit");
+    }
     if (wait_for_quit && frontend.frame_count > 0u &&
         !frontend.failed && !frontend.window_closed) {
         fputs("SDL frame ready; close the window to exit\n", stderr);

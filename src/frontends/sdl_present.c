@@ -6,6 +6,7 @@
 
 #include "sdl_present.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 struct sdl_presenter {
@@ -137,4 +138,14 @@ semu_status sdl_presenter_present(sdl_presenter *p,
         return SEMU_ERR_IO;
     }
     return SEMU_OK;
+}
+
+void sdl_presenter_set_status(sdl_presenter *presenter, const char *status)
+{
+    char title[160];
+    if (presenter == NULL || presenter->window == NULL || status == NULL) {
+        return;
+    }
+    (void)snprintf(title, sizeof(title), "suunto-emu | %s", status);
+    SDL_SetWindowTitle(presenter->window, title);
 }

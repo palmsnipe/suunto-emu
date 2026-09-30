@@ -26,4 +26,11 @@ void sdl_presenter_destroy(sdl_presenter *presenter);
 semu_status sdl_presenter_present(sdl_presenter *presenter,
     const semu_frame *frame, semu_error *error);
 
+/*
+ * Frontend usability: name the run state in the window title so a
+ * stopped session explains itself on screen (the terminal keeps the
+ * exact stop line with detail).
+ */
+void sdl_presenter_set_status(sdl_presenter *presenter, const char *status);
+
 #endif
