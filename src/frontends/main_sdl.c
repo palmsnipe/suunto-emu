@@ -454,7 +454,11 @@ int main(int argc, char **argv)
     result = semu_cli_main(filtered_argc, filtered_argv, publish_frame,
                            &frontend, poll_input, &frontend);
     flush_present_coalescing(&frontend);
-    if (wait_for_quit && result == 0 && frontend.frame_count > 0u &&
+    /* Hold the presented frame after any non-failed run — including the
+     * budget and compatibility-fixture stops (exit 3) — so an
+     * interactive session keeps the last watch face on screen until the
+     * user closes the window.  The exit code is unchanged. */
+    if (wait_for_quit && frontend.frame_count > 0u &&
         !frontend.failed && !frontend.window_closed) {
         fputs("SDL frame ready; close the window to exit\n", stderr);
         wait_for_window_close();
