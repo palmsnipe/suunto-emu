@@ -8233,3 +8233,57 @@ the working save/restore commands. Validation: GPS bind suites
 green (handoff). Confidence: high; the restored-owner confirmation is
 pointer-identity only — no layer law, hit budget, or exchange
 behavior changed.
+
+### E-EMU-SAP235-TICKTRAIL-001 — 2.35 main-screen seconds sweep leaves an accumulating trail
+
+2026-09-30; bounded diagnostic against HEAD fec924c, prompted by the
+interactive user report "the screen is not cleared properly, leads to
+drags on the tick". All censuses below are reproduced twice
+byte-identically (deterministic restored continuation from snapshot
+`26145b05…`, caps 10.5B/42s; volatile artifacts under /tmp/sap235-ppm2).
+
+Observation: the settled main screen's seconds sweep accumulates. The
+per-second published frames (`0a576ff1` then `97e3e1f6`/`027c21dc`/
+`0bd7bdec`→`182ae5b0` at 39/40/41 s virtual) show lit pixels in the
+sweep region (x 205..234, y 108..149) growing monotonically
+463 -> 474 -> 497 -> 565; every changing pixel is non-decreasing and
+no pixel ever returns to background — old hand positions are never
+cleared.
+
+Mechanism (per-draw trace, scratch build): each tick the guest (a)
+clears the RGB565 work buffers with black TRI_SOLID fills, (b) redraws
+digits/text and the compressed crosshair, (c) draws ~30 accent
+edge-AA triangles (the seconds hand) into the 480x480 TSC6A shadow at
+`0x10124fe0` (clip 342,180-462,300), and (d) resolves the shadow into
+the panel (2x matrix, clip 171,90-231,150). No GPU draw ever clears
+the shadow, and the backend's private semantic shadow persists across
+transactions (E-NEMA-TSC6A-001 clone/commit), so the hand strokes
+accumulate and every resolve publishes the whole history. Root cause:
+the 2.35 guest maintains the compressed surface through CPU writes
+into its real SRAM span — bus-write census shows ~49k structured
+writes in 4.6 s inside `[0x10124fe0, +0x2a300)` (compressed-block
+records plus surface descriptors) — and the emulator's shadow is by
+design private and blind to those bytes.
+
+Why the faithful fix is blocked: deriving the shadow from the guest's
+actual surface bytes requires a codec law for THIS population. Decode
+census (twice, identical): 5,442 of 14,400 blocks of the live surface
+data fail the in-tree `tsc6a_expand_block` law (auxiliary bits set,
+e.g. `…00 40 4c 0c`); 10,352 blocks are nonzero. The 788 codec law
+(E-RE-SAP235-TSC6A-001) was derived for the crosshair-icon population
+only; decoding the transition surface with it would invent pixels.
+Prior art: the firmware research doc
+`docs/research/native-tsc6a-transition-surface.md` (sha `d9ae4ea9…`)
+records the same failure class on the 2.22 resolve destination
+("reading the recycled guest buffer accumulated old spinner phases…
+a dense fan of arcs"); this instance is the source side on 2.35.
+
+Next work item (roadmap-shaped, needs its own evidence chain): (1)
+derive the transition-surface block law — the aux-bit variant — as a
+788-shaped offline-RE instance (inputs are available: the guest-
+written compressed bytes readable from the pinned snapshot, the pinned
+2.22 resolve output CRCs, upstream NemaGFX TSC6A documentation);
+(2) then make the fmt-17 target surface follow guest memory
+(decode-at-use with caching, fail-closed on undecodable blocks).
+Until then the tick trail is a named known defect, not a silent one;
+no golden or refusal surface changed in this diagnostic.
