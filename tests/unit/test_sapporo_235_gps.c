@@ -246,8 +246,12 @@ static void test_sapporo_235_gps_binding_reset_and_machine_stop(semu_test_contex
         m.devices, m.layers, 2u, m.logger, &e) != SEMU_OK);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
         m.devices, m.layers, 1u, m.logger, &e));
-    SEMU_TEST_ASSERT(context, semu_sapporo_devices_bind_gps_layers(
-        m.devices, m.layers, 1u, m.logger, &e) != SEMU_OK);
+    /* Ticket 792 continuation: a repeat bind of the SAME owner instance
+     * is the snapshot-restore confirmation (idempotent, mirroring the
+     * 2.39 bind's state-identity tolerance); a different instance with
+     * the same descriptor still refuses above. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 1u, m.logger, &e));
     ep = semu_sapporo_devices_uart_endpoint(m.devices);
     SEMU_TEST_ASSERT(context, ep != NULL);
     for (i = 0u; i < sizeof(request)-2u; ++i)

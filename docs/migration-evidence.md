@@ -8194,3 +8194,42 @@ remains unlocated (EXT6 UNCONFIRMED item, unchanged); the widget's
 scroll-animation law (why dstY takes 151/192/220 in this window) is
 recorded as observed, not derived; other windows keep their existing
 fail-closed refusal surfaces.
+
+E-EMU-SAP235-GPSRESTORE-001 (2026-09-30): ticket 792 continuation —
+the 2.35 GPS-layer snapshot restore path. The 792 codecs made single-
+layer 2.35 sessions restorable, but every five-layer session refused
+to load: `snapshot load: GPS layer dependency or ownership conflict`.
+Root cause: `semu_sapporo_devices_bind_gps_layers` re-runs after
+`apply_layers` writes the image's hit counts into the machine's layer
+instances, and its 2.35 branch demanded a pristine bind (hits == 0,
+unbound contexts) — a contract that predates 2.35 snapshots entirely
+(the 2.39 branch already tolerates restore re-binds through
+state-identity checks). Fix (red-test-first,
+`tests/unit/test_sapporo_235_gps_reopen.c::test_sapporo_235_gps_reopen_
+restore_rebind`): the 2.35 branch confirms owners by state identity —
+an already-bound context conflicts only when it points at a different
+instance, and consumed hit counts are accepted exactly when the
+startup context already owns the same instance; fresh-context binds
+with nonzero hits, duplicate instances, and disabled layers still
+refuse. Two pre-existing assertions that a same-instance repeat bind
+must refuse are superseded (it is the idempotent restore
+confirmation, matching 2.39) and re-pinned in
+`tests/unit/test_sapporo_235_gps.c` and the reopen binding test.
+
+Derived gate `tools/test_sdl_sapporo_235_restore.sh` (twice
+byte-identical, full end-to-end run): cold five-layer setup-walk
+(POST `mmlllmlllmmmmmmmmmmmmmmmmmmmmmm`) saved at its natural quit —
+transcript sha `c8b69fce…` (the pinned nav baseline walk), snapshot
+sha `26145b05…`; interactive restore presents the held settled main
+screen before any guest instruction (`SDL first-frame generation=4770
+crc32=0a576ff1`) and continues natively to the WFI park
+(`stop=budget pc=0x000e1862 instructions=9578131227
+virtual_time_ns=42000000000`, exit 3) with zero machine resets, draw
+refusals, or compatibility hits. The README's stale "2.35.34 supports
+bounded cold runs only / no snapshot codec" section is replaced by
+the working save/restore commands. Validation: GPS bind suites
+7/7 green (235 startup/reopen/awake, 239 startup/reopen/awake),
+`make check` and `make sanitize` clean, full 2.35 firmware sweep
+green (handoff). Confidence: high; the restored-owner confirmation is
+pointer-identity only — no layer law, hit budget, or exchange
+behavior changed.

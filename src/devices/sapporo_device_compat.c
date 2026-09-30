@@ -53,19 +53,39 @@ semu_status semu_sapporo_devices_bind_gps_layers(
     if (awake != NULL && (startup == NULL || reopen == NULL)) goto conflict;
     if (reopen235 != NULL && gps235 == NULL) goto conflict;
     if (awake235 != NULL && (gps235 == NULL || reopen235 == NULL)) goto conflict;
-    if (d != NULL && d->gps_235_awake_context.state != NULL) goto conflict;
-    if (d != NULL && d->gps_235_reopen_context.state != NULL) goto conflict;
+    /* Ticket 792 continuation: a snapshot load re-runs this bind after
+     * apply_layers restored the image's hit counts into the same
+     * layer-state instances the contexts already own from machine
+     * creation; that re-bind must confirm the owners (the 2.39 branch
+     * below has the same state-identity tolerance).  Any other
+     * already-bound context stays a conflict. */
+    if (d != NULL && d->gps_235_awake_context.state != NULL &&
+        (awake235 == NULL || d->gps_235_awake_context.state != awake235))
+        goto conflict;
+    if (d != NULL && d->gps_235_reopen_context.state != NULL &&
+        (reopen235 == NULL || d->gps_235_reopen_context.state != reopen235))
+        goto conflict;
     if (d != NULL && ((d->gps_239_context.state != NULL && startup == NULL) ||
         (d->gps_reopen_context.state != NULL && reopen == NULL) ||
         (d->gps_awake_context.state != NULL && awake == NULL))) goto conflict;
     if (gps235 != NULL) {
+        int restore235 = d != NULL && d->gps_235_context.state == gps235;
         if (d == NULL || !d->ohr2_profile_235 || logger == NULL ||
-            !gps235->enabled || gps235->hits != 0u ||
-            d->gps_235_context.state != NULL || startup != NULL ||
-            reopen != NULL || awake != NULL) goto conflict;
-        if (reopen235 != NULL && (!reopen235->enabled || reopen235->hits != 0u))
+            !gps235->enabled ||
+            (!restore235 && (gps235->hits != 0u ||
+                             d->gps_235_context.state != NULL)) ||
+            startup != NULL || reopen != NULL || awake != NULL) goto conflict;
+        if (reopen235 != NULL &&
+            (!reopen235->enabled ||
+             (!restore235 && reopen235->hits != 0u) ||
+             (d->gps_235_reopen_context.state != NULL &&
+              d->gps_235_reopen_context.state != reopen235)))
             goto conflict;
-        if (awake235 != NULL && (!awake235->enabled || awake235->hits != 0u))
+        if (awake235 != NULL &&
+            (!awake235->enabled ||
+             (!restore235 && awake235->hits != 0u) ||
+             (d->gps_235_awake_context.state != NULL &&
+              d->gps_235_awake_context.state != awake235)))
             goto conflict;
         d->gps_235_context.state = gps235;
         d->gps_235_context.logger = logger;

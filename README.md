@@ -276,10 +276,38 @@ bounded continuation budget from the checkpoint's current instruction and
 virtual-time totals. Use the same profile, firmware manifest, and enabled
 compatibility layers used to create the snapshot.
 
-Sapporo 2.35.34 currently supports bounded cold runs only: its live RTC and
-IOM4 state has no snapshot codec. Snapshot save and restore refuse explicitly
-instead of producing or accepting incomplete checkpoints. See
-`docs/current-status.md` for the verified boundary of each firmware version.
+Sapporo 2.35.34 snapshots work end to end (ticket 792): the live RTC and
+IOM4 state serializes inside the v2 SoC section, restored sessions match
+the uninterrupted transcript byte-for-byte, and the GPS-layer bind
+confirms the restored owners on load. Save a five-layer session at its
+natural walk quit and restore it interactively — the held settled main
+screen presents before any guest instruction:
+
+```sh
+SDL_VIDEODRIVER=dummy SEMU_SDL_LIVE_TEST=setup-walk \
+SEMU_SDL_SETUP_WALK_POST=mmlllmlllmmmmmmmmmmmmmmmmmmmmmm \
+build/suunto-emu-sdl run \
+  --profile sapporo-2.35.34 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup \
+  --layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen \
+  --layer sapporo-2.35-gps-awake --until setup-next \
+  --max-instructions 10000000000 --max-time 40000000000 \
+  --snapshot-save /tmp/sapporo-235-main.sems
+
+build/suunto-emu-sdl run \
+  --profile sapporo-2.35.34 --firmware /path/to/firmware.semu \
+  --layer sapporo-2.35-production-data --layer sapporo-2.35-ohr-startup \
+  --layer sapporo-2.35-gps-startup --layer sapporo-2.35-gps-reopen \
+  --layer sapporo-2.35-gps-awake --snapshot-load /tmp/sapporo-235-main.sems \
+  --max-instructions 10500000000 --max-time 42000000000
+```
+
+Use the same enabled compatibility layers on load as on save (the layer
+set is part of the identity-pinned image). Mid-command IOM4 state and
+any uncovered field still refuse explicitly instead of accepting an
+incomplete checkpoint. `tools/test_sdl_sapporo_235_restore.sh` pins the
+whole flow twice; see `docs/current-status.md` for the verified boundary
+of each firmware version.
 
 For cold-start iteration, an opt-in LTO build is available without changing the
 normal `make` profile:

@@ -283,8 +283,10 @@ static void test_sapporo_235_gps_reopen_binding_and_reset(semu_test_context *con
         m.layers[second].hits = 0u;
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
             m.devices, m.layers, 2u, m.logger, &e));
-        SEMU_TEST_ASSERT(context, semu_sapporo_devices_bind_gps_layers(
-            m.devices, m.layers, 2u, m.logger, &e) != SEMU_OK);
+        /* Ticket 792 continuation: a repeat bind of the same owner
+         * instances is the idempotent snapshot-restore confirmation. */
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
+            m.devices, m.layers, 2u, m.logger, &e));
         m.layers[first].hits = 2u; /* Prepared native initial-completion fixture. */
         cpu = semu_cpu_get_state_mutable(m.cpu); *cpu = f.cpu;
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_apply_compat_hook(
@@ -328,13 +330,69 @@ static void test_sapporo_235_gps_reopen_binding_and_reset(semu_test_context *con
     }
 }
 
+/* Ticket 792 continuation: a snapshot load re-runs the GPS bind after
+ * apply_layers has written the image's hit counts into the machine's
+ * layer-state instances; the contexts from machine creation already
+ * point at those instances.  The re-bind must confirm the restored
+ * owners instead of demanding a pristine machine (mirroring the 2.39
+ * bind's state-identity tolerance). */
+static void test_sapporo_235_gps_reopen_restore_rebind(semu_test_context *context)
+{
+    fixture f;
+    semu_machine m;
+    semu_error e;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    memset(&m, 0, sizeof(m));
+    m.bus = f.bus; m.scheduler = f.scheduler; m.logger = &f.logger;
+    m.layers[0] = f.initial_state; m.layers[0].hits = 0u;
+    m.layers[1] = f.state;
+    m.layer_count = 2u;
+    m.cpu = semu_cpu_create(m.bus, m.scheduler, &e);
+    m.soc = semu_apollo4_create(m.bus, &e);
+    m.devices = semu_sapporo_devices_create(m.scheduler, NULL, &e);
+    SEMU_TEST_ASSERT(context, m.cpu && m.soc && m.devices);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_init(m.soc, m.scheduler, NULL, NULL, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_select_profile(
+        m.devices, "sapporo-2.35.34", &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_sapporo_devices_attach(m.devices, m.soc, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 2u, m.logger, &e));
+    /* Snapshot restore: the image's consumed hit counts land in the
+     * same instances (machine_snapshot_layers validates the bounds
+     * first); the bind re-runs and must confirm the owners. */
+    m.layers[0].hits = 2u;
+    m.layers[1].hits = 1u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 2u, m.logger, &e));
+    /* A duplicated reopen instance is not a restore. */
+    m.layers[2] = m.layers[1];
+    SEMU_TEST_ASSERT(context, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 3u, m.logger, &e) != SEMU_OK);
+    /* A disabled restored layer refuses. */
+    m.layers[1].enabled = 0;
+    SEMU_TEST_ASSERT(context, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 2u, m.logger, &e) != SEMU_OK);
+    m.layers[1].enabled = 1;
+    m.layers[0].enabled = 0;
+    SEMU_TEST_ASSERT(context, semu_sapporo_devices_bind_gps_layers(
+        m.devices, m.layers, 2u, m.logger, &e) != SEMU_OK);
+    m.layers[0].enabled = 1;
+    semu_sapporo_devices_destroy(m.devices);
+    semu_apollo4_destroy(m.soc);
+    semu_cpu_destroy(m.cpu);
+    destroy(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_sapporo_235_gps_reopen_activation),
         SEMU_TEST_CASE(test_sapporo_235_gps_reopen_delayed_and_isolated),
         SEMU_TEST_CASE(test_sapporo_235_gps_reopen_atomic_refusals),
-        SEMU_TEST_CASE(test_sapporo_235_gps_reopen_binding_and_reset)
+        SEMU_TEST_CASE(test_sapporo_235_gps_reopen_binding_and_reset),
+        SEMU_TEST_CASE(test_sapporo_235_gps_reopen_restore_rebind)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }
