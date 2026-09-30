@@ -8091,3 +8091,33 @@ general_budget/personal_budget (+C probes) re-derivation in progress.
 No golden was weakened: every re-scope keeps or strengthens the guard
 (zero-refusal assertions added wherever an old refusal anchor died),
 and the logical-file maximum_hits=76670 budget stays untouched.
+
+E-SAP239-REPINSWEEP-002 (2026-09-29): final census closing the 2.39 era
+re-pin sweep (completes E-SAP239-REPINSWEEP-001). Full 43-script
+sapporo-2.39.20 era census run TWICE at HEAD 9202a06 (fixture flash
+37134845…c4cb, engine 14c791c-family): 0 red of 43 both runs. The
+sweep's final three lanes landed as: general_budget + probe (edge-
+driven resume law — the 4 held button counts replay from the 700M
+prefix, terminal frames 677 crc 405d1af6 sha 6eb15b72 HOLD, instr/time
+2391136680/32620918072, refusal fixed point, terminal-state fixed-
+point resume; bf6a481); personal_budget + probe (clean boot performs
+the personal save INSIDE the 700M cold prefix — 408 lines, 6x1727
+closes; terminal = input-free awake-budget fixed point
+1296811148/32775096969 frames=4 crc 3bd12ac8, re-refusal with zero
+advance; cd88574); gps_five + probe rewritten to prefix/idle/refusal
+modes (refusal-state durable budget image 90871416 with warm
+SAVE==LOAD zero-progress; refusal image 33e1dbdf, refused==final;
+five hook+1 sites 846889603/960806494/1073726378/1184805198/
+1296811149 stop pc 0x001291ce vt=hook+1; hook-entry-time logging law;
+rise-latch law retires the pin-high phases; 9202a06). Laws recorded
+this lane, each twice byte-identical: (1) the frame callback fires
+INSIDE semu_machine_run and a snapshot load publishes exactly one
+frame; refusals publish none; (2) a budget cap landing exactly ON the
+refusing instruction stops pre-refusal (budget stop, distinct image);
+(3) refusal states are save/load-stable fixed points (re-refusal with
+zero advance); (4) input replay at a refusal time does not serialize
+into the save. The 1.966G machine_create probe concern was retested
+against the current build: GONE (stale lineage). 2.35.34 era re-run at
+HEAD: 0 red of 8. make check: 1014 tests, 0 failed, 193 suites;
+task-contracts 162 OK. No golden was weakened in the sweep; every
+retirement names its old anchor in-file.
