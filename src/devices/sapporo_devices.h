@@ -79,6 +79,19 @@ semu_status semu_sapporo_devices_apply_compat_hook(
     semu_sapporo_devices *devices, semu_bus *bus, semu_cpu_state *cpu_state,
     semu_layer_state *state, semu_logger *logger, semu_error *error);
 
+/* Performance maintenance for the per-instruction machine loop: the
+ * first helper validates, once per run entry (and after each machine
+ * reset, which unbinds the contexts), that every present 2.35 device
+ * layer is bound exactly as the dispatch requires; the second proves
+ * the dispatch is a no-op at pc for all present 2.35 device layers
+ * (performing the OHR status propagation exactly).  Any doubt returns
+ * zero and the caller runs the full dispatch unchanged. */
+int semu_sapporo_devices_235_bindings_valid(
+    const semu_sapporo_devices *devices, const semu_layer_state *layers,
+    size_t count, const semu_logger *logger);
+int semu_sapporo_devices_compat_idle(const semu_sapporo_devices *devices,
+                                     uint32_t pc, semu_error *error);
+
 /*
  * Attaches all verified device endpoints to the Apollo4 SoC controllers.
  * A NULL flash_storage intentionally leaves MSPI2 on its refusal endpoint;

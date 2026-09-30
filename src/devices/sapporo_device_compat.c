@@ -322,3 +322,63 @@ semu_status semu_sapporo_devices_apply_compat_hook(
     }
     return SEMU_OK;
 }
+
+/* Ticket maintenance (performance): the machine run loop calls the
+ * dispatch above once per guest instruction for every present 2.35
+ * device layer.  Both helpers let that loop prove the call is a no-op
+ * without entering the dispatch; any doubt keeps the original path. */
+
+int semu_sapporo_devices_235_bindings_valid(
+    const semu_sapporo_devices *devices, const semu_layer_state *layers,
+    size_t count, const semu_logger *logger)
+{
+    size_t i;
+    if (devices == NULL || layers == NULL) return 0;
+    for (i = 0u; i < count; ++i) {
+        const semu_layer_descriptor *d = layers[i].descriptor;
+        if (d == &semu_sapporo_235_ohr_layer) {
+            if (devices->ohr_235_context.state != &layers[i] ||
+                devices->ohr_235_context.logger != logger) return 0;
+        } else if (d == &semu_sapporo_235_gps_layer) {
+            if (devices->gps_235_context.state != &layers[i] ||
+                devices->gps_235_context.logger != logger) return 0;
+        } else if (d == &semu_sapporo_235_gps_reopen_layer) {
+            if (devices->gps_235_reopen_context.state != &layers[i] ||
+                devices->gps_235_reopen_context.logger != logger) return 0;
+        } else if (d == &semu_sapporo_235_gps_awake_layer) {
+            if (devices->gps_235_awake_context.state != &layers[i] ||
+                devices->gps_235_awake_context.logger != logger ||
+                devices->soc == NULL) return 0;
+        }
+    }
+    return 1;
+}
+
+/* Returns 1 when calling semu_sapporo_devices_apply_compat_hook for
+ * every present 2.35 device layer at this pc provably returns SEMU_OK
+ * without side effects, performing the OHR branch's unconditional
+ * status propagation exactly (the pre-validated binding plus a
+ * latched-clean refusal copy the zeroed refusal struct into the run
+ * error, which is what semu_error_clear produces).  Returns 0 when the
+ * caller must run the full dispatch: a latched refusal (the GPS
+ * helpers refuse before their pc gate) or a pc the hooks act on. */
+int semu_sapporo_devices_compat_idle(const semu_sapporo_devices *devices,
+                                     uint32_t pc, semu_error *error)
+{
+    if (devices == NULL) return 0;
+    if (devices->ohr_235_context.state != NULL) {
+        if (devices->ohr_235_context.refusal.code != SEMU_OK) return 0;
+        semu_error_clear(error);
+    }
+    if ((devices->gps_235_context.state != NULL &&
+         (devices->gps_235_context.refusal.code != SEMU_OK ||
+          pc == SEMU_SAPPORO_235_GPS_PC)) ||
+        (devices->gps_235_reopen_context.state != NULL &&
+         (devices->gps_235_reopen_context.refusal.code != SEMU_OK ||
+          pc == SEMU_SAPPORO_235_GPS_REOPEN_PC)) ||
+        (devices->gps_235_awake_context.state != NULL &&
+         (devices->gps_235_awake_context.refusal.code != SEMU_OK ||
+          pc == SEMU_SAPPORO_235_GPS_AWAKE_PC)))
+        return 0;
+    return 1;
+}

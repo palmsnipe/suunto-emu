@@ -9,6 +9,8 @@
 #include "../compat/sapporo_239_gps_reopen.h"
 #include "../compat/sapporo_239_gps_awake.h"
 
+#include <string.h>
+
 static semu_status reset_after_request(semu_machine *machine,
                                        semu_error *error)
 {
@@ -131,6 +133,71 @@ static int apply_compat_hook(semu_machine *machine,
     return 1;
 }
 
+/* Per-run summary of the compatibility-hook gates.  Every hook the
+ * loop can call is provably a no-op unless its gate fires, so the
+ * common instruction skips the whole layer dispatch (performance
+ * maintenance: the five-layer 2.35 profile otherwise pays four hook
+ * calls per guest instruction).  Any firing gate falls back to the
+ * unchanged apply_compat_hook path, so behavior is byte-identical. */
+typedef struct compat_gates {
+    int any;            /* any gate can fire at all */
+    int device_235;     /* 2.35 OHR/GPS layers present */
+    int bindings_ok;    /* their contexts are bound as the dispatch requires */
+    int pred_222;       /* sapporo-2.22-no-device layer present */
+    int pred_wbsto;     /* sapporo-2.39-wbsto layer present */
+    uint32_t pcs_239[3u];
+    unsigned pcs_239_count;
+} compat_gates;
+
+static void summarize_compat_gates(semu_machine *machine, compat_gates *gates)
+{
+    size_t i;
+    memset(gates, 0, sizeof(*gates));
+    for (i = 0u; i < machine->layer_count; ++i) {
+        const semu_layer_descriptor *d = machine->layers[i].descriptor;
+        if (d == &semu_sapporo_235_ohr_layer ||
+            d == &semu_sapporo_235_gps_layer ||
+            d == &semu_sapporo_235_gps_reopen_layer ||
+            d == &semu_sapporo_235_gps_awake_layer) {
+            gates->device_235 = 1;
+        } else if (d == &semu_sapporo_222_no_device_layer) {
+            gates->pred_222 = 1;
+        } else if (d == &semu_sapporo_239_wbsto_layer) {
+            gates->pred_wbsto = 1;
+        } else if (semu_sapporo_239_gps_is_layer(d) &&
+                   gates->pcs_239_count < 3u) {
+            gates->pcs_239[gates->pcs_239_count++] = SEMU_SAPPORO_239_GPS_PC;
+        } else if (semu_sapporo_239_gps_reopen_is_layer(d) &&
+                   gates->pcs_239_count < 3u) {
+            gates->pcs_239[gates->pcs_239_count++] =
+                SEMU_SAPPORO_239_GPS_REOPEN_PC;
+        } else if (semu_sapporo_239_gps_awake_is_layer(d) &&
+                   gates->pcs_239_count < 3u) {
+            gates->pcs_239[gates->pcs_239_count++] =
+                SEMU_SAPPORO_239_GPS_AWAKE_PC;
+        }
+    }
+    /* A machine reset unbinds the 2.35 device contexts; the dispatch
+     * would then refuse on the next instruction, and the gate falls
+     * back to exactly that path. */
+    gates->bindings_ok = !gates->device_235 ||
+        semu_sapporo_devices_235_bindings_valid(machine->devices,
+            machine->layers, machine->layer_count, machine->logger);
+    gates->any = gates->device_235 || gates->pred_222 || gates->pred_wbsto ||
+                 gates->pcs_239_count != 0u;
+}
+
+static int compat_gates_fire(const compat_gates *gates, uint32_t pc)
+{
+    unsigned i;
+    if (gates->pred_222 && semu_sapporo_devices_compat_hook_pc(pc)) return 1;
+    if (gates->pred_wbsto && (semu_sapporo_239_compat_hook_pc(pc) ||
+                              semu_sapporo_239_file_hook_pc(pc))) return 1;
+    for (i = 0u; i < gates->pcs_239_count; ++i)
+        if (gates->pcs_239[i] == pc) return 1;
+    return 0;
+}
+
 semu_stop_reason semu_machine_run(semu_machine *machine,
                                   const semu_run_limits *limits,
                                   semu_error *error)
@@ -139,6 +206,7 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
     uint64_t current_time;
     uint64_t executed = 0u;
     uint64_t elapsed = 0u;
+    compat_gates gates;
 
     if (machine == NULL || limits == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "invalid run arguments");
@@ -151,6 +219,7 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return machine->stop_reason;
     }
+    summarize_compat_gates(machine, &gates);
     current_time = semu_scheduler_now(machine->scheduler);
     machine->stop_reason = SEMU_STOP_NONE;
     while (machine->stop_reason == SEMU_STOP_NONE) {
@@ -172,7 +241,13 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 machine->input_poll_context, machine, error);
             if (machine->stop_reason != SEMU_STOP_NONE) break;
         }
-        if (!apply_compat_hook(machine, state, error)) {
+        if (gates.any &&
+            ((gates.device_235 &&
+              (!gates.bindings_ok ||
+               !semu_sapporo_devices_compat_idle(machine->devices,
+                                                 state->r[15], error))) ||
+             compat_gates_fire(&gates, state->r[15])) &&
+            !apply_compat_hook(machine, state, error)) {
             machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
             break;
         }
@@ -210,6 +285,10 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 if (reset_after_request(machine, error) != SEMU_OK) {
                     machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
                 }
+                /* The reset unbinds the 2.35 device contexts; the
+                 * gates must re-validate them before the fast path
+                 * may skip the dispatch again. */
+                summarize_compat_gates(machine, &gates);
                 current_time = semu_scheduler_now(machine->scheduler);
             }
         } else {

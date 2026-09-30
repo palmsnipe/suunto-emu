@@ -87,6 +87,30 @@ Silicon machine, best idle-run wall clock, SDL dummy driver:
 | Pre-optimization (`f572d8f`) | 278 s | 51.0 |
 | + CRC-32 table + storage page cache (`6d2d706`) | 229 s | 61.9 |
 
+## Real-firmware calibration (sapporo-2.35.34 five-layer setup-walk)
+
+The five-layer 2.35 profile paid the compatibility-hook dispatch once
+per guest instruction for every device layer (the 2.35 OHR/GPS hook
+helpers carry ~860-byte stack frames and re-check their gates each
+call). The machine run loop now precomputes the per-run hook gates —
+including a once-per-entry (and post-reset) validation that the 2.35
+device contexts are bound exactly as the dispatch requires — and
+skips the dispatch entirely when it is provably a no-op at the current
+pc, falling back to the unchanged full path whenever a gate fires.
+Every pinned transcript stays byte-identical. The pinned SDL live-test
+setup-walk (9,487,528,672 instructions, stop=user, identical
+transcript) measures the full layered machine; each figure is the wall
+clock of a full walk, twice per build:
+
+| Build | Wall clock (pair) | Guest MIPS |
+|-------|-----------------:|-----------:|
+| Pre-gate (`cab7a26`) | 305 s / 309 s | ~31.1 |
+| + compat-hook gate summary | 169 s / 170 s | ~56.0 |
+
+The 30M-instruction five-layer cold run drops 1.04 s -> 0.61 s
+(1.7x); the single-layer run is unchanged (no device gates). Synthetic
+`make bench` results are unchanged (the bench machine has no layers).
+
 The residual profile is interpreter-dominated (~44% `semu_cpu_step`
 inclusive); remaining bounded targets were exhausted — further gains
 there are roadmap-scale work, not maintenance.
