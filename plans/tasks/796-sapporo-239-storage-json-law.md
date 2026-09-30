@@ -1,6 +1,6 @@
 # 796 — Sapporo 2.39 Native Storage JSON Write Law
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729, 768
 
@@ -192,3 +192,25 @@ serialization bound / repo caller buffer; repo_read buffer 1037 at
 0x00198b8a is a read-side shared buffer, not the record law; pinned
 partition shows real records up to 782). No guessed bump. Flat 34 law
 byte-unchanged.
+
+## Integrator outcome 2026-09-29: DONE (777 sweep closed)
+
+Acceptance met, per condition:
+- Evidence: E-SAP239-REPO38D123-001 (+ addenda) records the hash-pinned
+  offline-RE/lane derivation of the storage JSON write law; the open
+  question in the 2026-09-27 continuation (per-key capacity) resolved by
+  the project-owner ruling (a): uniform runtime capacity law
+  max(partition size, S239_FILE_RUNTIME_CAPACITY=1037) — the guest
+  writer's shared buffer bound — implemented without fabrication
+  (E-SAP239-REPINSWEEP-001 capacity paragraph; write-side crossing 1037
+  refuses fail-closed, round-trip covered).
+- Unit success+refusal coverage: in tree (fixed-point growth 152->1037,
+  1038-byte refusal; nested-shape admission at 63-name boundary).
+- Era scripts: the six storage-JSON era scripts pass, and the FULL
+  43-script sapporo-2.39.20 era census passes TWICE with exit 0 at
+  HEAD 9202a06 (0 red of 43 both runs; E-SAP239-REPINSWEEP-002).
+  Choreography shapes re-derived per the 777 rulings; zero new refusal
+  classes: the only refusal seen is the guest's own awake/hit-budget
+  lifecycle refusal, now pinned as a first-class golden.
+- No golden weakened: every retirement names its old anchor in-file;
+  flat 34-byte key law byte-unchanged.

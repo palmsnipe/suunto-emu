@@ -166,23 +166,22 @@ With the DEEPCLEAN engine (handle recycling, runtime capacity 1037,
 named refusals; E-SAP239-DEEPCLEAN-001) taking the cold boot to the
 first-frame stop and past it with zero refusals (twice-verified to 40B
 instructions deep; E-SAP239-REPINSWEEP-001), the full 43-script 2.39 era
-set was re-derived script-by-script (owner-approved). 41 of 43 scripts
-are twice green at HEAD 4aeb98b: 10 hash-only
+set was re-derived script-by-script (owner-approved). ALL 43 scripts are
+twice green at HEAD 9202a06 (final census E-SAP239-REPINSWEEP-002, 0 red
+of 43 twice; tickets 777/796/798 closed): 10 hash-only
 re-pins plus full anchor-chain moves for widgets, zip_read, quiet_read,
 preload1, history_budget, ongoing, activity_budget, ctimer13_inten,
 logical_files, and gps_startup (chain + wall+1 refusal law). The 2.35.34
 era stays 0 red of 8; `make check` is 1014 tests 0 failed (193 suites).
-In flight (two windows across two scripts): gps_five (+ its C-probe
-chain) and general_budget + personal_budget (+ C-probe chains; the
-personal probe was additionally blocked by an independent probe-side
-defect — `semu_machine_create` failing at the 1.966G cold-load cap
-while CLI loads the same state fine; fix in the 777 lane). Lanes
-landed since: gps_reopen (6320692 — GSTP window replaced by the
+Lanes landed since: gps_reopen (6320692 — GSTP window replaced by the
 UART-fault-to-SYSRESETREQ machine-reset golden) and gps_awake with
 its C inspector (4aeb98b — dense pc census proved the old
 0x128926/0x12892e retire pcs unobservable; native-IRQ admission
 pinned at the compat-hook stop pc=0x1291ce/0x1296f8 under the +1
-law). Dead-trigger asserts are re-scoped with in-script notes and
+law), gps_five with its probe rewritten to prefix/idle/refusal modes
+(9202a06), and the general/personal budget pair (bf6a481/cd88574; the
+"1.966G machine_create" probe-side concern was retested against the
+current build and proven stale-lineage — gone). Dead-trigger asserts are re-scoped with in-script notes and
 zero-refusal guards, never silently deleted, and the logical-file
 maximum_hits=76670 budget stays untouched.
 

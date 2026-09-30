@@ -1,6 +1,6 @@
 # 798 — Sapporo 2.39 Refused-Path Observability For Wall Keys
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729
 
@@ -139,3 +139,25 @@ first wall capture (named path at 474153646), unit/test/sanitize
 results, the twice byte-identical smoke run shas, and the list of
 era scripts whose exact-line `detail=` pins or log hashes drift
 (777 re-derivation input). Status stays integrator-owned.
+
+## Integrator outcome 2026-09-29: DONE
+
+Acceptance met:
+- Named refusal texts in place (capacity refusal names path+counts;
+  the awake lifecycle refusal names "2.39 GPS awake lifecycle or hit
+  budget refused"), with the mode-range class unchanged-or-named; unit
+  success/refusal coverage in tree.
+- `make check` PASS at HEAD 9202a06: 1014 tests, 0 failed, 193 suites;
+  sanitizer clean per the sweep's runs (no device/protocol files
+  touched since; libsemu.a sha 7c5a4f62 unchanged since 14c791c).
+- Manual smoke: the refusal stop line carries the named cause via the
+  CLI detail= channel (src/frontends/cli.c:470 prints
+  "detail=<error text>"); reproduced byte-identically more than twice
+  (the era goldens pin the exact stop line incl. detail= and the
+  full 43-script census ran 0-red twice — E-SAP239-REPINSWEEP-002).
+- Era drift from the richer detail was recorded on 777 and absorbed
+  without weakening any guard: the 777 re-pin sweep pinned the exact
+  refusal stop lines (detail= included on the budget-pair END goldens;
+  five's CLI refusal line carries detail in the full-cold census path
+  where present) — every affected script names its re-scoped anchors
+  in-file.

@@ -1,6 +1,6 @@
 # 777 — Sapporo Opt-in Era Gate Re-derivation
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729
 
@@ -424,3 +424,33 @@ per the re-pin sweep (E-SAP239-REPINSWEEP-001). The maximum_hits=
 76670 logical-file budget was never reached (76 315 max observed);
 raising it remains evidence-gated. 798's captured path remains the
 canonical second-wall record; no crack work is pending on it.
+
+## Integrator outcome 2026-09-29: DONE — full 2.39 era census green twice
+
+Per-ticket re-pin ledger (all re-pins twice byte-identical, re-scope
+notes in-file, integrator twice-runs before each commit):
+- Hash-only drift class (handle-law rebuild): gps_startup, cold_boot,
+  display_health, settings_flow, button_warmboot, sleepwake,
+  ctimer_era, button_chords, warm_reset, wbsto_cache and the
+  7-script OHR2 family — re-pinned (E-SAP239-REPINSWEEP-001).
+- Full anchor-chain migrations: era_widgets, era_zip_stream,
+  quiet_clocks, preload1, history, ongoing, activity,
+  ctimer_13_termination, logical_files (dual-branch), gps_reopen
+  (UART-fault -> machine-reset-request first-class golden; GSTP
+  mid-anchors unreachable -> clean_pre_reset/machine_reset pins).
+- C inspector re-derivations: gps_awake constants
+  (load cap 846889602, entries 846889603/960806494/1073726378/
+  1184805198, stop pc 0x1291ce / +1 0x1296f8, mirror=1 at stop) —
+  CXD5610 rise-latch law recorded (fall allocated AT the rising
+  deadline: 0-ns pin-high window, stage 3 unreachable).
+- gps_five + probe rewritten (prefix/idle/refusal modes; refusal-
+  state durable image 90871416, terminal image 33e1dbdf, five hook+1
+  sites, hook-entry-time logging law).
+- general/personal budget pair (edge-driven resume law; clean-boot
+  saves inside the 700M prefix; awake-budget fixed-point terminals
+  2391136680 and 1296811148 with zero-advance re-refusal).
+Final census at HEAD 9202a06: sapporo-2.39.20 era 0 red of 43 TWICE;
+sapporo-2.35.34 0 red of 8; make check 1014/0 (193 suites);
+task-contracts 162 (E-SAP239-REPINSWEEP-002). 796/798 flipped done
+with their acceptance ledgers. Era gates re-derived; this ticket's
+purpose is discharged.
