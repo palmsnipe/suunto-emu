@@ -113,6 +113,10 @@ echo 'PASS sapporo-2.35.34 compressed-texture window at derived boundary'
 # 4646, and the tick members move to 4258/aec1d3a0, 4515/cf8a4285,
 # 4770/0a576ff1; settled generations drift as the bounce consumes GPU
 # frames, host-side only), zero resolve refusals, zero resets.  Re-derived
+# Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
+# (E-EMU-SAP235-TICKTRAIL-001): the seconds-sweep frames re-derive clean
+# (steps 25/27/29/31; the 7ef957e9 tick base, step 24, the stop line and
+# the zero-refusal guards are byte-identical), twice byte-identically.
 # 2026-09-27 from paired byte-identical runs on the final binary
 # (transcript sha
 # c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e),
@@ -141,19 +145,19 @@ done
 cmp "$run_dir/main-1.log" "$run_dir/main-2.log"
 grep -Fqx 'SDL live test settled step=24 generation=3991 crc32=1c1f9064' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=74e8d4f5' \
+grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=0e077730' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=26 generation=4131 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=aec1d3a0' \
+grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=0b78f6cf' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=28 generation=4389 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=29 generation=4515 crc32=cf8a4285' \
+grep -Fqx 'SDL live test settled step=29 generation=4515 crc32=d8e8bc60' \
     "$run_dir/main-1.log"
 grep -Fqx 'SDL live test settled step=30 generation=4646 crc32=7ef957e9' \
     "$run_dir/main-1.log"
-grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=0a576ff1' \
+grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=500b350f' \
     "$run_dir/main-1.log"
 grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/main-1.log"
@@ -170,5 +174,5 @@ fi
 [ "$(grep -c 'subsystem=gpu event=draw-refused' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(grep -c 'event=machine-reset-request' "$run_dir/main-1.log")" -eq 0 ]
 [ "$(shasum -a 256 "$run_dir/main-1.log" | awk '{print $1}')" = \
-    c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e ]
+    14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae ]
 echo 'PASS sapporo-2.35.34 main-entry compressed render at derived boundary'

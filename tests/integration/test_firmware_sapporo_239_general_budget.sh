@@ -64,9 +64,15 @@ for attempt in first second; do
     # retired input-edge virtual-time lineage; the clean boot's refused stop
     # is 2391136680 / 32620918072 at pc=0x1291cc.
     grep -F -x -q 'END reason=8 instructions=2391136680 time=32620918072 pc=001291cc frames=677 crc=405d1af6 sha=6eb15b72ea2d250b1106d6a89c39ac87eb3827ebd1ce7c367bf1efcfeb2b4742 detail=2.39 GPS awake lifecycle or hit budget refused' "$run_dir/$attempt.out"
-    # Refused terminal snapshot (held, twice-verified) == mid == refused.
-    test "$(hash "$run_dir/$attempt.final.sems")" = bb17b7a8c81519f70cd784127f4965d6f4fa08bb254a01dd5e109df8a3fe53b0
-    test "$(hash "$run_dir/$attempt.refused.sems")" = bb17b7a8c81519f70cd784127f4965d6f4fa08bb254a01dd5e109df8a3fe53b0
+    # Refused terminal snapshot == mid == refused. RE-PINNED
+    # (710/E-EMU-SAP235-TICKTRAIL-002, 2026-09-30): the tsc6a per-resolve
+    # frame lifecycle changed the serialized shadow inside the terminal
+    # image (resting state at the stop instead of accumulated strokes);
+    # the END golden, the transcripts and the census are unchanged and
+    # only the image bytes moved bb17b7a8… -> 24d5a4dd… (twice
+    # byte-identical; the resumed leg re-saves the same image).
+    test "$(hash "$run_dir/$attempt.final.sems")" = 24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba
+    test "$(hash "$run_dir/$attempt.refused.sems")" = 24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.mid.sems"
     # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): resumed transcript — this

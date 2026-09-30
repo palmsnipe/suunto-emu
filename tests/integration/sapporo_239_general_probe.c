@@ -142,9 +142,18 @@ int main(int argc, char **argv)
     } else {
         semu_error_set(&e, SEMU_ERR_STATE, "unexpected native start checkpoint"); goto done;
     }
+    /* RE-PINNED (710/E-EMU-SAP235-TICKTRAIL-002): the tsc6a per-resolve
+     * frame lifecycle changed the serialized shadow inside the terminal
+     * snapshot image (the shadow now holds the resting state at the stop
+     * instead of the accumulated strokes) — the guest stop, the refusal
+     * detail, the terminal frame (677/405d1af6/6eb15b72…) and every
+     * transcript hash are unchanged; only the image bytes moved
+     * bb17b7a8… -> 24d5a4dd… (twice byte-identical). The cold prefix
+     * image is untouched by the fix (no fmt-17 shadow divergence in the
+     * cold window) and keeps its pin. */
     if (!file_hash(argv[3], start_count == COLD_CAP ?
         "7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c" :
-        "bb17b7a8c81519f70cd784127f4965d6f4fa08bb254a01dd5e109df8a3fe53b0", &e)) goto done;
+        "24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba", &e)) goto done;
     if (start_count == COLD_CAP) {
         /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old virtual-time
          * equality on each edge {12010884553, 12096961148, 14075897022,

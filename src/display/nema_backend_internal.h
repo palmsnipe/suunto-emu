@@ -18,6 +18,18 @@ struct semu_nema_backend {
     semu_frame_callback callback;
     void *frame_context;
     int phase, tsc6a_dirty;
+    /* Ticket 710 instance (E-EMU-SAP235-TICKTRAIL-001): the compressed
+     * surface's resting state is the decode of its real SRAM span, kept
+     * in a baseline surface that is re-derived whenever the guest
+     * rewrites the span (the cached bytes drive a per-block diff; the
+     * 788 block law decodes, undecodable blocks keep the reset value).
+     * Each frame begins and ends at the resting state — the resolve
+     * consumes the frame, so no stroke survives into the next one. */
+    uint8_t *guest_span;
+    uint32_t guest_span_base;
+    nema_tsc6a *baseline;
+    int baseline_valid;
+    int shadow_fresh;
     semu_error draw_error;
     /* Draw-state refusal event (ticket 794): the snapshot captured at the
      * refused draw plus the bounded event record. */
@@ -27,6 +39,11 @@ struct semu_nema_backend {
 };
 typedef struct { semu_nema_backend *backend; semu_bus *bus; } nema_draw_context;
 void nema_backend_draw(void *context, const nema_draw_snapshot *snapshot);
+void nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
+    uint32_t base);
+void nema_tsc6a_frame_begin(semu_nema_backend *backend, semu_bus *bus,
+    uint32_t base, nema_tsc6a *shadow);
+void nema_tsc6a_frame_end(semu_nema_backend *backend, nema_tsc6a *shadow);
 semu_status nema_backend_render_list(semu_nema_backend *backend, semu_bus *bus,
     const semu_display_list *list, semu_error *error);
 #endif

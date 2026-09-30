@@ -36,6 +36,9 @@
 #                 enumerated fixture answers fail-closed: terminal
 #                 stop=compat-refused is the E-SAP-0041 fixture ceiling, by
 #                 design, not a regression.
+# Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
+# (E-EMU-SAP235-TICKTRAIL-001): the seconds-sweep frames re-derive clean;
+# the guest stop lines, generations and refusal guards are unchanged.
 # Ticket 710 instance (E-SAP-0041-EXT6 named residual, closed): the
 # upper window's 4 vertically-scrolling draws (full-width 60px rects at
 # x 171..231, heights 11/49/48/20, clip-cut ends, mm12 = -dstY
@@ -90,18 +93,18 @@ for window in baseline lower upper; do
     cmp "$run_dir/$window-1.log" "$run_dir/$window-2.log"
 done
 [ "$(shasum -a 256 "$run_dir/baseline-1.log" | awk '{print $1}')" = \
-    c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e ]
+    14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae ]
 [ "$(shasum -a 256 "$run_dir/lower-1.log" | awk '{print $1}')" = \
-    ac856e520c029e854de95eb4071bd447d71ef5df5748180e402ea0ec1a673aca ]
+    61cbd3e887d533dc8c657fd75066aec2aaaee34b05b3f0a8e117afebc447578c ]
 [ "$(shasum -a 256 "$run_dir/upper-1.log" | awk '{print $1}')" = \
-    20aecbc71fab2e386e0b0d975df48d424366305ca915657f320918ff5803160e ]
+    879630294064869a75e611c703291163d8b0ac58c31aa5528b6b6ab5eb8368ef ]
 
 # No-input baseline: the post-788 tick pattern must carry the walk to its
 # natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster +
 # EXT6 compressed-bounce admission; matches the era-pinned window).
-grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=74e8d4f5' \
+grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=0e077730' \
     "$run_dir/baseline-1.log"
-grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=0a576ff1' \
+grep -Fqx 'SDL live test settled step=31 generation=4770 crc32=500b350f' \
     "$run_dir/baseline-1.log"
 grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414100700' \
     "$run_dir/baseline-1.log"
@@ -125,7 +128,7 @@ grep -Fqx 'stop=budget pc=0x000e1862 instructions=8000564488 virtual_time_ns=400
 
 # UPPER window: pair holds through step 27, the off-pair navigation frame
 # settles at step 28, then the E-SAP-0041 fixture ceiling terminates the run.
-grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=aec1d3a0' \
+grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=0b78f6cf' \
     "$run_dir/upper-1.log"
 grep -Fqx 'SDL live test settled step=28 generation=4349 crc32=9b554fd9' \
     "$run_dir/upper-1.log"

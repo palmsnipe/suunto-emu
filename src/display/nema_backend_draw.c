@@ -61,6 +61,13 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
             nema_tsc6a_copy(backend->pending_tsc6a, backend->tsc6a);
             backend->tsc6a_dirty = 1;
         }
+        /* Ticket 710 instance: a frame's strokes blend onto the resting
+         * state of the compressed surface. */
+        if (!backend->shadow_fresh) {
+            nema_tsc6a_frame_begin(backend, draw_context->bus,
+                                   snap->target_base,
+                                   backend->pending_tsc6a);
+        }
         st = nema_tsc6a_draw_target(backend->pending_tsc6a, draw_context->bus,
                                     snap, &draw_error);
         if (st != SEMU_OK) {
@@ -81,12 +88,23 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
 
     if (snap->draw_cmd == NEMA_DRAW_TSC6A_RESOLVE) {
         semu_error err;
+        nema_tsc6a *shadow =
+            backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a;
+        /* Ticket 710 instance: the resolve consumes the frame.  Pick up
+         * guest span rewrites first, then return the shadow to the
+         * resting state for the next frame. */
+        nema_tsc6a_frame_baseline(backend, draw_context->bus,
+                                  snap->src_base);
+        if (!backend->shadow_fresh) {
+            nema_tsc6a_frame_begin(backend, draw_context->bus,
+                                   snap->src_base, shadow);
+        }
         semu_status st = nema_tsc6a_resolve(
-            backend->tsc6a_dirty ? backend->pending_tsc6a : backend->tsc6a,
-            snap, target.pixels, target.stride, &err);
+            shadow, snap, target.pixels, target.stride, &err);
         if (st != SEMU_OK) {
             set_draw_error(backend, snap, &err);
         }
+        nema_tsc6a_frame_end(backend, shadow);
         return;
     }
 

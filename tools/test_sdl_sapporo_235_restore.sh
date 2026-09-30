@@ -7,10 +7,12 @@ set -eu
 # natively to the WFI park with zero resets, draw refusals, or compat
 # hits. The GPS-layer bind confirms the restored owners on load
 # (state-identity rules; see tests/unit/test_sapporo_235_gps_reopen.c).
-# Derived twice byte-identically on HEAD 1696439+a481cef lineage:
-# cold transcript c8b69fce… (the pinned nav baseline walk), snapshot
-# 26145b05…, first frame generation 4770 crc 0a576ff1, continuation
-# stop pc 0x000e1862 at 9578131227 / 42000000000.
+# Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
+# (E-EMU-SAP235-TICKTRAIL-001), twice byte-identically: cold transcript
+# 14ffff66… (the re-pinned nav baseline walk), snapshot 5f21f7d1…,
+# first frame generation 4770 crc 500b350f, continuation stop pc
+# 0x000e1862 at 9578131227 / 42000000000 (the guest stop line is
+# unchanged; the sweep frames are clean).
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
 if [ ! -f "$manifest" ]; then
@@ -50,10 +52,10 @@ if [ -z "${SEMU_SDL_TEST_SNAPSHOT:-}" ]; then
     set -e
     [ "$status" -eq 0 ]
     [ "$(shasum -a 256 "$work/cold.log" | awk '{print $1}')" = \
-        c8b69fce5b29136b752c9da76667e5fe17942aa875709edfcc69dff21538967e ]
+        14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae ]
 fi
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    26145b0538eaccc3b992ad1866435ae717378da2a2b89400ab739b9be566e2a9 ]
+    5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d ]
 for pass in 1 2; do
     set +e
     "$emulator" run --profile sapporo-2.35.34 --firmware "$manifest" \
@@ -62,7 +64,7 @@ for pass in 1 2; do
     status=$?
     set -e
     [ "$status" -eq 3 ]
-    grep -Fqx 'SDL first-frame width=240 height=240 generation=4770 crc32=0a576ff1' \
+    grep -Fqx 'SDL first-frame width=240 height=240 generation=4770 crc32=500b350f' \
         "$work/restore-$pass.log"
     grep -Fqx 'stop=budget pc=0x000e1862 instructions=9578131227 virtual_time_ns=42000000000' \
         "$work/restore-$pass.log"
