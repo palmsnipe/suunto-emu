@@ -8121,3 +8121,76 @@ against the current build: GONE (stale lineage). 2.35.34 era re-run at
 HEAD: 0 red of 8. make check: 1014 tests, 0 failed, 193 suites;
 task-contracts 162 OK. No golden was weakened in the sweep; every
 retirement names its old anchor in-file.
+
+E-SAP-0041-EXT7 (2026-09-30): the E-SAP-0041-EXT6 named residual — the
+distinct vertically-scrolling draw family of the 2.35 upper navigation
+window — is derived and admitted; the window now renders with zero GPU
+refusals. Ticket 710 instance, offline-RE evidence class (owner
+decision 2026-09-23). Sources: the twice byte-identical census pair
+`/tmp/sap235-vscroll/upper-{1,2}.log`, sha256
+`be0e2e1cfa74b3557030edbc48d0f4c1f864f0a3e889bc7f7fe56ecad140f6c3`
+(the pre-admission upper golden itself), produced on HEAD a481cef by
+the five-layer setup-walk with POST `mmlllmlllmmmmmmummmmm`
+(`--until setup-next`, 10B/40s caps, terminal
+`stop=compat-refused pc=0x001be85a instructions=8896815435
+virtual_time_ns=35626577524`, the pinned E-SAP-0041 fixture ceiling);
+and the prior twice-derived composer RE of the hash-pinned application
+`component-04-type-4-v2.raw` recorded with E-SAP-0041-EXT6 (volatile
+derivation notes `/tmp/sap235-788/notes.md`): the general set-matrix
+API ending at 0xc1b5e emits `MM02 = -dstX, MM12 = -dstY` with the ring
+quad as the strip/clip cut.
+
+Census (four draw-refused events, full state through the in-tree
+E-EMU-0041-EXT4-era refusal channel; ords 8529/8535/8545/8555): the
+same 60x60 stride-180 fmt-17 asset at `0x100a490c`, `mm02 0xc32b0001`,
+`mm00 = mm11 = 1.0f`, draw color `0xff555555`, tint `0xffffffff`, imem
+`0,0x004e0002,0x804b1286`, code `0x941e8000`; quads all at x 171..231
+with heights 11/49/48/20 and `mm12 0xc3170001/0xc3170000/0xc3400000/
+0xc35c0000` = -dstY with dstY = 151.0000153/151/192/220; D1 clip
+(0,81)-(240,162), D2..D4 clip (0,162)-(240,240); each clipped quad
+keeps one end on a clip edge (D1 y1=162=clip max, D2 y0=162=clip min,
+D3 y1=240=clip max, D4 y1=240=clip max). The earlier tool-header
+reading "mm12 -149/-149eps" is corrected by the census: the values are
+-151.0000153/-151.0. Derived admission law (census x composer RE,
+twice reproduced before implementation): the compressed-asset resolve
+keeps its pinned shape except that `mm12` moves from a bit-pinned pair
+to the vertical band law — quad height 1..60 with a sub-60 height
+requiring a clip-cut end, and `v(y0) = y0 + mm12 >= -1` /
+`v(y1) = y1 + mm12 <= 60*65536 + 1` in 16.16 units (the observed
+one-ULP bias class, mirroring the pinned mm02 0xc32b0001 bias; two or
+more ULP still refuse). The horizontal bounce family passes the same
+law unchanged (dstY = 90: v(y0) = 0, v(y1) = 60).
+
+Validation (all twice where pinned): red-first unit cases in
+`tests/unit/test_nema_tsc6a_expand.c` (12/12: census witnesses D1/D4
+raster with the row-striped asset consuming texel rows 0..10 / 0..19;
+band-bottom, band-top, height-61 and free-floating-clip-cut refusals
+keep zero writes) and `tests/unit/test_nema_tsc6a.c` 7/7 — its old
+"two-ULP" mm12 near-miss 0xc2b40002 is superseded: one binary32 ULP at
+90 is half a 16.16 unit, so 0xc2b40001 and 0xc2b40002 land on the SAME
+fixed value the pinned law admits; the case now pins an eight-ULP
+translation (four fixed units) outside the band. Post-admission upper
+window pair: ZERO draw-refused, guest stop line and instruction count
+byte-identical (`0x001be85a / 8896815435 / 35626577524`), every
+settled step identical except step 28's host-side generation
+4345 -> 4349 (the four raster publications), navigation frame crc32
+`9b554fd9` UNCHANGED; new upper golden sha256
+`20aecbc71fab2e386e0b0d975df48d424366305ca915657f320918ff5803160e`
+twice byte-identically. The compressed-texture era window keeps its
+pins (the vertical family exists only in the upper navigation window);
+its runner's expand-suite count re-pins 10 -> 12 with the two new
+cases. `make check` and `make sanitize` results are recorded in the
+instance handoff. No golden was weakened: every refusal predicate
+survives with a tightened or equal bound, and the band law authorizes
+no value the pinned firmware does not exhibit (the composer's
+strip/clip cut is the only reachable quad source; D2 proves
+clip-cut-interior quads are reachable).
+
+Confidence: high for the four census witnesses and the band/clip-cut
+predicates; the composer RE chain (0xc1b5e set-matrix API) is the
+prior EXT6 derivation, cross-checked against all four witnesses.
+Remaining gaps: the emitting guest function for the census quads
+remains unlocated (EXT6 UNCONFIRMED item, unchanged); the widget's
+scroll-animation law (why dstY takes 151/192/220 in this window) is
+recorded as observed, not derived; other windows keep their existing
+fail-closed refusal surfaces.

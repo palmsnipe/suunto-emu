@@ -36,13 +36,15 @@
 #                 enumerated fixture answers fail-closed: terminal
 #                 stop=compat-refused is the E-SAP-0041 fixture ceiling, by
 #                 design, not a regression.
-# Residual boundary (named, fail-closed): the upper window additionally
-# shows exactly 4 draw-refused events from a distinct vertically-scrolling
-# family (full-width 60px rects at x 171..231, heights 11/49/48/20, clip
-# y-max 240, mm12 -149/-149eps/-192/-220, mm02 -171 exact) — a different
-# widget law than the admitted horizontal bounce, admitted nowhere; zero
-# resets, navigation goldens unchanged (E-SAP-0041-EXT6 residual census,
-# twice-reproduced pair + independent integrator derivation agreeing).
+# Ticket 710 instance (E-SAP-0041-EXT6 named residual, closed): the
+# upper window's 4 vertically-scrolling draws (full-width 60px rects at
+# x 171..231, heights 11/49/48/20, clip-cut ends, mm12 = -dstY
+# -151/-151eps/-192/-220, mm02 -171 exact; census /tmp/sap235-vscroll
+# twice byte-identical, pre-admission log be0e2e1c…) are admitted through
+# the composer band law (RE 0xc1b5e set-matrix API, MM12 = -dstY with
+# the quad as the strip/clip cut). Post-admission: zero draw-refused,
+# every guest stop byte and the navigation frame crc unchanged, only
+# step 28's host-side generation drifts 4345 -> 4349; zero resets.
 set -eu
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
@@ -92,7 +94,7 @@ done
 [ "$(shasum -a 256 "$run_dir/lower-1.log" | awk '{print $1}')" = \
     ac856e520c029e854de95eb4071bd447d71ef5df5748180e402ea0ec1a673aca ]
 [ "$(shasum -a 256 "$run_dir/upper-1.log" | awk '{print $1}')" = \
-    be0e2e1cfa74b3557030edbc48d0f4c1f864f0a3e889bc7f7fe56ecad140f6c3 ]
+    20aecbc71fab2e386e0b0d975df48d424366305ca915657f320918ff5803160e ]
 
 # No-input baseline: the post-788 tick pattern must carry the walk to its
 # natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster +
@@ -125,7 +127,7 @@ grep -Fqx 'stop=budget pc=0x000e1862 instructions=8000564488 virtual_time_ns=400
 # settles at step 28, then the E-SAP-0041 fixture ceiling terminates the run.
 grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=aec1d3a0' \
     "$run_dir/upper-1.log"
-grep -Fqx 'SDL live test settled step=28 generation=4345 crc32=9b554fd9' \
+grep -Fqx 'SDL live test settled step=28 generation=4349 crc32=9b554fd9' \
     "$run_dir/upper-1.log"
 grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=8896815435 virtual_time_ns=35626577524 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
     "$run_dir/upper-1.log"

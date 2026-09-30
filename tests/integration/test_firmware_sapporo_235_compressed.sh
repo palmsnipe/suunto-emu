@@ -47,13 +47,14 @@ else
         SEMU_TSC6A_REFERENCE="$reference" \
             "$expand_test" > "$run_dir/golden.log" 2>&1
         # Ticket 788 added three synthetic admission cases to the expand
-        # suite (7 -> 10); the '0 failed' semantics are unchanged.
-        tail -1 "$run_dir/golden.log" | grep -qx '10 tests, 0 failed'
+        # suite (7 -> 10); the ticket-710 vertical-scroll instance added
+        # two more (10 -> 12); the '0 failed' semantics are unchanged.
+        tail -1 "$run_dir/golden.log" | grep -qx '12 tests, 0 failed'
         echo 'PASS compressed golden expansion matches decode-1.bin'
     else
         "$expand_test" > "$run_dir/golden.log" 2>&1
         # Same additive-count re-pin as the reference branch above.
-        tail -1 "$run_dir/golden.log" | grep -qx '10 tests, 0 failed'
+        tail -1 "$run_dir/golden.log" | grep -qx '12 tests, 0 failed'
         echo 'SKIP compressed golden reference absent (synthetic cases ran)'
     fi
 fi

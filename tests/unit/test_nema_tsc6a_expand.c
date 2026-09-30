@@ -596,6 +596,174 @@ static void test_resolve_bounce_out_of_law(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+/* --- ticket 710 instance: the vertical-scroll residual family
+ * (E-SAP-0041-EXT6 named residual, census /tmp/sap235-vscroll twice
+ * byte-identical) --- The same 60x60 stride-180 fmt-17 asset scrolls
+ * vertically through the general set-matrix API: mm12 = -dstY (the
+ * animated strip top; RE law of the 0xc1b5e matrix API: MM02 = -dstX,
+ * MM12 = -dstY, quad = strip intersect clip), quads arrive with the
+ * height clip-cut (height 1..60; a clipped height keeps one quad end on
+ * a clip edge), and the band invariant v(y0) >= -eps, v(y1) <= 60+eps
+ * holds for every witness.  Row-striped blocks make the consumed texel
+ * rows observable; no firmware bytes. */
+static void fill_striped_rows_asset(void)
+{
+    unsigned by, bx;
+    /* All pixels index 0; E0 = LE16(blk[4],blk[5]) picks the block-ROW
+     * color (block row 0 blue 0x001F, row 1 red 0xF800, row 2 green
+     * 0x07E0, repeating); alpha 0x7FF; auxiliary bits zero. */
+    for (by = 0u; by < 15u; ++by) {
+        for (bx = 0u; bx < 15u; ++bx) {
+            uint8_t blk[12] = { 0x00u, 0x00u, 0x00u, 0x00u,
+                                0xF0u, 0x00u, 0x00u, 0x00u,
+                                0xFFu, 0x07u, 0x00u, 0x00u };
+            if (by % 3u == 1u) {
+                blk[4] = 0x00u;
+                blk[5] = 0xF0u; /* E0 = 0x0F00 */
+            } else if (by % 3u == 2u) {
+                blk[4] = 0x00u;
+                blk[5] = 0x0Fu; /* E0 = 0x00F0 */
+            }
+            memcpy(asset + ((size_t)by * 15u + bx) * 12u, blk, 12u);
+        }
+    }
+}
+
+/* Census witness D4: clip (0,162)-(240,240), quad (171,220)-(231,240),
+ * mm12 = -220.0f = -dstY. */
+static nema_draw_snapshot vertical_tuple_bottom(void)
+{
+    nema_draw_snapshot s = compressed_tuple();
+    s.clip_min_y = 162u;
+    s.clip_max_y = 240u;
+    s.point0_y = s.point1_y = UINT32_C(220) << 16u;
+    s.point2_y = s.point3_y = UINT32_C(240) << 16u;
+    s.mm12 = UINT32_C(0xc35c0000);
+    return s;
+}
+
+/* Census witness D1 (one-ULP mm12): clip (0,81)-(240,162), quad
+ * (171,151)-(231,162), mm12 = -151.0000153f = -dstY. */
+static nema_draw_snapshot vertical_tuple_top(void)
+{
+    nema_draw_snapshot s = compressed_tuple();
+    s.point0_y = s.point1_y = UINT32_C(151) << 16u;
+    s.point2_y = s.point3_y = UINT32_C(162) << 16u;
+    s.mm12 = UINT32_C(0xc3170001);
+    return s;
+}
+
+static void test_resolve_vertical_scroll_accept(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot s;
+
+    semu_error_clear(&error);
+    bus = make_sram_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    fill_striped_rows_asset();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
+                                   &error));
+
+    /* D4: panel y -> texel row y - 220; rows 0..19 land (block rows 0
+     * blue, 1 red, 2 green, 3 blue, 4 red); the clip keeps y < 240. */
+    s = vertical_tuple_bottom();
+    memset(panel, 0, sizeof(panel));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 220u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 223u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 224u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 227u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(200u, 228u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(200u, 231u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 232u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 235u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 236u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 239u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(200u, 219u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(170u, 220u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(231u, 220u));
+
+    /* D1: panel y -> texel row y - 151.0000153; pixel centers keep
+     * rows 0..10 in range (block rows 0 blue, 1 red, 2 green). */
+    s = vertical_tuple_top();
+    memset(panel, 0, sizeof(panel));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 151u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x001F), panel_pixel(200u, 154u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 155u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0xF800), panel_pixel(200u, 158u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(200u, 159u));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x07E0), panel_pixel(200u, 161u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(200u, 150u));
+    SEMU_TEST_EQ_U64(context, 0u, panel_pixel(200u, 162u));
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
+static void test_resolve_vertical_scroll_out_of_law(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus;
+    nema_tsc6a *surface = NULL;
+    nema_draw_snapshot s;
+
+    semu_error_clear(&error);
+    bus = make_sram_bus(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    fill_striped_rows_asset();
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
+                                   &error));
+    memset(panel, 0x5Au, sizeof(panel));
+    memcpy(panel_before, panel, sizeof(panel));
+
+    /* (1) mm12 = -100.0f with the D4 quad: v(y1) = 140 overruns the
+     * 60-row strip (band bottom). */
+    s = vertical_tuple_bottom();
+    s.mm12 = UINT32_C(0xc2c80000);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (2) mm12 = -260.0f with the D4 quad: v(y0) = -40 leaves the
+     * strip above its top (band top). */
+    s = vertical_tuple_bottom();
+    s.mm12 = UINT32_C(0xc3820000);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (3) height 61 with an exact band placement refuses. */
+    s = vertical_tuple_bottom();
+    s.point0_y = s.point1_y = UINT32_C(100) << 16u;
+    s.point2_y = s.point3_y = UINT32_C(161) << 16u;
+    s.mm12 = UINT32_C(0xc2c90000); /* -101.0f */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    /* (4) a clipped height whose quad ends float free of both clip
+     * edges is not a composer clip cut and refuses. */
+    s = vertical_tuple_bottom();
+    s.point0_y = s.point1_y = UINT32_C(200) << 16u;
+    s.point2_y = s.point3_y = UINT32_C(230) << 16u;
+    s.mm12 = UINT32_C(0xc3480000); /* -200.0f */
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
+                                             &error));
+    SEMU_TEST_ASSERT(context, memcmp(panel_before, panel,
+                                      sizeof(panel)) == 0);
+    nema_tsc6a_destroy(surface);
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     const semu_test_case cases[] = {
@@ -609,6 +777,8 @@ int main(void)
         SEMU_TEST_CASE(test_resolve_bounce_clipped_quad),
         SEMU_TEST_CASE(test_resolve_bounce_variant_b),
         SEMU_TEST_CASE(test_resolve_bounce_out_of_law),
+        SEMU_TEST_CASE(test_resolve_vertical_scroll_accept),
+        SEMU_TEST_CASE(test_resolve_vertical_scroll_out_of_law),
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

@@ -117,3 +117,22 @@ stop=user (360c325a, twice) with the main screen settling steps 24-31.
 OHR boundary class CLOSED for this window; ticket stays `ready` for the
 next named later-Sapporo gap (GPU law family and CPU census now belong
 to 794/788/793).
+
+Instance 13 (2026-09-30, `sap235-710-vscroll`, ticket 710, E-SAP-0041-EXT7):
+the E-SAP-0041-EXT6 named residual — the distinct vertically-scrolling
+draw family of the 2.35 upper navigation window — is closed. Census
+twice byte-identical on HEAD a481cef (pre-admission log = the pinned
+upper golden be0e2e1c…): exactly 4 refused draws, same 60x60 fmt-17
+asset, mm12 = -dstY (-151.0000153/-151/192/220), clip-cut heights
+11/49/48/20. Admission via the composer band law (RE 0xc1b5e set-matrix
+API, MM12 = -dstY, quad = strip∩clip): mm12 moves from the bit-pinned
+pair to v(y0) >= -1 / v(y1) <= 60*65536+1 in 16.16 units with the
+one-ULP bias class admitted exactly; height 1..60 requires a clip-cut
+end. Post-admission: zero draw-refused, guest stop bytes unchanged,
+navigation frame crc 9b554fd9 unchanged, step-28 generation 4345 -> 4349
+(host-side), upper golden re-pinned to 20aecbc7… twice. Red-first unit
+coverage 12/12 + 7/7 (one superseded near-miss re-pinned with
+justification: one ULP at 90 is half a 16.16 unit). The ticket rolls
+back to `ready` for the next named later-Sapporo gap; the vertical
+family's remaining unknowns (emitting guest function, scroll-animation
+values) are recorded as observed-not-derived in the evidence entry.

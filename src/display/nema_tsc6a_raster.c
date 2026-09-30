@@ -323,19 +323,28 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
 #define TSC6A_CROSSHAIR_DRAW_COLOR_ALT UINT32_C(0xff000000)
 #define TSC6A_MATRIX_ONE UINT32_C(0x3f800000)
 #define TSC6A_MATRIX_TX0 UINT32_C(0xc32b0001)
-#define TSC6A_MATRIX_TY0 UINT32_C(0xc2b40000)
 /* One-ULP binary32 roundings the pinned composer emits at specific
  * bounce phases (twice-reproduced residual census, 2026-09-27 walk:
- * mm11 0x3f7fffff on the width-43 wall draws, mm12 0xc2b40001 on the
- * width-1/2/4/8 draws; every other matrix word stays exact).  These are
- * observed bit values only - no rounding formula is assumed. */
+ * mm11 0x3f7fffff on the width-43 wall draws; every other scale word
+ * stays exact).  Observed bit values only - no rounding formula is
+ * assumed.  The mm12 translation is NOT shape-pinned: the composer's
+ * set-matrix API (RE 0xc1b5e, E-SAP-0041-EXT6 derivation notes) emits
+ * MM02 = -dstX, MM12 = -dstY with the quad as the strip/clip cut, so
+ * mm12 is validated as a law in tsc6a_compressed_asset_law (the
+ * horizontal bounce pins dstY = 90; the ticket-710 vertical-scroll
+ * family animates dstY through 151/192/220, census
+ * /tmp/sap235-vscroll twice byte-identical). */
 #define TSC6A_MATRIX_ONE_ALT UINT32_C(0x3f7fffff)
-#define TSC6A_MATRIX_TY0_ALT UINT32_C(0xc2b40001)
 /* 2^-15 slack of the mm02 = 60 - rect_x1 law in 16.16 units (2 * 65536 *
  * 2^-15): the pinned instant's observed mm02 0xc32b0001 sits exactly one
  * binary32 ULP (2^-16 = 1 unit) off -171.0 at rect_x1 = 231, and every
- * census translation is an exact integer. */
+ * census translation is an exact integer.  The vertical-scroll family
+ * (ticket 710 instance, census /tmp/sap235-vscroll twice byte-identical)
+ * shows the same one-ULP class on mm12 (0xc3170001 against -151.0), so
+ * the mm12 band law below admits exactly that observed one-unit bias -
+ * a two-ULP translation still refuses. */
 #define TSC6A_ASSET_TX_SLACK_FP16 2
+#define TSC6A_ASSET_TY_SLACK_FP16 1
 
 /* Second accepted state of this resolve: the capture-pinned compressed
  * tuple with the ticket-788 animated predicates factored out into
@@ -366,8 +375,6 @@ static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
         s->mm01 != 0u || s->mm10 != 0u ||
         (s->mm11 != TSC6A_MATRIX_ONE &&
          s->mm11 != TSC6A_MATRIX_ONE_ALT) ||
-        (s->mm12 != TSC6A_MATRIX_TY0 &&
-         s->mm12 != TSC6A_MATRIX_TY0_ALT) ||
         !tsc6a_ordered_clip(s, 240u, 240u) ||
         s->tex_color != TSC6A_TINT_IDENTITY) {
         return 0;
@@ -375,18 +382,28 @@ static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
     return 1;
 }
 
-/* Ticket 788 admission law for the bounce-animation siblings of the
- * pinned instant (E-SAP-0041-EXT4 census, twice-derived; offline RE of
+/* Ticket 788/710 admission law for the animated siblings of the pinned
+ * instant (E-SAP-0041-EXT4/EXT6 census, twice-derived; offline RE of
  * the hash-pinned application with two agreeing decoders).  Beyond the
- * pinned shape the observed family animates exactly three predicates:
+ * pinned shape the observed families animate these predicates:
  *   - the draw color pair {0xff555555, 0xff000000} (89 / 14 census
  *     draws),
- *   - the rect: height 60 always; width 1..60 with width < 60 only while
- *     left-clipped (rect_x0 == 0; all 31 clipped witnesses), and
- *   - the matrix x-translation: mm02 = 60 - rect_x1 with a 2^-15 slack
+ *   - the rect: width 1..60 with width < 60 only while left-clipped
+ *     (rect_x0 == 0; all 31 clipped witnesses), height 1..60 with
+ *     height < 60 only as a composer clip cut (one quad end on a clip
+ *     edge; the vertical-scroll witnesses D1..D4, ticket 710 census
+ *     /tmp/sap235-vscroll twice byte-identical), and
+ *   - the matrix translations: mm02 = 60 - rect_x1 with a 2^-15 slack
  *     that covers the pinned instant's observed 2^-16 bias (mm02
- *     0xc32b0001 = TSC6A_MATRIX_TX0 at rect_x1 = 231); mm00=mm11=1.0,
- *     mm01=mm10=0 and mm12=-90.0 stay bit-pinned in the shape.
+ *     0xc32b0001 = TSC6A_MATRIX_TX0 at rect_x1 = 231), and the vertical
+ *     band law for mm12 = -dstY (the composer's set-matrix API, RE
+ *     0xc1b5e, translates the source top onto the strip): the quad
+ *     must map inside the 60-row source, v(rect_y0) >= -1 and
+ *     v(rect_y1) <= 60*65536 + 1 in 16.16 units (exactly the observed
+ *     one-ULP bias class); the horizontal bounce keeps dstY = 90
+ *     (v(y0) = 0, v(y1) = 60) and the vertical family animates dstY =
+ *     151/192/220.
+ * mm00=mm11=1.0 and mm01=mm10=0 stay bit-pinned in the shape.
  * rect_x1 is bounded to ±2048 by tsc6a_rectangle, so |60 - rect_x1| <
  * 2^11 is exactly representable in binary32 and the comparison runs on
  * the shared integer 16.16 conversion with int64 intermediates - no
@@ -400,7 +417,10 @@ static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
                                               semu_error *error)
 {
     int32_t matrix_tx;
+    int32_t matrix_ty;
     int64_t expected_tx;
+    int64_t band_top;
+    int64_t band_bottom;
     semu_status st;
 
     if (s->draw_color != TSC6A_CROSSHAIR_DRAW_COLOR &&
@@ -410,13 +430,22 @@ static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
             "observed 0xff555555/0xff000000 pair", s->draw_color);
         return SEMU_ERR_UNSUPPORTED;
     }
-    if ((rect_y1 - rect_y0) != (int)TSC6A_CROSSHAIR_H ||
-        (rect_x1 - rect_x0) < 1 ||
+    if ((rect_y1 - rect_y0) < 1 ||
+        (rect_y1 - rect_y0) > (int)TSC6A_CROSSHAIR_H ||
+        ((rect_y1 - rect_y0) < (int)TSC6A_CROSSHAIR_H &&
+         rect_y0 != (int)s->clip_min_y && rect_y1 != (int)s->clip_max_y)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed asset rect (%d,%d)-(%d,%d) is outside "
+            "the observed 60-bounded clip-cut height family",
+            rect_x0, rect_y0, rect_x1, rect_y1);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if ((rect_x1 - rect_x0) < 1 ||
         (rect_x1 - rect_x0) > (int)TSC6A_CROSSHAIR_W ||
         ((rect_x1 - rect_x0) < (int)TSC6A_CROSSHAIR_W && rect_x0 != 0)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
             "nema_tsc6a: compressed asset rect (%d,%d)-(%d,%d) is outside "
-            "the observed 60-high left-clip-only width family",
+            "the observed 60-bounded left-clip-only width family",
             rect_x0, rect_y0, rect_x1, rect_y1);
         return SEMU_ERR_UNSUPPORTED;
     }
@@ -432,6 +461,22 @@ static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
             "nema_tsc6a: compressed asset matrix mm02 0x%08x is outside the "
             "observed 60-rect_x1 translation law",
             s->mm02);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    st = tsc6a_float_to_fp16(s->mm12, &matrix_ty, error);
+    if (st != SEMU_OK) {
+        return st;
+    }
+    band_top = (int64_t)rect_y0 * TSC6A_FP16_ONE + matrix_ty;
+    band_bottom = (int64_t)rect_y1 * TSC6A_FP16_ONE + matrix_ty;
+    if (band_top < -(int64_t)TSC6A_ASSET_TY_SLACK_FP16 ||
+        band_bottom >
+            (int64_t)TSC6A_CROSSHAIR_H * TSC6A_FP16_ONE +
+            TSC6A_ASSET_TY_SLACK_FP16) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed asset matrix mm12 0x%08x is outside "
+            "the observed strip-clip band law",
+            s->mm12);
         return SEMU_ERR_UNSUPPORTED;
     }
     return SEMU_OK;

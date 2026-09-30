@@ -545,7 +545,11 @@ static void test_compressed_asset_ticket788_law_refusals(
 
     draw = compressed_asset(0, 2);
     draw.mm02 = UINT32_C(0x42680000);
-    draw.mm12 = UINT32_C(0xc2b40002);
+    /* Ticket 710: mm12 is band-law-validated, no longer pair-pinned; the
+     * observed one-ULP class (0xc2b40001/0xc2b40002 both land one 16.16
+     * unit below -90) stays inside the band, and an eight-ULP
+     * translation (four units) is outside it and refuses. */
+    draw.mm12 = UINT32_C(0xc2b40008);
     memset(panel, 0xa5, sizeof(panel));
     memcpy(before, panel, sizeof(panel));
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
