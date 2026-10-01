@@ -8287,3 +8287,102 @@ written compressed bytes readable from the pinned snapshot, the pinned
 (decode-at-use with caching, fail-closed on undecodable blocks).
 Until then the tick trail is a named known defect, not a silent one;
 no golden or refusal surface changed in this diagnostic.
+
+### E-EMU-SAP235-TICKTRAIL-002 — per-resolve frame lifecycle closes the 2.35 tick trail
+
+2026-09-30; ticket 710 instance 14 (`sap235-710-ticktrail`), the fix for
+E-EMU-SAP235-TICKTRAIL-001, on the squashed fix commit at this HEAD.
+
+Corrected root cause: the 001 blocker theory (unmodeled per-tick CPU
+maintenance of the span) is dead. The span is byte-stable across the
+whole tick continuation: full-span dumps of the live surface (172,800
+bytes at `0x10124fe0`) hash sha
+`373b538e7df2be4bf0abc12f4c35cff8085d9aa25690a6508803a98034096a23`,
+twice byte-identically; the guest does not rewrite the surface per
+tick. The trail is the backend shadow's cross-frame persistence alone.
+
+Ruling: the pinned 2.22 precedent
+(`docs/research/native-tsc6a-transition-surface.md`, sha `d9ae4ea9…`)
+— the identical failure class on the resolve destination, fixed there
+by per-frame-fresh resolve semantics — is applied on the source side.
+The compressed surface's resting state is the decode of its real SRAM
+span through the ticket-788 block law (`tsc6a_expand_block`,
+E-RE-SAP235-TSC6A-001): a baseline surface is re-derived whenever the
+guest rewrites the span (full decode on first use or base change,
+per-block diff decode afterwards). A frame begins at the first fmt-17
+target draw — the shadow takes the resting state; the frame's draws
+blend onto it; each resolve publishes the shadow and then returns the
+shadow to the resting state. Blocks the law cannot decode (the aux-bit
+population) keep the transparent-black reset value, the same content
+they hold in the pre-fix shadow: no pixel is invented.
+
+Censuses (each twice byte-identical):
+- Resting span (sha above): 10,352 of 14,400 blocks nonzero, 5,441 of
+  14,400 fail the aux-bit law, and 0 of the 961 blocks inside the
+  pinned seconds-hand region fail (shadow blocks rows 45..75 x cols
+  85..115 = the draw clip 342,180-462,300, which under the pinned 2x
+  matrix is the resolve clip 171,90-231,150 in panel coordinates).
+  Every decode failure lies outside every pinned resolve region, so no
+  pinned published pixel traverses an undecodable block. (The 001
+  live-surface census said 5,442/14,400 at a mid-walk moment; the
+  resting state is 5,441.)
+- Trail gone. Pre-fix, successive published tick members grow
+  monotonically (sweep region x 205..234, y 108..149 of the 240x240
+  panel; non-background pixels 152 -> 278 -> 380 -> 477, accent pixels
+  77 -> 208 -> 319 -> 413; frames 74e8d4f5/aec1d3a0/cf8a4285/0a576ff1
+  of the pinned cold walk). Post-fix, consecutive tick frames hold
+  (131 -> 129 -> 140 -> 120 non-background, 72/68/79/62 accent;
+  frames 84e3cf2c/df8d5a50/9f7c90e8 with transient 8551e3fb at virtual
+  39.0/40.0/41.0 s of the restored continuation, identical from both
+  the pre-fix-era and the re-pinned snapshots): the hand clears between
+  frames. Tick frames publish new clean CRCs at identical virtual
+  times; guest stop lines and instruction counts are byte-identical
+  everywhere — the fix changes published pixels only.
+
+Re-pins (each old -> new, twice byte-identical derivation, then full
+runs at the final HEAD):
+- tools/test_sdl_sapporo_235_nav.sh: baseline transcript
+  c8b69fce… -> 14ffff66…, lower ac856e52… -> 61cbd3e8…, upper
+  20aecbc7… -> 87963029…; step 25 74e8d4f5 -> 0e077730, step 27
+  aec1d3a0 -> 0b78f6cf, step 31 0a576ff1 -> 500b350f (step 28
+  9b554fd9 gen 4349 unchanged); guest stop lines, generations and
+  refusal guards unchanged; full nav run PASS.
+- tests/integration/test_firmware_sapporo_235_compressed.sh: steps
+  25/27/29/31 -> 0e077730/0b78f6cf/d8e8bc60/500b350f; steps 24/26/28/30
+  (1c1f9064, 7ef957e9), the stop line, the zero-refusal and zero-reset
+  guards, and the instruction counts unchanged; transcript
+  c8b69fce… -> 14ffff66…; full runner PASS.
+- tools/test_sdl_sapporo_235_restore.sh: cold transcript 14ffff66…,
+  snapshot 26145b05… -> 5f21f7d1…, first frame generation 4770 crc
+  0a576ff1 -> 500b350f; continuation stop pc 0x000e1862 at
+  9578131227 / 42000000000 unchanged; full run PASS.
+- The other 2.35 gates hold unchanged (language-menu, scroll, OHR);
+  the full 2.35 firmware sweep is 10/10 PASS.
+- 2.39 era drift (E-EMU-SAP235-TICKTRAIL-002 blast radius): the
+  2026-09-30 census ran 42/43 with one red —
+  test_firmware_sapporo_239_general_budget.sh. No 2.39 published
+  frame, guest stop, or transcript moved (END golden instr
+  2391136680 / 32620918072 / pc 0x1291cc / frames 677 / crc
+  405d1af6 / sha 6eb15b72… and both transcript hashes hold; the
+  cold-prefix image 7dddd41a… holds — the cold window has no fmt-17
+  shadow divergence). The red is the serialized TSC6A shadow inside
+  the terminal snapshot image: at the refusal stop it now holds the
+  resting state instead of the accumulated strokes, so the image
+  moved bb17b7a8… -> 24d5a4dd… (first == mid == refused == resumed,
+  twice byte-identical). The pin is re-derived twice with dated notes
+  in the probe (start-checkpoint guard) and the runner (final/refused
+  images); the era census is re-run green at the final HEAD.
+
+Accepted edge (observed-not-derived; no pinned window uses it): a
+transaction shaped [resolve, more strokes, second resolve] loses the
+post-first-resolve strokes at the second resolve — the hardware's
+read-modify-write writeback into the recycled span is unmodeled.
+
+Open boundary: the aux-bit block population (upper band of the span)
+has no derived codec law; its 5,441 resting blocks stay
+transparent-black in the baseline and no pinned resolve clip reads
+them. Deriving the law is a 788-shaped offline-RE instance (US
+9,640,149 B2, sha `856ff7b2…`, documents the two/three-endpoint modes
+and adaptive alpha but not the product's aux-bit layout). Do not
+decode them.
+

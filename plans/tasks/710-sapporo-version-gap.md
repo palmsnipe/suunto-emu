@@ -136,3 +136,31 @@ justification: one ULP at 90 is half a 16.16 unit). The ticket rolls
 back to `ready` for the next named later-Sapporo gap; the vertical
 family's remaining unknowns (emitting guest function, scroll-animation
 values) are recorded as observed-not-derived in the evidence entry.
+
+Instance 14 (2026-09-30, `sap235-710-ticktrail`, ticket 710,
+E-EMU-SAP235-TICKTRAIL-001/002): the interactive-defect residual named
+by 001 — the 2.35 main-screen seconds-sweep trail — is closed by the
+per-resolve frame lifecycle (source-side application of the pinned
+2.22 per-frame-fresh ruling; 001's blocked-fix theory is dead, the
+span is byte-stable, sha 373b538e…, twice): the fmt-17 shadow's resting
+state is the decode of the guest span through the 788 block law, each
+frame begins at the first fmt-17 draw, and each resolve returns the
+shadow to the resting state. Undecodable aux-bit blocks (5,441 of
+14,400, all outside every pinned resolve region) keep the pre-fix
+transparent-black content. Post-fix census: sweep-region pixels hold
+at 131/129/140/120 across ticks (pre-fix 152 -> 278 -> 380 -> 477
+growing); guest stop lines byte-identical. Goldens re-pinned with
+dated notes: nav (three transcripts + steps 25/27/31), compressed
+main entry (steps 25/27/29/31 + transcript), restore (snapshot
+5f21f7d1…, first frame 500b350f), and the 2.39 general_budget
+terminal-image pin bb17b7a8… -> 24d5a4dd… (probe + runner; serialized
+shadow moved to the resting state, no 2.39 frame/stop/transcript
+moved; the only 2.39 census red). Verification: 2.35 firmware sweep
+10/10 with every 2.35 SDL/integration gate green, 2.39 era census
+re-run green at the final HEAD.
+Remaining unknowns: the aux-bit codec population (never read by a
+pinned resolve) and the [resolve, strokes, resolve] RMW-writeback
+shape (no pinned window uses it) are recorded as observed-not-derived
+in E-EMU-SAP235-TICKTRAIL-002. The ticket rolls back to `ready` for
+the next named later-Sapporo gap.
+
