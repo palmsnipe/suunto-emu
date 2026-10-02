@@ -9558,3 +9558,75 @@ Changed implementation/test file hashes at handoff:
 Ticket 804 remains ready for integrator review. No full GPU-completeness or
 physical-device acceptance is claimed; unknown visible auxiliary blocks,
 compressed writeback and the distinct Widgets MM00 scale still require work.
+
+## E-RE-SAP235-WIDGET-SCALE-001 — observed Widgets matrix alternate
+
+2026-10-02, ticket 805 planning/integration ruling. This uses the owner-authorized
+2026-09-23 offline-RE class: the lane's compressed asset path remains unmodeled
+(E-RE-SAP235-TSC6A-001). No new codec or arbitrary scale behavior is inferred.
+It extends the exact-bit alternate precedent of E-SAP-0041-EXT6 for one
+additional witnessed tuple, composed with the EXT7 clipped-quad law.
+
+Private work directory: `/tmp/semu-widget-scale-20261002/`. Inputs/tooling:
+
+| Input | SHA-256 |
+| --- | --- |
+| Read-only sibling `artifacts/analysis/sapporo-2.35.34.18929/component-04-type-4-v2.raw` | `36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a` |
+| `arm-none-eabi-objdump` 2.47.20260726 | `7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda` |
+| Capstone 5.0.7 dylib | `016084c6e70d929249a2abb22f1afda95095294e6cd70f509964ffc54006bf94` |
+| `derive.py` (static decode, exact rational sample census) | `856569e93948638b6359817beb7a628ce10e53b04bee5af010bff84969b4978f` |
+| `derive-1.log` = `derive-2.log` | `94b459a575f21abc5f606dbfca24807eba9abb9b7b76fb6d2dfe5b5b685f2a79` |
+| `probe.py` (bounded native before/after runner) | `464c783dbc52e57c9357f6e48f0b97cbac7f37815daa6e2f22532ca498457f81` |
+| `before-sdl` from 78a21ba | `b8e39d6cd8808e728f548451fe00ac938bb9fad09a2ea0e79af68c054cc4790c` |
+| Input watchface `../semu-integration-20261002/main235-1.sems` | `c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b` |
+
+Static re-derivation (twice identical, both decoders agree): the general matrix
+writer ending at 0xc1b5e copies the input matrix's raw words into command-list
+register/value pairs. At c1b18..c1b24 it emits register 160 and input offset 0
+(MM00); c1b2a..c1b36 emits 164 / offset 4; c1b3c..c1b48 emits 16c / offset 12;
+c1b4e..c1b5a emits 170 / offset 16. The affine path c1ac2..c1ad4 first emits
+174 / offset 20 and 168 / offset 8. Thus the observed MM00 word is a matrix
+coefficient, not an opcode or format marker. This independently reconfirms the
+EXT6/EXT7 matrix-writer interpretation; it does not locate the UI caller or
+derive why its floating-point arithmetic produces this rounding.
+
+Native census: `python3 /tmp/semu-widget-scale-20261002/probe.py before`
+validates the three private firmware components, then repeats Widgets, Browse,
+and Control Panel from the pinned watchface. Each run is capped at 12 billion
+instructions, 44 billion ns and 180 s wall time. Complete logs and snapshots
+are byte-identical within each pair and equal the prior regression pins:
+
+| Window (`before-NAME-{1,2}.log`) | Complete log SHA-256 | All draw refusals |
+| --- | --- | ---: |
+| widgets | `02f9da48b10dd3ac4933a0033c34f14046178d8f30da9200ab174956e2e32bf2` | 1 |
+| browse | `ebb677cbd1af5cabd9b22cd54b913fadae698f1df1faf56f9e3e3beb2205d322` | 1 |
+| control | `76dd601d9c6501b0766a8d0f2640a3427edfe7dab12620ea1a3977a7318e5ef3` | 3 |
+
+All three contain exactly the same 60x60 asset refusal at 38122441478 ns,
+ordinal 17, child 100d2800 offset 984: source 100a490c, fmt17/sampling1,
+stride180; target RGB565 240x240 stride480 at 1012b520; draw5,
+drawcolor ff555555, tint ffffffff, code941e8000, matmult0,
+imem (0,004e0002,804b1286); clip (0,0)-(240,81); quad
+(171,24),(231,24),(231,81),(171,81); matrix
+(3f7fffff,0,c32b0000; 0,3f800000,c1c00000). This is the existing compass
+asset/resolve program and an EXT7 height-57 clip cut. Control additionally
+refuses two separate 20x32 stride60 assets at 39438579302/39447038897 ns;
+those remain outside this ruling.
+
+Exact sample derivation: MM00 is 1-2^-24. For x=171..230 and y=24..80,
+floor((1-2^-24)*(x+1/2)-171)=x-171 and floor(y+1/2-24)=y-24.
+All 3420 samples lie in columns 0..59, rows 0..56. The existing integer
+round-to-nearest binary32-to-16.16 conversion yields 65536 for this word,
+so the unchanged sampler produces exactly these same texels. Derived sample
+census SHA-256 `25e3227ae81f0c3d25f339ea9f647690060776cafde13227caa91f7de453fed7`.
+This is exact arithmetic equivalence under the already accepted sampling law,
+not a physical-GPU precision claim.
+
+Admission ruling: add MM00=3f7fffff only with the witnessed quad, clip,
+translations, MM11=3f800000 and drawcolor ff555555. Keep all existing common
+source/target, shader, tint, off-diagonal, memory and block checks. Other scales
+and combinations remain unsupported, even when fixed-point conversion would
+round them to the same value. This authorizes no auxiliary-bit decoding,
+compressed writeback or global tolerance. Ticket 805 explicitly scopes the
+three affected navigation pins only after paired renderer-only attribution;
+other firmware goldens and the six README screenshots remain frozen.
