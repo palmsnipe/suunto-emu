@@ -9630,3 +9630,14 @@ round them to the same value. This authorizes no auxiliary-bit decoding,
 compressed writeback or global tolerance. Ticket 805 explicitly scopes the
 three affected navigation pins only after paired renderer-only attribution;
 other firmware goldens and the six README screenshots remain frozen.
+
+805 attribution scope clarification before pin updates: the existing publication
+contract records frame generation both in renderer section 10 and GPU section
+8 (the register at 0x1f4 and the GPU owner's frame_generation). Inspecting
+`sapporo_nema_gpu_snapshot.c`, `sapporo_nema_gpu.c` and
+`nema_backend_snapshot.c` identifies the only allowed settled-state changes:
+section 8 LE32 offsets 500 and 4101 each +1; section 10 LE64 offset 20 +1 and
+offset 40 +11 (the now-committed child list). All remaining bytes, including
+CPU, bus memory, scheduler, timers, sensors, compatibility state and settled
+renderer pixels, must match. This clarifies the GPU publication side of the
+ticket; it does not authorize unrelated device state or a new snapshot format.

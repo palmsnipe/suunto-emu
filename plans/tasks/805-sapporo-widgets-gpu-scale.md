@@ -45,7 +45,8 @@ are done. Implementation leaves this ticket ready for integrator review.
 ## Frozen Interfaces
 
 Public/internal headers, Makefile, profiles, registries, compatibility budgets,
-snapshot layouts, CPU/time/device state, decoder and sampling/blending laws.
+snapshot layouts, CPU/time and non-publication device state, decoder and
+sampling/blending laws. GPU publication counters follow the accepted submission.
 All existing admissions and unrelated native pins remain unchanged.
 
 ## Evidence Inputs
@@ -54,7 +55,7 @@ E-RE-SAP235-WIDGET-SCALE-001 supplies the twice-reproduced matrix-writer RE,
 native census and exact sample equivalence. E-SAP-0041-EXT6/EXT7 supplies the
 existing translation and clipped-quad laws. E-RE-SAP235-TSC6A-001 supplies the
 zero-auxiliary block decoder. Stop if the exact witnessed tuple cannot be
-reproduced, or if native guest state changes beyond renderer publication.
+reproduced, or if native guest state changes beyond GPU/renderer publication.
 
 ## Implementation
 
@@ -80,7 +81,10 @@ Run `make check-era`; report missing verified 2.39 flash and possible pin drift.
 Check every panel pixel against an independent synthetic colored pattern;
 nearby scales, altered witnessed fields and unknown visible blocks refuse
 without writes. Before/after guest stop, time, instructions and all snapshot
-sections except renderer are identical. Only the three affected navigation
+sections except GPU/renderer are identical. GPU section 8 may change only
+frame generation at offsets 500 and 4101 (+1 each); renderer section 10 may
+change only generation at offset 20 (+1) and draw count at offset 40 (+11).
+All other bytes remain equal. Only the three affected navigation
 log/image pins may change, after paired attribution; retain exact full hashes.
 Settled frame pixels must remain identical. Widgets/Browse have zero refusals;
 the two distinct Control Panel 20x32 refusals remain explicit.
