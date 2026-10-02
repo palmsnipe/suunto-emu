@@ -8386,3 +8386,52 @@ them. Deriving the law is a 788-shaped offline-RE instance (US
 and adaptive alpha but not the product's aux-bit layout). Do not
 decode them.
 
+
+### E-EMU-SAP222-SNAPSHOT-AUDIT-001 — current menu snapshot differs from the restore gate
+
+2026-10-02; read-only maintenance review at source `05801b4`. This entry
+records a regression-gate discrepancy, not an authorization to re-pin it or
+change the emulator. The in-tree headless binary SHA-256 is
+`95485a5f168ff48563a19c2b632dbdc94f52d5244699c25b1cd3f29386dabc68`;
+SDL binary SHA-256 is
+`a7d47d9a5d44491b4f585bd13504d4f67725e418df73917324aef450a838651e`.
+Inputs: `tests/private/sapporo-2.22.60/firmware.semu`, all three components
+validated against the built-in profile (E-SAP-0005..0007), opt-in
+`sapporo-2.22-no-device` layer. No firmware source was modified.
+
+Two cold SDL dummy walks use `SEMU_SDL_LIVE_TEST=setup-walk`, POST
+`mlllmlllmmlmmmmm`, TIMELINE `30000:l`, `--until setup-next`, 18B instruction
+and 60-second virtual-time caps, and independent snapshot-save paths. The
+first also uses the observer-only `SEMU_SDL_PPM_DIR`; the second does not.
+Volatile logs `/tmp/semu-readme-review-20261002/222.log` and
+`222-repeat.log` are byte-identical, SHA-256
+`2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8`,
+exactly the existing onboarding transcript pin. Both end
+`stop=user pc=0x0800009e instructions=8491624576
+virtual_time_ns=38819797929`; settled step 31 is generation 4510,
+CRC32 `040ebb03` (Logbook selected). Snapshots `222-main.sems` and
+`222-main-repeat.sems` also compare byte-identically, SHA-256
+`1944a15a3fc3647ada151db18535cad8c83854a403ade806f60edc924fbac45a`.
+
+`SEMU_SDL_TEST_SNAPSHOT=<each snapshot> sh tools/test_sdl_snapshot_restore.sh`
+fails twice, exit 1, at its initial image SHA check, which expects
+`87a8dca8925aeb4f4eb9adbefb3240d5be77eb04ffc7274d9093f3076dd02dbf`.
+Raw logs `222-restore-gate.log` and `222-restore-gate-repeat.log` are identical,
+SHA-256 `d6965c0b91fbbe6a4a83573f65302163f3bf5f199ffd6a1d0e6275b3815faf7c`.
+That failure occurs before the script's input/continuation tests.
+
+Independent idle restore of the new snapshot immediately presents generation
+4510 / CRC `040ebb03`, then retains the existing 60-second checkpoint:
+`stop=budget pc=0x000d4a8c instructions=8798037004
+virtual_time_ns=60043686593`, exit 3, no reset or refusal. Log
+`222-idle.log` SHA-256
+`91cc708109a2e0405d385fc894674832c58c5457a2845d36c97571d9bd4ab1bf`
+is exactly the existing idle pin. This single idle check is supporting
+execution evidence, not a substitute for the failed paired restore gate.
+
+Conclusion: the current cold menu image is deterministic but differs from
+its historical golden while the cold and idle transcripts retain their
+pins. The changed serialized fields and causal commit are not attributed
+in this review. A control-build attribution and integrator-owned roadmap
+re-derivation are required before changing either snapshot expectation.
+All existing tests and pins are preserved. No new hardware law is inferred.

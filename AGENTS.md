@@ -9,7 +9,10 @@ evidence, firmware-safety, or fail-closed requirements.
 Build a standalone deterministic C99 emulator for Apollo4-era Suunto watches.
 The authoritative runtime is the in-tree interpreter. SDL3 is optional and is
 the only permitted installed runtime dependency. Firmware and proprietary
-frame pixels never enter Git.
+frame pixels never enter Git, except for the six README UI screenshots in
+`docs/screenshots/` explicitly authorized by the project owner on 2026-10-02.
+That exception covers only the documented gallery captures, not firmware,
+resource extracts, raw frame dumps, logs, or machine snapshots.
 
 ## Required Reading
 

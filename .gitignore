@@ -11,5 +11,5 @@ firmware.local.semu
 *.sems
 *.sems.provenance
 
-# Authentic-firmware frame captures are proprietary pixels and stay out of Git.
+# Raw frame captures stay private; only the owner-approved README PNGs are public.
 .screenshots/

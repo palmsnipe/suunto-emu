@@ -10,6 +10,11 @@
 
 Only evidence recorded in `docs/migration-evidence.md` may advance a component beyond unknown. “Implemented” is not a status; use the testable definitions above.
 
+For the 2026-10-02 firmware-by-firmware review, fresh test results, and the
+open 2.22 snapshot-golden discrepancy, see
+[current status](current-status.md#sapporo-review--2026-10-02). Verification
+below applies only to the named bounded windows, not complete watch behavior.
+
 ## Current Matrix
 
 | Product / component | Planned evidence | Current status | Verification gate |
@@ -20,16 +25,18 @@ Only evidence recorded in `docs/migration-evidence.md` may advance a component b
 | Apollo4 UART/IOM/MSPI/DMA/MRAM | E-A4-UART/IOM/MSPI/DMA/MRAM-001 and E-SAP-0008 | verified | controller transcripts, atomic bounds/refusals, GPS, flash, and renderer traffic reach repeatable checkpoints |
 | Sapporo external flash | E-SAP-FLASH-001 native MSPI2 boundary plus model | verified | ID/status/read, write-enable, page-program, sector-erase, overlay, refusal, and authentic resource traffic pass |
 | Sapporo pressure sensor | observed bus transcript | functional | Identity and wrong-address refusal tests pass |
-| Sapporo OHR2 | observed transport; optional fixture | fixture-backed | CRC-framed identity and unknown-command refusal tests pass; native startup remains |
+| Sapporo OHR2 | E-SAP-0041 and EXT3; version-pinned transport fixtures | fixture-backed | Native startup and bounded 2.35 MAIN polling pass; upper-button navigation still reaches an OHR fixture refusal; real heart-rate sensing and arbitrary exchanges remain unsupported |
 | Sapporo LSM6DSL | observed bus transcript | functional | WHO_AM_I and framing tests pass; IRQ/FIFO expansion remains |
 | Sapporo wrist magnetometer | E-SAP-TLI493D-001 | functional | identity, configuration, reset, boundary, and refusal tests pass |
 | Sapporo haptic PMIC | E-SAP-HAPTIC-001 | functional | command/state, reset, repeatability, snapshot, and refusal tests pass |
 | Sapporo ambient light | E-SAP-OPT3007-001 | functional | sample/configuration, reset, boundary, and refusal tests pass |
 | Sapporo fuel gauge | E-SAP-MAX17050-001 | functional | startup/status, byte-order, reset, and refusal tests pass |
 | Sapporo GPS UART | E-SAP-CXD5610-001 and E-SAP-COMPAT-GPS-001/004 | fixture-backed | bounded startup exchange reaches the authentic GPS checkpoint; unsupported exchanges refuse |
-| Sapporo Nema/renderer 240x240 | E-NEMA-*-001, E-NEMA-TSC6A-001, and E-SAP-0002..0004 | verified | three declared private renderer goldens and the observed TSC6A transition forms pass; physical panel remains unresolved |
-| Sapporo buttons/backlight | E-SAP-BUTTONS/BACKLIGHT-001, E-SAP-LIVE-0001, and E-SAP-ONBOARD-EMU-006 | functional | semantic three-button input reaches the bounded `Continue the setup on your phone` handoff; phone pairing, watch-face assets, and physical-panel completion remain unsupported |
-| Sapporo 2.33/2.35/2.39 component contracts | SOF extraction manifests and bounded reset/OHR diagnostics (E-SAP-0009/0010/0011/0012/0015/0016/0018..0029) | traced | exact component hashes and vector tables verified; 2.33 has repeatable bounded reset diagnostics; 2.39.20 has a built-in profile (`profiles/sapporo/2.39.20/`) and the E-SAP-0018..0029 bounded trace chain; 2.35.34 has a contract and private bundle but still needs its profile instance and traces |
+| Sapporo Nema/renderer 240x240 | E-NEMA-*-001, E-RE-SAP235-TSC6A-001, E-SAP-0041-EXT7, E-EMU-SAP235-TICKTRAIL-002 | verified (bounded frames) | Native setup/menu/watchface frames and observed compressed-icon/scroll families render; the 2.35 seconds-hand trail is fixed. Auxiliary-bit blocks and multi-resolve writeback remain incomplete; physical-panel equivalence is unverified |
+| Sapporo buttons/backlight | E-SAP-BUTTONS/BACKLIGHT-001, E-SAP-LIVE-0001, E-EMU-SAPPORO-BRANCH-GATES-001, E-SAP-0041-EXT3 | functional | Three-button delivery drives 2.22 onboarding and menu selection; 2.35 upper navigation is observed, lower repainting stalls, and middle is inert in the main-screen window. This does not establish complete menu or phone-pairing support |
+| Sapporo 2.33.16 | Exact profile and E-EMU-SAP233-GAUGE-FIXTURE-001 | verified (early boot) | The former gauge-driven first fault is absent in the paired bounded boot record; no full UI acceptance |
+| Sapporo 2.35.34 | Exact profile, E-SAP-0041-EXT3/EXT7, E-EMU-SAP235-GPSRESTORE-001, E-EMU-SAP235-TICKTRAIL-002 | verified (bounded UI) | Setup through Done, ticking watchface, and paired interactive restore pass with five explicit compatibility layers; navigation and long-session limits remain |
+| Sapporo 2.39.20 | Exact profile, E-SAP239-DEEPCLEAN-001, E-SAP239-REPINSWEEP-002, E-EMU-SAP235-TICKTRAIL-002 | verified (bounded gates) | Recorded 43-script era census is green, including expected refusals; full-flash fixture required to reproduce it. Complete setup/watchface/menu release and ongoing GPS remain open |
 | Ulsan platform | E-ULS-0001..0006 (SOF extraction manifests, vector tables, two-version cross comparison, bounded reference-lane boundary runs, reset wiring contract) | traced | Exact component/hash/load/vector contracts verified byte-for-byte and strictly parsed; bounded reset boundary reproduced byte-identically on the read-only reference lane; NemaDC IDREG `0x87452365` and 466x466 frame contract cited; in-tree reset profile `ulsan-2.35.36` registered with isolated Apollo4 Plus memory map and a reproduced private bounded run (ticket 725); modeled display/SDIO/crown/touch behavior and device goldens remain absent (tickets 730/740) |
 | Wismar platform | future exact profiles/traces | unknown | stable reset, then native display |
 | Tianjin/Rostock/Xiamen | future firmware and traces | unknown | product-specific gate not yet opened |

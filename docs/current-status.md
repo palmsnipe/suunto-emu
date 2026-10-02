@@ -6,8 +6,133 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Sapporo review — 2026-10-02
+
+Maintenance scope: reconcile the README with the current evidence, reproduce
+native UI captures, and audit the firmware boundaries. Source revision
+`05801b4`; no CPU, device, renderer, profile, fixture budget, or regression
+golden changed. The six README PNGs have an explicit owner-authorized Git
+exception recorded in `AGENTS.md`; raw captures and snapshots remain external.
+
+**Sapporo is usable for selected firmware UI paths, not fully emulated.**
+The four private OTA manifests validate all three components. Their coverage
+must be assessed separately:
+
+| Version | Current result | What is still missing |
+| --- | --- | --- |
+| 2.22.60 | Fresh cold onboarding/menu walk and 60-second idle continuation retain their complete transcript pins. The menu restores visibly. | The snapshot-restore gate fails its historical image hash before exercising its continuation. Broader watch functions and unbounded sessions remain unverified. |
+| 2.33.16 | Two early-boot runs match E-EMU-SAP233-GAUGE-FIXTURE-001 exactly, with no reset/refusal. | A boot-window pass is not setup, watchface, menu, or long-session acceptance. |
+| 2.35.34 | Fresh setup walk reaches the watchface at its scripted quit; the paired restore gate passes. Seconds-hand frames use the corrected per-resolve lifecycle. | The navigation contract still records middle inert, lower repaint stall, and upper navigation followed by an OHR fixture refusal. GPS and OHR support remain finite fixtures. |
+| 2.39.20 | Exact profile validation passes. E-SAP239-REPINSWEEP-002 records 43/43 era gates; E-EMU-SAP235-TICKTRAIL-002 records the later snapshot re-pin and green census. | This review cannot repeat the era suite without the verified full-flash input. Bounded GPS/refusal gates do not establish full onboarding, watchface, menus, or a later-version release. |
+
+The [README gallery](../README.md#screenshots) shows five 2.35 phases and a
+2.22 menu. Every PNG is an unretouched conversion of a settled SDL frame;
+[capture provenance](screenshots/provenance.json) pins each source pixel CRC
+and full image/log hashes. Phone instructions are not phone connectivity;
+displayed clock and sensor values are not live measurements.
+
+### Fresh verification
+
+Commands run from the repository root; raw logs and snapshots are in the
+volatile `/tmp/semu-readme-review-20261002/` workspace. The full capture
+commands are in [screenshots/README.md](screenshots/README.md#reproduce).
+
+- `make -j4 all sdl` — pass.
+- `make check` — pass, 1,020 PASS records including the five quick SDL cases;
+  162 ticket contracts validate. Its firmware walks intentionally skip.
+- `build/suunto-emu validate --profile <id> --firmware <manifest>` — pass for
+  all four matching manifests under `tests/private/` (2.22.60, 2.33.16,
+  2.35.34.18929, and 2.39.20.22297).
+- The 2.22 cold capture command, repeated with a fresh snapshot — logs and
+  snapshots match byte-for-byte. Log SHA-256
+  `2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8`;
+  terminal `user / 0800009e / 8491624576 / 38819797929 ns`; menu generation
+  4510 / CRC `040ebb03`.
+- `SDL_VIDEODRIVER=dummy build/suunto-emu-sdl run --profile sapporo-2.22.60
+  --firmware tests/private/sapporo-2.22.60/firmware.semu --layer
+  sapporo-2.22-no-device --snapshot-load
+  /tmp/semu-readme-review-20261002/222-main.sems --max-instructions
+  18000000000 --max-time 60000000000` — expected budget exit 3; idle log
+  SHA-256 `91cc708109a2e0405d385fc894674832c58c5457a2845d36c97571d9bd4ab1bf`,
+  unchanged. Held menu presents immediately; no reset/refusal.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-readme-review-20261002/222-main.sems
+  sh tools/test_sdl_snapshot_restore.sh` — **FAIL**, exit 1, reproduced on the
+  second cold snapshot. New image SHA-256
+  `1944a15a3fc3647ada151db18535cad8c83854a403ade806f60edc924fbac45a`
+  differs from the gate's `87a8dca8…` pin. See
+  E-EMU-SAP222-SNAPSHOT-AUDIT-001. No pin was changed.
+- `build/suunto-emu run --profile sapporo-2.33.16 --firmware
+  tests/private/sapporo-2.33.16/firmware.semu --max-instructions 200000000
+  --max-time 200000000` — expected budget exit 3 twice; log SHA-256
+  `5d7c9daf29adff26ac7430542ecafe41f55fb95227a04f761003488dc71b0c0c`;
+  terminal `budget / 000dbc0a / 48412217 / 339421286 ns`. The scheduler's
+  final time jump is reflected in this existing checkpoint.
+- The 2.35 cold capture command — pass, log SHA-256
+  `14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae`;
+  terminal `user / 0800009e / 9487528672 / 37414100700 ns`; watchface
+  generation 4770 / CRC `500b350f`; snapshot SHA-256
+  `5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d`.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235` — pass, all nine selected runners (ten PASS
+  messages). The optional private `decode-1.bin` compressed-pixel reference
+  is absent and its comparison skips; the synthetic expansion cases,
+  hash-pinned source asset, and paired native main-entry gate still run.
+- `sh tools/test_sdl_sapporo_235_nav.sh` — pass; all three windows run
+  twice with byte-identical transcripts and unchanged pins. This reproduces
+  the middle-inert, lower-stall, and upper-navigation/OHR-refusal limits;
+  it does not resolve them.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-readme-review-20261002/235-main.sems
+  sh tools/test_sdl_sapporo_235_restore.sh` — pass, paired continuation to
+  `budget / 000e1862 / 9578131227 / 42000000000 ns`.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.39.20
+  TEST_FILTER=sapporo_239_profile` — pass, one selected runner.
+- `make check-era` — **SKIP**, verified `SEMU_SAPPORO_239_FULL_FLASH` absent;
+  this is not a new passing 43-script census.
+- `python3 tools/export_readme_screenshots.py
+  /tmp/semu-readme-review-20261002` — six images exported; a second export
+  matches byte-for-byte. PNG decoding reproduces the original RGB bytes.
+  Truncated/wrong-size/changed-pixel inputs and an incorrect transcript
+  refuse; the bad-transcript invocation creates no output directory.
+
+### Work needed for complete firmware support
+
+1. Attribute the 2.22 snapshot-byte drift with a control build, then have the
+   integrator assign/review the required snapshot-golden re-derivation. Do
+   not silently re-pin a failing restore gate. Ticket 792 also remains
+   `ready` in the index despite the implemented 2.35 codec/restore records;
+   its acceptance/status reconciliation belongs to the integrator.
+2. Resolve 2.35's lower-button repaint stall and upper-button OHR boundary
+   through ticket-710 evidence instances, then validate all three buttons
+   across menus and a longer restored session. Ticket 794's observation-only
+   navigation goldens preserve these limits; its `done` status does not mean
+   complete navigation fidelity.
+3. Extend GPS/OHR and sensor coverage from observed laws. No fabricated GPS
+   fix, unlimited heartbeat, assertion bypass, or phone connection is
+   justified. The project has no physical device; lane observation and the
+   authorized hash-pinned offline-RE evidence class govern progress. Ticket
+   776 remains deferred under that constraint.
+4. Derive the remaining TSC6A auxiliary-bit population and surface writeback
+   semantics before claiming general renderer fidelity. E-EMU-SAP235-
+   TICKTRAIL-002 leaves 5,441 undecodable resting blocks outside the pinned
+   resolve regions and an unmodeled `[resolve, strokes, resolve]` edge.
+   Physical-panel equivalence is also unverified.
+5. Take 2.33 beyond early boot and validate the full 2.39 user journey with
+   its private fixture; complete the later-version release gates 715/718.
+   Passing a collection of bounded or refusal tests is insufficient.
+
+Primary references: E-EMU-SAPPORO-BRANCH-GATES-001,
+E-EMU-RENDERER-SNAPSHOT-001, E-EMU-SAP233-GAUGE-FIXTURE-001,
+E-SAP-0041-EXT3/EXT7, E-EMU-SAP235-GPSRESTORE-001,
+E-EMU-SAP235-TICKTRAIL-002, and E-SAP239-REPINSWEEP-002.
+Sanitizers were not repeated for this documentation/export-tool change.
+No roadmap status, public interface, profile, or runtime behavior changed.
+
 ## Implemented Baseline
 
+The dated entries below are cumulative implementation history. Later entries
+and the review above supersede older frontier and test-count statements.
 
 ### Sapporo 2.35 main entry renders the compressed crosshair — ticket 793, 2026-09-23
 
@@ -934,8 +1059,9 @@ remains ready for review. Public include headers and firmware files are unchange
   retain transport/counter/log state (E-EMU-COMPAT-ATOMIC-001). Valid 2.22
   snapshots and 2.39 logo/halt checkpoints remain byte-identical.
 
-All normal tests use synthetic inputs. The checked-in repository contains no
-firmware bytes or frame pixels.
+All normal tests use synthetic inputs. The repository contains no firmware
+bytes; the six README screenshots are the owner-approved pixel exception
+documented above.
 
 ## Authentic-Firmware Boundary
 
