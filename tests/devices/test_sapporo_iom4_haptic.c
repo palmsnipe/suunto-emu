@@ -154,9 +154,35 @@ static void test_haptic_endpoint_switch_refuses(semu_test_context *c)
     destroy(&f);
 }
 
+static void test_haptic_exercise(semu_test_context *c)
+{
+    uint8_t bytes[] = {0x0bu, 2u};
+    fixture f;
+    unsigned i;
+    SEMU_TEST_ASSERT(c, setup(&f));
+    transfer(c, &f, 0x01000112u, NULL);
+    SEMU_TEST_EQ_U64(c, 0u, read_ram(c, &f) & 255u);
+    transfer(c, &f, 0x201u, bytes);
+    SEMU_TEST_EQ_U64(c, 2u, f.iom->haptic_registers[0x0bu]);
+    for (i = 0; i < 3; ++i) {
+        semu_sapporo_iom4 before;
+        uint32_t command = i == 2 ? 0x02000112u : 0x201u;
+        uint32_t memory;
+        bytes[1] = i == 0 ? 1u : 3u;
+        prepare(c, &f, command, i == 2 ? NULL : bytes);
+        before = *f.iom; memory = read_ram(c, &f);
+        SEMU_TEST_EQ_U64(c, SEMU_ERR_UNSUPPORTED,
+            semu_sapporo_iom4_write(f.iom, R_COMMAND, 4u, command, &f.error));
+        SEMU_TEST_ASSERT(c, memcmp(&before, f.iom, sizeof(before)) == 0);
+        SEMU_TEST_EQ_U64(c, memory, read_ram(c, &f));
+    }
+    destroy(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_haptic_exercise),
         SEMU_TEST_CASE(test_haptic_autotune_reset),
         SEMU_TEST_CASE(test_haptic_wave_chunking),
         SEMU_TEST_CASE(test_haptic_atomic_refusals),

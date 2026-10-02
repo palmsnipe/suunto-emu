@@ -6,6 +6,41 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Exercise entry and persistent timer state — 2026-10-02
+
+Ticket 803 implementation reaches the first-exercise GPS tutorial in production
+at 44 s: PC 000e1862, 10282056430 instructions, generation 5058, CRC32 48a2bfcd.
+Paired logs/images match with zero resets or draw refusals. Saving during an
+active Timer8 pulse and restoring twice produces the exact uninterrupted full
+machine image. Cold UPPER also completes naturally without a reset; its old
+prefix and the complete baseline/LOWER logs are unchanged.
+
+E-EMU-SAP235-TIMER8-003 supplies 45 paired exact counter observations, including
+compare-boundary fraction loss, retained fractional phase on enable changes
+and UINT32_MAX wrap/stall. E-EMU-SAP235-EXERCISE-001/002/003 supplies the narrow
+OHR a3 request, haptic transactions, pattern words and retained routing latch.
+The OHR prefix/polls and 30-hit budget are unchanged. No physical PWM output,
+recording session, real OHR measurements or GPS fix is claimed.
+
+Apollo4 section codec 1 stores routing and counter phase. Recreate old
+snapshots: missing historical routing state cannot be migrated losslessly.
+Ten paired snapshot re-derivations change only section 5 (+17 bytes); other
+sections and six restored-navigation logs are unchanged. Machine version 2
+and renderer codec 2 remain. Public APIs, profiles and registries are unchanged.
+
+Changed scope: OHR/haptic/timer implementations, internal timer state and SoC
+codec, focused tests, snapshot/navigation/exercise runners, execution contract,
+README and evidence ledger. Full hashes, source/probe paths and commands are
+recorded in E-EMU-SAP235-EXERCISE-003. General checks, sanitizers, full 2.22 SDL
+walks, nine 2.35 firmware gates and both restore gates pass. The optional
+compressed pixel reference is absent. The verified 2.39 flash is also absent;
+ticket 800's era snapshot pins still need re-derivation. Ticket 803 stays ready
+for integrator review, not marked done by its implementation.
+
+GPU support remains partial: unknown compressed auxiliary bits and writeback
+are unsupported; the restored Widgets family retains a known MM00=3f7fffff
+refusal. Earlier status entries below are historical baselines.
+
 ## Exercise-entry continuation and snapshot blocker — 2026-10-02
 
 Evidence/planning maintenance on `fe6fa76`; production behavior is unchanged.

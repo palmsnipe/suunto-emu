@@ -2,6 +2,8 @@
 # Ticket 801 / E-EMU-SAP235-NAVIGATION-002: isolated, timestamped clicks.
 # These are emulator regression observations, not physical-device equivalence.
 set -eu
+# Ticket 803 / E-EMU-SAP235-EXERCISE-003: Apollo4 codec 1 snapshot pins.
+# Paired attribution changes only section 5 (+17 bytes); old logs are unchanged.
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
 if [ ! -f "$manifest" ]; then
@@ -44,22 +46,22 @@ def run(args, log, expected, child_env=env):
 cases = [
     ('exercise', [(38, 'upper')], 44, 9809899994,
      '9d6a6202c88727b0c287ddb8cff12b4f8dae095d67c6dec7e3eb056aab9ff855',
-     'a69f4b5d4680823619d12427ca0cfd48c043257434d95e0f3eeb007713b64002'),
+     '19f7f8352bcd9fbf867b28b31cbd876a3b233fd05093b9f37caaa945da7842f8'),
     ('widgets', [(38, 'lower')], 44, 9801773346,
      '02f9da48b10dd3ac4933a0033c34f14046178d8f30da9200ab174956e2e32bf2',
-     '86bfa8520ee691d6287aa2ce48e84889fa258d13653b858859db92771861fed2'),
+     '2705ae017fa6bf9dcaeddfb3022cf2a82095dbdfc7f67955fe5569e0411f70b6'),
     ('pin', [(38, 'middle')], 44, 9903048381,
      '79eba44837a8ebeff51d3e9ba8837a03020d574938b63610ff17a909cdabdae5',
-     '326172d81898ab69c534302408bfc4d70d3620e7e22317fbc59c0cb388abed95'),
+     '99def5985da8ff820d994cee52d88ae18111f4138a8fa42345021dd10a92dd43'),
     ('browse', [(38, 'lower'), (39, 'lower'), (40, 'upper')], 44, 10210850502,
      'ebb677cbd1af5cabd9b22cd54b913fadae698f1df1faf56f9e3e3beb2205d322',
-     '94a3d55d6cb980cb188b39209f7d7e586087084e1d6472f044e32561c338f310'),
+     '46372565ffe4bc2d497fd742583b5d449912da8b24bf9148751a9c4029a093c3'),
     ('control', [(38, 'lower'), (39, 'middle')], 44, 10123133602,
      '76dd601d9c6501b0766a8d0f2640a3427edfe7dab12620ea1a3977a7318e5ef3',
-     'c65ae7ecbb620c4992f328228fd727b3a50c2f17bc7ea3f61336676c538d6a07'),
+     '49a527115ffd6b0cbc6082b64385fe473d0dc0c0249df4faab93fa713da06e1d'),
     ('return', [(38, 'middle'), (44, 'middle')], 46, 10249573536,
      '9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a',
-     '097614f3f1c6d71127abcd9bd7f71a4525b18e0932bc6d8cca4fe97c3932dc25'),
+     '3de4d7112f4c4c282547332b315e06afa7f20071a2bf673df9b2eae968e7c85f'),
  ]
 with tempfile.TemporaryDirectory(prefix='semu-sap235-nav-') as directory:
     work = pathlib.Path(directory)
@@ -72,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='semu-sap235-nav-') as directory:
             work / 'cold.log', 0, cold_env)
         if sha(work / 'cold.log') != '14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae':
             raise SystemExit('cold navigation prefix drifted')
-    if sha(snapshot) != 'e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971':
+    if sha(snapshot) != 'c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b':
         raise SystemExit('unexpected watchface snapshot; recreate with the current emulator')
     for name, clicks, end, instructions, log_sha, image_sha in cases:
         replay = work / (name + '.replay')

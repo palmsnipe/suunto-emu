@@ -1,5 +1,7 @@
 #!/bin/sh
 set -eu
+# Ticket 803 / E-EMU-SAP235-EXERCISE-003: Apollo4 codec 1 snapshot pins.
+# Paired attribution changes only section 5 (+17 bytes); old logs are unchanged.
 # Ticket 792 continuation: Sapporo 2.35 interactive snapshot restore.
 # A five-layer setup-walk session saved at its natural quit (settled
 # main screen, stop=user) restores in SDL: the held frame presents
@@ -55,7 +57,7 @@ if [ -z "${SEMU_SDL_TEST_SNAPSHOT:-}" ]; then
         14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae ]
 fi
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971 ]
+    c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b ]
 for pass in 1 2; do
     set +e
     "$emulator" run --profile sapporo-2.35.34 --firmware "$manifest" \

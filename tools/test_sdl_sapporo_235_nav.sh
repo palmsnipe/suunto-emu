@@ -27,8 +27,8 @@
 # The frame-gated script then waits and supplies no further input. A later
 # Middle press returns to the watchface in the independent restored test.
 # UPPER reaches the Exercise menu (9b554fd9), then subsequent input reaches
-# an OHR fixture refusal. Opening the menu alone does not hit that boundary.
-# Exact historical stop/log/frame assertions remain unchanged below.
+# the exercise-entry sequence. Ticket 803 extends the former OHR refusal.
+# Baseline, LOWER and the old UPPER prefix/frame assertions remain unchanged.
 # Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
 # (E-EMU-SAP235-TICKTRAIL-001): the seconds-sweep frames re-derive clean;
 # the guest stop lines, generations and refusal guards are unchanged.
@@ -80,7 +80,7 @@ run_window() {
 for pass in 1 2; do
     run_window "$pass" baseline 'mmlllmlllmmmmmmmmmmmmmmmmmmmmmm' 0
     run_window "$pass" lower   'mmlllmlllmmmmmlmlmmu' 3
-    run_window "$pass" upper   'mmlllmlllmmmmmmummmmm' 3
+    run_window "$pass" upper   'mmlllmlllmmmmmmummmmm' 0
 done
 for window in baseline lower upper; do
     cmp "$run_dir/$window-1.log" "$run_dir/$window-2.log"
@@ -90,7 +90,7 @@ done
 [ "$(shasum -a 256 "$run_dir/lower-1.log" | awk '{print $1}')" = \
     61cbd3e887d533dc8c657fd75066aec2aaaee34b05b3f0a8e117afebc447578c ]
 [ "$(shasum -a 256 "$run_dir/upper-1.log" | awk '{print $1}')" = \
-    879630294064869a75e611c703291163d8b0ac58c31aa5528b6b6ab5eb8368ef ]
+    8176cd579aa3718d6597647f1d31d6942affd76d1b9ab734f2ffa95ac97bb906 ]
 
 # Repeated-Middle baseline: the recorded screen pattern carries the walk to its
 # natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster +
@@ -120,25 +120,27 @@ grep -Fqx 'stop=budget pc=0x000e1862 instructions=8000564488 virtual_time_ns=400
     "$run_dir/lower-1.log"
 
 # UPPER window: pair holds through step 27, the off-pair navigation frame
-# settles at step 28, then the E-SAP-0041 fixture ceiling terminates the run.
+# settles at step 28, then exercise selection completes the scripted window.
+# Ticket 803 / E-EMU-SAP235-EXERCISE-003 attributes the old refusal suffix;
+# every old prefix line, baseline and LOWER log remains unchanged.
 grep -Fqx 'SDL live test settled step=27 generation=4258 crc32=0b78f6cf' \
     "$run_dir/upper-1.log"
 grep -Fqx 'SDL live test settled step=28 generation=4349 crc32=9b554fd9' \
     "$run_dir/upper-1.log"
-grep -Fqx 'stop=compat-refused pc=0x001be85a instructions=8896815435 virtual_time_ns=35626577524 detail=Sapporo 2.35 OHR fixture disabled, exhausted or unexpected request' \
+grep -Fqx 'stop=user pc=0x000cd0ca instructions=8965104096 virtual_time_ns=36965203686' \
     "$run_dir/upper-1.log"
 
 # Hard constraints over every window: zero machine resets and the OHR tail
-# cap of 16 poll hits (observed here: 5, 7, 3 — unchanged post-788).
+# cap of 16 shared poll/exercise hits. No compatibility budget was increased.
 for window in baseline lower upper; do
     if grep -q 'machine-reset-request' "$run_dir/$window-1.log"; then
         echo "error: window $window requested a machine reset" >&2
         exit 1
     fi
-    hits=$(grep -c 'effect=trigger=ohr-poll' "$run_dir/$window-1.log" || true)
+    hits=$(grep -Ec 'effect=trigger=ohr-(poll|exercise)' "$run_dir/$window-1.log" || true)
     [ "$hits" -le 16 ] || {
         echo "error: window $window used $hits OHR tail polls (cap 16)" >&2
         exit 1
     }
 done
-echo 'PASS Sapporo 2.35 SDL: main-screen button navigation goldens (repeated-middle, static pin prompt, exercise+fixture-boundary)'
+echo 'PASS Sapporo 2.35 SDL: main-screen button navigation goldens (repeated-middle, static pin prompt, exercise-entry)'

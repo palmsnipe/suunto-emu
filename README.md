@@ -17,8 +17,8 @@ end at an unsupported operation or an exhausted compatibility fixture.
 | --- | --- | --- |
 | **2.22.60** | Standalone onboarding via manual time entry; native menu and selection changes; paired snapshot restoration; active through 60 virtual seconds. | Broader watch functions and unbounded sessions remain unverified. |
 | **2.33.16** | Passes the former first boot fault, with no reset or refusal in the bounded early-boot check. | Setup, watchface, menu, and long-session acceptance remain unverified. |
-| **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed; resolves reject unsupported compressed samples instead of publishing stale cached pixels. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting a sport reaches an OHR fixture boundary. Finite GPS/OHR support still limits sessions. |
-| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Renderer codec 2 requires snapshot-pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
+| **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed; resolves reject unsupported compressed samples instead of publishing stale cached pixels. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting Running reaches the first-exercise GPS tutorial with deterministic save/restore. Finite GPS/OHR support still limits sessions. |
+| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Snapshot codec updates require pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
 
 The [current review](docs/current-status.md#sapporo-review--2026-10-02)
 separates fresh checks from historical results and lists the next fidelity work.
@@ -89,8 +89,9 @@ buttons. Clicking the top, middle, or bottom third of the window does the
 same. From the restored 2.35 watchface, Down opens Widgets, Up opens Exercise,
 and Enter opens the widget-pinning prompt. Down then Enter opens Control Panel.
 After the pinning prompt settles, Enter returns to the watchface (verified with
-six seconds between presses). Selecting a sport still reaches an OHR refusal;
-these bounded paths do not establish complete watch usability.
+six seconds between presses). Up then Enter selects Running and reaches the
+first-exercise GPS tutorial. The bounded run survives a snapshot taken during
+an active timer pulse; it does not establish recording, real OHR data or a GPS fix.
 
 To navigate setup instead of restoring the watchface:
 
@@ -155,9 +156,9 @@ larger fixture budget.
 
 Snapshots are identity-pinned to the profile, firmware components, and enabled
 layer set. Use the same inputs on save and load. Machine snapshot version 2
-with renderer codec 2 preserves the displayed frame, unresolved GPU strokes,
-and compressed-surface cache. **Recreate snapshots made before renderer codec 2**:
-they omit state needed for faithful continuation and are explicitly rejected.
+with renderer codec 2 and Apollo4 codec 1 preserves the displayed frame, GPU
+strokes/cache, timer routing and fractional counter state. **Recreate older
+snapshots**: they omit state needed for faithful continuation and are rejected.
 The outer machine version remains 2; machine version 1 also refuses. Mid-command
 or otherwise uncovered device state still refuses. Firmware and immutable
 resource files remain external.
@@ -183,6 +184,8 @@ SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu \
   sh tools/test_sdl_sapporo_235_restore.sh
 SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu \
   sh tools/test_sdl_sapporo_235_navigation_restore.sh
+SEMU_FIRMWARE_MANIFEST=/path/to/2.35/firmware.semu \
+  sh tools/test_sdl_sapporo_235_exercise.sh
 
 # Full 2.39 era suite requires its separately verified private flash fixture.
 SEMU_FIRMWARE_MANIFEST=/path/to/2.39/firmware.semu \

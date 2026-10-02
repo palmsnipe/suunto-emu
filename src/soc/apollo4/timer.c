@@ -73,6 +73,11 @@ static uint32_t counter_value(const timer_channel *channel, uint64_t now)
     if ((channel->control & TIMER_ENABLE) == 0u) {
         return channel->base_value;
     }
+    if (channel == &channel->owner->channels[8] && channel->control == 0x141u) {
+        timer_channel copy = *channel;
+        semu_apollo4_timer8_sync(&copy, now);
+        return copy.base_value;
+    }
     elapsed = now - channel->epoch;
     rate = clock_hz(channel->control);
     ticks = (elapsed / TIMER_NANOSECONDS_PER_SECOND) * rate;
@@ -149,6 +154,7 @@ void semu_apollo4_timer_event(void *context, uint64_t now)
     channel->event_valid = 0u;
     channel->event = 0u;
     if ((channel->control & TIMER_ENABLE) == 0u || pwm_control(index, channel->control) ||
+        (index == 8u && channel->control == 0x141u) ||
         (((channel->control >> TIMER_FUNCTION_SHIFT) & TIMER_FUNCTION_MASK) !=
              TIMER_FUNCTION_UPCOUNT &&
          (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u) ||
@@ -179,6 +185,7 @@ static semu_status reschedule(timer_channel *channel, semu_error *error)
     uint64_t delay;
     cancel_channel(channel);
     if ((channel->control & TIMER_ENABLE) == 0u || pwm_control((unsigned)(channel - timer->channels), channel->control) ||
+        (channel == &timer->channels[8] && channel->control == 0x141u) ||
         (((channel->control >> TIMER_FUNCTION_SHIFT) & TIMER_FUNCTION_MASK) !=
              TIMER_FUNCTION_UPCOUNT &&
          (channel->interrupt_enable & TIMER_INTEN_COMPARE) == 0u) ||
@@ -259,6 +266,7 @@ void semu_apollo4_timer_reset(semu_apollo4_timer *timer)
     timer->auxiliary = 0u;
     timer->pattern = 0u;
     timer->observed_d8 = 0u;
+    timer->observed_b4 = 0u;
 }
 semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
                                     uint32_t offset, unsigned width,
@@ -275,7 +283,7 @@ semu_status semu_apollo4_timer_read(semu_apollo4_timer *timer,
     else if (offset == TIMER_GLOBAL_CLEAR) *value = timer->output_control;
     else if (offset == TIMER_AUXILIARY) *value = timer->auxiliary;
     else if (offset == TIMER_PATTERN) *value = timer->pattern;
-    else if (offset == TIMER_OBSERVED_B4) *value = 0u;
+    else if (offset == TIMER_OBSERVED_B4) *value = timer->observed_b4;
     else if (offset == TIMER_OBSERVED_D8) *value = timer->observed_d8;
     else if (is_channel_offset(offset)) {
         local = channel_offset(offset);
@@ -336,13 +344,16 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         if (value != 0u && value != 0x100u && value != 0x2000u &&
             value != 0x2100u && value != 0x10100u && value != 0x10101u &&
             value != 0x10300u && value != 0x10301u &&
+            value != 0x10201u && value != 0x12201u &&
+            value != 0x10200u && value != 0x12200u &&
             value != 0x12300u && value != 0x12301u &&
             value != 0x12100u && value != 0x12101u)
             return refuse(offset, error);
         timer->pattern = value;
     } else if (offset == TIMER_OBSERVED_B4) {
-        if (value != 0u && value != UINT32_C(0x10000000))
-            return refuse(offset, error);
+        if (value != 0u && value != UINT32_C(0x10000000) &&
+            value != UINT32_C(0x3f000000)) return refuse(offset, error);
+        timer->observed_b4 = value;
     } else if (offset == TIMER_OBSERVED_D8) {
         if (value != 0u && value != UINT32_C(0x1f000000))
             return refuse(offset, error);
@@ -352,27 +363,42 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         index = channel_index(offset);
         local = channel_offset(offset);
         channel = &timer->channels[index];
-        old_channel = *channel;
+        /* Validate first: a refused write must not even materialize elapsed
+         * Timer8 phase in the saved state. */
         if (local == TIMER_CONTROL) {
-            if (!supported_control(value)) return refuse(offset, error);
-            if ((value & TIMER_CLEAR) != 0u) {
-                channel->base_value = 0u;
-                channel->epoch = semu_scheduler_now(timer->scheduler);
+            if (!supported_control(value) && !(index == 8u && value == 0x141u))
+                return refuse(offset, error);
+        } else if (local == TIMER_INTEN) {
+            if ((value & ~TIMER_INTEN_COMPARE) != 0u) return refuse(offset, error);
+        } else if (local != TIMER_VALUE && local != TIMER_COMPARE0 && local != TIMER_COMPARE1)
+            return refuse(offset, error);
+        old_channel = *channel;
+        if (index == 8u && channel->control == 0x141u)
+            semu_apollo4_timer8_sync(channel, semu_scheduler_now(timer->scheduler));
+        if (local == TIMER_CONTROL) {
+            uint32_t next = control_readback(index, value);
+            if (index == 8u && (next == 0x140u || next == 0x141u)) {
+                if ((channel->control & TIMER_ENABLE) != (next & TIMER_ENABLE)) {
+                    channel->base_value = 0u;
+                    channel->limit_stalled = 0u;
+                }
             } else {
-                channel->base_value = counter_value(channel,
-                    semu_scheduler_now(timer->scheduler));
-                channel->epoch = semu_scheduler_now(timer->scheduler);
+                channel->base_value = (value & TIMER_CLEAR) != 0u ? 0u :
+                    counter_value(channel, semu_scheduler_now(timer->scheduler));
+                channel->phase = 0u;
+                channel->limit_stalled = 0u;
             }
-            channel->control = control_readback(index, value);
+            channel->epoch = semu_scheduler_now(timer->scheduler);
+            channel->control = next;
         } else if (local == TIMER_VALUE) {
             channel->base_value = value;
             channel->epoch = semu_scheduler_now(timer->scheduler);
-        } else if (local == TIMER_COMPARE0) channel->compare[0] = value;
-        else if (local == TIMER_COMPARE1) channel->compare[1] = value;
-        else if (local == TIMER_INTEN) {
-            if ((value & ~TIMER_INTEN_COMPARE) != 0u) return refuse(offset, error);
-            channel->interrupt_enable = value;
-        } else return refuse(offset, error);
+            channel->limit_stalled = 0u;
+        } else if (local == TIMER_COMPARE0) {
+            channel->compare[0] = value;
+            channel->limit_stalled = 0u;
+        } else if (local == TIMER_COMPARE1) channel->compare[1] = value;
+        else channel->interrupt_enable = value;
         status = reschedule(channel, error);
         if (status != SEMU_OK) {
             *channel = old_channel;

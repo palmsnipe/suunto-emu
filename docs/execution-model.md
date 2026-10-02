@@ -252,3 +252,23 @@ re-derivation of the moved pins may re-pin a script, never a silent update.
 A deterministic comparison uses the ordered tuple of stop reason, virtual time, instruction count, checkpoint identifiers, frame generations and hashes, compatibility hit counts, and normalized device transcripts. Host paths, pointer values, and wall-clock timestamps are excluded from comparison output.
 
 Trace buffers are bounded. Overflow is explicit and stops or truncates according to selected trace policy; it may never silently change guest behavior.
+
+
+### Apollo4 snapshot codec 1 (ticket 803)
+
+The Apollo4 section now starts with little-endian magic `A4SC` (0x43533441)
+and u32 version 1, before GPIO levels and the existing child sequence. The
+CTIMER child appends nine bytes: retained 0xb4 routing (u32), Timer8 fraction
+(u32, 0..499 units of 1/500 tick), and limit-stalled flag (u8). Its old
+637-byte prefix is unchanged; the child is now 646 bytes. The enclosing
+machine format remains version 2 and the renderer remains codec 2.
+
+Unversioned Apollo4 sections and unknown versions refuse atomically with a
+recreate-snapshot diagnostic. The old image omitted observed routing state,
+so defaulting it cannot provide lossless migration. Recreate cold snapshots.
+E-EMU-SAP235-TIMER8-003 defines the channel-8 0x141 counter law, including
+fraction retention across disable/enable, compare-boundary truncation and
+UINT32_MAX wrap/stall. Counter reads materialize a copy; saving preserves the
+stored epoch and fractional state, so resume and uninterrupted execution
+remain identical. This law models CPU-visible state; physical PWM remains
+unverified and no Timer8 compare IRQ is scheduled for this mode.

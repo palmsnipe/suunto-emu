@@ -50,6 +50,10 @@ semu_status semu_apollo4_timer_snapshot_write(
             semu_snapshot_writer_u8(writer, channel->irq_level, error) != SEMU_OK)
             return error->code;
     }
+    if (semu_snapshot_writer_u32(writer, timer->observed_b4, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, timer->channels[8].phase, error) != SEMU_OK ||
+        semu_snapshot_writer_u8(writer, timer->channels[8].limit_stalled, error) != SEMU_OK)
+        return error->code;
     return SEMU_OK;
 }
 
@@ -76,6 +80,8 @@ semu_status semu_apollo4_timer_snapshot_read(
         return error->code;
     for (index = 0u; index < TIMER_CHANNEL_COUNT; ++index) {
         timer_channel *channel = &candidate.channels[index];
+        channel->phase = 0u;
+        channel->limit_stalled = 0u;
         if (semu_snapshot_reader_u32(reader, &channel->control, error) != SEMU_OK ||
             semu_snapshot_reader_u32(reader, &channel->base_value, error) != SEMU_OK ||
             semu_snapshot_reader_u32(reader, &channel->compare[0], error) != SEMU_OK ||
@@ -86,7 +92,9 @@ semu_status semu_apollo4_timer_snapshot_read(
             semu_snapshot_reader_u8(reader, &channel->event_valid, error) != SEMU_OK ||
             semu_snapshot_reader_u8(reader, &channel->irq_level, error) != SEMU_OK)
             return error->code;
-        if (channel->event_valid > 1u || channel->irq_level > 1u ||
+        if ((channel->control == 0x141u &&
+             (index != 8u || channel->event_valid != 0u || channel->irq_level != 0u)) ||
+            channel->event_valid > 1u || channel->irq_level > 1u ||
             (channel->event_valid != 0u) != (channel->event != 0u) ||
             (channel->interrupt_enable & ~TIMER_CHANNEL_INTERRUPT_ENABLE) != 0u ||
             (channel->event_valid != 0u &&
@@ -103,6 +111,22 @@ semu_status semu_apollo4_timer_snapshot_read(
                            "invalid CTIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
+    }
+    if (semu_snapshot_reader_u32(reader, &candidate.observed_b4, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &candidate.channels[8].phase, error) != SEMU_OK ||
+        semu_snapshot_reader_u8(reader, &candidate.channels[8].limit_stalled, error) != SEMU_OK)
+        return error->code;
+    if ((candidate.observed_b4 != 0u && candidate.observed_b4 != 0x10000000u &&
+         candidate.observed_b4 != 0x3f000000u) || candidate.channels[8].phase >= 500u ||
+        candidate.channels[8].limit_stalled > 1u ||
+        ((candidate.channels[8].phase != 0u || candidate.channels[8].limit_stalled != 0u) &&
+         candidate.channels[8].control != 0x140u && candidate.channels[8].control != 0x141u) ||
+        (candidate.channels[8].limit_stalled != 0u &&
+         (candidate.channels[8].control != 0x141u ||
+          candidate.channels[8].base_value != 0u || candidate.channels[8].phase != 0u ||
+          (candidate.channels[8].compare[0] != 0u && candidate.channels[8].compare[0] != UINT32_MAX)))) {
+        semu_error_set(error, SEMU_ERR_FORMAT, "invalid CTIMER8 routing/phase snapshot state");
+        return SEMU_ERR_FORMAT;
     }
     if ((candidate.interrupt_mask & ~TIMER_INTERRUPT_MASK_ALLOWED) != 0u ||
         (candidate.pending & ~TIMER_PENDING_MASK) != 0u ||
@@ -126,6 +150,10 @@ semu_status semu_apollo4_timer_snapshot_read(
          candidate.pattern != UINT32_C(0x2100) &&
          candidate.pattern != UINT32_C(0x10100) &&
          candidate.pattern != UINT32_C(0x10101) &&
+         candidate.pattern != UINT32_C(0x10200) &&
+         candidate.pattern != UINT32_C(0x12200) &&
+         candidate.pattern != UINT32_C(0x10201) &&
+         candidate.pattern != UINT32_C(0x12201) &&
          candidate.pattern != UINT32_C(0x10300) &&
          candidate.pattern != UINT32_C(0x10301) &&
          candidate.pattern != UINT32_C(0x12300) &&

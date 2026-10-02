@@ -16,6 +16,8 @@ struct timer_channel {
     semu_event_id event;
     uint8_t event_valid;
     uint8_t irq_level;
+    uint32_t phase;
+    uint8_t limit_stalled;
 };
 
 struct semu_apollo4_timer {
@@ -31,7 +33,10 @@ struct semu_apollo4_timer {
     uint32_t auxiliary;
     uint32_t pattern;
     uint32_t observed_d8;
+    uint32_t observed_b4;
 };
+
+void semu_apollo4_timer8_sync(timer_channel *channel, uint64_t now);
 
 void semu_apollo4_timer_event(void *context, uint64_t now);
 

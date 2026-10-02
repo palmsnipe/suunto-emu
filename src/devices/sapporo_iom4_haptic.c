@@ -21,6 +21,8 @@ semu_status haptic_validate(const semu_sapporo_iom4 *m, uint32_t command,
     }
     if (command == 0x201u) {
         switch (source[0]) {
+        /* E-EMU-SAP235-EXERCISE-001: captured playback selection. */
+        case 0x0bu: valid = source[1] == 2u; break;
         case 0x09u: case 0x0du: case 0x11u: case 0x12u: case 0x13u:
         case 0x1du: case 0x1eu: case 0x22u: valid = 1; break;
         default: break;
@@ -28,7 +30,7 @@ semu_status haptic_validate(const semu_sapporo_iom4 *m, uint32_t command,
     } else if (command == 0x501u) {
         valid = source[0] == 0x40u;
     } else {
-        valid = command == 0x22000112u || command == 0x23000112u ||
+        valid = command == 0x01000112u || command == 0x22000112u || command == 0x23000112u ||
                 command == 0x24000112u || command == 0x40000412u;
     }
     if (valid) return SEMU_OK;

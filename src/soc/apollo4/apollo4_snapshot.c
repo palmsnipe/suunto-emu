@@ -7,10 +7,15 @@
 #include "timer_internal.h"
 #include "uart_internal.h"
 
+#define APOLLO4_SNAPSHOT_MAGIC UINT32_C(0x43533441) /* A4SC */
+#define APOLLO4_SNAPSHOT_VERSION 1u
+
 static semu_status write_child(const semu_apollo4 *soc,
                                semu_snapshot_writer *writer, semu_error *error)
 {
-    if (semu_snapshot_writer_bytes(writer, soc->gpio_level,
+    if (semu_snapshot_writer_u32(writer, APOLLO4_SNAPSHOT_MAGIC, error) != SEMU_OK ||
+        semu_snapshot_writer_u32(writer, APOLLO4_SNAPSHOT_VERSION, error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, soc->gpio_level,
                                    sizeof(soc->gpio_level), error) != SEMU_OK ||
         semu_apollo4_clock_snapshot_write(soc->clock, writer, error) != SEMU_OK ||
         semu_apollo4_power_snapshot_write(soc->power, writer, error) != SEMU_OK ||
@@ -64,6 +69,15 @@ static semu_status read_child(
 {
     semu_apollo4 candidate;
     size_t index;
+    uint32_t magic, version;
+    if (semu_snapshot_reader_u32(reader, &magic, error) != SEMU_OK ||
+        semu_snapshot_reader_u32(reader, &version, error) != SEMU_OK)
+        return error->code;
+    if (magic != APOLLO4_SNAPSHOT_MAGIC || version != APOLLO4_SNAPSHOT_VERSION) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+            "unsupported Apollo4 snapshot codec; recreate snapshot with current emulator");
+        return SEMU_ERR_FORMAT;
+    }
     candidate = *soc;
     if (semu_snapshot_reader_bytes(reader, candidate.gpio_level,
                                    sizeof(candidate.gpio_level), error) != SEMU_OK) {

@@ -65,13 +65,24 @@ static void observed_pattern_register(semu_test_context *context)
                      semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
                                              &error));
     SEMU_TEST_EQ_U64(context, 0x12300u, value);
+    /* E-EMU-SAP235-EXERCISE-003: cold exercise clears the route bit. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(timer, 0x104u, 4u, 0x10200u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(timer, 0x104u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x10200u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_write(timer, 0x104u, 4u, 0x12200u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_timer_read(timer, 0x104u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x12200u, value);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_apollo4_timer_write(timer, 0x104u, 4u,
                                               0x10302u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_timer_read(timer, 0x104u, 4u, &value,
                                              &error));
-    SEMU_TEST_EQ_U64(context, 0x12300u, value);
+    SEMU_TEST_EQ_U64(context, 0x12200u, value);
     semu_apollo4_timer_destroy(timer);
     semu_scheduler_destroy(scheduler);
 }

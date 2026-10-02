@@ -43,7 +43,7 @@ static void test_invalid_gpio_level_refuses(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_snapshot_write(source.soc, &writer,
                                                   &source.error));
-    writer.data[0u] = 2u;
+    writer.data[8u] = 2u;
     semu_snapshot_reader_init(&reader, writer.data, writer.size);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
                      semu_apollo4_snapshot_read(target.soc, &reader,
@@ -127,9 +127,39 @@ static void test_live235_snapshot_profile_shape_refuses(semu_test_context *conte
     fixture_destroy(&live);
 }
 
+static void test_soc_codec_refuses_legacy_and_unknown(semu_test_context *c)
+{
+    apollo4_fixture f;
+    semu_snapshot_writer saved, after;
+    semu_snapshot_reader reader;
+    unsigned i;
+    SEMU_TEST_ASSERT(c, fixture_init(&f));
+    semu_snapshot_writer_init(&saved);
+    SEMU_TEST_EQ_U64(c, SEMU_OK, semu_apollo4_snapshot_write(f.soc, &saved, &f.error));
+    SEMU_TEST_ASSERT(c, saved.size > 8u && memcmp(saved.data, "A4SC", 4u) == 0);
+    for (i = 0; i < 3u; ++i) {
+        if (i == 0u) semu_snapshot_reader_init(&reader, saved.data + 8u, saved.size - 8u);
+        else {
+            if (i == 1u) saved.data[4] = 2u;
+            semu_snapshot_reader_init(&reader, saved.data, i == 2u ? 7u : saved.size);
+        }
+        SEMU_TEST_EQ_U64(c, SEMU_ERR_FORMAT, semu_apollo4_snapshot_read(f.soc, &reader, &f.error));
+        SEMU_TEST_EQ_U64(c, 0u, reader.offset);
+        if (i < 2u) SEMU_TEST_ASSERT(c, strstr(f.error.text, "recreate snapshot") != NULL);
+        saved.data[4] = 1u;
+        semu_snapshot_writer_init(&after);
+        SEMU_TEST_EQ_U64(c, SEMU_OK, semu_apollo4_snapshot_write(f.soc, &after, &f.error));
+        SEMU_TEST_ASSERT(c, saved.size == after.size && memcmp(saved.data, after.data, saved.size) == 0);
+        semu_snapshot_writer_destroy(&after);
+    }
+    semu_snapshot_writer_destroy(&saved);
+    fixture_destroy(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_soc_codec_refuses_legacy_and_unknown),
         SEMU_TEST_CASE(test_invalid_gpio_level_refuses),
         SEMU_TEST_CASE(test_late_child_refusal_is_atomic),
         SEMU_TEST_CASE(test_live235_snapshot_profile_shape_refuses)

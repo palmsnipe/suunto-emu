@@ -82,26 +82,38 @@ static semu_transaction_result refuse(semu_sapporo_235_ohr_context *ctx,
  * command 0x0002 poll. Shape law and answer construction are the ones already
  * pinned by E-SAP-0041 for this command (default padding from payload offset 4,
  * zero body; the transport echoes command and sequence into the header), so the
- * tail introduces no new constant and no new answer byte. */
+ * Ticket 803 additionally admits the exact exercise-entry command-4 shape
+ * in E-EMU-SAP235-EXERCISE-001, sharing this same finite tail budget. */
 static semu_transaction_result poll_tail(
     semu_sapporo_235_ohr_context *ctx, semu_sapporo_ohr2_command command,
     uint16_t sequence, semu_sapporo_ohr2_state state,
     const uint8_t request[54], uint8_t response[54], semu_error *error)
 {
     uint8_t body[54];
-    char effect[112];
-    size_t pad;
-    if (command != SEMU_SAPPORO_OHR2_COMMAND_RESULT_2 ||
+    char effect[160];
+    size_t pad, first = 4u;
+    int exercise = command == SEMU_SAPPORO_OHR2_COMMAND_RESULT_4;
+    if ((!exercise && command != SEMU_SAPPORO_OHR2_COMMAND_RESULT_2) ||
         state != SEMU_SAPPORO_OHR2_MAIN ||
         request[0] != (uint8_t)command || request[1] != 0u ||
         request[2] != (uint8_t)sequence || request[3] != 0u)
         return refuse(ctx, error);
-    for (pad = 4u; pad < 54u; ++pad)
+    if (exercise) {
+        /* E-EMU-SAP235-EXERCISE-001: exact observed exercise-entry shape.
+         * This consumes the existing finite tail budget, never sensor data. */
+        if (request[4] != 0xa3u) return refuse(ctx, error);
+        for (pad = 5u; pad < 19u; ++pad)
+            if (request[pad] != 0u) return refuse(ctx, error);
+        first = 19u;
+    }
+    for (pad = first; pad < 54u; ++pad)
         if (request[pad] != 0xffu) return refuse(ctx, error);
     (void)snprintf(effect, sizeof(effect),
-        "trigger=ohr-poll ordinal=%u command=%04x sequence=%u synthetic-body",
+        "trigger=ohr-%s ordinal=%u command=%04x sequence=%u synthetic-body%s",
+        exercise ? "exercise" : "poll",
         (unsigned)ctx->state->hits - SAP235_OHR_RESPONSES + 1u,
-        (unsigned)command, (unsigned)sequence);
+        (unsigned)command, (unsigned)sequence,
+        exercise ? " rule=E-EMU-SAP235-EXERCISE-001" : "");
     if (semu_layer_hit(ctx->state, ctx->logger, effect, error) != SEMU_OK)
         return refuse(ctx, error);
     memset(body, 0, sizeof(body));

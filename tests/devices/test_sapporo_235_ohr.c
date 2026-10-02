@@ -552,9 +552,47 @@ static void test_sapporo_235_ohr_machine_refusal_and_reset(semu_test_context *c)
     semu_bus_destroy(machine.bus); fclose(f.log);
 }
 
+/* Exercise request shape from E-EMU-SAP235-EXERCISE-001; shares the
+ * existing 30-hit budget and never supplies measurements. */
+static void test_sapporo_235_ohr_exercise(semu_test_context *c)
+{
+    unsigned i, j;
+    for (i = 0; i < 10; ++i) {
+        fixture f;
+        uint8_t body[54], response[54];
+        semu_sapporo_ohr2_state state = SEMU_SAPPORO_OHR2_MAIN;
+        uint64_t hits;
+        SEMU_TEST_ASSERT(c, setup(&f));
+        f.layer.hits = 21u;
+        make_body(body, 4u, 21u);
+        body[4] = 0xa3u; memset(body + 5u, 0, 14u);
+        switch (i) {
+        case 1: body[4] = 0x23u; break;
+        case 2: body[18] = 1u; break;
+        case 3: body[19] = 0u; break;
+        case 4: body[2] = 22u; break;
+        case 5: state = SEMU_SAPPORO_OHR2_BSL; break;
+        case 6: f.layer.enabled = 0; break;
+        case 7: f.layer.hits = 13u; break;
+        case 8: f.layer.hits = 30u; break;
+        case 9: body[53] = 0u; break;
+        default: break;
+        }
+        hits = f.layer.hits;
+        memset(response, 0xa5, sizeof(response));
+        SEMU_TEST_EQ_U64(c, i == 0 ? SEMU_TRANSACTION_OK : SEMU_TRANSACTION_REFUSE,
+            semu_sapporo_235_ohr_body_provider(&f.context, (semu_sapporo_ohr2_command)4u,
+                21u, state, body, response, &f.error));
+        SEMU_TEST_EQ_U64(c, hits + (i == 0), f.layer.hits);
+        for (j = 0; j < 54u; ++j) SEMU_TEST_EQ_U64(c, i == 0 ? 0u : 0xa5u, response[j]);
+        fclose(f.log);
+    }
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_sapporo_235_ohr_exercise),
         SEMU_TEST_CASE(test_sapporo_235_ohr_startup_transport),
         SEMU_TEST_CASE(test_sapporo_235_ohr_atomic_body_refusals),
         SEMU_TEST_CASE(test_sapporo_235_ohr_pins_and_owners),

@@ -7,6 +7,8 @@
 # codec-2 saves replace 8a28ce51... with cdf9f3ff...; boot and
 # uninterrupted/restored continuation transcripts are unchanged.
 set -eu
+# Ticket 803 / E-EMU-SAP235-EXERCISE-003: Apollo4 codec 1 snapshot pins.
+# Paired attribution changes only section 5 (+17 bytes); old logs are unchanged.
 if [ "${TEST_PROFILE-}" != sapporo-2.35.34 ]; then
     echo "SKIP Sapporo 2.35 snapshot runner for TEST_PROFILE=${TEST_PROFILE-}"
     exit 0
@@ -48,7 +50,7 @@ cmp "$run_dir/snap-1.sems" "$run_dir/snap-2.sems"
 cmp "$run_dir/cont-1.log" "$run_dir/cont-2.log"
 cmp "$run_dir/cont-1.log" "$run_dir/control.log"
 [ "$(shasum -a 256 "$run_dir/snap-1.sems" | awk '{print $1}')" = \
-    cdf9f3ff343d90e7dfa114bb19128d18f52d88ded7053aff127cfa9b4a32aad9 ]
+    9008c521b2632689684ebc29577d1d1c4f0f1ee927d321727024af9da6aa8f1a ]
 [ "$(shasum -a 256 "$run_dir/boot-1.log" | awk '{print $1}')" = \
     113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba ]
 [ "$(shasum -a 256 "$run_dir/cont-1.log" | awk '{print $1}')" = \

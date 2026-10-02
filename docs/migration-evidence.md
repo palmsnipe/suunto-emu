@@ -9287,3 +9287,188 @@ Derived census (advance delta ns or write offset=value; IRQ8 is zero throughout)
 Setup: global mask 0x27ff, channel8 INTEN 0x100, compare0 0x11c8,
 compare1 0x2ee, control writes 0x140, 0x142, 0x141. Offset 0xb4 and
 PatternAddress admissions remain exactly those in EXERCISE-001/002.
+
+
+## E-EMU-SAP235-EXERCISE-003 — production integration and cold-path routing
+
+2026-10-02, ticket 803. Continues EXERCISE-001/002 and TIMER8-003 with the
+same validated resident/application/resource hashes. The owner approved the
+extra internal state and versioned enclosing codec. Snapshot section 5 gains
+A4SC/version 1 plus the nine-byte timer tail; unversioned SoC images refuse
+because the old routing latch was absent. Outer machine version 2 and renderer
+codec 2 stay unchanged. No PWM waveform, real sensor data or GPS fix is claimed.
+
+Cold UPPER attribution: POST `mmlllmlllmmmmmmummmmm`, 10B instructions/40 s,
+450 s wall cap. Two diagnostic runs capture command 4 / sequence 17 / MAIN,
+request a3 at body offset 4, zeros 5..18, ff 19..53. The reference OHR lane,
+after the same ordered startup prefix, returns the echoed four-byte header,
+50 zero bytes, CRC32 7083e8bd, identically twice (zero guest instructions and
+virtual-time advance; 30 s wall cap). This is the same demonstrated response
+law as sequence 21. Existing prefix/poll logging and the total 30-hit budget
+stay unchanged; the new admission logs its own exercise evidence ID.
+
+Admitting the exercise request exposes a later cold-path PatternAddress write
+at 36581394261 ns: 0x40008104 = 00010200. Without this exact state, the paired
+external trials reset at 36581394341 ns / 8958734775 instructions, fault
+address 40008104. They are negative evidence, not passing continuations.
+The diagnostic build is the prior EXERCISE-002 trial with only timer logging
+extended to include this earlier interval and all pattern writes. All source
+and raw transcripts stay outside Git. Two complete traces match byte for byte.
+
+The paired reference-lane PatternAddress probe stores/readbacks, in order,
+10301,10201,12201,10201,10200,12200,10200; wrapper Reset returns zero.
+10200 is guest-captured; 12200 is the independently lane-observed companion
+routing word, not a claim about physical outputs. Both are exact admissions,
+not a generic register fallback. The lane setup is the same halted-CPU Timer8
+configuration in TIMER8-003, with zero instructions/time advance and 30 s
+wall cap. Include these two words in runtime and snapshot validation together.
+
+Artifact SHA-256 census (paths relative to `/tmp/semu-integration-20261002/`
+unless absolute):
+
+- `old-upper-census-1.log`: `df702b35ea4470eddefaa31bbeb8459686be10bd2ae86306514d1197ea2dde1f`.
+- `old-upper-census-2.log`: `df702b35ea4470eddefaa31bbeb8459686be10bd2ae86306514d1197ea2dde1f`.
+- `lane-upper.py`: `735b74d3ce607270fdf72cf0346823c20e8d1d495a3d9080787c032f73205220`.
+- `lane-upper.resc`: `ddd2161732e8d0780163c05757937646bd106623a6e371a1fc2938ef614d2f77`.
+- `lane-upper-1.log`: `8fc10a4393d34e5b699fa34ddb3424b0e122fe32aad2b103390d4fa6f4336c0a`.
+- `lane-upper-2.log`: `9b841427bb3fa1b57ec954695018460d4abd59f37a9f0bcd7d7483deae2509fc`.
+- `lane-upper-1.norm`: `a52370c753845dda5aeb4a7ffd195339e891e72e32de97438d6dee2aae95dc70`.
+- `lane-upper-2.norm`: `a52370c753845dda5aeb4a7ffd195339e891e72e32de97438d6dee2aae95dc70`.
+- `pattern-probe.py`: `e17d5267b305130bd8448dc4f78712b5336f7a3693bdbee8a69d7d8b23161311`.
+- `cold-pattern-probe-1.log`: `54c06f77489c3ef7edbc4eb467d19b93e8dcc96b51c0a34e6d179834145d5529`.
+- `cold-pattern-probe-2.log`: `54c06f77489c3ef7edbc4eb467d19b93e8dcc96b51c0a34e6d179834145d5529`.
+- `lane-pattern.resc`: `12f59925a803b6629058daf19d937288941be19296f5f5dc11587b1e5f722a15`.
+- `lane-pattern-1.log`: `34117f00b63b1d3738bceddad68ffddf81025046b21435e6c4d5a44e9b613527`.
+- `lane-pattern-2.log`: `7a07b4f2d690627807890cad0ac2eb6cd6acd96f4ce50c0bea88bb73ca0a4043`.
+- `lane-pattern-1.norm`: `82f784fe312010a79676f683fdcc52410e79c478a1243901f1554e9b9847939f`.
+- `lane-pattern-2.norm`: `82f784fe312010a79676f683fdcc52410e79c478a1243901f1554e9b9847939f`.
+- `/tmp/semu-exercise-20261002/probe-tree/src/soc/apollo4/timer.c`: `345ecd6d8f26d3d15277e2005892d20c006dd7980d71265dae0d631a7601c498`.
+- `/tmp/semu-exercise-20261002/probe-tree/build/suunto-emu-sdl`: `ae3034160f3fecbbba9aef3ad81129446c9f6f15fe0e621a1d76a2bced1ef4a6`.
+
+Production checkpoint and persistence census:
+
+- Fresh 2.35 watchface: instructions 9487528672 / 37414100700 ns,
+  generation 4770 / CRC32 500b350f. Both cold logs retain SHA-256
+  14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae.
+- Upper at 38 s / Middle at 39 s: tutorial at 44 s, PC 000e1862,
+  instructions 10282056430, generation 5058 / CRC32 48a2bfcd. Zero resets,
+  zero draw refusals, OHR final hit 26/30 and GPS-awake final hit 7/64.
+- The 40.08 s bound parks at 40130748854 ns / 10208679798 instructions.
+  Snapshot Timer8 is active (control 141, compare0 11c8, compare1 2ee,
+  INTEN 100, epoch 40032530030, stored fraction 0, routing 10000000).
+  Two restorations to 44 s equal the uninterrupted complete machine image
+  byte-for-byte. Counter phase may be represented by elapsed epoch time;
+  saving does not gratuitously materialize counter reads.
+- All six restored-navigation logs/stop lines retain their prior hashes.
+  This includes the existing Widgets/Browse/Control GPU refusals for the
+  distinct MM00=3f7fffff shape; this integration does not silently admit it.
+- Ten old/new image comparisons change only section 5, by +17 bytes. No
+  CPU, bus/memory, scheduler, renderer or other device section changes.
+  New outer-machine/renderer codecs were not invented. Legacy SoC images
+  reject with an actionable recreate diagnostic.
+
+Re-derived snapshot pins (old -> new; two new saves equal for every row):
+
+| Checkpoint | Old SHA-256 | New SHA-256 |
+|---|---|---|
+| main235-1 | `e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971` | `c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b` |
+| main222-1 | `878f93954918f2e924eaba1aceb61b9557692e933507e9ed1d378e54c7eaf72b` | `5efa72283e10e649be9da883c0add66c895602cda9d871a8d2fb37ff26fcc886` |
+| boot235-1 | `cdf9f3ff343d90e7dfa114bb19128d18f52d88ded7053aff127cfa9b4a32aad9` | `9008c521b2632689684ebc29577d1d1c4f0f1ee927d321727024af9da6aa8f1a` |
+| next222-1 | `f6b32641d8b8cd330eaa7beb2d1b07120e2e056af1dede26e4308d4daf9909cb` | `1782aff8b36575c0bdadbf18fa5834ea7866977e89a5c5cb2feb1405b4dd3c46` |
+| nav-exercise-1 | `a69f4b5d4680823619d12427ca0cfd48c043257434d95e0f3eeb007713b64002` | `19f7f8352bcd9fbf867b28b31cbd876a3b233fd05093b9f37caaa945da7842f8` |
+| nav-widgets-1 | `86bfa8520ee691d6287aa2ce48e84889fa258d13653b858859db92771861fed2` | `2705ae017fa6bf9dcaeddfb3022cf2a82095dbdfc7f67955fe5569e0411f70b6` |
+| nav-pin-1 | `326172d81898ab69c534302408bfc4d70d3620e7e22317fbc59c0cb388abed95` | `99def5985da8ff820d994cee52d88ae18111f4138a8fa42345021dd10a92dd43` |
+| nav-browse-1 | `94a3d55d6cb980cb188b39209f7d7e586087084e1d6472f044e32561c338f310` | `46372565ffe4bc2d497fd742583b5d449912da8b24bf9148751a9c4029a093c3` |
+| nav-control-1 | `c65ae7ecbb620c4992f328228fd727b3a50c2f17bc7ea3f61336676c538d6a07` | `49a527115ffd6b0cbc6082b64385fe473d0dc0c0249df4faab93fa713da06e1d` |
+| nav-return-1 | `097614f3f1c6d71127abcd9bd7f71a4525b18e0932bc6d8cca4fe97c3932dc25` | `3de4d7112f4c4c282547332b315e06afa7f20071a2bf673df9b2eae968e7c85f` |
+
+Paired production artifacts (same hash for both suffixes 1 and 2):
+
+- `main235-{1,2}.log`: `14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae`.
+- `main235-{1,2}.sems`: `c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b`.
+- `main222-{1,2}.log`: `2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8`.
+- `main222-{1,2}.sems`: `5efa72283e10e649be9da883c0add66c895602cda9d871a8d2fb37ff26fcc886`.
+- `boot235-{1,2}.log`: `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba`.
+- `boot235-{1,2}.sems`: `9008c521b2632689684ebc29577d1d1c4f0f1ee927d321727024af9da6aa8f1a`.
+- `next222-{1,2}.log`: `2b09d8942b11f452b12b571ac48c56e431c2fb4647b8633968e4c944a5bf0253`.
+- `next222-{1,2}.sems`: `1782aff8b36575c0bdadbf18fa5834ea7866977e89a5c5cb2feb1405b4dd3c46`.
+- `nav-exercise-{1,2}.log`: `9d6a6202c88727b0c287ddb8cff12b4f8dae095d67c6dec7e3eb056aab9ff855`.
+- `nav-exercise-{1,2}.sems`: `19f7f8352bcd9fbf867b28b31cbd876a3b233fd05093b9f37caaa945da7842f8`.
+- `nav-widgets-{1,2}.log`: `02f9da48b10dd3ac4933a0033c34f14046178d8f30da9200ab174956e2e32bf2`.
+- `nav-widgets-{1,2}.sems`: `2705ae017fa6bf9dcaeddfb3022cf2a82095dbdfc7f67955fe5569e0411f70b6`.
+- `nav-pin-{1,2}.log`: `79eba44837a8ebeff51d3e9ba8837a03020d574938b63610ff17a909cdabdae5`.
+- `nav-pin-{1,2}.sems`: `99def5985da8ff820d994cee52d88ae18111f4138a8fa42345021dd10a92dd43`.
+- `nav-browse-{1,2}.log`: `ebb677cbd1af5cabd9b22cd54b913fadae698f1df1faf56f9e3e3beb2205d322`.
+- `nav-browse-{1,2}.sems`: `46372565ffe4bc2d497fd742583b5d449912da8b24bf9148751a9c4029a093c3`.
+- `nav-control-{1,2}.log`: `76dd601d9c6501b0766a8d0f2640a3427edfe7dab12620ea1a3977a7318e5ef3`.
+- `nav-control-{1,2}.sems`: `49a527115ffd6b0cbc6082b64385fe473d0dc0c0249df4faab93fa713da06e1d`.
+- `nav-return-{1,2}.log`: `9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a`.
+- `nav-return-{1,2}.sems`: `3de4d7112f4c4c282547332b315e06afa7f20071a2bf673df9b2eae968e7c85f`.
+- `exercise-{1,2}.log`: `d628a6a89456103eb279254eef5ae8efd823fb48acbcf0e72fcea054a1ccf868`.
+- `exercise-{1,2}.sems`: `5f75237a5b17590fcb9726ee4cdb2f7f5047cc663fe92a00b7f10fed14bd99c9`.
+- `pulse-{1,2}.log`: `4a77dae22f95d86a95edd668bc1850c3121b2d9529580eb67922dc505be0eacf`.
+- `pulse-{1,2}.sems`: `b467c2dbf04459fa98362a3343c19bc0ee9a3fdb3aa6122315e8e66c6e38352e`.
+- `pulse-resume-{1,2}.log`: `1f133459ba96eba0482264d2cee844f8836ba34b70b668f527e360cf4a2dc734`.
+- `pulse-resume-{1,2}.sems`: `5f75237a5b17590fcb9726ee4cdb2f7f5047cc663fe92a00b7f10fed14bd99c9`.
+
+Derivation/helper artifacts:
+
+- `capture.py`: `c641f5a52a73ec33aa27e328138a6472c9a04b53f838a7a9dabad0fae2a425d6`.
+- `continuations.py`: `b7707ca2c1a8c59f52e8ff0b49ddef73fc9d7a659ea620bf289e16dd403abd31`.
+- `next222.py`: `fcf2f20dce4326264acd5152df38ed11c57e23aa0cd54f9b4abce84993cd0655`.
+- `boot235.py`: `bec6ccb6dac0a27a0c934710e549ec413ccdb681b8d71f9215bd5a34faf0ebf2`.
+- `attribute.py`: `58e84bd3bfbae01754a0e373c4aa7d07be822693644f4375618652450af3f00b`.
+- `snapshot-attribution.json`: `80246a290e93a08d76689959c7da325eef64e6eb91b71874ca15dd80ffc32f79`.
+- `legacy-refused.log`: `550849ebb3fdc96b28d92f63f3ab284ac71106d8551486e48d5d69026261a390`.
+- `exercise-1.png`: `fa4fada42040a0287c4c428ce69c756d505d0161efe27a5b14161f7b551d6dd7`.
+
+All binary images/pixels and raw logs remain volatile, outside Git. The six
+authorized README gallery files are unchanged. Native bounded continuation is
+an emulator regression; hardware behavior above is authorized by the lane.
+
+Cold navigation closure: the new UPPER pair has no resets or draw refusals,
+reaches scripted quit at PC 000cd0ca / 8965104096 instructions /
+36965203686 ns, and preserves all 205 old prefix lines byte-for-byte
+before the former OHR refusal. Baseline and LOWER full hashes are unchanged.
+The UPPER log alone changes from
+`879630294064869a75e611c703291163d8b0ac58c31aa5528b6b6ab5eb8368ef` to
+`8176cd579aa3718d6597647f1d31d6942affd76d1b9ab734f2ffa95ac97bb906`.
+This is an attributed behavior extension, not a weakened stop expectation.
+The gallery remains unchanged. Additional volatile evidence:
+
+- `cold-nav.py`: `09fa5f7588736cabdd3dd2c753440d39ee7e80d84ab9a06bd808e85ee034d186`.
+- `cold-upper-fixed.py`: `9bf9dbc61965d31c444c72dea8b6ca650768091a385a58a37ccd724a8a3d572c`.
+- `cold-lower-1.log`: `61cbd3e887d533dc8c657fd75066aec2aaaee34b05b3f0a8e117afebc447578c`.
+- `cold-lower-2.log`: `61cbd3e887d533dc8c657fd75066aec2aaaee34b05b3f0a8e117afebc447578c`.
+- `cold-upper-fixed-1.log`: `8176cd579aa3718d6597647f1d31d6942affd76d1b9ab734f2ffa95ac97bb906`.
+- `cold-upper-fixed-2.log`: `8176cd579aa3718d6597647f1d31d6942affd76d1b9ab734f2ffa95ac97bb906`.
+- `gate-exercise.log`: `97ba73d3a1c434f77ed229ef8744d6adbc7a93a9a4371928e32d4820740e0019`.
+- `gate-restore235.log`: `a434b673d7a3dee81ae06a41380d90e6a997c57d26e7160d417b984c67ac5737`.
+- `gate-restore222.log`: `a66ba4cb041918aa91c4fcf3cabaf6630c666a0db81eb09f2cb5b53defd67685`.
+- `firmware235.log`: `4fc77b6da23f779e53e5ccc43a01cd2d5b7c39969dbb4bc335dcf5098fec8330`.
+- `check-sdl.log`: `50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988`.
+
+Verification: red-first timer, OHR, haptic and routing cases; all focused
+regressions pass. `make check`, `make sanitize`, `make check-lines`,
+`make check-task-contracts`, `make check-sdl`, and the nine 2.35 firmware
+scripts selected by `make test-firmware TEST_PROFILE=sapporo-2.35.34
+TEST_FILTER=sapporo_235 SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu`
+pass. The optional compressed golden reference `/tmp/sap235-tex17/decode-1.bin`
+is absent; validated source extraction, synthetic expansion and paired native
+compressed windows still run. Restore gates use
+`SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main{235,222}-1.sems`
+with `sh tools/test_sdl_sapporo_235_restore.sh` / `sh tools/test_sdl_snapshot_restore.sh`;
+the new `sh tools/test_sdl_sapporo_235_exercise.sh` uses the 2.35 snapshot.
+`python3` runners capture/continuations/cold-nav/cold-upper-fixed/next222/boot235
+supply the paired native attribution above with explicit limits.
+`make check-era` skips because the verified 2.39 full-flash fixture is absent;
+its snapshot pins may drift from both renderer codec 2 and Apollo4 codec 1.
+No 2.39 pin was replaced. Ticket 803 remains ready for integrator review.
+
+Final verification artifacts (including atomic stalled-state refusal):
+
+- `check-commit803.log`: `65ab3fcf5ad3ffeac89c2c0b9df1bfcf813c846056dfb329c00107aeeb8b7d9c`.
+- `sanitize-commit803.log`: `afdfb1e8e88ca74add89ca30f793f67ae0e71693f3d889038275a239ff3e9b62`.
+- `contracts-final803.log`: `01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`.
+- `verify-cold-pins.sh`: `e33937bc0e75a76e8645bbd82b2d3423be897eb8fd7c7eff7c22fdcbd316063d`.
+- `cold-pins.log`: `1865ad8892b12f0b793872b00d39a8f3568bc6c2437943b2909c0c5ea3896e7b`.

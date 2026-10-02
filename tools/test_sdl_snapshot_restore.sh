@@ -1,5 +1,7 @@
 #!/bin/sh
 set -eu
+# Ticket 803 / E-EMU-SAP235-EXERCISE-003: Apollo4 codec 1 snapshot pins.
+# Paired attribution changes only section 5 (+17 bytes); old logs are unchanged.
 # Ticket 791: restore the displayed menu before any guest instruction, then
 # continue with native LOWER input. Private artifacts remain in a temp directory.
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
@@ -50,7 +52,7 @@ fi
 # The historical codec-1 mismatch was attributed to cb6298b with a paired
 # 92b8ac4 control. Guest execution and published frame pins are unchanged.
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    878f93954918f2e924eaba1aceb61b9557692e933507e9ed1d378e54c7eaf72b ]
+    5efa72283e10e649be9da883c0add66c895602cda9d871a8d2fb37ff26fcc886 ]
 cat >"$work/lower.replay" <<'EOF'
 39000000000 button lower press
 39100000000 button lower release
@@ -78,7 +80,7 @@ for pass in 1 2; do
     grep -Fqx 'stop=budget pc=0x000d4a8c instructions=8734743608 virtual_time_ns=41090034111' "$work/next-$pass.log"
     # Full machine state includes generation 4610 and Media controls CRC 0cb272ba.
     [ "$(shasum -a 256 "$work/next-$pass.sems" | awk '{print $1}')" = \
-        f6b32641d8b8cd330eaa7beb2d1b07120e2e056af1dede26e4308d4daf9909cb ]
+        1782aff8b36575c0bdadbf18fa5834ea7866977e89a5c5cb2feb1405b4dd3c46 ]
 done
 cmp "$work/initial-1.log" "$work/initial-2.log"
 cmp "$work/next-1.log" "$work/next-2.log"
