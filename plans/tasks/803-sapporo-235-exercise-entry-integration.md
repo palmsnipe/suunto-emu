@@ -1,6 +1,6 @@
 # 803 — Sapporo 2.35 Exercise Entry Integration
 
-**Status:** blocked
+**Status:** ready
 **Phase:** 7
 **Dependencies:** 705,779,794
 
@@ -11,15 +11,15 @@ a guest reset. This follows the owner's 2026-10-02 navigation recommendations.
 
 ## Execution Budget
 
-One bounded protocol/CTIMER integration after the missing Timer8 evidence is
-available and the saved routing state has an integrator-owned format decision.
+One bounded protocol/CTIMER integration using E-EMU-SAP235-TIMER8-003 and
+the versioned saved-state decision below.
 Private probes, snapshots and logs stay outside Git.
 
 ## Required Reading
 
 README, current status, index, architecture device ownership, execution-model
 DMA/timer/snapshots, testing strategy, compatibility policy; E-SAP-0040,
-E-SAP-0041-EXT/TAIL, E-A4-TIMER-001, E-EMU-SAP235-EXERCISE-001/002; all Allowed
+E-SAP-0041-EXT/TAIL, E-A4-TIMER-001, E-EMU-SAP235-EXERCISE-001/002, E-EMU-SAP235-TIMER8-003; all Allowed
 Files plus src/devices/sapporo_ohr2.c, sapporo_iom4.c and
 src/soc/apollo4/timer_internal.h.
 
@@ -45,6 +45,16 @@ refusal remains in production.
 - src/devices/sapporo_iom4_haptic.c
 - src/soc/apollo4/timer.c
 - src/soc/apollo4/timer_snapshot.c
+- src/soc/apollo4/timer_internal.h
+- src/soc/apollo4/timer8.c (new)
+- src/soc/apollo4/apollo4_snapshot.c
+- tests/devices/test_apollo4_timer8.c (new)
+- tests/devices/test_apollo4_snapshot.c
+- tools/test_sdl_snapshot_restore.sh
+- tools/test_sdl_sapporo_235_restore.sh
+- tools/test_sdl_sapporo_235_navigation_restore.sh
+- tests/integration/test_firmware_sapporo_235_snapshot.sh
+- docs/execution-model.md
 - tests/devices/test_sapporo_235_ohr.c
 - tests/devices/test_sapporo_iom4_haptic.c
 - tests/devices/test_apollo4_timer_patterns.c
@@ -56,7 +66,7 @@ refusal remains in production.
 - README.md
 
 Planning setup owns this ticket and its index row. Existing timer snapshot
-admission is explicitly integration-owned; the persistent layout is frozen.
+admission and the Apollo4 codec transition are explicitly integration-owned.
 
 ## Frozen Interfaces
 
@@ -76,30 +86,23 @@ does not establish waveform or audio fidelity. No larger OHR budget is
 authorized. Use twice-reproduced lane observations or authorized hash-pinned
 offline RE for remaining behavior; no physical device will be acquired.
 
-## Required Integration Change — 2026-10-02
+## Authorized Integration Decision — 2026-10-02
 
-The existing scope is insufficient: `timer_internal.h` has no 0xb4 latch and
-`timer_snapshot.c` serializes none. Production accepts 0x10000000 at this
-offset but returns zero and produces an identical 637-byte timer image; the
-lane retains 0x10000000 and 0x3f000000 until rewritten/reset. Ignoring this
-state, deriving it from control8, or hiding it in an unrelated field is not an
-acceptable implementation.
+The owner approved continuing with the recommended state/codec integration.
+Persist offset 0xb4, Timer8 fractional phase and limit-stalled state. Prefix
+Apollo4 section payload with little-endian A4SC magic and codec version 1;
+retain outer machine version 2 and renderer codec 2. Reject old unversioned
+SoC images and unknown versions with a recreate-snapshot diagnostic: old images
+lost the routing latch and cannot be migrated losslessly. Add success and
+atomic refusal coverage and re-derive only affected snapshot pins, comparing
+all other sections/logs against the old images. Keep public APIs unchanged.
 
-The integrator must explicitly own the extra internal state, a versioned
-Apollo4/machine snapshot representation, old-image refusal or lossless
-migration policy, and affected snapshot-gate re-derivation before unblocking
-this ticket. The timer is embedded without a length/version in
-`src/soc/apollo4/apollo4_snapshot.c`; inserting bytes into its current codec
-would misalign subsequent devices. Old images did not capture the latch, so
-silently initializing it cannot claim lossless restoration. At minimum the
-scope needs `src/soc/apollo4/timer_internal.h` and the chosen enclosing codec,
-its tests and execution contract. Public interfaces/registries/Makefile stay
-out of scope unless that explicit integration decision requires them.
-
-All dependencies remain done. This ticket stays blocked; no Allowed Files or
-persistent-layout exception is granted by this evidence update. Proposed
-acceptance should distinguish CPU-visible timer behavior from unavailable PWM
-output, and must retain the current fail-closed and finite-fixture constraints.
+E-EMU-SAP235-TIMER8-003 resolves the counter discrepancy with 45 paired lane
+observations, including fractional compare boundaries, enable transitions,
+compare rewrites and wraparound. Support this CPU-visible law without claiming
+physical PWM waveform support. Dependencies 705, 779 and 794 are all done.
+The integrator owns this planning-only transition to ready; implementation
+must leave status unchanged for review.
 
 ## Implementation
 
@@ -132,6 +135,5 @@ assertion bypass, global budget increase or silent era/golden replacement.
 
 Report observation versus unsupported model behavior explicitly, complete
 hashes/checkpoints and commands, next boundary, and requested integrator review.
-Evidence/planning maintenance created and refined this blocked ticket; no
-production implementation or acceptance is claimed. E-EMU-SAP235-EXERCISE-002
-records the tutorial checkpoint and the remaining timing/persistence gaps.
+Report the production checkpoint and compare it with the external trial in
+E-EMU-SAP235-EXERCISE-002; do not infer completion from that trial.

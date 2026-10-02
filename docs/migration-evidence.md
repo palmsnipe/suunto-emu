@@ -9185,3 +9185,105 @@ Verification logs under the new workspace:
 `01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`;
 `production-baseline.log` =
 `63a70287cf0308e0f4f3bef254330c1cac35178bc1b7fe8f38b83ef08269abb9`.
+
+
+## E-EMU-SAP235-TIMER8-003 — exact lane counter law (2026-10-02)
+
+Ticket 803 follow-up; CPU-visible counter semantics, not physical PWM. Inputs,
+Renode binary and Sapporo wrapper are the hash-pinned inputs in
+E-EMU-SAP235-EXERCISE-002. CPU remains halted (zero instructions). The probe
+advances the lane ClockSource directly by explicit nanosecond deltas, with a
+2863313861271 ns total limit and 50 s wall limit per run. All probe artifacts
+live in `/tmp/semu-integration-20261002/`, outside the repository.
+
+The Renode d66b0c2a infrastructure submodule is
+`add012af003a0f620d3da52828262676f374d121` (GitHub contents API). Public source
+was read from that exact revision at
+`https://github.com/renode/renode-infrastructure/tree/add012af003a0f620d3da52828262676f374d121/src/Emulator`.
+The pinned ComparingTimer/BaseClockSource code explains the lane observation:
+6 MHz is the exact integer ratio 3/500 ticks per ns. At compare0, the fractional
+remainder is discarded; at UINT32_MAX the value wraps to zero and again drops
+the fraction. Enable transitions reset the integer value but preserve fraction;
+repeating the same enable preserves both. Compare0 writes preserve value and
+fraction and select the next boundary (compare if ahead, otherwise UINT32_MAX).
+Compare1 has no effect on the value. Reaching the limit with compare0 equal to
+zero or UINT32_MAX stalls at zero until an enable transition or compare rewrite.
+This accounts for 4553 at 759000 ns instead of the naive floor result 4554.
+
+All 45 control/counter/IRQ tuples reproduced byte-identically. Both IRQ8 and
+scheduled compare effects stay inactive in this observed mode. Integer phase
+is stored in units of 1/500 tick (0..499); the independent integer checker
+matches all 45 tuples. Full-cycle skipping must use the sum of the two rounded
+boundary intervals, not round one whole cycle. No host floating point or time.
+
+Artifact SHA-256 census:
+
+- `derive-clock.py`: `a9ca5ec51180b339064e68f4668bf9e247fb2eb123525b7bb9561c2ff1b7437c`.
+- `clock-complete.resc`: `ba58984a3d150941d3af06029461d54f91cace8912b87d8c47a0d67f97ae98f9`.
+- `clock-complete-1.log`: `466c9bffb420900c1cf08780f9599ddabfde750ac45e50636086c91c1a46970c`.
+- `clock-complete-2.log`: `178ccf0ec532480de6fd998ac79d60096a62ab820ecb038a26d2d58c55c2c5fa`.
+- `clock-complete-1.norm`: `48b9403f529d33dd27bdaecffbd19180899f753af9941356a87d82679d22dd72`.
+- `clock-complete-2.norm`: `48b9403f529d33dd27bdaecffbd19180899f753af9941356a87d82679d22dd72`.
+- `check-clock-law.py`: `fd9ef22972f7856a1e6661043212034e486ac7949212e64ec5bf1d89a78c0762`.
+- `clock-law.log`: `205e61de20f3ab39862f3c196418aa7d1f95fedd5e92aa443c9949dc2b5e4b8b`.
+- `submodule.source`: `9c79cf9d1e011ef40e6b7ba74d16922b59ad006a02530fb45f833b7e34b025be`.
+- `timer-pinned.cs`: `45602dadf7491056d06fa9cc231af711a07c4b9d0b53d2406cfee180a7085eff`.
+- `clock-pinned.cs`: `6374b8db5ddb5af353b08e3015daf362f2daa45178775f0701dcc4e3466475fe`.
+- `entry-pinned.cs`: `c040363a32ea815c31cc8346aace2bac2905b224f13e0b628f2ce5663a10f1de`.
+- `comparing-pinned.cs`: `452025d2e17a7966d569abbb7adf476cac2aa27522d6d89fa49bf0ed86bc1e8f`.
+- `limit-pinned.cs`: `f362509e9f6583080a9c5475204f5402c467e88a4d9f5ece1905ae053f3496d4`.
+- `interval-pinned.cs`: `5e8200a92e9e6f05ad420ddeb7d87b9ec88a87ebd685d785323ee2f3bf9f3494`.
+
+Derived census (advance delta ns or write offset=value; IRQ8 is zero throughout):
+
+| Step | Operation | Absolute ns | Control | Counter |
+|---|---|---:|---|---:|
+| 0 | advance 125000 | 125000 | 141 | 750 |
+| 1 | advance 633666 | 758666 | 141 | 4551 |
+| 2 | advance 1 | 758667 | 141 | 4552 |
+| 3 | advance 333 | 759000 | 141 | 4553 |
+| 4 | advance 1000 | 760000 | 141 | 4559 |
+| 5 | write 300=141 | 760000 | 141 | 4559 |
+| 6 | advance 1 | 760001 | 141 | 4560 |
+| 7 | write 300=140 | 760001 | 140 | 0 |
+| 8 | advance 1000 | 761001 | 140 | 0 |
+| 9 | write 300=141 | 761001 | 141 | 0 |
+| 10 | advance 166 | 761167 | 141 | 1 |
+| 11 | advance 1 | 761168 | 141 | 1 |
+| 12 | write 300=142 | 761168 | 140 | 0 |
+| 13 | write 308=d51 | 761168 | 140 | 0 |
+| 14 | write 300=141 | 761168 | 141 | 0 |
+| 15 | advance 568166 | 1329334 | 141 | 3409 |
+| 16 | advance 1 | 1329335 | 141 | 3409 |
+| 17 | advance 433 | 1329768 | 141 | 3411 |
+| 18 | write 308=bdd | 1329768 | 141 | 3411 |
+| 19 | advance 1000000 | 2329768 | 141 | 9411 |
+| 20 | write 300=142 | 2329768 | 140 | 0 |
+| 21 | write 308=bdd | 2329768 | 140 | 0 |
+| 22 | write 300=141 | 2329768 | 141 | 0 |
+| 23 | advance 506166 | 2835934 | 141 | 3037 |
+| 24 | advance 1 | 2835935 | 141 | 3037 |
+| 25 | advance 333 | 2836268 | 141 | 3039 |
+| 26 | advance 715827376000 | 715830212268 | 141 | 0 |
+| 27 | advance 1 | 715830212269 | 141 | 0 |
+| 28 | advance 500 | 715830212769 | 141 | 3 |
+| 29 | advance 715827882501 | 1431658095270 | 141 | 3 |
+| 30 | write 300=140 | 1431658095270 | 140 | 0 |
+| 31 | write 308=ffffffff | 1431658095270 | 140 | 0 |
+| 32 | write 30c=0 | 1431658095270 | 140 | 0 |
+| 33 | write 300=142 | 1431658095270 | 140 | 0 |
+| 34 | write 300=141 | 1431658095270 | 141 | 0 |
+| 35 | advance 715827882499 | 2147485977769 | 141 | 0 |
+| 36 | advance 1 | 2147485977770 | 141 | 0 |
+| 37 | advance 1 | 2147485977771 | 141 | 0 |
+| 38 | advance 500 | 2147485978271 | 141 | 0 |
+| 39 | write 300=140 | 2147485978271 | 140 | 0 |
+| 40 | write 308=0 | 2147485978271 | 140 | 0 |
+| 41 | write 300=141 | 2147485978271 | 141 | 0 |
+| 42 | advance 715827882500 | 2863313860771 | 141 | 0 |
+| 43 | advance 500 | 2863313861271 | 141 | 0 |
+| 44 | write 300=140 | 2863313861271 | 140 | 0 |
+
+Setup: global mask 0x27ff, channel8 INTEN 0x100, compare0 0x11c8,
+compare1 0x2ee, control writes 0x140, 0x142, 0x141. Offset 0xb4 and
+PatternAddress admissions remain exactly those in EXERCISE-001/002.
