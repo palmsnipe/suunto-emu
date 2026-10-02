@@ -180,7 +180,7 @@ static void test_renderer_inline_and_inherited_continuation(semu_test_context *c
     same_image(context,a,b);
     free(data);semu_bus_destroy(bus);semu_nema_backend_destroy(a);semu_nema_backend_destroy(b);
 }
-static void test_renderer_shadow_continuation(semu_test_context *context)
+static void test_renderer_completed_shadow_continuation(semu_test_context *context)
 {
     semu_error e; semu_bus *bus=semu_bus_create(&e);
     semu_nema_backend *a=semu_nema_backend_create(&e),*b=semu_nema_backend_create(&e);
@@ -199,16 +199,22 @@ static void test_renderer_shadow_continuation(semu_test_context *context)
         NEMA_REG_MM10,0u,NEMA_REG_MM11,0x3f800000u,NEMA_REG_MM12,0u,
         NEMA_REG_DRAW_CMD,NEMA_DRAW_TSC6A_RESOLVE};
     SEMU_TEST_ASSERT(context,bus&&a&&b);
-    SEMU_TEST_EQ_U64(context,SEMU_OK,semu_bus_map_ram(bus,"commands",BASE,4096u,&e));
+    SEMU_TEST_EQ_U64(context,SEMU_OK,semu_bus_map_ram(bus,"commands",BASE,0x40000u,&e));
     write_words(bus,0,quad,SEMU_ARRAY_LEN(quad));
     write_words(bus,256u,shadow,SEMU_ARRAY_LEN(shadow));
     write_words(bus,512u,resolve,SEMU_ARRAY_LEN(resolve));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE,SEMU_ARRAY_LEN(quad),0,frame,&ca,&e));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&ca,&e));
     SEMU_TEST_ASSERT(context,a->tsc6a->pixels[0]!=0);
+    /* Exercise the completed-frame boundary with a fully mapped surface.
+     * Version 1 cannot preserve unresolved strokes: see the documented
+     * E-EMU-NEMA-CACHE-LIFECYCLE-001 codec-integration requirement. */
+    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&ca,&e));
     SEMU_TEST_EQ_U64(context,SEMU_OK,semu_nema_backend_snapshot_ops.save(a,&data,&size,&e));
     SEMU_TEST_EQ_U64(context,SEMU_OK,semu_nema_backend_snapshot_ops.load(b,data,size,&e));
     same_image(context,a,b);
+    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&ca,&e));
+    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(b,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&cb,&e));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&ca,&e));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(b,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&cb,&e));
     SEMU_TEST_EQ_U64(context,ca.crc,cb.crc);same_image(context,a,b);
@@ -254,7 +260,7 @@ int main(void)
 {
     const semu_test_case cases[]={SEMU_TEST_CASE(test_machine_restores_published_renderer),
         SEMU_TEST_CASE(test_renderer_inline_and_inherited_continuation),
-        SEMU_TEST_CASE(test_renderer_shadow_continuation),
+        SEMU_TEST_CASE(test_renderer_completed_shadow_continuation),
         SEMU_TEST_CASE(test_renderer_refusals_are_atomic)};
     return semu_test_run(cases,SEMU_ARRAY_LEN(cases));
 }

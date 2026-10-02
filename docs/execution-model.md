@@ -76,6 +76,10 @@ per-list publication images. Prepare publishes nothing. Failure/abort retains
 committed state; bounded diagnostic records may change, but cannot replace
 the original draw/bus error. The single-list convenience delegates to this
 same transaction, so refused lists no longer leak inherited registers.
+Compressed-surface pixels and the frame-start flag are staged together,
+including resolve-only submissions. An aborted or refused prepare restores
+the previous SRAM baseline cache. Baseline reads validate the complete 172,800-byte
+memory span and propagate failures; they never substitute an old cached image.
 Descriptor flags distinguish ordinary publication from inline commands without
 publication; unknown flags refuse, including on an empty descriptor.
 
@@ -108,6 +112,15 @@ presence bits, wrong dimensions/length/version, invalid publication flags and
 active transactions refuse. Generation may remain nonzero after backend reset,
 but an image marked published must have nonzero generation. Diagnostic history
 and transient staging are excluded.
+
+Codec version 1 does not encode whether the compressed shadow contains an
+unresolved frame. Mid-frame images are ambiguous and can lose strokes on
+continuation; a successfully saved image does not establish mid-frame fidelity.
+The existing 2.22 menu checkpoint itself has unresolved shadow state, so simply
+rejecting such saves breaks its supported onboarding gate. Full mid-frame
+support requires a versioned codec extension for the frame lifecycle, reviewed
+as roadmap integration work. Loading a valid image invalidates the derived
+baseline and clears prior lifecycle state; a refused load changes neither.
 
 Backend load validates fully, then commits without allocating or publishing.
 The renderer participates in machine rollback. Only after every machine section

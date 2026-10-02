@@ -78,6 +78,11 @@ static semu_status load(void *context, const uint8_t *p, size_t size, semu_error
     b->published_valid=(int)published;
     for(i=0u;i<NEMA_TSC6A_PIXELS;++i)
         b->tsc6a->pixels[i]=get32(p+HEADER_SIZE+2u*NEMA_BACKEND_PANEL_BYTES+4u*i);
+    /* The baseline is derived from guest RAM, which may have been restored
+     * too. No cache or lifecycle state from the previous machine may survive. */
+    b->baseline_valid=0;
+    b->shadow_fresh=0;
+    b->pending_shadow_fresh=0;
     semu_error_clear(e);return SEMU_OK;
 }
 static const semu_frame *published_frame(void *context)

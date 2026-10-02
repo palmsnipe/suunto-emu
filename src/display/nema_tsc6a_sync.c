@@ -1,7 +1,6 @@
 #include "nema_backend_internal.h"
 #include "nema_tsc6a_internal.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -28,14 +27,17 @@
  */
 
 #define SYNC_SPAN_BLOCKS 14400u
-#define SYNC_SPAN_BYTES (SYNC_SPAN_BLOCKS * 12u)
 
-static int read_span(semu_bus *bus, uint32_t base, uint8_t *destination)
+static void save_cache(semu_nema_backend *b)
 {
-    semu_error error;
-    semu_error_clear(&error);
-    return semu_bus_copy_out(bus, base, destination, SYNC_SPAN_BYTES,
-                             &error) == SEMU_OK;
+    if (b->baseline_saved) return;
+    b->saved_baseline_valid = b->baseline_valid;
+    b->saved_guest_span_base = b->guest_span_base;
+    if (b->baseline_valid) {
+        nema_tsc6a_copy(b->saved_baseline, b->baseline);
+        memcpy(b->saved_guest_span, b->guest_span, NEMA_TSC6A_SPAN_BYTES);
+    }
+    b->baseline_saved = 1;
 }
 
 /* Decode one 4x4 block into a 480x480 shadow surface. */
@@ -47,7 +49,10 @@ static void decode_block(nema_tsc6a *surface, size_t block,
     unsigned col = (unsigned)(block % 120u);
     unsigned p;
     if (!tsc6a_expand_block(bytes, texels)) {
-        return; /* undecodable: keep the resting content */
+        /* Preserve the established cache policy. Clearing an old decoded
+         * block here changes pinned snapshots; that correction requires
+         * separate golden re-derivation (E-EMU-NEMA-CACHE-LIFECYCLE-001). */
+        return;
     }
     for (p = 0u; p < 16u; ++p) {
         size_t x = (size_t)col * 4u + p % 4u;
@@ -63,78 +68,52 @@ static void decode_block(nema_tsc6a *surface, size_t block,
 /* Re-derive the baseline from the guest's current span bytes.  The first
  * build decodes every block; later calls decode only the blocks the
  * guest rewrote since the cached copy. */
-void nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
-                               uint32_t base)
+semu_status nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
+                                      uint32_t base, semu_error *error)
 {
     uint8_t *span;
     size_t block;
     int full;
+    semu_status st;
 
     if (backend == NULL || bus == NULL || backend->baseline == NULL ||
-        backend->guest_span == NULL) {
-        return;
+        backend->guest_span == NULL || backend->span_scratch == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "nema_tsc6a: invalid baseline cache");
+        return SEMU_ERR_ARGUMENT;
     }
-    if (backend->baseline_valid && backend->guest_span_base != base) {
-        backend->baseline_valid = 0;
-    }
-    if (!backend->baseline_valid) {
-        if (!read_span(bus, base, backend->guest_span)) {
-            return;
-        }
-        nema_tsc6a_reset(backend->baseline);
+    span = backend->span_scratch;
+    /* Validate and copy the whole span before changing any cached state.
+     * copy_out is memory-only; an unmapped span is a submission refusal. */
+    st = semu_bus_copy_out(bus, base, span, NEMA_TSC6A_SPAN_BYTES, error);
+    if (st != SEMU_OK) return st;
+    full = !backend->baseline_valid || backend->guest_span_base != base;
+    if (full || memcmp(span, backend->guest_span, NEMA_TSC6A_SPAN_BYTES) != 0) {
+        save_cache(backend);
+        if (full) nema_tsc6a_reset(backend->baseline);
         for (block = 0u; block < SYNC_SPAN_BLOCKS; ++block) {
-            decode_block(backend->baseline, block,
-                         backend->guest_span + block * 12u);
-        }
-        backend->guest_span_base = base;
-        backend->baseline_valid = 1;
-        return;
-    }
-    span = (uint8_t *)malloc(SYNC_SPAN_BYTES);
-    if (span == NULL) {
-        return;
-    }
-    if (!read_span(bus, base, span)) {
-        free(span);
-        return;
-    }
-    full = memcmp(span, backend->guest_span, SYNC_SPAN_BYTES) != 0;
-    if (full) {
-        for (block = 0u; block < SYNC_SPAN_BLOCKS; ++block) {
-            if (memcmp(span + block * 12u,
-                       backend->guest_span + block * 12u, 12u) != 0) {
+            if (full || memcmp(span + block * 12u,
+                               backend->guest_span + block * 12u, 12u) != 0) {
                 decode_block(backend->baseline, block, span + block * 12u);
             }
         }
-        memcpy(backend->guest_span, span, SYNC_SPAN_BYTES);
+        memcpy(backend->guest_span, span, NEMA_TSC6A_SPAN_BYTES);
     }
-    free(span);
+    backend->guest_span_base = base;
+    backend->baseline_valid = 1;
+    return SEMU_OK;
 }
 
-/* A frame begins: the shadow takes the resting state. */
-void nema_tsc6a_frame_begin(semu_nema_backend *backend, semu_bus *bus,
-                            uint32_t base, nema_tsc6a *shadow)
+/* Called only after a successful baseline refresh. Frame lifecycle state
+ * belongs to the pending transaction, just like the shadow pixels. */
+void nema_tsc6a_frame_begin(semu_nema_backend *backend, nema_tsc6a *shadow)
 {
-    if (backend == NULL || shadow == NULL || backend->baseline == NULL) {
-        return;
-    }
-    if (!backend->baseline_valid || backend->shadow_fresh == 0) {
-        nema_tsc6a_frame_baseline(backend, bus, base);
-    }
-    if (backend->baseline_valid) {
-        nema_tsc6a_copy(shadow, backend->baseline);
-        backend->shadow_fresh = 1;
-    }
+    nema_tsc6a_copy(shadow, backend->baseline);
+    backend->pending_shadow_fresh = 1;
 }
 
-/* A frame ends: the resolve has consumed the composition, so the shadow
- * returns to the resting state for the next frame. */
+/* A successful resolve consumes the pending composition. */
 void nema_tsc6a_frame_end(semu_nema_backend *backend, nema_tsc6a *shadow)
 {
-    if (backend == NULL || shadow == NULL || backend->baseline == NULL ||
-        !backend->baseline_valid) {
-        return;
-    }
     nema_tsc6a_copy(shadow, backend->baseline);
-    backend->shadow_fresh = 0;
+    backend->pending_shadow_fresh = 0;
 }

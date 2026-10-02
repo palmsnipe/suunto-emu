@@ -22,13 +22,17 @@ semu_nema_backend *semu_nema_backend_create(semu_error *error)
     }
     b->published_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
     b->working_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
-    b->guest_span = calloc(14400u * 12u, 1u);
-    if (nema_tsc6a_create(&b->baseline, error) != SEMU_OK) {
+    b->guest_span = calloc(NEMA_TSC6A_SPAN_BYTES, 1u);
+    b->span_scratch = malloc(NEMA_TSC6A_SPAN_BYTES);
+    b->saved_guest_span = malloc(NEMA_TSC6A_SPAN_BYTES);
+    if (nema_tsc6a_create(&b->baseline, error) != SEMU_OK ||
+        nema_tsc6a_create(&b->saved_baseline, error) != SEMU_OK) {
         semu_nema_backend_destroy(b);
         return NULL;
     }
     if (b->working_pixels == NULL || b->published_pixels == NULL ||
-        b->guest_span == NULL) {
+        b->guest_span == NULL || b->span_scratch == NULL ||
+        b->saved_guest_span == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate staging pixels");
         semu_nema_backend_destroy(b);
         return NULL;
@@ -44,6 +48,9 @@ void semu_nema_backend_destroy(semu_nema_backend *b)
     free(b->frames);
     free(b->working_pixels);
     free(b->guest_span);
+    free(b->span_scratch);
+    free(b->saved_guest_span);
+    nema_tsc6a_destroy(b->saved_baseline);
     nema_tsc6a_destroy(b->baseline);
     nema_tsc6a_destroy(b->pending_tsc6a);
     nema_tsc6a_destroy(b->tsc6a);
@@ -65,7 +72,9 @@ semu_status semu_nema_backend_reset(semu_nema_backend *b)
     nema_tsc6a_reset(b->pending_tsc6a);
     b->tsc6a_dirty = 0;
     b->baseline_valid = 0;
+    b->baseline_saved = 0;
     b->shadow_fresh = 0;
+    b->pending_shadow_fresh = 0;
     semu_error_clear(&b->draw_error);
     b->draw_refusal_valid = 0;
     semu_surface_clear(b->surface, 0u);

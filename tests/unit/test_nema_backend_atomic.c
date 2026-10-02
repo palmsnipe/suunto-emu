@@ -28,7 +28,7 @@ static int init(fixture *f)
     memset(f, 0, sizeof(*f));
     f->bus = semu_bus_create(&e); f->backend = semu_nema_backend_create(&e);
     return f->bus && f->backend &&
-        semu_bus_map_ram(f->bus, "synthetic", BASE, 4096u, &e) == SEMU_OK;
+        semu_bus_map_ram(f->bus, "synthetic", BASE, 0x40000u, &e) == SEMU_OK;
 }
 static void finish(fixture *f)
 { semu_nema_backend_destroy(f->backend); semu_bus_destroy(f->bus); }

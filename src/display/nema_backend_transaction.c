@@ -4,6 +4,19 @@
 
 static void discard(semu_nema_backend *b)
 {
+    /* Cache contents can carry history for undecoded blocks. Invalidation
+     * alone is not rollback: preserve the exact pre-submission cache. */
+    if (b->baseline_saved) {
+        if (b->saved_baseline_valid) {
+            nema_tsc6a *baseline = b->baseline;
+            uint8_t *span = b->guest_span;
+            b->baseline = b->saved_baseline; b->saved_baseline = baseline;
+            b->guest_span = b->saved_guest_span; b->saved_guest_span = span;
+        }
+        b->baseline_valid = b->saved_baseline_valid;
+        b->guest_span_base = b->saved_guest_span_base;
+        b->baseline_saved = 0;
+    }
     free(b->frames); b->frames = NULL;
     b->frame_count = 0u;
     b->callback = NULL; b->frame_context = NULL;
@@ -71,6 +84,7 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
     }
     b->phase = NEMA_BACKEND_PREPARING;
     b->tsc6a_dirty = 0;
+    b->pending_shadow_fresh = b->shadow_fresh;
     semu_error_clear(&b->draw_error);
     nema_state_copy(b->pending_state, b->state);
     memcpy(b->working_pixels, semu_surface_frame(b->surface)->pixels,
@@ -112,6 +126,8 @@ static void commit(void *context)
         nema_tsc6a *shadow = b->tsc6a;
         b->tsc6a = b->pending_tsc6a; b->pending_tsc6a = shadow;
     }
+    b->shadow_fresh = b->pending_shadow_fresh;
+    b->baseline_saved = 0; /* The updated cache is now committed. */
     pixels = semu_surface_pixels(b->surface, NULL);
     if (b->callback != NULL) {
         for (i = 0u; i < b->frame_count; ++i) {

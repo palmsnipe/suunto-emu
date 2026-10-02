@@ -5,6 +5,7 @@
 
 enum { NEMA_BACKEND_IDLE, NEMA_BACKEND_PREPARING, NEMA_BACKEND_PREPARED,
        NEMA_BACKEND_COMMITTING };
+#define NEMA_TSC6A_SPAN_BYTES (14400u * 12u)
 struct semu_nema_backend {
     semu_surface *surface;
     semu_frame published;
@@ -25,11 +26,14 @@ struct semu_nema_backend {
      * 788 block law decodes, undecodable blocks keep the reset value).
      * Each frame begins and ends at the resting state — the resolve
      * consumes the frame, so no stroke survives into the next one. */
-    uint8_t *guest_span;
+    uint8_t *guest_span, *span_scratch, *saved_guest_span;
     uint32_t guest_span_base;
-    nema_tsc6a *baseline;
+    nema_tsc6a *baseline, *saved_baseline;
     int baseline_valid;
-    int shadow_fresh;
+    /* Copied lazily before the first cache mutation in a transaction. */
+    int baseline_saved, saved_baseline_valid;
+    uint32_t saved_guest_span_base;
+    int shadow_fresh, pending_shadow_fresh;
     semu_error draw_error;
     /* Draw-state refusal event (ticket 794): the snapshot captured at the
      * refused draw plus the bounded event record. */
@@ -39,10 +43,9 @@ struct semu_nema_backend {
 };
 typedef struct { semu_nema_backend *backend; semu_bus *bus; } nema_draw_context;
 void nema_backend_draw(void *context, const nema_draw_snapshot *snapshot);
-void nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
-    uint32_t base);
-void nema_tsc6a_frame_begin(semu_nema_backend *backend, semu_bus *bus,
-    uint32_t base, nema_tsc6a *shadow);
+semu_status nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
+    uint32_t base, semu_error *error);
+void nema_tsc6a_frame_begin(semu_nema_backend *backend, nema_tsc6a *shadow);
 void nema_tsc6a_frame_end(semu_nema_backend *backend, nema_tsc6a *shadow);
 semu_status nema_backend_render_list(semu_nema_backend *backend, semu_bus *bus,
     const semu_display_list *list, semu_error *error);

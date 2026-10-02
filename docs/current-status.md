@@ -6,6 +6,85 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Sapporo GPU state hardening — 2026-10-02
+
+Maintenance following the screenshot/status commit `8433225`: fix compressed
+surface transaction rollback, propagate baseline-read errors, and invalidate
+derived caches on restore. The renderer now stages its frame-lifecycle flag
+alongside shadow pixels, including resolve-only submissions. Refusal or abort
+preserves committed pixels, registers, lifecycle state, and frame publication.
+Baseline synchronization uses a preallocated 172,800-byte scratch buffer and
+reads the span once per resolve.
+
+The snapshot regression previously mapped only 4 KiB, so baseline reads silently
+failed and it missed the real path. Mapping the full surface exposed lost
+strokes when saving between draws and resolve. Codec version 1 has no field for
+that lifecycle state. Rejecting such saves also rejected the existing 2.22 menu
+checkpoint, so that restriction was not retained. Save admission and encoding
+remain unchanged; **mid-frame restore can still lose strokes** and needs codec
+integration. The corrected positive regression covers completed-frame restore
+with fully mapped RAM. Valid loads discard previous derived caches; invalid
+loads preserve them.
+
+Changed implementation: `src/display/nema_backend.c`, `nema_backend_draw.c`,
+`nema_backend_internal.h`, `nema_backend_snapshot.c`,
+`nema_backend_transaction.c`, and `nema_tsc6a_sync.c`; regression coverage in
+`test_nema_tsc6a_lifecycle.c`, `test_nema_backend_atomic.c`, and
+`test_renderer_snapshot.c`. Contracts are clarified in `docs/execution-model.md`.
+No profile, public header, roadmap status, firmware fixture, or golden was
+changed. Evidence: E-EMU-NEMA-CACHE-LIFECYCLE-001, the existing transactional
+display contract, E-EMU-RENDERER-SNAPSHOT-001, and E-EMU-SAP235-TICKTRAIL-002.
+
+Remaining GPU work: a renderer codec version that stores the compressed-frame
+lifecycle is the smallest required integrator-owned extension for faithful
+mid-frame save/restore. The auxiliary-plane codec and surface writeback remain
+unimplemented. E-RE-SAP235-TSC6A-001 and E-RE-SAP235-PXB2LOADER-001 still provide
+no verified law for bits 75..95; the latter's loader investigation found GPU
+descriptor construction, not a software decoder to transplant. An additional
+regression found that rewriting a decoded block to an unsupported auxiliary-bit
+block retains old pixels. Clearing those pixels preserves the entire 2.35 cold
+transcript but changes its snapshot; that correction is deferred to explicit
+golden re-derivation rather than silently changing the pin. This maintenance
+does not extend compressed-format admission or claim hardware equivalence.
+
+Verification (logs under `/tmp/semu-gpu-state-20261002/`):
+
+- `make test TEST_FILTER=nema_tsc6a_lifecycle` — five tests pass; the retained
+  cases failed before their fixes. `make test TEST_FILTER=nema_backend_atomic`
+  — nine pass; `make test TEST_FILTER=renderer_snapshot` — four pass.
+- `make check` — pass, 1,025 PASS records including quick SDL tests; 162
+  ticket contracts validate. `make sanitize` — pass, 1,020 tests with
+  ASan/UBSan. `make check-lines` runs within `make check`; only advisory
+  size warnings. `git diff --check` — pass.
+- `make check-sdl` — pass: live input, 2.22 onboarding/menu, restored idle
+  continuation to 60 virtual seconds, and the expected finite GPS-cap control.
+  Existing complete transcript pins are unchanged. The earlier attempted
+  mid-frame-save refusal failed this gate and was removed before acceptance.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235`
+  — all nine runners pass (ten PASS messages), including paired compressed
+  main-entry runs and snapshot continuation. The optional private
+  `decode-1.bin` comparison skips because its reference is absent; synthetic
+  expansion and the hash-pinned source-asset checks run.
+- `sh tools/test_sdl_sapporo_235_restore.sh` — pass including a new cold
+  save and two restored continuations. Cold log SHA-256
+  `14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae`,
+  snapshot SHA-256
+  `5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d`,
+  watchface generation 4770 / CRC `500b350f`, and continuation checkpoint
+  `budget / 000e1862 / 9578131227 / 42000000000 ns` all hold.
+- `build/suunto-emu validate --profile sapporo-2.33.16 --firmware
+  tests/private/sapporo-2.33.16/firmware.semu`, then `build/suunto-emu run`
+  with those same profile/firmware arguments and `--max-instructions
+  200000000 --max-time 200000000` — valid, then expected budget exit 3;
+  transcript SHA-256
+  `5d7c9daf29adff26ac7430542ecafe41f55fb95227a04f761003488dc71b0c0c`
+  remains unchanged.
+- `make check-era` — SKIP: verified `SEMU_SAPPORO_239_FULL_FLASH` remains
+  unavailable. The shared renderer changed, so 2.39 era pins remain unverified
+  and may have drifted; no re-pin is made. The known 2.22 historical snapshot
+  hash discrepancy below is also not resolved by this maintenance.
+
 ## Sapporo review — 2026-10-02
 
 Maintenance scope: reconcile the README with the current evidence, reproduce

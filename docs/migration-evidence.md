@@ -8435,3 +8435,79 @@ pins. The changed serialized fields and causal commit are not attributed
 in this review. A control-build attribution and integrator-owned roadmap
 re-derivation are required before changing either snapshot expectation.
 All existing tests and pins are preserved. No new hardware law is inferred.
+
+### E-EMU-NEMA-CACHE-LIFECYCLE-001 — transactional compressed-surface cache maintenance
+
+2026-10-02, maintenance based on source `8433225`. This entry records synthetic
+regressions and compatibility checks, not a new lane-observed GPU law. The
+existing display transaction contract, E-EMU-RENDERER-SNAPSHOT-001, and
+E-EMU-SAP235-TICKTRAIL-002 supply the behavioral requirements.
+
+The old backend changed `shadow_fresh` during prepare and resolved directly
+through the committed shadow when the batch had no preceding compressed-target
+draw. Abort or a later child's refusal could therefore consume committed
+strokes. Baseline reads discarded errors, and loading into a previously used
+backend retained its cache and lifecycle flag. New regressions first reproduced
+these failures with a fully mapped 172,800-byte surface. The cache itself also
+needs exact rollback: unsupported blocks can retain historical decoded pixels,
+so invalidating the cache is not equivalent to restoring it.
+
+Implemented boundary: stage the lifecycle flag with the shadow; stage every
+resolve; propagate memory-only whole-span read errors; lazily back up the
+baseline and cached bytes before their first mutation; swap backups back on
+abort/refusal; invalidate prior cache/lifecycle state only after successful
+snapshot validation. Construction preallocates scratch and rollback storage;
+commit and abort allocate nothing. Unchanged cache reads need no backup copy.
+The two extra byte buffers and shadow backup add 1,267,200 bytes per backend;
+per-resolve malloc/free and the duplicate span read are removed. No claim of
+measured end-to-end speedup is made.
+
+Synthetic evidence in `/tmp/semu-gpu-state-20261002/` (SHA-256):
+
+| Log | SHA-256 | Derived result |
+| --- | --- | --- |
+| `red-lifecycle.log` | `1368551efe56f386b1a4418b6da3749a45d282ec377aa0165a8c01b40b38122a` | Five initial failures: frame-start rollback, resolve rollback, missing-span refusal, auxiliary rewrite, stale load cache. |
+| `red-cache-rollback.log` | `22e38fda0da1299e422a8d53d79e16d6dccb141ec3263ff9ddef162258609c3d` | Cache invalidation fails exact rollback after a valid shifted-source resolve is aborted. |
+| `lifecycle-complete.log` | `2b28a86c504efcaddd09b809ed0b7d43c0a36dd31f6eb349dd365b8f384334c2` | Five retained regressions pass, including both abort and later-child refusal, then successful retry. Auxiliary rewrite remains deferred below. |
+| `atomic-complete.log` | `4e0b14534def76bfecd0b8c87bb028b1bc91f90431296fe0ad2c91ef4f2c33a1` | Nine atomic-backend tests pass, including allocation refusal and allocation-free commit. |
+| `snapshot-complete.log` | `7fca448aa5f333414fb9a2aaf50f7805cf093bd441dadd77b076f2dadea07c65` | Four renderer snapshot tests pass at the completed-frame boundary. |
+| `red-snapshot.log` | `cb790f38de89fb0b25b2ac2a6358e738b7f6abb9c487a295c44703a1b9c5e19d` | Original continuation test fails frame CRC equality after changing only its RAM mapping from 4 KiB to 256 KiB. |
+| `check-sdl.log` | `d47686affe959457049f1971ea67c69a206bf25436643f807e73b74e9150038c` | Rejected save-admission experiment: real 2.22 menu save refuses with an unresolved compressed frame. Restriction removed. |
+| `check-release.log` | `29d755377af15e6a18c831aff8545d15aadf916f4eb74ef11b15cc1518b2a410` | `make check` passes, 1,025 PASS records. |
+| `sanitize-release.log` | `2cecc38b0bb7aeb7aa1b850027ea6ed38739ab86518d52c57a8614eb080ef0a4` | `make sanitize` passes, 1,020 tests. |
+| `check-sdl-final.log` | `50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988` | 2.22 input/menu/idle/control gates pass. |
+| `firmware-235.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` | All nine selected 2.35 runners pass; optional private decoded-pixel reference absent. |
+| `restore-235-cold-release.log` | `a434b673d7a3dee81ae06a41380d90e6a997c57d26e7160d417b984c67ac5737` | Final implementation passes cold-save hash guards and paired restore continuation. |
+
+Two integration requirements remain, without changing goldens or inventing
+compressed-format behavior:
+
+1. **Mid-frame snapshot lifecycle.** Version-1 NEMA images encode the shadow
+   but not `shadow_fresh`; restoring into a fresh backend can discard unresolved
+   strokes. The old 4-KiB fixture hid this because baseline reads failed silently.
+   Rejecting such saves also rejects the real 2.22 menu checkpoint (generation
+   4510 / CRC `040ebb03`), so that restriction was not retained. Save admission
+   and format remain unchanged; mid-frame fidelity is not established. The
+   smallest required integrator-owned change is a versioned renderer encoding
+   for the lifecycle bit, with explicit legacy handling and reviewed snapshot
+   goldens. The positive regression now maps the full surface and saves after
+   resolve; it does not claim to fix the demonstrated mid-frame case.
+2. **Auxiliary rewrite and golden re-derivation.** A supported block rewritten
+   with unknown auxiliary bits retains old decoded pixels. An exploratory
+   clearing implementation kept the full 2.35 cold log byte-identical
+   (`14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae`),
+   but its snapshot changed from the existing `5f21f7d1…` to
+   `6c85c58c4276b95e064c5bbf26a7ab6e0fe503e29fe96786b9d376950ae75026`:
+   1,253 bytes / 688 pixels, all in section 10's shadow; every changed byte
+   became zero. This single exploratory run is not an accepted new golden.
+   Removing that clearing change restores snapshot SHA-256
+   `5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d`.
+   The exploratory snapshot/log and its failing regression remain in the
+   volatile investigation workspace, pending roadmap re-derivation. The
+   auxiliary-plane bit law remains unknown per E-RE-SAP235-TSC6A-001 and
+   E-RE-SAP235-PXB2LOADER-001; this maintenance does not admit those modes.
+
+Firmware/regression commands, final results and remaining private-fixture
+limitations are recorded in the dated GPU-maintenance entry in
+`docs/current-status.md`. No public header, profile, persistent layout,
+roadmap status, or regression pin changes in this maintenance.
