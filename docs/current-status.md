@@ -6,6 +6,34 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## GPU compressed-texture clipping — 2026-10-02
+
+Ticket 804 extends the existing 60x60 compressed-asset quad path: it preflights
+and decodes only blocks sampled by visible pixels. A valid clipped portion can
+render when unknown auxiliary blocks are entirely outside its footprint.
+The entire 2700-byte source memory span remains mandatory, even for an empty
+clip. Unknown visible blocks refuse before any target write. The same existing
+pixel-center mapping drives both preflight and rendering; decoder, transforms,
+blending, cache, snapshots and semantic-shadow behavior are unchanged.
+
+The red-first regression now passes for horizontal clipping, fractional
+vertical clipping, empty clips, all 21 unknown visible auxiliary bits and a
+missing source-memory byte. Existing TSC6A decoder/lifecycle cases also pass.
+Scope: `src/display/nema_tsc6a_raster.c`, new
+`tests/unit/test_nema_tsc6a_clip.c`, README and evidence/status documentation.
+E-EMU-TSC6A-CLIP-001 records the narrow composition of the existing block and
+EXT6/EXT7 clipping laws; this is not a new hardware-equivalence claim.
+
+Verification: `make check` (1039 PASS records), `make sanitize` (1034), focused
+clip/decoder tests and task contracts (168 tickets) pass. All six restored
+2.35 navigation cases, paired exercise/mid-pulse continuation and both SDL
+restore gates preserve their full log/image pins. E-EMU-TSC6A-CLIP-001 records
+the exact commands, hashes and missing private reference/2.39 flash inputs.
+
+The unknown auxiliary-bit codec, compressed writeback and Widgets MM00 scale
+remain gaps. Ticket 804 stays ready for integrator review. Firmware bytes and
+new frame pixels remain outside Git; the six README screenshots are unchanged.
+
 ## Exercise entry and persistent timer state — 2026-10-02
 
 Ticket 803 implementation reaches the first-exercise GPS tutorial in production

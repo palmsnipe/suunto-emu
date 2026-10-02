@@ -20,10 +20,15 @@ end at an unsupported operation or an exhausted compatibility fixture.
 | **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed; resolves reject unsupported compressed samples instead of publishing stale cached pixels. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting Running reaches the first-exercise GPS tutorial with deterministic save/restore. Finite GPS/OHR support still limits sessions. |
 | **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Snapshot codec updates require pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
 
-The [current review](docs/current-status.md#sapporo-review--2026-10-02)
-separates fresh checks from historical results and lists the next fidelity work.
+The [current status](docs/current-status.md) separates fresh checks from
+historical results and lists the next fidelity work.
 The [evidence ledger](docs/migration-evidence.md) records the observed laws and
 limits; the [ticket index](plans/index.tsv) controls roadmap acceptance.
+
+Compressed-icon clipping now decodes only visible blocks, so unsupported
+blocks outside the clip no longer prevent supported pixels from rendering.
+GPU support still lacks the compressed auxiliary-bit decoder, full writeback,
+and a distinct Widgets scale case; unknown visible blocks refuse atomically.
 
 ## Screenshots
 

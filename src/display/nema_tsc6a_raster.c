@@ -489,22 +489,29 @@ static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
     return SEMU_OK;
 }
 
-/* Execute the accepted compressed state.  Validate fully before mutating
- * (nema_rgba4444.c rule): the bounded source span is read byte-by-byte
- * with the memory-only bus API the shadow mask draws already use, then
- * all 225 blocks expand into a local buffer; any read or expansion
- * failure refuses with SEMU_ERR_UNSUPPORTED and zero target writes.
- * Target pixels map through the pinned matrix with the existing helpers
- * at pixel centers (the mapping form of nema_tsc6a_resolve above, which
- * makes the captured identity-scale matrix cover the 60x60 quad 1:1),
- * range-check into the asset, and SRC_OVER through the existing shadow
- * blend with tex_color as the identity tint. */
+/* Use exactly the same pixel-center mapping for preflight and rendering. */
+static int tsc6a_asset_sample(const tsc6a_fixed_matrix *matrix, int x, int y,
+                              unsigned *sx, unsigned *sy)
+{
+    int64_t tx, ty;
+    tsc6a_resolve_point(matrix, x, y, &tx, &ty);
+    if (tx < 0 || ty < 0 || tx >= (int64_t)TSC6A_CROSSHAIR_W ||
+        ty >= (int64_t)TSC6A_CROSSHAIR_H) return 0;
+    *sx = (unsigned)tx; *sy = (unsigned)ty;
+    return 1;
+}
+
+/* Ticket 804: validate the entire source-memory span as before, then decode
+ * every sampled block before any target write. EXT6/7 clip/transform laws and
+ * the E-RE-SAP235-TSC6A-001 decoder are unchanged. Offscreen auxiliary blocks
+ * cannot affect visible pixels; an unknown visible block still fails closed. */
 static semu_status tsc6a_resolve_compressed_asset(
     semu_bus *bus, const nema_draw_snapshot *s, uint8_t *rgb565_le,
     uint32_t stride, int x0, int y0, int x1, int y1, semu_error *error)
 {
     uint8_t source[TSC6A_CROSSHAIR_SRC_BYTES];
     uint8_t texels[TSC6A_CROSSHAIR_H][TSC6A_CROSSHAIR_W][4];
+    uint8_t sampled[225] = {0};
     tsc6a_fixed_matrix matrix;
     unsigned by, bx, py, px, offset;
     int x, y;
@@ -513,13 +520,29 @@ static semu_status tsc6a_resolve_compressed_asset(
     for (offset = 0u; offset < TSC6A_CROSSHAIR_SRC_BYTES; ++offset) {
         st = semu_bus_copy_out(bus, s->src_base + offset,
                                &source[offset], 1u, error);
-        if (st != SEMU_OK) {
-            return st; /* zero writes: refusal before mutation */
+        if (st != SEMU_OK) return st;
+    }
+    st = tsc6a_snapshot_matrix(s, &matrix, error);
+    if (st != SEMU_OK) return st;
+    if (x0 < (int)s->clip_min_x) x0 = (int)s->clip_min_x;
+    if (y0 < (int)s->clip_min_y) y0 = (int)s->clip_min_y;
+    if (x1 > (int)s->clip_max_x) x1 = (int)s->clip_max_x;
+    if (y1 > (int)s->clip_max_y) y1 = (int)s->clip_max_y;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > 240) x1 = 240;
+    if (y1 > 240) y1 = 240;
+    for (y = y0; y < y1; ++y) {
+        for (x = x0; x < x1; ++x) {
+            unsigned sx, sy;
+            if (tsc6a_asset_sample(&matrix, x, y, &sx, &sy))
+                sampled[(sy / 4u) * 15u + sx / 4u] = 1u;
         }
     }
     for (by = 0u; by < TSC6A_CROSSHAIR_H / 4u; ++by) {
         for (bx = 0u; bx < TSC6A_CROSSHAIR_W / 4u; ++bx) {
             uint8_t block[16][4];
+            if (sampled[by * 15u + bx] == 0u) continue;
             if (!tsc6a_expand_block(source + (size_t)by * 180u +
                                     (size_t)bx * 12u, block)) {
                 semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -536,36 +559,11 @@ static semu_status tsc6a_resolve_compressed_asset(
             }
         }
     }
-    st = tsc6a_snapshot_matrix(s, &matrix, error);
-    if (st != SEMU_OK) {
-        return st;
-    }
-    if (x0 < (int)s->clip_min_x) x0 = (int)s->clip_min_x;
-    if (y0 < (int)s->clip_min_y) y0 = (int)s->clip_min_y;
-    if (x1 > (int)s->clip_max_x) x1 = (int)s->clip_max_x;
-    if (y1 > (int)s->clip_max_y) y1 = (int)s->clip_max_y;
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > 240) x1 = 240;
-    if (y1 > 240) y1 = 240;
     for (y = y0; y < y1; ++y) {
         for (x = x0; x < x1; ++x) {
-            int64_t cx = (int64_t)x * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
-            int64_t cy = (int64_t)y * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
-            int64_t u = ((int64_t)matrix.mm00 * cx) / TSC6A_FP16_ONE +
-                        ((int64_t)matrix.mm01 * cy) / TSC6A_FP16_ONE +
-                        matrix.mm02;
-            int64_t v = ((int64_t)matrix.mm10 * cx) / TSC6A_FP16_ONE +
-                        ((int64_t)matrix.mm11 * cy) / TSC6A_FP16_ONE +
-                        matrix.mm12;
-            int64_t sx = tsc6a_floor_div_fp16(u);
-            int64_t sy = tsc6a_floor_div_fp16(v);
+            unsigned sx, sy;
             uint32_t argb;
-
-            if (sx < 0 || sy < 0 || sx >= (int64_t)TSC6A_CROSSHAIR_W ||
-                sy >= (int64_t)TSC6A_CROSSHAIR_H) {
-                continue;
-            }
+            if (!tsc6a_asset_sample(&matrix, x, y, &sx, &sy)) continue;
             argb = ((uint32_t)texels[sy][sx][3] << 24u) |
                    ((uint32_t)texels[sy][sx][0] << 16u) |
                    ((uint32_t)texels[sy][sx][1] << 8u) |

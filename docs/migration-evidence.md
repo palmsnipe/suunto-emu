@@ -9495,3 +9495,66 @@ No additional compressed format, register, sampling mode or shader value is
 introduced. DRAW_CMD=10 cache semantics, semantic shadows and GPU writeback
 are unchanged. It does not authorize the currently refused Widgets MM00 word
 3f7fffff or decode any of auxiliary bits 75..95.
+
+Ticket 804 result: the prior implementation fails the clipped-hidden-auxiliary
+regression; the new implementation passes all 30 TSC6A cases (7 core, 3 clip,
+12 expansion, 8 lifecycle). A separate synthetic test module contains
+no firmware bytes. Horizontal seven-column clipping samples 30/225 blocks;
+the fractional vertical 11-row strip samples 45/225; an empty clip samples
+zero. Every target byte is checked against independently specified white/zero
+rectangles. Each of the 21 auxiliary bits set in the last visible block
+refuses without changing any of the 115200 target bytes. Removing the final
+source byte still refuses even for an empty clip.
+
+Verification commands and results:
+
+- `make test TEST_FILTER=nema_tsc6a_clip`: 3/3 pass (red-first case failed
+  before the change); `make test TEST_FILTER=nema_tsc6a_expand`: 12/12 pass.
+- `make check`: pass, 1039 PASS records including quick SDL cases.
+- `make sanitize`: pass, 1034 PASS records; no ASan/UBSan findings.
+- `make check-lines`, `make check-task-contracts`: pass, 168 indexed tickets;
+  existing advisory source-size warnings remain nonfatal.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main235-1.sems sh
+  tools/test_sdl_sapporo_235_navigation_restore.sh`: all six paired cases pass.
+- The same 2.35 snapshot with `sh tools/test_sdl_sapporo_235_exercise.sh` and
+  `sh tools/test_sdl_sapporo_235_restore.sh`: pass, including paired active
+  Timer8 restoration equal to the uninterrupted complete state.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main222-1.sems sh
+  tools/test_sdl_snapshot_restore.sh`: immediate display and paired native
+  LOWER continuation pass.
+- `make check-era`: explicit skip; `SEMU_SAPPORO_239_FULL_FLASH` is unavailable.
+  Ticket 800's era pins may drift from the earlier snapshot codec updates;
+  none are silently changed here. The optional private compressed reference
+  remains absent; this ticket changes no block decoder/golden expectation.
+
+Every authentic log/image pin is unchanged from EXERCISE-003: tutorial frame
+5058/48a2bfcd, watchface 4770/500b350f, 2.22 menu 4510/040ebb03, and all six
+navigation snapshots. Per-guest hashes are in that entry and the pinned
+runners; the output summaries below confirm their exact comparisons. All
+private evidence stays volatile. No source safety or dependency change.
+
+Final verification artifacts under `/tmp/semu-integration-20261002/`:
+
+- `gpu-red.log`: `0adb46ff2481c7c0e5c8847576d57da78a1e77b8a66341fe45b0cbc5469af838`.
+- `gpu-green.log`: `b62baeb398580c94c73f52ffb9a56d204e010d25866b21e563d5d375fb970496`.
+- `gpu-clip.log`: `89ca0b417638ca02d4e1d5d368f904e6abf069238853564d6316a62751249472`.
+- `gpu-expand.log`: `28d7d4d1200308326718bb2419b301241490e361b1b95d7eaf83725920f78bcf`.
+- `gpu-check.log`: `bc77a2457dbd47e8d06ee5dcc8854a5b0d2ed0117a957a18fd33c7b9d6930cd0`.
+- `gpu-sanitize.log`: `e686abb1a2bfc784b028982bd68072f0622b7f3055e5995bc384f5c7d38e6fb0`.
+- `gpu-contracts.log`: `8abd93cc8a81c62d7a78ccc81a916ea42609fcf2bfda80fc98de7471f6dfd731`.
+- `gpu-lines-era.log`: `009d0afbbdd80777b2a069133fd89a6d0cb65c6996c52aadafe0cfed72a53eee`.
+- `gpu-gates.py`: `dd5cb72109b37a64e35b012fba0c5451acbeb494e5b6f83f81f55a74d34412a2`.
+- `gpu-gates.log`: `97cde7c4441dfaecff0612c43f90224201605ca369cb0e1accb60b1b8f510d26`.
+- `gpu-nav.log`: `6446fc28eeb3ef1aff556a86253a41275f20acdfd8dfb54109d909766cd961d8`.
+- `gpu-exercise.log`: `97ba73d3a1c434f77ed229ef8744d6adbc7a93a9a4371928e32d4820740e0019`.
+- `gpu-restore235.log`: `a434b673d7a3dee81ae06a41380d90e6a997c57d26e7160d417b984c67ac5737`.
+- `gpu-restore222.log`: `a66ba4cb041918aa91c4fcf3cabaf6630c666a0db81eb09f2cb5b53defd67685`.
+
+Changed implementation/test file hashes at handoff:
+
+- `src/display/nema_tsc6a_raster.c`: `d0f49b15d7886cddf9de21205e8e18a92984882b2e95b5273b371cfb1d590642`.
+- `tests/unit/test_nema_tsc6a_clip.c`: `5592422dacf69597178ef47e03f50de5bdb58d4b4d7357fe013bb085cfb7fb96`.
+
+Ticket 804 remains ready for integrator review. No full GPU-completeness or
+physical-device acceptance is claimed; unknown visible auxiliary blocks,
+compressed writeback and the distinct Widgets MM00 scale still require work.
