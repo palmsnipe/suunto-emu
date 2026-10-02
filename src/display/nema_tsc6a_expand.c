@@ -70,6 +70,12 @@ static void tsc6a_third(const uint32_t a[3], const uint32_t b[3],
     }
 }
 
+int tsc6a_block_supported(const uint8_t blk[TSC6A_BLOCK_BYTES])
+{
+    return blk != NULL && (blk[9] & 0xf8u) == 0u &&
+           blk[10] == 0u && blk[11] == 0u;
+}
+
 int tsc6a_expand_block(const uint8_t blk[TSC6A_BLOCK_BYTES],
                        uint8_t out[TSC6A_BLOCK_PIXELS][4])
 {
@@ -82,7 +88,7 @@ int tsc6a_expand_block(const uint8_t blk[TSC6A_BLOCK_BYTES],
         return 0;
     }
     /* Fail closed on the entire unverified auxiliary region bits 75..95. */
-    if (tsc6a_bits(blk, 75u, 21u) != 0u) {
+    if (!tsc6a_block_supported(blk)) {
         return 0;
     }
     tsc6a_endpoint(tsc6a_bits(blk, 32u, 16u), e0);

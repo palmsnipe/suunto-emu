@@ -8769,3 +8769,65 @@ also reproduces both logs and snapshots. Missing optional firmware skips;
 explicit missing/mismatched input refuses. The runner's own hashes and exact
 commands are tracked in Git. Selecting a sport is a separate OHR request
 boundary; this evidence authorizes no extra response or GPU decoding mode.
+
+### E-EMU-NEMA-RESOLVE-REFUSAL-001 — sampled auxiliary blocks (2026-10-02)
+
+Ticket 802, parent `d6d1f86`; synthetic regression evidence under the existing
+transactional display contract, E-RE-SAP235-TSC6A-001 and
+E-EMU-NEMA-CACHE-LIFECYCLE-001. No new compressed-mode law is claimed.
+
+A synthetic opaque-red 12-byte known block followed by a byte-9 rewrite that
+sets bit 75 reproduces the stale-pixel problem: the baseline decoder refuses
+the auxiliary bits but retains the old red cache, and DRAW_CMD=10 previously
+published it. A cold unknown block also silently supplied the reset image.
+Both new regression groups fail against the original implementation (8 cases,
+2 failures) before any production change.
+
+The integration reuses one supported-block predicate for expansion and resolve
+validation. Before any destination write, the full DRAW_CMD=10 source footprint
+is checked with the exact same fixed-point matrix, pixel-center coordinates,
+floor operation and bounds as rendering. A sampled auxiliary block returns
+`SEMU_ERR_UNSUPPORTED` with its block index. Full committed snapshots and frame
+publication remain unchanged on refusal, including rollback of baseline cache
+refresh. No substitute pixels, new decoder, budget or snapshot encoding is added.
+
+Derived synthetic census: eight lifecycle cases pass. New cases cover cold
+unknown input, a known-to-unknown rewrite, an unknown neighboring block outside
+the clip, a translation into that block, the fractional 3.5+.5 source boundary,
+and an unknown later pixel in a five-pixel destination clip. Refusals preserve
+publication count; cold and rewrite refusals preserve complete renderer images
+byte-for-byte. The cache-history roundtrip now resolves an adjacent known block:
+it still verifies historical cache persistence but cannot publish unknown data.
+Existing byte-75..95 decoder refusal tests run in the full suite.
+
+The change is limited to DRAW_CMD=10 baseline sampling. The separate semantic
+mask/quad model, compressed auxiliary decoding and compressed writeback remain
+outside this slice. Unsupported blocks outside the sampled footprint can still
+retain historical cache pixels; their presence is not decoded-format support.
+Renderer codec 2 and all old firmware pins remain unchanged.
+
+Raw verification files below live in `/tmp/semu-nav-20261002/`; no proprietary
+logs or pixels enter Git. Firmware commands validate all components before use.
+
+| Record | SHA-256 | Result |
+| --- | --- | --- |
+| `gpu-red.log` | `4880591717b6491d21a510dd97c7f67cb6ab0001e9c97d572bae79b8d7ba5738` | 8 lifecycle cases; two new failures before the fix |
+| `gpu-green.log` | `7df47ceec2503cc39cec6e5aa6c43ad65bf660323f34e468b40688024017592c` | 8 lifecycle cases pass |
+| `gpu-check.log` | `e9a7a0d824b5aed34268bde585ad0a8a56a7e85c152415de2d2ad1a5eaec526e` | 1,031 PASS records, including quick SDL |
+| `gpu-sanitize.log` | `8f8d6e794f2ce8828cd912881d07d48ad06b09e912c630045f402fcb33cc67d4` | 1,026 tests pass with ASan/UBSan |
+| `gpu-nav235.log` | `6446fc28eeb3ef1aff556a86253a41275f20acdfd8dfb54109d909766cd961d8` | 6 independent restored navigation windows, paired logs/snapshots, unchanged pins |
+| `gpu-contracts.log` | `3e0c0a7c091fc5535988306ac5e5cc846477cb38508425d2e4b7546e92865eee` | 166 indexed tickets validate |
+| `gpu-lines.log` | `e26735d20245b883d7babe90fd95b0ca34f3249864d0ddf177e1e923c142e431` | Line review passes with advisory warnings |
+| `gpu-era.log` | `4923d307a57ed0197d841d4740e313c1917050ad442dbc98bd6f28b9e69ee71e` | Exact 2.39 full flash absent; explicit SKIP |
+
+The six restored windows retain the complete tuples, log and snapshot SHA-256s
+in E-EMU-SAP235-NAVIGATION-002, including watchface return at generation 5033 /
+CRC `fa3eed01`. No golden was adjusted. The exact 2.39 full-flash input is still
+unavailable; its era pins remain unverified and may drift, as tracked by 800.
+
+Additional completed firmware checks for ticket 802:
+
+| Record | SHA-256 | Result |
+| --- | --- | --- |
+| `gpu-check-sdl.log` | `50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988` | Full 2.22 setup/menu, 60-second idle, finite GPS-cap control pass |
+| `gpu-firmware235.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` | All nine 2.35 runners pass (ten PASS messages); private decode reference absent, explicitly skipped |

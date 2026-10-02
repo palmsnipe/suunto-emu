@@ -22,8 +22,8 @@
  * a baseline surface re-decoded through the ticket-788 block law whenever
  * the guest rewrites the span; blocks the law cannot decode (the
  * aux-bit population, 5,441 of 14,400 — every one outside the pinned
- * resolve clips, twice-derived) stay at the transparent-black reset
- * value, the same content they hold in the pre-fix shadow.
+ * resolve clips, twice-derived) retain their prior cached value. Ticket
+ * 802 refuses a resolve that samples one; it invents no replacement pixels.
  */
 
 #define SYNC_SPAN_BLOCKS 14400u
@@ -116,4 +116,39 @@ void nema_tsc6a_frame_end(semu_nema_backend *backend, nema_tsc6a *shadow)
 {
     nema_tsc6a_copy(shadow, backend->baseline);
     backend->pending_shadow_fresh = 0;
+}
+
+/* E-RE-SAP235-TSC6A-001 / ticket 802: unknown auxiliary bits cannot supply
+ * decoded baseline samples. Validate the full footprint before pixel writes;
+ * retained history outside it remains part of the unchanged snapshot codec. */
+semu_status nema_tsc6a_validate_resolve(const semu_nema_backend *backend,
+    const nema_draw_snapshot *s, semu_error *error)
+{
+    tsc6a_fixed_matrix matrix;
+    semu_status st;
+    int x, y;
+    if (!tsc6a_resolve_state(s)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "nema_tsc6a: unsupported resolve state");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    st = tsc6a_snapshot_matrix(s, &matrix, error);
+    if (st != SEMU_OK) return st;
+    for (y = (int)s->clip_min_y; y < (int)s->clip_max_y; ++y) {
+        for (x = (int)s->clip_min_x; x < (int)s->clip_max_x; ++x) {
+            int64_t sx, sy;
+            size_t block;
+            tsc6a_resolve_point(&matrix, x, y, &sx, &sy);
+            if (sx < 0 || sy < 0 || sx >= NEMA_TSC6A_WIDTH ||
+                sy >= NEMA_TSC6A_HEIGHT) continue;
+            block = (size_t)(sy / 4) * 120u + (size_t)(sx / 4);
+            if (!tsc6a_block_supported(backend->guest_span + block * 12u)) {
+                semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                    "nema_tsc6a: unsupported baseline block %u in resolve",
+                    (unsigned)block);
+                return SEMU_ERR_UNSUPPORTED;
+            }
+        }
+    }
+    return SEMU_OK;
 }

@@ -246,6 +246,21 @@ static void blend_shadow_pixel(uint32_t source, uint32_t tint,
     destination[1] = (uint8_t)(encoded >> 8u);
 }
 
+void tsc6a_resolve_point(const tsc6a_fixed_matrix *matrix, int x, int y,
+                         int64_t *sx, int64_t *sy)
+{
+    int64_t cx = (int64_t)x * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
+    int64_t cy = (int64_t)y * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
+    int64_t u = ((int64_t)matrix->mm00 * cx) / TSC6A_FP16_ONE +
+        ((int64_t)matrix->mm01 * cy) / TSC6A_FP16_ONE +
+        matrix->mm02;
+    int64_t v = ((int64_t)matrix->mm10 * cx) / TSC6A_FP16_ONE +
+        ((int64_t)matrix->mm11 * cy) / TSC6A_FP16_ONE +
+        matrix->mm12;
+    *sx = tsc6a_floor_div_fp16(u);
+    *sy = tsc6a_floor_div_fp16(v);
+}
+
 semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
                                const nema_draw_snapshot *s,
                                uint8_t *rgb565_le, uint32_t stride,
@@ -269,18 +284,10 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
     if (st != SEMU_OK) return st;
     for (y = (int)s->clip_min_y; y < (int)s->clip_max_y; ++y) {
         for (x = (int)s->clip_min_x; x < (int)s->clip_max_x; ++x) {
-            int64_t cx = (int64_t)x * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
-            int64_t cy = (int64_t)y * TSC6A_FP16_ONE + TSC6A_FP16_ONE / 2;
-            int64_t u = ((int64_t)matrix.mm00 * cx) / TSC6A_FP16_ONE +
-                        ((int64_t)matrix.mm01 * cy) / TSC6A_FP16_ONE +
-                        matrix.mm02;
-            int64_t v = ((int64_t)matrix.mm10 * cx) / TSC6A_FP16_ONE +
-                        ((int64_t)matrix.mm11 * cy) / TSC6A_FP16_ONE +
-                        matrix.mm12;
-            int64_t sx = tsc6a_floor_div_fp16(u);
-            int64_t sy = tsc6a_floor_div_fp16(v);
+            int64_t sx, sy;
             size_t off;
 
+            tsc6a_resolve_point(&matrix, x, y, &sx, &sy);
             if (sx < 0 || sy < 0 || sx >= (int64_t)NEMA_TSC6A_WIDTH ||
                 sy >= (int64_t)NEMA_TSC6A_HEIGHT) continue;
             off = (size_t)y * stride + (size_t)x * 2u;

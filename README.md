@@ -17,7 +17,7 @@ end at an unsupported operation or an exhausted compatibility fixture.
 | --- | --- | --- |
 | **2.22.60** | Standalone onboarding via manual time entry; native menu and selection changes; paired snapshot restoration; active through 60 virtual seconds. | Broader watch functions and unbounded sessions remain unverified. |
 | **2.33.16** | Passes the former first boot fault, with no reset or refusal in the bounded early-boot check. | Setup, watchface, menu, and long-session acceptance remain unverified. |
-| **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting a sport reaches an OHR fixture boundary. Finite GPS/OHR support still limits sessions. |
+| **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed; resolves reject unsupported compressed samples instead of publishing stale cached pixels. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting a sport reaches an OHR fixture boundary. Finite GPS/OHR support still limits sessions. |
 | **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Renderer codec 2 requires snapshot-pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
 
 The [current review](docs/current-status.md#sapporo-review--2026-10-02)

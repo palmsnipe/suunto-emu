@@ -45,6 +45,8 @@ typedef struct { semu_nema_backend *backend; semu_bus *bus; } nema_draw_context;
 void nema_backend_draw(void *context, const nema_draw_snapshot *snapshot);
 semu_status nema_tsc6a_frame_baseline(semu_nema_backend *backend, semu_bus *bus,
     uint32_t base, semu_error *error);
+semu_status nema_tsc6a_validate_resolve(const semu_nema_backend *backend,
+    const nema_draw_snapshot *snapshot, semu_error *error);
 void nema_tsc6a_frame_begin(semu_nema_backend *backend, nema_tsc6a *shadow);
 void nema_tsc6a_frame_end(semu_nema_backend *backend, nema_tsc6a *shadow);
 semu_status nema_backend_render_list(semu_nema_backend *backend, semu_bus *bus,

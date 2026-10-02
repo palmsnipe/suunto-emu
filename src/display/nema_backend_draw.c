@@ -107,6 +107,11 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
             set_draw_error(backend, snap, &err);
             return;
         }
+        st = nema_tsc6a_validate_resolve(backend, snap, &err);
+        if (st != SEMU_OK) {
+            set_draw_error(backend, snap, &err);
+            return;
+        }
         if (!backend->pending_shadow_fresh) nema_tsc6a_frame_begin(backend, shadow);
         st = nema_tsc6a_resolve(shadow, snap, target.pixels, target.stride, &err);
         if (st != SEMU_OK) {

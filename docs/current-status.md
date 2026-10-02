@@ -6,6 +6,51 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 802 — reject unsupported compressed baseline samples — 2026-10-02
+
+Implemented for integrator review on `d6d1f86`. A known compressed block rewritten
+with unsupported auxiliary bits could publish old cached pixels. DRAW_CMD=10 now
+checks its complete sampled source footprint before destination writes and
+refuses unsupported blocks with a block-index diagnostic. Cache state, renderer
+snapshots, frame pixels and publication remain atomic. Unknown blocks outside
+the footprint preserve their existing serialized history. No clearing value,
+auxiliary decoder or compressed writeback is invented.
+
+E-EMU-NEMA-RESOLVE-REFUSAL-001 records the red-first failures, resulting eight
+lifecycle cases, raw verification hashes and unchanged navigation checkpoints.
+The decoder predicate and resolve-coordinate calculation are shared with the
+validation path. Renderer codec 2, profiles, public API and budgets are unchanged;
+the separate semantic mask/quad path remains outside this slice.
+
+Changed files: `nema_backend_draw.c`, `nema_backend_internal.h`,
+`nema_tsc6a_sync.c`, `nema_tsc6a_expand.c`, `nema_tsc6a_internal.h`,
+`nema_tsc6a_raster.c`, `test_nema_tsc6a_lifecycle.c`, the execution contract,
+README, status and evidence. Planning setup adds ticket 802 and its index row;
+implementation leaves it `ready` for review.
+
+Commands (logs under `/tmp/semu-nav-20261002/`):
+
+- `make test TEST_FILTER=nema_tsc6a_lifecycle` — 8 tests, first 2 new cases
+  fail, then all pass. Covers stale rewrite, cold unknown input, clipping,
+  integer/fractional translation and whole-snapshot rollback.
+- `make -j4 all sdl`, `make check` — pass, 1,031 PASS records.
+  `make sanitize` — 1,026 pass with ASan/UBSan.
+- `make check-task-contracts` — 166 tickets validate; `make check-lines`
+  passes with advisory warnings; `git diff --check` passes.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-renderer-v2-20261002/codec2-235-1.sems
+  sh tools/test_sdl_sapporo_235_navigation_restore.sh` — all six paired
+  cases pass, exact logs/snapshots unchanged.
+- `make check-sdl` — full 2.22 onboarding/menu, 60-second idle and expected
+  finite GPS-cap control pass with unchanged complete transcript pins.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235`
+  — all nine runners pass (ten PASS messages), including paired main-entry
+  rendering and snapshot continuation. Optional private `decode-1.bin`
+  comparison explicitly skips; synthetic and pinned asset checks run.
+- `make check-era` — SKIP, the verified full-flash input is unavailable.
+  The shared renderer changed: 2.39 pins remain unverified and may drift;
+  ticket 800 owns their re-derivation, with no silent re-pin here.
+
 ## Ticket 801 — restored navigation attribution — 2026-10-02
 
 Implemented for integrator review on `10b3cf6`; runtime behavior is unchanged.

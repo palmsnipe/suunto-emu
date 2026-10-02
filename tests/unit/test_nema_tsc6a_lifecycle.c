@@ -42,7 +42,7 @@ static semu_display_list stroke(fixture *f, uint32_t base)
     };
     return words(f, 0u, v, SEMU_ARRAY_LEN(v));
 }
-static semu_display_list resolve(fixture *f, uint32_t base)
+static semu_display_list resolve_at(fixture *f, uint32_t base, uint32_t tx, uint32_t clipmax)
 {
     const uint32_t v[] = {
         NEMA_REG_TEX0_BASE,SURFACE,NEMA_REG_TEX0_FSTRIDE,TSC6A_RGB_FSTRIDE,
@@ -51,13 +51,15 @@ static semu_display_list resolve(fixture *f, uint32_t base)
         NEMA_REG_MATMULT,0u,NEMA_REG_CODEPTR,TSC6A_RESOLVE_CODE,
         NEMA_REG_IMEM_ADDR,TSC6A_IMEM_ADDRESS,NEMA_REG_IMEM_DATAH,TSC6A_IMEM_DATAH,
         NEMA_REG_IMEM_DATAL,TSC6A_IMEM_DATAL,NEMA_REG_TEX_COLOR,0xff55ff00u,
-        NEMA_REG_DRAW_COLOR,0xff55ff00u,NEMA_REG_CLIPMIN,0u,NEMA_REG_CLIPMAX,0x10001u,
-        NEMA_REG_MM00,0x3f800000u,NEMA_REG_MM01,0u,NEMA_REG_MM02,0u,
+        NEMA_REG_DRAW_COLOR,0xff55ff00u,NEMA_REG_CLIPMIN,0u,NEMA_REG_CLIPMAX,clipmax,
+        NEMA_REG_MM00,0x3f800000u,NEMA_REG_MM01,0u,NEMA_REG_MM02,tx,
         NEMA_REG_MM10,0u,NEMA_REG_MM11,0x3f800000u,NEMA_REG_MM12,0u,
         NEMA_REG_DRAW_CMD,NEMA_DRAW_TSC6A_RESOLVE
     };
     return words(f, 256u, v, SEMU_ARRAY_LEN(v));
 }
+static semu_display_list resolve(fixture *f, uint32_t base)
+{ return resolve_at(f, base, 0u, 0x10001u); }
 static semu_transaction_result prepare(fixture *f, const semu_display_list *l,
     size_t count, semu_error *e)
 { return semu_nema_backend_ops.prepare(f->gpu, f->bus, l, count, 0u, frame, f, e); }
@@ -191,17 +193,18 @@ static void test_snapshot_preserves_cached_history(semu_test_context *context)
     size_t size=0u, n=0u; uint32_t expected;
     SEMU_TEST_ASSERT(context, init(&f) && init(&restored));
     red_block(&f); red_block(&restored);
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
     /* The current model retains a previously decoded block on an auxiliary
-     * rewrite. Persistence must retain that history without inventing a codec. */
+     * rewrite outside the sampled footprint (x=4). Persistence must retain
+     * that history without publishing it or inventing a codec. */
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus, SURFACE+9u, 1u, 15u, &e));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(restored.bus, SURFACE+9u, 1u, 15u, &e));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
     SEMU_TEST_EQ_U64(context, 0xffff0000u, f.gpu->baseline->pixels[0]);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.save(f.gpu, &data, &size, &e));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.load(restored.gpu, data, size, &e));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&restored, resolve(&restored, SURFACE), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&restored, resolve_at(&restored, SURFACE, 0x40800000u, 0x10001u), &e));
     expected=shadow_crc(&f);
     SEMU_TEST_EQ_U64(context, expected, shadow_crc(&restored));
     SEMU_TEST_EQ_U64(context, semu_nema_backend_frame(f.gpu)->generation,
@@ -212,6 +215,56 @@ static void test_snapshot_preserves_cached_history(semu_test_context *context)
     SEMU_TEST_ASSERT(context, size==n && memcmp(data,again,n)==0);
     free(data);free(again);finish(&f);finish(&restored);
 }
+static void test_unknown_resolve_preserves_committed_state(semu_test_context *context)
+{
+    unsigned cold;
+    for (cold = 0u; cold < 2u; ++cold) {
+        fixture f; semu_error e; uint8_t *before=NULL, *after=NULL;
+        size_t a=0u, b=0u; unsigned frames;
+        SEMU_TEST_ASSERT(context, init(&f));
+        if (!cold) {
+            red_block(&f);
+            SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+                submit(&f, resolve(&f, SURFACE), &e));
+        }
+        frames=f.frames;
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_nema_backend_snapshot_ops.save(f.gpu, &before, &a, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_write(f.bus, SURFACE+9u, 1u, 15u, &e));
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+            submit(&f, resolve(&f, SURFACE), &e));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, e.code);
+        SEMU_TEST_ASSERT(context, strstr(e.text, "unsupported baseline block") != NULL);
+        SEMU_TEST_EQ_U64(context, frames, f.frames);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_nema_backend_snapshot_ops.save(f.gpu, &after, &b, &e));
+        SEMU_TEST_ASSERT(context, a==b && memcmp(before,after,a)==0);
+        free(before); free(after); finish(&f);
+    }
+}
+static void test_resolve_checks_actual_source_footprint(semu_test_context *context)
+{
+    fixture f; semu_error e;
+    SEMU_TEST_ASSERT(context, init(&f)); red_block(&f);
+    /* Block 1 starts at x=4; the first pixel samples the known block 0. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(f.bus, SURFACE+12u+11u, 1u, 0x80u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        submit(&f, resolve(&f, SURFACE), &e));
+    /* Translation samples block 1, including the pixel-center boundary 3.5+.5. */
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        submit(&f, resolve_at(&f, SURFACE, 0x40600000u, 0x10001u), &e));
+    /* A later destination sample is unknown: no partial frame is published. */
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        submit(&f, resolve_at(&f, SURFACE, 0u, 0x10005u), &e));
+    SEMU_TEST_EQ_U64(context, 1u, f.frames);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        submit(&f, resolve(&f, SURFACE), &e));
+    finish(&f);
+}
 int main(void)
 {
     const semu_test_case cases[] = {
@@ -220,7 +273,9 @@ int main(void)
         SEMU_TEST_CASE(test_unmapped_baseline_is_a_transaction_refusal),
         SEMU_TEST_CASE(test_snapshot_load_discards_previous_cache),
         SEMU_TEST_CASE(test_baseline_cache_rolls_back_with_submission),
-        SEMU_TEST_CASE(test_snapshot_preserves_cached_history)
+        SEMU_TEST_CASE(test_snapshot_preserves_cached_history),
+        SEMU_TEST_CASE(test_unknown_resolve_preserves_committed_state),
+        SEMU_TEST_CASE(test_resolve_checks_actual_source_footprint)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

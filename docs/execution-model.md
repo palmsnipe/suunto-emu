@@ -80,6 +80,12 @@ Compressed-surface pixels and the frame-start flag are staged together,
 including resolve-only submissions. An aborted or refused prepare restores
 the previous SRAM baseline cache. Baseline reads validate the complete 172,800-byte
 memory span and propagate failures; they never substitute an old cached image.
+DRAW_CMD=10 validates every source sample against the compressed block admission
+law before writing destination pixels. Nonzero auxiliary bits 75..95 produce
+a named unsupported-baseline-block refusal, including after a known-to-unknown
+rewrite. Validation uses the same matrix, pixel centers, floor and clip as the
+resolve. Unsampled blocks retain their serialized history; no new decode or
+clearing law is introduced (ticket 802).
 Descriptor flags distinguish ordinary publication from inline commands without
 publication; unknown flags refuse, including on an empty descriptor.
 

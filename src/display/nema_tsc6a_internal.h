@@ -63,6 +63,11 @@ uint32_t tsc6a_blend_argb(uint32_t source, uint32_t destination,
  * (pixel p = 4*r + c, row 0 first) and returns 1.  Law:
  * E-RE-SAP235-TSC6A-001. */
 int tsc6a_expand_block(const uint8_t blk[12], uint8_t out[16][4]);
+/* The same auxiliary-bit admission check, without decoding texels. */
+int tsc6a_block_supported(const uint8_t blk[12]);
+/* DRAW_CMD=10 samples pixel centers, with fixed-point floor semantics. */
+void tsc6a_resolve_point(const tsc6a_fixed_matrix *matrix, int x, int y,
+                         int64_t *sx, int64_t *sy);
 
 semu_status tsc6a_draw_triangle(nema_tsc6a *surface,
                                 const nema_draw_snapshot *snapshot,
