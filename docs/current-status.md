@@ -6,6 +6,48 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Exercise-entry continuation and snapshot blocker — 2026-10-02
+
+Evidence/planning maintenance on `fe6fa76`; production behavior is unchanged.
+E-EMU-SAP235-EXERCISE-002 advances the external diagnostic build to the
+first-exercise GPS tutorial at 44 s. Two complete logs and images are identical,
+with zero resets and zero GPU draw refusals: PC 000e1862, instructions
+10282056430, time 44000000000 ns, generation5058, frame CRC32 48a2bfcd.
+This is a tutorial checkpoint, not a recording session or GPS fix.
+
+Timed reference-lane probes show an advancing Timer8 counter at a nominal
+6 MHz, no compare IRQ in the observed windows, counter clear on disable,
+three guest-issued compare configurations, pattern12201 and retained routing
+register0xb4. The lane still reports PWM output unsupported. Short intervals
+include repeatable one-count discrepancies from a simple integer 6 MHz model;
+exact phase/quantization remains unresolved. The native continuation reads
+control8 but never counter8, so it cannot validate that approximation.
+
+The decisive integration gap is persistent routing state. Production accepts
+0xb4=10000000 but reads zero and serializes no latch. The lane retains that
+value and 3f000000 until rewritten/reset. The experiment adds a field but
+omits it from snapshots, so its paired images do not establish restoration
+correctness. Ticket803 forbids the needed layout change and omits the internal
+header from its Allowed Files. It remains blocked, with an explicit request
+for the integrator to scope a versioned snapshot representation, old-image
+policy, relevant state/tests and affected snapshot pins. No private parallel
+state or silent format change was added to production.
+
+Changed files: this status, `docs/migration-evidence.md`, and ticket803.
+The ledger retains the full derived census plus raw-log, probe-source,
+executable and checkpoint hashes. All raw evidence and the tutorial preview
+remain under `/tmp/semu-exercise-20261002/`; firmware/lane sources stayed
+read-only. The original production OHR refusal, finite fixture budgets,
+GPU auxiliary/writeback gaps and ticket800's missing verified 2.39 full-flash
+input remain. No runtime goldens were changed.
+
+Verification: `make check` passes (1,031 PASS records, including line checks
+and quick SDL unit checks); `make check-task-contracts` validates 167 tickets;
+`git diff --check` passes. `python3 /tmp/semu-nav-20261002/exercise-baseline.py`
+repeats the original production refusal twice with unchanged complete log
+SHA-256 8848389a3c0c4bfbddcf62d38267b6a73f8a8579233bd7c04bba128520bc03ad,
+zero resets and zero draw refusals. The ledger records verification hashes.
+
 ## Exercise-entry evidence and follow-up scope — 2026-10-02
 
 Evidence/planning maintenance after tickets 801/802, with production unchanged.

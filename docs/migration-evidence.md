@@ -8992,3 +8992,196 @@ records), `make check-task-contracts` validates 167 indexed tickets, and
 `git diff --check` passes. Raw log SHA-256s: `final-check.log` =
 `1d3492831edc714d70abcee348193f87fffcb3eda2e8d5852fe6ef41f6762288`; `exercise-contracts.log` =
 `01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`.
+
+### E-EMU-SAP235-EXERCISE-002 — timed Timer8 and routing-state census (2026-10-02)
+
+Evidence/planning maintenance continuing ticket 803 on `fe6fa76`. Production
+is unchanged. Inputs, exact component hashes, five opt-in layers, Upper at
+38 s/Middle at 39 s replay and starting watchface are those of
+E-EMU-SAP235-EXERCISE-001 / E-EMU-SAP235-NAVIGATION-002. The starting codec-2
+image SHA-256 remains
+`e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971`.
+New workspace: `/tmp/semu-exercise-20261002/`; `probe-tree` is an external
+archive of `fe6fa76`, with the cumulative experimental edits hashed below.
+The sibling firmware/lane tree was read-only. No new pixels, raw logs,
+snapshots, firmware, binaries or probe sources enter Git.
+
+**Reference configuration.** Renode 1.16.1 d66b0c2a, its stock Apollo4 platform
+with the stock timer/stimer/pwrctrl unregistered, then the actual Sapporo
+extension wrapper attached. The wrapper and platform source hashes remain
+those of EXERCISE-001. `run-lane.py` invokes the read-only Renode executable
+with `--console --disable-xwt --plain /tmp/semu-exercise-20261002/lane-pulses.resc`,
+from the sibling root, twice with 50-second wall limits. The CPU is halted
+throughout (zero guest instructions). The script has a finite sum of RunFor
+budgets, 1.414885 seconds of virtual time, and never boots firmware.
+Normalization selects only complete `PWM8-` lines, removes CR line endings,
+and preserves order/content; all 27 lines reproduce byte-identically.
+Raw logs with host timestamps are independently hashed.
+
+**Timed counter census.** Global mask 0x27ff, channel8 interrupt-enable 0x100,
+compare0 0x11c8, compare1 0x2ee; each interval starts with control writes
+140, 142, 141. Control reads 141 while enabled. Machine tick values below
+are the observed cumulative virtual nanoseconds. Every row has IRQ8 low and
+NVIC pending word at 0xe000e208 equal to zero, including the samples beyond
+both compare values. The lane still logs `PWM function mode is not supported`.
+
+| Independent elapsed interval | Machine ticks | Counter |
+| --- | ---: | ---: |
+| 1 us | 1000 | 6 |
+| 125 us | 126000 | 750 |
+| 759 us | 885000 | 4553 |
+| 1 ms | 1885000 | 6000 |
+| 10 ms | 11885000 | 60000 |
+| 1 s | 1011885000 | 6000000 |
+
+Writing 141 again at the last checkpoint retains counter 6000000; advancing
+1 ms produces 6006000. Writing 140 immediately changes control to 140 and
+counter to zero; another 1 ms leaves it zero. Re-enable 141 and advance
+1 ms: counter 6000. Writing 142 reads back control 140/counter zero. IRQ8
+remains low throughout.
+
+Inference: the nominal rate is 6 MHz, but **a plain integer 6 MHz formula is
+not yet an exact lane law**. At 759 us that formula gives 4554, one greater
+than the lane's twice-reproduced 4553. The pulse census below has a second
+one-count discrepancy. These are recorded rather than rounded away or
+silently promoted into an implementation. Counter phase/quantization and
+unobserved wrap/long-run behavior remain to be characterized. The observed
+absence of compare IRQs does not establish working physical PWM output.
+
+**Routing and remaining pattern values.** Offset 0xb4 retains 0x10000000,
+then 0x3f000000 after an intervening zero write. PatternAddress 0x104 retains
+10301, 10201, 12201, 10201 in order. Wrapper Reset produces zero for route,
+control8, counter8 and pattern; IRQ8 stays low. Four further independent
+100 ms windows use the exact compare pairs exposed by the native continuation:
+
+| Compare0 / compare1 | Counter after 100 ms | Route while enabled | IRQ8 / NVIC |
+| --- | --- | --- | --- |
+| 000011c8 / 000002ee | 000927bf (599999) | 10000000 | 0 / 0 |
+| 00000d51 / 000002ee | 000927c0 (600000) | 10000000 | 0 / 0 |
+| 00000bdd / 000002ee | 000927c0 (600000) | 10000000 | 0 / 0 |
+| ffffffff / 00000000 | 000927c0 (600000) | 10000000 | 0 / 0 |
+
+After each, write control140 and route3f000000: control140, counter0,
+route3f000000 and IRQ8 low. This is a register/counter/IRQ observation,
+not a waveform or acoustic measurement.
+
+**Production regression witness.** `native-routing.c` links the unmodified
+production `build/libsemu.a`. With zero scheduler advances, two executions
+produce identical records: writing 0 succeeds and reads 0; writing 10000000
+also succeeds but reads 0; writing 3f000000 returns status 6 (unsupported)
+and reads 0. Before/after timer snapshots are identical for each write and
+remain 637 bytes. Thus simply admitting the new routing write while retaining
+read-as-zero would knowingly disagree with the lane and lose persistent state.
+
+Exact witness build/run commands:
+
+```sh
+cc -std=c99 -Wall -Wextra -Werror -pedantic -I. -Iinclude \
+  /tmp/semu-exercise-20261002/native-routing.c build/libsemu.a \
+  -o /tmp/semu-exercise-20261002/native-routing
+/tmp/semu-exercise-20261002/native-routing
+```
+
+**Bounded external continuation.** `python3
+/tmp/semu-exercise-20261002/run-pulses.py` validates all firmware components,
+then runs two independent restores with a 12,000,000,000-instruction/
+44,000,000,000-ns budget and a 180-second wall bound per run. In addition to
+the previous entry's narrow OHR/haptic admissions, this experiment admits
+channel8 control141, uses a provisional integer 6 MHz counter with no compare
+event, clears the counter on disable, adds pattern10201/12201, and retains
+route0/10000000/3f000000 in an experimental internal field. It does **not**
+serialize that field. This is a diagnostic variant, not a supported build.
+
+The firmware programs compare0 values 11c8, d51, bdd for three consecutive
+intervals, each with compare1 2ee. Enable/disable time pairs in nanoseconds:
+(40032530030, 40132590069), (40132591365, 40231704778),
+(40231706074, 40334461513). Each transition ends through compare0 ffffffff /
+compare1 0, control140/142/141/140 and route0/3f000000; the next interval
+selects route0/10000000. This is a firmware-issued sequence, not evidence of
+three audible tones. Pattern12201 appears 14 times after the final interval.
+All 27 instrumented reads of channel8 are control reads at offset300; there
+are **zero counter reads**, so this successful continuation does not validate
+the provisional counter calculation.
+
+Both complete logs and both saved images match byte-for-byte. They stop only
+at the configured budget: PC 000e1862, instructions 10282056430, virtual time
+44000000000 ns; zero resets and zero `draw-refused` records. Seven OHR requests
+occur after restoration: one a3 configuration (sequence21) and six normal
+polls, ending at sequence25 / hit26 of the unchanged maximum30. GPS-awake ends
+at hit7/64. The published frame is generation5058, RGB565 CRC32 48a2bfcd.
+Inspection of the private snapshot frame shows the first-exercise GPS tutorial:
+“Let's set up your first exercise with GPS together!” with a “NO THANKS” option.
+It is not a Running recording screen or a GPS fix. The saved-image equality
+is an experimental repeatability observation, **not snapshot-restoration
+acceptance**, because the added routing latch is missing from that image.
+
+| Artifact under the new workspace (pairs have identical bytes where stated) | SHA-256 |
+| --- | --- |
+| `lane-pulses-1.log` | `489c169b5a7f0e4756b9b0138c4531823afc32dc18b5f89f7c689193635a8aa1` |
+| `lane-pulses-2.log` | `92bcf9a5b3c7c650097c420ff6765fb548599a6de3ee1f14a1ef2f580fec3dc7` |
+| `lane-pulses-{1,2}.norm` | `e0b01503fea0f231eda4c8d596c3fb6d866ca47e743cb6f8f8366ef6d11abc20` |
+| `lane-pulses.resc` | `2c998cc34314b1b749ca5548ad8f052ddd5a95b57c7df1094c6ad75b4b33db10` |
+| `run-lane.py` | `c0c028fadd7104032f29546d094dff4f613b9ed7a2a1b6205eba0fdd71d56af8` |
+| `native-routing-{1,2}.log` | `98ad18bb4b66b1fdbf843f98e2ab4da3e2a777b6ae1d6132e3f9b22dafcd2055` |
+| `native-routing.c` | `d4cea36c14479b61403fa45d4e4beca693e603b13de0e4da1e65addc4ac1babb` |
+| `native-routing` executable | `fb57efb06376329de83d76b0deb1ff9b67175722fa20d8ba37bcbf03ec393e12` |
+| `pulses-continuation-{1,2}.log` | `ca71a91a4616c377fdf77aad075699ccbd6e350dd8bb0e5ca8e4147060be7062` |
+| `pulses-continuation-{1,2}.sems` | `36f1d65206e4973cfb074560bf3e8915d9706b4a45c4e4c1029b11c62295a3bd` |
+| `pulses-continuation-1.png` (private preview) | `fa4fada42040a0287c4c428ce69c756d505d0161efe27a5b14161f7b551d6dd7` |
+| `run-pulses.py` | `66fa6b40734c58f1f01b331ba81b7e31aada245f109f2ebeadf1eabab9ce4cd5` |
+| `probe-tree/build/suunto-emu-sdl` | `e79434faa0ede7b84771bb78249051dfd8966efc175f4b4de92462264e057fc8` |
+| `probe-tree/src/compat/sapporo_235_ohr.c` | `5162d2d802e33335ea2b0041bb7816a468412911df88a7f4df20b0dcffba62f1` |
+| `probe-tree/src/devices/sapporo_iom4_haptic.c` | `8548aeb64f5b7bb2c5aa7eeb4877b03e84803130b5f34e5d4015d9e9f53fa5b3` |
+| `probe-tree/src/soc/apollo4/timer.c` | `d26bc045f4818294e67cfe4bf8f910a8cfe6ba3d23e0021248fa7dd1c9f0f308` |
+| `probe-tree/src/soc/apollo4/timer_snapshot.c` | `cf33b325ab4af20f7ba57077875ce52f4c746080df02f10cfcd75f4cc6d50b88` |
+| `probe-tree/src/soc/apollo4/timer_internal.h` | `6f86ff8143ad5653c257e9906733fc69c0138a73c83e30e8a09d0513e8af5510` |
+
+Preview extraction used the existing private
+`/tmp/semu-nav-20261002/snapshot-frame.py`, which reads the published RGB565
+plane in renderer codec2 and writes a PNG outside Git. No generated or edited
+imagery is used as emulator evidence. Extractor SHA-256:
+`4c86e276e479b2d3693958d12e8b1223e7c09021f43abbbcc485659085d18970`.
+The production witness library `build/libsemu.a` SHA-256 is
+`bd6cd856234e27693e84a61194aeb8677e7d8b746e1b2d188fe15d3ad18330d4`.
+
+**Required integrator change and remaining gaps.** Ticket803's current
+Allowed Files omit `timer_internal.h` and freeze the persistent layout. The
+637-byte timer codec has no routing latch; it is embedded without a child
+length/version in `apollo4_snapshot.c`. An in-place size increase would shift
+every following device. The integrator must explicitly scope the extra state,
+a versioned enclosing representation, old-image refusal or a demonstrably
+lossless migration policy, and affected snapshot-gate re-derivation. Old
+images lack the latch, so defaulting it to zero is not lossless. Do not
+repurpose another serialized register to evade this decision.
+
+Ticket803 remains blocked pending that integration decision and exact timing
+evidence. Physical PWM remains unsupported by the lane; a future scoped
+CPU-visible model must say so explicitly. Production retains the original OHR
+refusal and all existing deterministic pins. Recording, real OHR/GPS values,
+auxiliary GPU decoding/writeback and ticket800's missing 2.39 full flash remain
+outside this evidence. The 2.39 era pins are still unverified and may drift
+under the previous renderer changes; this documentation slice adds no drift.
+
+
+**Production verification.** `make check` passes with 1,031 PASS records,
+including `check-lines` (advisory warnings) and the quick SDL unit checks;
+those quick checks explicitly skip authentic-firmware walks. Separate
+`make check-task-contracts` validates all 167 tickets. `git diff --check`
+passes. No runtime changes require a new sanitizer or era re-derivation in
+this documentation slice.
+
+`python3 /tmp/semu-nav-20261002/exercise-baseline.py` independently repeats
+the production sport-selection refusal twice with the exact original log
+SHA-256 `8848389a3c0c4bfbddcf62d38267b6a73f8a8579233bd7c04bba128520bc03ad`,
+no resets/draw refusals and terminal tuple `compat-refused / 001be85a /
+10188403123 / 39652457505 ns`. Production SDL executable SHA-256 remains
+`85e0b0f06c33169f58f960be7b28b5207c2746e30defe8319c3f68a843fc74b6`.
+The script source/hash is unchanged from EXERCISE-001.
+
+Verification logs under the new workspace:
+`production-check.log` =
+`169af8a697372aafc84491aa746224eba98a950255d17f3731e836bb0fce8bba`;
+`task-contracts.log` =
+`01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`;
+`production-baseline.log` =
+`63a70287cf0308e0f4f3bef254330c1cac35178bc1b7fe8f38b83ef08269abb9`.
