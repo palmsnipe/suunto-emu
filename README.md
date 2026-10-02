@@ -15,10 +15,10 @@ end at an unsupported operation or an exhausted compatibility fixture.
 
 | Firmware | Verified progress | Remaining boundary |
 | --- | --- | --- |
-| **2.22.60** | Standalone onboarding via manual time entry; native menu and selection changes; active through 60 virtual seconds. | Broader watch functions remain unverified. The current cold snapshot differs from the restore gate's hash; that gate needs attribution and reviewed re-derivation. |
+| **2.22.60** | Standalone onboarding via manual time entry; native menu and selection changes; paired snapshot restoration; active through 60 virtual seconds. | Broader watch functions and unbounded sessions remain unverified. |
 | **2.33.16** | Passes the former first boot fault, with no reset or refusal in the bounded early-boot check. | Setup, watchface, menu, and long-session acceptance remain unverified. |
 | **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed. | Lower-button navigation stalls repainting; upper-button navigation reaches the OHR fixture boundary. Finite GPS/OHR support still limits sessions. |
-| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | This review could not repeat the full suite without its verified full-flash fixture. GPS continuation and a complete setup/watchface/menu release remain open. |
+| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Renderer codec 2 requires snapshot-pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
 
 The [current review](docs/current-status.md#sapporo-review--2026-10-02)
 separates fresh checks from historical results and lists the next fidelity work.
@@ -139,9 +139,10 @@ build/suunto-emu-sdl run --profile sapporo-2.22.60 \
 ```
 
 The cold walk ends with Logbook selected, generation 4510 / CRC32 `040ebb03`.
-Its transcript still matches the regression pin. The snapshot hash mismatch
-reported above means the complete 2.22 restore gate is currently red; a
-working displayed frame alone does not clear it.
+Its transcript still matches the regression pin. The complete restore gate
+passes with renderer codec 2, including immediate display and paired native
+LOWER continuation. The historical snapshot mismatch was attributed with a
+control build before re-deriving the pins (E-EMU-RENDERER-SNAPSHOT-002).
 
 The shorter built-in setup walk without the manual-time continuation stops
 at phone handoff and ultimately exhausts its eleven GPS-awake pulses.
@@ -151,10 +152,13 @@ larger fixture budget.
 ## Snapshots, replay, and verification
 
 Snapshots are identity-pinned to the profile, firmware components, and enabled
-layer set. Use the same inputs on save and load. Version-2 images preserve
-the last displayed frame and rendering state; version-1 images refuse.
-Mid-command or otherwise uncovered device state also refuses. Firmware and
-immutable resource files remain external.
+layer set. Use the same inputs on save and load. Machine snapshot version 2
+with renderer codec 2 preserves the displayed frame, unresolved GPU strokes,
+and compressed-surface cache. **Recreate snapshots made before renderer codec 2**:
+they omit state needed for faithful continuation and are explicitly rejected.
+The outer machine version remains 2; machine version 1 also refuses. Mid-command
+or otherwise uncovered device state still refuses. Firmware and immutable
+resource files remain external.
 
 `--input-replay /path/to/buttons.replay` supplies deterministic timestamped
 input. `setup-next` names the first visible continuation after input, not a

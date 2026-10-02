@@ -3,6 +3,9 @@
 # Ticket 792: Sapporo 2.35 save/load. The 30M production boot checkpoint
 # saves; the restored continuation reproduces the uninterrupted 80M
 # suffix twice, byte-identically, with byte-identical saves.
+# Ticket 799 / E-EMU-RENDERER-SNAPSHOT-002 (2026-10-02): paired
+# codec-2 saves replace 8a28ce51... with cdf9f3ff...; boot and
+# uninterrupted/restored continuation transcripts are unchanged.
 set -eu
 if [ "${TEST_PROFILE-}" != sapporo-2.35.34 ]; then
     echo "SKIP Sapporo 2.35 snapshot runner for TEST_PROFILE=${TEST_PROFILE-}"
@@ -45,7 +48,7 @@ cmp "$run_dir/snap-1.sems" "$run_dir/snap-2.sems"
 cmp "$run_dir/cont-1.log" "$run_dir/cont-2.log"
 cmp "$run_dir/cont-1.log" "$run_dir/control.log"
 [ "$(shasum -a 256 "$run_dir/snap-1.sems" | awk '{print $1}')" = \
-    8a28ce5198c992d504b6b5358c931f42654835ec266bcb9c645cf778b631c9cc ]
+    cdf9f3ff343d90e7dfa114bb19128d18f52d88ded7053aff127cfa9b4a32aad9 ]
 [ "$(shasum -a 256 "$run_dir/boot-1.log" | awk '{print $1}')" = \
     113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba ]
 [ "$(shasum -a 256 "$run_dir/cont-1.log" | awk '{print $1}')" = \

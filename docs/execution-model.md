@@ -102,25 +102,34 @@ backend without persistence callbacks refuses snapshot operations. The machine
 copies the public `semu_display_snapshot_ops` table at creation and associates
 it with the existing display context. Version 1 is explicitly refused.
 
-The NEMA image has backend ID `0x4e454d41`, codec version 1 and 1,152,180 bytes.
-Its fixed fields are version/width/height/publication flag (four LE u32s),
-generation (u64), register presence (u64), list ID (u32), draw counter (u64),
-34 inherited registers (u32 each), current RGB565 pixels (115,200 bytes),
-last published RGB565 pixels (115,200 bytes), and 480×480 shadow pixels
-(LE u32 each). The publication image is canonical zero when absent. Reserved
-presence bits, wrong dimensions/length/version, invalid publication flags and
-active transactions refuse. Generation may remain nonzero after backend reset,
-but an image marked published must have nonzero generation. Diagnostic history
-and transient staging are excluded.
+The NEMA image has backend ID `0x4e454d41`, renderer codec version 2 and
+2,246,592 bytes (ticket 799). The outer machine snapshot remains version 2.
+The first 1,152,180 bytes retain the original core layout: codec version,
+width/height/publication flag (four LE u32s), generation (u64), register
+presence (u64), list ID (u32), draw counter (u64), 34 inherited registers
+(u32 each), current RGB565 pixels (115,200 bytes), last published RGB565 pixels
+(115,200 bytes), and 480×480 shadow pixels (LE u32 each).
 
-Codec version 1 does not encode whether the compressed shadow contains an
-unresolved frame. Mid-frame images are ambiguous and can lose strokes on
-continuation; a successfully saved image does not establish mid-frame fidelity.
-The existing 2.22 menu checkpoint itself has unresolved shadow state, so simply
-rejecting such saves breaks its supported onboarding gate. Full mid-frame
-support requires a versioned codec extension for the frame lifecycle, reviewed
-as roadmap integration work. Loading a valid image invalidates the derived
-baseline and clears prior lifecycle state; a refused load changes neither.
+The extension contains frame-in-progress and baseline-valid flags (LE u32,
+0 or 1), cached surface base (LE u32), cached compressed span (172,800 bytes),
+and baseline pixels (480×480 LE u32). An in-progress frame requires a valid
+baseline; the cached span must fit the modeled SRAM range. An invalid baseline
+has canonical zero base, span and pixel payload. The baseline cache is persistent
+state because unsupported blocks may retain historical pixels; rebuilding it
+from current guest RAM alone can change continuation. Transaction backups,
+scratch storage, host pointers and diagnostics are not serialized.
+
+The publication image is canonical zero when absent. Reserved presence bits,
+wrong dimensions/length/version, invalid flags/ranges/canonical payloads and
+active transactions refuse before mutation. Generation may remain nonzero after
+backend reset, but a published image requires nonzero generation. Saving between
+committed submissions preserves unresolved strokes and cached history, even if
+the frame has not yet been resolved.
+
+Renderer codec 1 is explicitly rejected with a recreate-snapshot diagnostic:
+it omitted frame and cache state, which cannot be inferred reliably. Recreate
+older snapshots from a bounded cold run. Valid loads replace all committed
+renderer state; malformed loads preserve the prior frame, flags and cache.
 
 Backend load validates fully, then commits without allocating or publishing.
 The renderer participates in machine rollback. Only after every machine section

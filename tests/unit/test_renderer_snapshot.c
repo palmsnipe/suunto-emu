@@ -81,6 +81,9 @@ static void test_machine_restores_published_renderer(semu_test_context *context)
         SEMU_TEST_ASSERT(context,before&&after&&saved);
         SEMU_TEST_EQ_U64(context,SEMU_STOP_BUDGET,semu_machine_run(second,&limits,&e));
         semu_surface_clear(b->surface,0xabcdu);
+        b->baseline_valid=1;b->shadow_fresh=1;b->guest_span_base=0x10001000u;
+        b->guest_span[0]=0x5au;b->baseline->pixels[0]=0xff123456u;
+        b->tsc6a->pixels[0]=0xff654321u;
         SEMU_TEST_EQ_U64(context,SEMU_OK,semu_machine_snapshot_save(second,saved,&e));
         n=semu_snapshot_serialize(saved,before,8u*1024u*1024u);
         SEMU_TEST_ASSERT(context,n>0);
@@ -180,7 +183,7 @@ static void test_renderer_inline_and_inherited_continuation(semu_test_context *c
     same_image(context,a,b);
     free(data);semu_bus_destroy(bus);semu_nema_backend_destroy(a);semu_nema_backend_destroy(b);
 }
-static void test_renderer_completed_shadow_continuation(semu_test_context *context)
+static void shadow_continuation(semu_test_context *context, int mid_frame)
 {
     semu_error e; semu_bus *bus=semu_bus_create(&e);
     semu_nema_backend *a=semu_nema_backend_create(&e),*b=semu_nema_backend_create(&e);
@@ -206,20 +209,25 @@ static void test_renderer_completed_shadow_continuation(semu_test_context *conte
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE,SEMU_ARRAY_LEN(quad),0,frame,&ca,&e));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&ca,&e));
     SEMU_TEST_ASSERT(context,a->tsc6a->pixels[0]!=0);
-    /* Exercise the completed-frame boundary with a fully mapped surface.
-     * Version 1 cannot preserve unresolved strokes: see the documented
-     * E-EMU-NEMA-CACHE-LIFECYCLE-001 codec-integration requirement. */
-    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&ca,&e));
+    if (!mid_frame) {
+        SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&ca,&e));
+    }
     SEMU_TEST_EQ_U64(context,SEMU_OK,semu_nema_backend_snapshot_ops.save(a,&data,&size,&e));
     SEMU_TEST_EQ_U64(context,SEMU_OK,semu_nema_backend_snapshot_ops.load(b,data,size,&e));
     same_image(context,a,b);
-    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&ca,&e));
-    SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(b,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&cb,&e));
+    if (!mid_frame) {
+        SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&ca,&e));
+        SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(b,bus,BASE+256u,SEMU_ARRAY_LEN(shadow),0,frame,&cb,&e));
+    }
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(a,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&ca,&e));
     SEMU_TEST_EQ_U64(context,SEMU_TRANSACTION_OK,semu_nema_backend_submit(b,bus,BASE+512u,SEMU_ARRAY_LEN(resolve),0,frame,&cb,&e));
     SEMU_TEST_EQ_U64(context,ca.crc,cb.crc);same_image(context,a,b);
     free(data);semu_bus_destroy(bus);semu_nema_backend_destroy(a);semu_nema_backend_destroy(b);
 }
+static void test_renderer_completed_shadow_continuation(semu_test_context *context)
+{ shadow_continuation(context, 0); }
+static void test_renderer_mid_frame_continuation(semu_test_context *context)
+{ shadow_continuation(context, 1); }
 static void test_renderer_refusals_are_atomic(semu_test_context *context)
 {
     semu_error e; semu_bus *bus=semu_bus_create(&e);
@@ -261,6 +269,7 @@ int main(void)
     const semu_test_case cases[]={SEMU_TEST_CASE(test_machine_restores_published_renderer),
         SEMU_TEST_CASE(test_renderer_inline_and_inherited_continuation),
         SEMU_TEST_CASE(test_renderer_completed_shadow_continuation),
+        SEMU_TEST_CASE(test_renderer_mid_frame_continuation),
         SEMU_TEST_CASE(test_renderer_refusals_are_atomic)};
     return semu_test_run(cases,SEMU_ARRAY_LEN(cases));
 }

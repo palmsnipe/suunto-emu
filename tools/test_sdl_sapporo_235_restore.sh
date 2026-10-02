@@ -7,9 +7,9 @@ set -eu
 # natively to the WFI park with zero resets, draw refusals, or compat
 # hits. The GPS-layer bind confirms the restored owners on load
 # (state-identity rules; see tests/unit/test_sapporo_235_gps_reopen.c).
-# Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
-# (E-EMU-SAP235-TICKTRAIL-001), twice byte-identically: cold transcript
-# 14ffff66… (the re-pinned nav baseline walk), snapshot 5f21f7d1…,
+# Re-derived 2026-10-02 for renderer codec 2
+# (E-EMU-RENDERER-SNAPSHOT-002), twice byte-identically: cold transcript
+# 14ffff66… (the re-pinned nav baseline walk), snapshot e25c409d…,
 # first frame generation 4770 crc 500b350f, continuation stop pc
 # 0x000e1862 at 9578131227 / 42000000000 (the guest stop line is
 # unchanged; the sweep frames are clean).
@@ -55,7 +55,7 @@ if [ -z "${SEMU_SDL_TEST_SNAPSHOT:-}" ]; then
         14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae ]
 fi
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d ]
+    e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971 ]
 for pass in 1 2; do
     set +e
     "$emulator" run --profile sapporo-2.35.34 --firmware "$manifest" \

@@ -6,6 +6,90 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 799 — faithful compressed-frame snapshots — 2026-10-02
+
+Implemented for integrator review on top of `aeed58b`. Renderer codec 2
+preserves unresolved GPU strokes, the frame lifecycle flag, and cached
+compressed-surface history. Synthetic regressions first reproduced both kinds
+of lost state. Invalid images refuse before mutation, and a later machine-load
+failure restores the complete previous renderer state. This supersedes the
+mid-frame limitation recorded in the earlier GPU-maintenance entry below.
+
+**Recreate old snapshots.** Renderer codec 1 lacks essential continuation state
+and now refuses with an explicit recreate-snapshot message. The outer machine
+format remains version 2. The renderer image grows by 1,094,412 bytes to
+2,246,592 bytes; no rendering law, CPU/device behavior, public API, profile,
+compatibility budget, or dependency changed.
+
+The historical 2.22 restore-gate discrepancy is also resolved. A paired
+`92b8ac4` control reproduces both old menu/LOWER hashes; the drift is confined
+to the compressed shadow introduced by `cb6298b`. Paired codec-2 captures then
+prove that only the renderer section's encoding changes relative to the current
+model. Guest stop/count/time and published frame pins remain unchanged.
+Evidence E-EMU-RENDERER-SNAPSHOT-002 records the complete hashes, paired log
+hashes, wire layout and attribution; supporting references are
+E-EMU-NEMA-CACHE-LIFECYCLE-001, E-EMU-RENDERER-SNAPSHOT-001,
+E-EMU-SAP235-TICKTRAIL-002 and E-EMU-SAP222-SNAPSHOT-AUDIT-001.
+
+| Checkpoint | New snapshot SHA-256 | Preserved frame |
+| --- | --- | --- |
+| 2.22 menu | `878f93954918f2e924eaba1aceb61b9557692e933507e9ed1d378e54c7eaf72b` | generation 4510 / CRC `040ebb03` |
+| 2.22 LOWER | `f6b32641d8b8cd330eaa7beb2d1b07120e2e056af1dede26e4308d4daf9909cb` | generation 4610 / CRC `0cb272ba` |
+| 2.35 watchface | `e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971` | generation 4770 / CRC `500b350f` |
+| 2.35 early boot | `cdf9f3ff343d90e7dfa114bb19128d18f52d88ded7053aff127cfa9b4a32aad9` | unchanged boot/continuation transcripts |
+
+Verification, with raw artifacts in `/tmp/semu-renderer-v2-20261002/`:
+
+- `make test TEST_FILTER=renderer_snapshot` — seven tests pass;
+  `make test TEST_FILTER=nema_tsc6a_lifecycle` — six pass. New mid-frame and
+  cache-history cases failed first; legacy/codec cases also failed against
+  the original implementation.
+- `make -j4 all sdl` and `make sdl` — pass. `make check` — 1,029 PASS records;
+  `make sanitize` — 1,024 tests pass with ASan/UBSan.
+- `make check-task-contracts` — 164 tickets validate;
+  `make check-lines` — pass with advisory size warnings;
+  `git diff --check` and `sh -n` on the three changed runners — pass.
+- `python3 /tmp/semu-renderer-v2-20261002/capture.py 222 codec2-222` and
+  the corresponding `235 codec2-235` invocation — pass, two identical logs
+  and snapshots each; all firmware components validate first. The same 222
+  command with `control-222 --emulator
+  /tmp/semu-renderer-v2-20261002/control/build/suunto-emu-sdl` reproduces the
+  old gate. The hashed `boot235.py`, `restore222.py`, `restore235.py`, and
+  `next-control.py` probes also pass their paired bounded derivations.
+- `make check-sdl` — pass, full 2.22 onboarding/menu/60-second idle and
+  expected finite GPS-cap control.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-renderer-v2-20261002/codec2-222-1.sems
+  sh tools/test_sdl_snapshot_restore.sh` — pass, immediate frame and paired
+  native LOWER continuation. The independent paired idle logs retain SHA-256
+  `91cc708109a2e0405d385fc894674832c58c5457a2845d36c97571d9bd4ab1bf`.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-renderer-v2-20261002/codec2-235-1.sems
+  sh tools/test_sdl_sapporo_235_restore.sh` — pass, immediate watchface and
+  paired native continuation to `budget / 000e1862 / 9578131227 /
+  42000000000 ns`, with zero reset/draw-refusal/compat-refusal events.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235`
+  — all nine runners pass (ten PASS messages). The optional private
+  `decode-1.bin` comparison skips; synthetic expansion and pinned source
+  asset checks run.
+- `make check-era` — explicit skip: the verified 2.39 full-flash fixture is
+  unavailable. Codec 2 deliberately moves renderer-containing snapshot
+  hashes, so the old era pins are **not accepted for this build**. Ticket 800
+  tracks their paired re-derivation and the required 43-script census.
+
+Changed files: the renderer snapshot implementation; `test_renderer_snapshot.c`,
+new `test_renderer_snapshot_codec.c`, and `test_nema_tsc6a_lifecycle.c`; the two
+SDL restore runners and the 2.35 firmware snapshot runner; README, execution
+contract, evidence ledger and this status. Planning setup added tickets 799/800
+and their index rows. Implementation leaves 799 `ready` and 800 `blocked`;
+review/status promotion and the missing full-flash fixture remain integrator
+work. No proprietary artifacts were added to Git.
+
+Remaining GPU limits are unchanged: the auxiliary-plane codec law and surface
+writeback are unimplemented; known-to-unknown block rewrites can retain old
+pixels. This integration faithfully persists that existing cache policy.
+The 2.35 lower-button repaint stall and upper-button OHR boundary also remain.
+Earlier entries below describe their respective historical baselines.
+
 ## Sapporo GPU state hardening — 2026-10-02
 
 Maintenance following the screenshot/status commit `8433225`: fix compressed

@@ -185,6 +185,33 @@ static void test_baseline_cache_rolls_back_with_submission(semu_test_context *co
     SEMU_TEST_EQ_U64(context, 0u, f.gpu->baseline->pixels[0]);
     free(before); finish(&f);
 }
+static void test_snapshot_preserves_cached_history(semu_test_context *context)
+{
+    fixture f, restored; semu_error e; uint8_t *data=NULL, *again=NULL;
+    size_t size=0u, n=0u; uint32_t expected;
+    SEMU_TEST_ASSERT(context, init(&f) && init(&restored));
+    red_block(&f); red_block(&restored);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
+    /* The current model retains a previously decoded block on an auxiliary
+     * rewrite. Persistence must retain that history without inventing a codec. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus, SURFACE+9u, 1u, 15u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(restored.bus, SURFACE+9u, 1u, 15u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
+    SEMU_TEST_EQ_U64(context, 0xffff0000u, f.gpu->baseline->pixels[0]);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.save(f.gpu, &data, &size, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.load(restored.gpu, data, size, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve(&f, SURFACE), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&restored, resolve(&restored, SURFACE), &e));
+    expected=shadow_crc(&f);
+    SEMU_TEST_EQ_U64(context, expected, shadow_crc(&restored));
+    SEMU_TEST_EQ_U64(context, semu_nema_backend_frame(f.gpu)->generation,
+        semu_nema_backend_frame(restored.gpu)->generation);
+    free(data); data=NULL;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.save(f.gpu, &data, &size, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.save(restored.gpu, &again, &n, &e));
+    SEMU_TEST_ASSERT(context, size==n && memcmp(data,again,n)==0);
+    free(data);free(again);finish(&f);finish(&restored);
+}
 int main(void)
 {
     const semu_test_case cases[] = {
@@ -192,7 +219,8 @@ int main(void)
         SEMU_TEST_CASE(test_resolve_abort_and_later_child_refusal),
         SEMU_TEST_CASE(test_unmapped_baseline_is_a_transaction_refusal),
         SEMU_TEST_CASE(test_snapshot_load_discards_previous_cache),
-        SEMU_TEST_CASE(test_baseline_cache_rolls_back_with_submission)
+        SEMU_TEST_CASE(test_baseline_cache_rolls_back_with_submission),
+        SEMU_TEST_CASE(test_snapshot_preserves_cached_history)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

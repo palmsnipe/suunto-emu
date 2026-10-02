@@ -8511,3 +8511,173 @@ Firmware/regression commands, final results and remaining private-fixture
 limitations are recorded in the dated GPU-maintenance entry in
 `docs/current-status.md`. No public header, profile, persistent layout,
 roadmap status, or regression pin changes in this maintenance.
+
+### E-EMU-RENDERER-SNAPSHOT-002 — preserve compressed-frame lifecycle and cache
+
+2026-10-02; ticket 799, based on `aeed58b`. This integration persists existing
+modeled renderer state; it does not infer another GPU law. References:
+E-EMU-RENDERER-SNAPSHOT-001, E-EMU-NEMA-CACHE-LIFECYCLE-001,
+E-EMU-SAP235-TICKTRAIL-002, and E-EMU-SAP222-SNAPSHOT-AUDIT-001. Dependencies
+615, 761 and 791 were `done`. Ticket 799 remains `ready` for integrator review;
+ticket 800 separately tracks the unavailable 2.39 era re-derivation.
+
+**Synthetic regression and wire contract.** A snapshot taken after a compressed
+draw but before resolve lost strokes. A completed-frame snapshot also lost
+cached pixels if a previously decoded block had been rewritten with unknown
+auxiliary bits. Those two new regressions failed before this implementation.
+The second case proves that serializing only `shadow_fresh`, or rebuilding the
+baseline from current guest RAM, is insufficient. Retaining that cache history
+preserves the current model; it does not endorse the unknown auxiliary codec.
+
+Renderer codec 2 is always 2,246,592 bytes; the outer machine snapshot remains
+version 2. Its first 1,152,180 bytes preserve the codec-1 core layout except for
+the version word. It appends three LE u32s (`shadow_fresh`, `baseline_valid`,
+cached base), 172,800 cached compressed bytes, and 480x480 LE u32 baseline pixels.
+The display section adds its existing four-byte backend ID. An invalid cache
+has zero base/span/pixels; an unresolved frame requires a valid cache; a valid
+span must fit modeled SRAM. All validation precedes allocation-free mutation.
+Transient staging, rollback buffers and diagnostics stay outside the format.
+Renderer codec 1 explicitly refuses with `recreate snapshot`, because its
+missing state cannot be inferred reliably. Save admission still includes idle
+submission boundaries within an unresolved frame.
+
+Tests cover exact continuation and serialized-state equality at both frame
+boundaries; cached history; repeated saves and reset canonicalization;
+legacy/unknown/truncated/invalid-flag/range/noncanonical refusal; busy save/load;
+and whole-machine rollback after a late load failure with a populated cache.
+The real historical 2.22 image also refuses with exit 2 and the recreate message.
+
+**Inputs and tools.** All raw scripts, logs, snapshots and the control checkout
+are outside Git in `/tmp/semu-renderer-v2-20261002/`. The two private manifests
+are `tests/private/sapporo-2.22.60/firmware.semu` and
+`tests/private/sapporo-2.35.34.18929/firmware.semu`; each run set first validates
+all three components against its built-in profile. Component identities remain
+those of the existing firmware gates. No input bytes were changed.
+
+| Input/tool | SHA-256 |
+| --- | --- |
+| `tests/private/sapporo-2.22.60/firmware.semu` | `34169645c61188f43ded4bfdaa6b5751c466ab694507eec1da1a822f16921554` |
+| `tests/private/sapporo-2.35.34.18929/firmware.semu` | `a367830b696ae434db2946aea98443f06c698cd9f2525575b35869b94c5be824` |
+| `build/suunto-emu` | `f9eca0dc86691893353cf1cb021b7f68058556fd1c543be8b588b68f8edc7191` |
+| `build/suunto-emu-sdl` | `eed88898bf1d01d17530e306e9782fae4f291170cb9df7eaf42ba36e509e18c8` |
+| `control/build/suunto-emu-sdl (92b8ac4)` | `562c30f1fa39917832c8c492403a475822615e15fd1df1f59006130a83cc61a5` |
+| `suunto-emu-sdl (aeed58b control)` | `68dbd464168f3b4058566300ed375544e2967d7ec9cd3f34217e0b7cc1b86118` |
+| `capture.py` | `06afdfcef85be111a4f4a2ea25a7525307ac25b5766ae31e7d234a011a24603c` |
+| `boot235.py` | `ce7415b5a4dab8d6620335a144a7ab4a186b9afb6e61279a6f52beac4fbb95a8` |
+| `restore222.py` | `bec88c6228039fa4a793ef5936f9412fa199a1acbfe82e5f1038af09506bbd8f` |
+| `restore235.py` | `b132b4512191734d4b28711e4999b2d07fd4d2810d411ffff0d0492eaf3dda30` |
+| `next-control.py` | `ecb266d2ba983e25df8e4d84dc69bcd74c206f4a96eaa0b8dce0ad28273712c6` |
+| `inspect.py` | `2c34f37c3f56f49769864eb43f4e81b7928c5b06ca1e9d5c52b9ca66170113f7` |
+
+`capture.py` reproduces the cold commands in `docs/screenshots/README.md`
+twice per build/profile: SDL dummy, setup-walk, 2.22 POST
+`mlllmlllmmlmmmmm` and TIMELINE `30000:l`, 18B instructions / 60B ns;
+2.35 POST `mmlllmlllmmmmmmmmmmmmmmmmmmmmmm`, its five existing layers,
+10B instructions / 40B ns. Each process has a 900-second wall limit.
+`boot235.py` uses only `sapporo-2.35-production-data`, 30M instructions /
+1B ns for each cold save, then 80M instructions / 400M ns for each restore
+and an uninterrupted control; wall limit 120 seconds. Restore probes use the
+same bounded commands as the two SDL restore gates, plus the existing 2.22
+18B-instruction / 60B-ns idle window. `inspect.py` checks section bounds,
+compares payloads, and reconstructs the old core by removing only the appended
+renderer bytes and repairing its version/length. It does not execute firmware.
+
+**Historical 2.22 drift attribution.** Building `92b8ac4` in the external
+control directory reproduces both historical restore-gate hashes twice:
+cold `87a8dca8...` and post-LOWER `e802a9b7...`. Commit `cb6298b` is the only
+normal-runtime change from that control to the earlier audit's `05801b4`;
+it introduced the per-resolve shadow lifecycle (TICKTRAIL-002). The audit's
+cold image `1944a15a...` differs only in section 10's shadow: 287,134 bytes,
+first/last section-relative offsets 245,976 / 691,350. The parent `aeed58b`
+post-LOWER image `1fb8020a...` has the same changed-byte census relative to its
+historical control. Every other machine section, inherited register, published
+pixel, generation and transcript stays identical. Both control continuations
+match the new continuation transcript exactly.
+
+**Codec-only changes.** Compared with the parent, every new cold image changes
+only section 10, from 1,152,184 to 2,246,596 bytes including backend ID. Removing
+the extension and restoring the version/length reproduces the complete old
+image hashes: 2.22 cold `1944a15a...`, post-LOWER `1fb8020a...`, 2.35 cold
+`5f21f7d1...`, and early boot `8a28ce51...`. Thus the integration adds persistent
+state without changing these guest checkpoints or their core renderer bytes.
+
+| Snapshot (each new hash reproduced twice) | Previous gate SHA-256 | Codec-2 SHA-256 |
+| --- | --- | --- |
+| 2.22 menu | `87a8dca8925aeb4f4eb9adbefb3240d5be77eb04ffc7274d9093f3076dd02dbf` | `878f93954918f2e924eaba1aceb61b9557692e933507e9ed1d378e54c7eaf72b` |
+| 2.22 after LOWER | `e802a9b715b16fb366c8b53fdad2c2f35f706238bf9cae46b1e1397c43e79fcd` | `f6b32641d8b8cd330eaa7beb2d1b07120e2e056af1dede26e4308d4daf9909cb` |
+| 2.35 watchface | `5f21f7d11a6de4c18e17e61a7256e217508526ea6bcfd09ae46d5e954ca14a5d` | `e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971` |
+| 2.35 early boot | `8a28ce5198c992d504b6b5358c931f42654835ec266bcb9c645cf778b631c9cc` | `cdf9f3ff343d90e7dfa114bb19128d18f52d88ded7053aff127cfa9b4a32aad9` |
+
+Full intermediate codec-1 hashes are
+`1944a15a3fc3647ada151db18535cad8c83854a403ade806f60edc924fbac45a` (2.22 cold)
+and `1fb8020ab12f32d34dc0ece768862ecfed0d7997da33721a3eedeb62eb8c525a`
+(post-LOWER). New total snapshot sizes are 7,042,791 bytes for both 2.22
+checkpoints, 7,310,543 for the 2.35 watchface, and 5,951,990 at early boot.
+The 2.22 checkpoints have fresh=1, valid=1, base `0x10100d40`; the 2.35
+watchface has fresh=0, valid=1, base `0x10124fe0`; early boot has fresh=0,
+valid=0 and a canonical zero payload. No replacement pin was installed until
+its independent pair matched byte-for-byte.
+
+Preserved checkpoints (stop / PC / instructions / virtual ns):
+
+- 2.22 cold: user / `0800009e` / 8491624576 / 38819797929,
+  generation 4510, CRC `040ebb03`; immediate restore has the same tuple except
+  stop=budget. LOWER: budget / `000d4a8c` / 8734743608 / 41090034111,
+  generation 4610, CRC `0cb272ba`. Idle: budget / `000d4a8c` / 8798037004 /
+  60043686593.
+- 2.35 cold: user / `0800009e` / 9487528672 / 37414100700,
+  generation 4770, CRC `500b350f`; restore: budget / `000e1862` /
+  9578131227 / 42000000000, zero reset/draw-refusal/compat-refusal events.
+- 2.35 early boot: budget / `000932a8` / 30000000 / 35339893;
+  continuation and uninterrupted control: budget / `000e1862` / 73528280 /
+  494546055, with byte-identical transcripts.
+
+Raw capture and inspection records (paired filenames denote identical content):
+
+| Record | SHA-256 |
+| --- | --- |
+| `control-222-{1,2}.log; codec2-222-{1,2}.log` | `2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8` |
+| `codec2-235-{1,2}.log` | `14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae` |
+| `initial222-{1,2}.log` | `3f42693dbb9bc822fac5749e70b0903af9f01b8718cec2f86ae52d68de2b6b19` |
+| `next222-{1,2}.log; next222-{control,parent}-{1,2}.log` | `2b09d8942b11f452b12b571ac48c56e431c2fb4647b8633968e4c944a5bf0253` |
+| `idle222-{1,2}.log` | `91cc708109a2e0405d385fc894674832c58c5457a2845d36c97571d9bd4ab1bf` |
+| `restore235-{1,2}.log` | `6d40da8298b0c87cb338ec51a29643bce0737aff6e26d4332d7bc8cc9ebc710d` |
+| `boot235-{1,2}.log` | `113607e088231e666455ab8e585af603b5fc2a4de7a571c93a23fa2c77ea35ba` |
+| `boot235-cont-{1,2}.log; boot235-control.log` | `0ab8519944dce5e574e8cbb5b16d06bd798872204c5f602958c3c0cafabd2d81` |
+| `attribution-{1,2}.json` | `7a6b666bdd7e0ee3fb849231f9b5add12351a710be38c78d218f0ff26409ad78` |
+| `core-attribution-{1,2}.json` | `e1b28eddcc7618563b66eaf0f57379926c03f91379955b9d3bddd22fc8f563c4` |
+| `next-attribution-{1,2}.json` | `0fc5bb00386b14760c99d730cdc53a2359dee4072ab0e178231b2d9eb19b2d02` |
+| `legacy-refusal.log` | `1c553196bd71a1a845e903859353f32eac4172d9e618fa3123cfe160257448b9` |
+
+The three inspection censuses above reproduce byte-identically: the historical
+cold shadow-only difference, both firmware cold codec extensions, and both
+post-LOWER comparisons. Their derived counts, ranges and tuples are retained
+here so the findings survive removal of volatile files. The optional private
+decoded-pixel reference and the 2.39 full-flash fixture remain unavailable;
+this entry supplies no new compressed-mode law or 2.39 pin.
+
+Verification logs (SHA-256); exact commands and unchanged checkpoint tuples
+are also recorded in the ticket-799 entry of `docs/current-status.md`:
+
+| Log | SHA-256 | Derived result |
+| --- | --- | --- |
+| `red-renderer.log` | `8b01c28b41c5b70894b2fb9b6933b9fb42dcca48d8b084d779ce99f861f76731` | Mid-frame CRC equality fails before the codec change. |
+| `red-cache.log` | `77edd4a58ecaec9ce3320eef5730806cb17866afa4cfb60826c4b4a058169c9f` | Cache-history shadow equality fails before the codec change. |
+| `red-codec.log` | `bf74c2c34851b23c35142a38a7b889200c321d9f56855f84715a8dca196806d6` | Legacy refusal and version-2 length checks fail before the change. |
+| `green-renderer.log` | `24433efecb7fc9c242faea40b4821c252402dcc6de9afa72cfa09ef379d23963` | Five renderer plus two codec cases pass. |
+| `green-cache.log` | `87fb047d34d20b8c2db682bd89990f15b7258f4255dcefab4cdeb51ae55e4b43` | Six lifecycle cases pass. |
+| `check.log` | `c00c1b12c6efb2cd24b39befcf7b9311b7dae5e64ee99e22400b0182d076b475` | 1,029 PASS records, including five quick SDL cases. |
+| `sanitize.log` | `bf03d2081d1713aa375ad0daf63e2ffdce1f088f55da14e77e0e4ca5ec382c79` | 1,024 tests pass under ASan/UBSan. |
+| `check-sdl.log` | `50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988` | Full 2.22 onboarding, idle and finite GPS-cap control pass. |
+| `restore222-gate.log` | `a66ba4cb041918aa91c4fcf3cabaf6630c666a0db81eb09f2cb5b53defd67685` | Paired immediate frame / LOWER continuation pass. |
+| `restore235-gate.log` | `a434b673d7a3dee81ae06a41380d90e6a997c57d26e7160d417b984c67ac5737` | Paired immediate watchface / native continuation pass. |
+| `firmware-235.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` | Nine runners, ten PASS messages; optional private decode reference skips. |
+| `contracts.log` | `76d14b2e19685c3f157af3554d34cb6cb0dda1c9fa907c388b4210717cd76dcc` | 164 indexed tickets validate. |
+| `lines.log` | `38eeb399d16a9a95842bcf3d38576a49bbb8555b063c3e6a439f02a40c7d110f` | Line review passes with advisory warnings. |
+| `era.log` | `4923d307a57ed0197d841d4740e313c1917050ad442dbc98bd6f28b9e69ee71e` | Verified 2.39 full flash absent; era suite explicitly skips. |
+
+No 2.39 golden is silently replaced. Its old renderer-containing snapshot pins
+are unverified and expected to change with this format; ticket 800 requires
+the exact full flash and twice-derived replacements. Auxiliary-bit decoding,
+known-to-unknown cache clearing, compressed writeback and navigation/fixture
+extensions remain outside ticket 799.

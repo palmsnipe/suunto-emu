@@ -46,11 +46,11 @@ if [ -z "${SEMU_SDL_TEST_SNAPSHOT:-}" ]; then
     [ "$(shasum -a 256 "$work/cold.log" | awk '{print $1}')" = \
         2c6910c2d53d0dfd3fa9c00aa046615a3075a725ce33e67876a2706c8a68e0b8 ]
 fi
-# E-EMU-SAP233-GAUGE-FIXTURE-001: cold-walk/snapshot/restore-chain pins
-# re-derived twice under the lane-consistent gauge AvgVCell fixture (pair
-# 9119ef13...); restored first frame (gen 4510, crc 040ebb03) unchanged.
+# E-EMU-RENDERER-SNAPSHOT-002 (2026-10-02): paired renderer-codec-2 pins.
+# The historical codec-1 mismatch was attributed to cb6298b with a paired
+# 92b8ac4 control. Guest execution and published frame pins are unchanged.
 [ "$(shasum -a 256 "$snapshot" | awk '{print $1}')" = \
-    87a8dca8925aeb4f4eb9adbefb3240d5be77eb04ffc7274d9093f3076dd02dbf ]
+    878f93954918f2e924eaba1aceb61b9557692e933507e9ed1d378e54c7eaf72b ]
 cat >"$work/lower.replay" <<'EOF'
 39000000000 button lower press
 39100000000 button lower release
@@ -78,7 +78,7 @@ for pass in 1 2; do
     grep -Fqx 'stop=budget pc=0x000d4a8c instructions=8734743608 virtual_time_ns=41090034111' "$work/next-$pass.log"
     # Full machine state includes generation 4610 and Media controls CRC 0cb272ba.
     [ "$(shasum -a 256 "$work/next-$pass.sems" | awk '{print $1}')" = \
-        e802a9b715b16fb366c8b53fdad2c2f35f706238bf9cae46b1e1397c43e79fcd ]
+        f6b32641d8b8cd330eaa7beb2d1b07120e2e056af1dede26e4308d4daf9909cb ]
 done
 cmp "$work/initial-1.log" "$work/initial-2.log"
 cmp "$work/next-1.log" "$work/next-2.log"
