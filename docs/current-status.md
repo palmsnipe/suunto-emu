@@ -6,6 +6,39 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Exercise-entry evidence and follow-up scope — 2026-10-02
+
+Evidence/planning maintenance after tickets 801/802, with production unchanged.
+The remaining Upper-menu boundary is selecting a sport, not opening Exercise.
+E-EMU-SAP235-EXERCISE-001 records a paired lane reply for the exact OHR
+command-4/sequence-21 request (configuration byte a3), then paired external
+trials that expose a haptic status read, a haptic 0b=02 write, CTIMER pattern
+10201, and finally CTIMER8 control 141. The first three have narrow lane
+observations; Timer8 PWM is explicitly unsupported by the reference lane.
+Immediate control readback supplies no counter/output/IRQ timing law.
+
+No experimental device change ships: admitting the OHR reply alone turns the
+bounded refusal into a guest reset. New ticket 803 records the precise missing
+Timer8 evidence and scopes the coupled OHR/haptic/timer integration after it is
+available. A hash-pinned offline derivation is permitted under the existing
+owner decision when the lane cannot model the behavior. No device acquisition,
+fixture-budget increase or invented sensor output is requested.
+
+Raw native probe pairs are byte-identical; lane normalized readouts match and
+the ledger hashes every raw log, probe, binary and relevant source. All probes
+have explicit instruction/virtual-time or zero-CPU limits and wall bounds.
+Source firmware and lane trees remained read-only. Changed files in this slice:
+the evidence ledger, status, plans/index.tsv and new ticket 803 (`blocked`).
+`python3 /tmp/semu-nav-20261002/exercise-baseline.py` confirms the production
+refusal twice without reset/draw refusal: `compat-refused / 001be85a /
+10188403123 / 39652457505 ns`, complete log SHA-256
+`8848389a3c0c4bfbddcf62d38267b6a73f8a8579233bd7c04bba128520bc03ad`.
+`make check-task-contracts` validates 167 tickets; final `make check` passes
+with 1,031 PASS records, and `git diff --check` passes.
+Tickets 801/802 remain `ready` for integrator review; ticket 800 remains blocked
+by its missing verified full flash. Auxiliary GPU decoding and writeback remain
+unsupported; the new resolve guard supplies a refusal, not those missing laws.
+
 ## Ticket 802 — reject unsupported compressed baseline samples — 2026-10-02
 
 Implemented for integrator review on `d6d1f86`. A known compressed block rewritten

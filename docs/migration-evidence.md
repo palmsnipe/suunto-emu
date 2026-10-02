@@ -8831,3 +8831,164 @@ Additional completed firmware checks for ticket 802:
 | --- | --- | --- |
 | `gpu-check-sdl.log` | `50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988` | Full 2.22 setup/menu, 60-second idle, finite GPS-cap control pass |
 | `gpu-firmware235.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` | All nine 2.35 runners pass (ten PASS messages); private decode reference absent, explicitly skipped |
+
+### E-EMU-SAP235-EXERCISE-001 — sport-entry protocol and Timer8 boundary (2026-10-02)
+
+Evidence/planning maintenance following the owner-assigned navigation work;
+tracks integration ticket 803. No production admission changes. Firmware input
+files, their exact SHA-256s, five opt-in layers and codec-2 watchface snapshot
+are the same as E-EMU-SAP235-NAVIGATION-002. The pristine application remains
+`36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`.
+Probe workspace: `/tmp/semu-nav-20261002/`; its `probe-tree` is an external
+archive of `10b3cf6` with diagnostic logging and the incremental trial
+admissions below. Source firmware/lane files were read-only throughout.
+
+**Input and original boundary.** Upper at 38 s, release at 38.1 s, Middle at
+39 s, release at 39.1 s. Opening Exercise alone is already covered by ticket
+801. Selecting Running reaches OHR MAIN command 4 / sequence 21 at layer hit
+21. The 54-byte request body has command/sequence in LE offsets 0..3, value
+a3 at offset 4, fourteen zero bytes at 5..18, and 35 ff padding bytes at
+19..53. The previously admitted startup shape has 23 at offset 4. This entry
+assigns no sensor meaning to the additional bit. The production stop is
+`compat-refused / 001be85a / 10188403123 / 39652457505 ns`.
+
+**Reference OHR reply.** `lane-exercise.py` replays the 14 pinned startup/MAIN
+requests, the intervening fire-and-forget reboot, and this new configuration
+request: 16 packets, 15 replies, with the reboot producing none. The final
+54-byte reply echoes command 4 / sequence 21 and has 50 zero body bytes; its
+CRC32 is c81ec10c (LE wire bytes 0c c1 1e c8). Both normalized lane runs are
+identical. This establishes a synthetic reply, not heart-rate measurements,
+and authorizes no larger compatibility budget.
+
+**Successive native trial boundaries.** Every row below was independently
+repeated with byte-identical complete logs. Trial admissions accumulated only
+in the external archive; no assertions, instructions or fixture budgets were
+bypassed. All restore from the same original watchface and replay the same
+Upper/Middle input.
+
+| Trial suffix | Experimental change relative to previous row | Next observed refusal / reset |
+| --- | --- | --- |
+| `exercise-haptic` | Exact a3-shaped command-4 reply under the existing 30-hit cap | IOM4 0x40054120: command 01000112, device 50, DMA cfg 101, length 1, destination 1002f6a8; reset at 39934106002 ns / 10194397688 instructions |
+| `exercise-status` | Admit only that register-1 read | IOM4 command 00000201, cfg 103, length 2, source 1002f6b4, bytes 0b 02; reset at 39934110024 ns / 10194401710 instructions |
+| `exercise-enable` / `exercise-pattern` | Admit only that 0b=02 write; add pattern logging in the second probe | CTIMER PatternAddress 0x40008104, value 00010201; reset at 40032530098 ns / 10206831770 instructions |
+| `exercise-complete` / `exercise-ctimer` | Admit only pattern 10201 and its snapshot state; add control logging in the second probe | CTIMER8 control 0x40008300, value 00000141; reset at 40032530110 ns / 10206831782 instructions |
+
+All four reset paths report PC 000cdf5a, LR ffffffed, SP 1005ff58 and one reset;
+they are unsupported-access faults, not successful exercise sessions. The
+filename `exercise-complete` denotes the cumulative trial, not completion of
+the user journey. Haptic transactions have I2C enabled, SPI disabled, no active
+command, and empty input/output FIFOs. The lane's exact register-1 read returns
+00; its 0b=02 write retains 02. Reset restores register 1 to 00. Both haptic
+probe censuses match. E-SAP-0036/0040 remain the controller/chunking references;
+these observations authorize no other register/value or physical vibration.
+
+The first timer probe against upstream Apollo4 alone logged unhandled accesses
+and returned zeros; it is a rejected control, not an admission law. Repeating
+against the **SapporoApollo4Timer wrapper actually selected by the 2.35 lane**
+retains 10301 and then 10201 at PatternAddress, identically twice. Its source
+is `peripherals/SapporoApollo4Extensions.cs`, with attachment in
+`peripherals/sapporo-extensions.repl` and `sapporo-2.35.resc`.
+
+**Unresolved Timer8 behavior.** With that wrapper, writing control 140 gives
+readback 140/counter 0; writing 141 gives immediate readback 141/counter 0.
+Both runs explicitly log `Timer8: PWM function mode is not supported` twice.
+The immediate readback does not establish an advancing counter, output signal,
+IRQ law, or physical PWM behavior. Simply admitting 141 in the in-tree generic
+timer would inherit its fallback rate, which this observation does not justify.
+Ticket 803 is blocked on a twice-derived Timer8 behavior law from the lane or
+the owner-authorized hash-pinned offline-RE evidence class. The production
+OHR refusal remains intact so these partial admissions do not introduce a reset.
+
+**Bounds and reproduction.** Native trials run with SDL dummy, max 12B
+instructions and 44B ns, except `exercise-haptic` ends at 40.5B ns and the
+`exercise-pattern`/`exercise-ctimer` probes use 10.3B instructions / 40.1B ns.
+Every native process has a 180-second wall limit. Native command shape:
+`<probe-tree>/build/suunto-emu-sdl run --profile sapporo-2.35.34 --firmware
+<validated-manifest> --layer sapporo-2.35-production-data --layer
+sapporo-2.35-ohr-startup --layer sapporo-2.35-gps-startup --layer
+sapporo-2.35-gps-reopen --layer sapporo-2.35-gps-awake --snapshot-load
+<codec2-235-1.sems> --input-replay <upper-middle.replay> --max-instructions
+<bound> --max-time <bound>`; all pairs return budget exit 3 after the named
+fault/reset. Production `exercise-baseline.py` instead requires the original
+compatibility refusal, with no reset or draw refusal.
+
+Lane commands are `renode --console --disable-xwt --plain <probe.resc>` from
+the read-only sibling root, each with a 60-second wall timeout. The CPU never
+runs: these are direct endpoint/register probes at zero instructions and zero
+virtual time. Renode 1.16.1, build d66b0c2a; normalized records select only
+`OHR-LANE`, `HAPTIC-LANE`, `PATTERN-LANE` or `PWM8-LANE` lines and retain their
+order/content. Raw logs with host timestamps are hashed separately below.
+
+| Native raw record pair (identical bytes) | SHA-256 |
+| --- | --- |
+| `exercise-haptic-{1,2}.log` | `6a68423c5e3739d3254006345627a932b9b4cf67894218293810c5500075784c` |
+| `exercise-status-{1,2}.log` | `fb03c0a7e318ed2632d681e5f3acdfe2e6941b00ae764138eb78cd588582cc9d` |
+| `exercise-enable-{1,2}.log` | `ca1adc1fea6d322de795a7b0de0adc527455be95ad749ea060caf0aa49ea2d73` |
+| `exercise-pattern-{1,2}.log` | `9891d4d8ccbd04c1f0ebf1b357e17e52c46c1c57a884c8e8a02473d516a26108` |
+| `exercise-complete-{1,2}.log` | `d7f78b508d826a9c8cbee43eaf5d77678cbfa6d73442000f22e58088f6fee0ba` |
+| `exercise-ctimer-{1,2}.log` | `388fae5107eebe75fbe8db0d212432bb9e8729f8100feece5377d952e493e79c` |
+
+| Lane record | SHA-256 |
+| --- | --- |
+| `lane-exercise-1.log` | `d96edc00ebd1c3b57334edad5a98e6b490debf3e06067bf58614600daa41dd69` |
+| `lane-exercise-2.log` | `90805fd028801e0169374435979d971c17be04a50ed0f7e42a0aa4a9d32b130d` |
+| `lane-exercise-{1,2}.norm` | `74ec5a984aa7609f4876a0b52bea135ff716c240df37f2afb1b3bdf0155e7da3` |
+| `lane-haptic-1.log` | `cb33c02bcbbaf51ae64ea45bce6539bbe7c6cb367a73d40e1a4991dc005b1bce` |
+| `lane-haptic-2.log` | `95afbe2c978e41a271950c6bebb3f0da6a9f7d2513474cd0dae347f1794fcd41` |
+| `lane-haptic-{1,2}.norm` | `733fa8c5413704fafcfe2743e8270f5258712f126a46a6e0b48f48b528dbeed5` |
+| `lane-pattern-wrapper-1.log` | `bad5e258457811dae2f45ebef4fcddde307d3ed6a7e0ed9db5a2ec92dd711bd8` |
+| `lane-pattern-wrapper-2.log` | `273c4284048b35b22af96be41e28b6fa98bf3f513df3c460c126058aeb4b6d4b` |
+| `lane-pattern-wrapper-{1,2}.norm` | `94eec678875e1f22f8494e4d006b9cb8cd33ae371ec6b2867dc3f5b320ba960e` |
+| `lane-pwm8-1.log` | `3e3abc1f0b704a6d84b075188e2ebe7b296ec603b67bd4304b37495bb685f557` |
+| `lane-pwm8-2.log` | `af13bbbb310dfa955974db528d82460539139868a695dcc49e063da4dd1299bb` |
+| `lane-pwm8-{1,2}.norm` | `d33e6a15a4a9bbe46a425e27d071ce94268c6b49c49d6230bf49b933fb652121` |
+| `lane-pattern-1.log` | `be2aae29fc4cd1144841212f119b9ddde2043db4fec013d7bf8770335e274672` |
+| `lane-pattern-2.log` | `701cab8dfe7d589664cdb60ff35cc366918a3cf6211af876030dcf663c1a0c29` |
+
+| Probe or read-only source | SHA-256 |
+| --- | --- |
+| `probe-tree/build/suunto-emu-sdl` | `9fb51155d54e1e6340aa6ba4f2c1289e2e33ca387c01f383050b81d9405f9605` |
+| `probe-tree/src/compat/sapporo_235_ohr.c` | `5162d2d802e33335ea2b0041bb7816a468412911df88a7f4df20b0dcffba62f1` |
+| `probe-tree/src/devices/sapporo_iom4_haptic.c` | `8548aeb64f5b7bb2c5aa7eeb4877b03e84803130b5f34e5d4015d9e9f53fa5b3` |
+| `probe-tree/src/soc/apollo4/timer.c` | `595b3a16f1b789c771b349324b8b54a8956a8f971ec6ff5aea8aa6d4522f6447` |
+| `probe-tree/src/soc/apollo4/timer_snapshot.c` | `c6e5447c95e7ad902ac0995b061dff2c2cfcc44dc172aa8fcd33cb3e4a19696d` |
+| `upper-middle.replay` | `1bbe3de1e53521d2c0dbd36cbbec2391429a8a09cb0cd922912c209be75be3d1` |
+| `lane-exercise.py` | `280ccab72c960f4a2cc691cd684e6acfcfaec42907ae167d08c4fbbee1b0f26d` |
+| `lane-exercise.resc` | `af7327726ce54ddc04ae1658ac31662eff713970547e9afcb38ce7255db007dc` |
+| `lane-haptic.py` | `bf11e66b4255c264a7d9ff3eb90b9892b01c584784f9cfd9e6eb3cde34705b97` |
+| `lane-haptic.resc` | `d63c93437825d7e31549e77f2b76df7c025cc54b38dc9f66a62b70c4e3d64869` |
+| `lane-pattern.resc` | `76a0ecfa3d05896594029327b337309ada5be20e961791b7efb542fa4fba34ce` |
+| `lane-pattern-wrapper.resc` | `03116f59373825db3f3676f5df7ac186296acc60c4d0d55ab5e3394e43450d0d` |
+| `lane-pwm8.resc` | `9b02cd3935fc6329a3e7a6757a12f9154d88abafdc37e946c1212cf30dfea0f3` |
+| `exercise-baseline.py` | `b49486aef5a2b9a5c79b73ff75a07bf69c9adde60de57b92b879ac9c993a2c2f` |
+| `../suunto-firmware/emulator/renode/ohr/SapporoOhr2Transport.cs` | `f35e6a69c86fba8142d94c835db4958d238b7cc042f58e67a0606d5a0d2b96f0` |
+| `../suunto-firmware/emulator/renode/haptic/SapporoHapticPmic.cs` | `fc7533bbcca2d6cb15d22edf0b40bb884c7df702d58f9f2bac0bbd76b291e968` |
+| `../suunto-firmware/emulator/renode/peripherals/SapporoApollo4Extensions.cs` | `a9561ac90c10d9b7b2ec859c11c3f9ba974aea4abf504e5d9454d6038bc90405` |
+| `../suunto-firmware/emulator/renode/peripherals/sapporo-extensions.repl` | `945540b7f017e644dd2e49a4746d8652228277ebae030e10e3df3c9dfd2cde81` |
+| `../suunto-firmware/emulator/renode/sapporo-2.35.resc` | `7314f30f2341ffa743926190ce9e1c347605579ea0b5691fd1f5c55f6ed1f75c` |
+| `../suunto-firmware/.tools/renode/Renode.app/Contents/MacOS/renode` | `8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab` |
+
+The archived C hashes name the final cumulative CTIMER probe; earlier rows
+progressively added the exact admissions listed above. These are investigative
+artifacts only, not a supported emulator variant. All derived protocol shapes,
+counts and failure tuples are retained here; raw packets, logs, pixels and
+snapshots remain external. This entry does not resolve the auxiliary texture
+codec/writeback gaps or supply ticket 800's missing 2.39 full-flash fixture.
+
+Production confirmation on `007172b`: `python3
+/tmp/semu-nav-20261002/exercise-baseline.py` validates all components and
+repeats the original sport-selection refusal without any reset or draw refusal.
+Both complete raw logs (`exercise-baseline-{1,2}.log`) have SHA-256
+`8848389a3c0c4bfbddcf62d38267b6a73f8a8579233bd7c04bba128520bc03ad` and
+retain the exact original terminal tuple above. Thus the GPU integration does
+not silently admit the experimental peripheral behavior.
+
+Production SDL executable SHA-256: `85e0b0f06c33169f58f960be7b28b5207c2746e30defe8319c3f68a843fc74b6`.
+
+External observer machine_run.c SHA-256: `fc79a38a438f5bdabfbd51155128ba975961234fcaacf3c2ab86aa9da76e96fb`.
+
+Final planning/documentation verification: `make check` passes (1,031 PASS
+records), `make check-task-contracts` validates 167 indexed tickets, and
+`git diff --check` passes. Raw log SHA-256s: `final-check.log` =
+`1d3492831edc714d70abcee348193f87fffcb3eda2e8d5852fe6ef41f6762288`; `exercise-contracts.log` =
+`01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`.
