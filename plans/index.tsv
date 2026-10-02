@@ -166,3 +166,4 @@ id	phase	title	status	dependencies	ticket
 801	7	Sapporo 2.35 Restored Navigation Evidence and Regression	ready	705,791,793,794	plans/tasks/801-sapporo-235-restored-navigation.md
 802	7	Compressed Resolve Refusal Integration	ready	504,513,761,793	plans/tasks/802-compressed-resolve-refusal.md
 803	7	Sapporo 2.35 Exercise Entry Integration	ready	705,779,794	plans/tasks/803-sapporo-235-exercise-entry-integration.md
+804	7	Sapporo Compressed Asset Clipping	ready	504,513,793	plans/tasks/804-sapporo-compressed-asset-clipping.md

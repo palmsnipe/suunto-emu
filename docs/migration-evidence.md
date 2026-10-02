@@ -9472,3 +9472,26 @@ Final verification artifacts (including atomic stalled-state refusal):
 - `contracts-final803.log`: `01854b2e13d3a01a241b365369ecc7635bad468080015991753c0e46a6ad4398`.
 - `verify-cold-pins.sh`: `e33937bc0e75a76e8645bbd82b2d3423be897eb8fd7c7eff7c22fdcbd316063d`.
 - `cold-pins.log`: `1865ad8892b12f0b793872b00d39a8f3568bc6c2437943b2909c0c5ea3896e7b`.
+
+
+## E-EMU-TSC6A-CLIP-001 — sampled compressed-asset blocks
+
+2026-10-02 integrator scope ruling for ticket 804, following the owner's GPU
+continuation request. This is a composition of existing observed/RE-backed
+laws, not a new hardware observation. E-RE-SAP235-TSC6A-001 defines independent
+12-byte 4x4 blocks and the zero-auxiliary decoder. E-SAP-0041-EXT6/EXT7 defines
+the existing 60x60 translated/clipped quad families, pixel-center nearest
+sampling and unchanged SRC_OVER blending. No texel from an unsampled block
+contributes to these clipped pixels. Therefore an already-admitted draw may
+render its supported sampled blocks even when other blocks have unknown
+auxiliary bits. Unknown sampled blocks still refuse before any target write.
+
+This explicitly narrows ticket 793's original all-225-block admission rule
+only for clipped versions of its existing asset family. The source span is
+still validated in full, including on empty clips; malformed state, missing
+memory, overlap, unsupported matrices and unknown visible bitfields retain
+refusals. Reuse the existing tsc6a_resolve_point calculation in both passes.
+No additional compressed format, register, sampling mode or shader value is
+introduced. DRAW_CMD=10 cache semantics, semantic shadows and GPU writeback
+are unchanged. It does not authorize the currently refused Widgets MM00 word
+3f7fffff or decode any of auxiliary bits 75..95.
