@@ -6,6 +6,40 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Widgets GPU transition — 2026-10-02
+
+Ticket 805 admits the observed MM00=3f7fffff scale only for its exact Widgets
+clip-cut tuple. The existing fixed-point sampler already maps all 3420 samples
+correctly; no sampling, decoder, cache, snapshot layout or float-tolerance
+change is needed. E-RE-SAP235-WIDGET-SCALE-001 records the twice-reproduced
+firmware matrix-writer derivation, native census and exact sample equivalence.
+
+All six paired restored-navigation runs pass. Widgets and Browse now have zero
+GPU refusals; Control Panel drops from three to two, preserving its distinct
+20x32 compressed-icon refusals. The newly committed transition frame differs
+at 1428 pixels because the formerly rejected child list now publishes. Settled
+pixels are byte-identical: Widgets/Browse CRC32 26867705, Control 30847819.
+CPU, memory, scheduler, timers, sensors, compatibility hits and stop checkpoints
+are unchanged. Only GPU/renderer publication and draw counters change, exactly
+as attributed in the ledger. Exercise, Pin and Return retain full log/image pins.
+
+Changed scope: `src/display/nema_tsc6a_raster.c`, new
+`tests/unit/test_nema_tsc6a_widgets.c`, the restored-navigation runner, README,
+status and evidence. Red-first tests cover every panel pixel, 15 near-miss
+states, unknown visible blocks and missing source memory. `make check` passes
+with 1042 PASS records; `make sanitize` passes with 1037; the TSC6A filter runs
+33 cases. Full 2.22 SDL onboarding/60-second/refusal gates and the 2.35
+exercise/restore gates pass unchanged. Full hashes, exact commands and private
+gate results are recorded in the ledger. Ticket 805 remains ready for integrator
+review.
+
+GPU support remains incomplete: unknown compressed auxiliary bits, other asset
+shapes (including Control Panel's 20x32 icon), full compressed writeback and
+unobserved shader/transform cases remain unsupported. The verified 2.39 flash
+is unavailable, so its era pins may still have drifted (ticket 800). No new
+private pixels enter Git; the six authorized README screenshots are unchanged.
+Earlier status sections below describe their historical baselines.
+
 ## GPU compressed-texture clipping — 2026-10-02
 
 Ticket 804 extends the existing 60x60 compressed-asset quad path: it preflights

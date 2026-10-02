@@ -353,6 +353,26 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
 #define TSC6A_ASSET_TX_SLACK_FP16 2
 #define TSC6A_ASSET_TY_SLACK_FP16 1
 
+/* Ticket 805 / E-RE-SAP235-WIDGET-SCALE-001: this exact Widgets clip cut
+ * emits MM00 one binary32 ULP below one. The existing fixed conversion
+ * rounds it to 65536, matching exact pixel-center samples for this tuple.
+ * No tolerance or combination with the earlier MM11 alternate is inferred. */
+static int tsc6a_compressed_asset_x_scale(const nema_draw_snapshot *s)
+{
+    if (s->mm00 == TSC6A_MATRIX_ONE) return 1;
+    return s->mm00 == TSC6A_MATRIX_ONE_ALT &&
+        s->mm11 == TSC6A_MATRIX_ONE &&
+        s->mm02 == UINT32_C(0xc32b0000) &&
+        s->mm12 == UINT32_C(0xc1c00000) &&
+        s->draw_color == TSC6A_CROSSHAIR_DRAW_COLOR &&
+        s->clip_min_x == 0u && s->clip_min_y == 0u &&
+        s->clip_max_x == 240u && s->clip_max_y == 81u &&
+        s->point0_x == (171u << 16u) && s->point3_x == s->point0_x &&
+        s->point1_x == (231u << 16u) && s->point2_x == s->point1_x &&
+        s->point0_y == (24u << 16u) && s->point1_y == s->point0_y &&
+        s->point2_y == (81u << 16u) && s->point3_y == s->point2_y;
+}
+
 /* Second accepted state of this resolve: the capture-pinned compressed
  * tuple with the ticket-788 animated predicates factored out into
  * tsc6a_compressed_asset_law.  bus must be present because the source
@@ -378,7 +398,7 @@ static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
         s->imem_addr != TSC6A_IMEM_ADDRESS ||
         s->imem_datah != TSC6A_IMEM_DATAH ||
         s->imem_datal != TSC6A_IMEM_DATAL ||
-        !s->matrix_present || s->mm00 != TSC6A_MATRIX_ONE ||
+        !s->matrix_present || !tsc6a_compressed_asset_x_scale(s) ||
         s->mm01 != 0u || s->mm10 != 0u ||
         (s->mm11 != TSC6A_MATRIX_ONE &&
          s->mm11 != TSC6A_MATRIX_ONE_ALT) ||
@@ -410,7 +430,8 @@ static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
  *     one-ULP bias class); the horizontal bounce keeps dstY = 90
  *     (v(y0) = 0, v(y1) = 60) and the vertical family animates dstY =
  *     151/192/220.
- * mm00=mm11=1.0 and mm01=mm10=0 stay bit-pinned in the shape.
+ * The scale words and mm01=mm10=0 stay bit-pinned in the shape,
+ * including the individually witnessed EXT6/805 alternate tuples.
  * rect_x1 is bounded to ±2048 by tsc6a_rectangle, so |60 - rect_x1| <
  * 2^11 is exactly representable in binary32 and the comparison runs on
  * the shared integer 16.16 conversion with int64 intermediates - no

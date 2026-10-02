@@ -9641,3 +9641,115 @@ offset 40 +11 (the now-committed child list). All remaining bytes, including
 CPU, bus memory, scheduler, timers, sensors, compatibility state and settled
 renderer pixels, must match. This clarifies the GPU publication side of the
 ticket; it does not authorize unrelated device state or a new snapshot format.
+
+Implementation and verification (805, 2026-10-02):
+
+`tsc6a_compressed_asset_x_scale` admits only the above exact alternate; the
+existing identity and MM11 alternate admissions remain unchanged. The new
+`tests/unit/test_nema_tsc6a_widgets.c` uses synthetic alternating red/gray blocks
+with per-texel diagonal indices. It checks all 57,600 panel pixels for both
+the observed scale and identity, including the 3420 sampled texels and every
+untouched pixel. Fifteen altered scale/matrix/clip/color/quad states refuse
+atomically, as do a late visible auxiliary block and a missing final source
+byte. No real asset bytes or captured pixels were added to the tests.
+
+Red-first `make test TEST_FILTER=nema_tsc6a_widgets` selected three cases:
+the positive render and expected auxiliary diagnostic failed before the fix;
+the near-miss refusal passed. All three now pass. Raw `red.log` SHA-256
+`fc5dccb2c472c33bf7a037ff9a70442a01f328baf75f46a5b9e6859b2a4ff103`;
+`green-widgets.log` `35ff53a98968de44b0d905d7e0c6ddb7f24a2910eaf3f5d93b576d7c71ff8f68`.
+`make test TEST_FILTER=nema_tsc6a` runs 33 passing cases (includes the existing
+optional capture-golden case, whose private reference remains absent).
+`green.log` SHA-256 `268df9d16e0e0a33b3adf5355c78c1a6dcf853cc23a1a57a784167b4fcc45098`.
+
+Native attribution command:
+`python3 /tmp/semu-widget-scale-20261002/after-probe.py after`.
+The source SHA-256 is `aa20020c681fc5306692cb269ca2f6edd97175b6c7f2dcc767db86d7b7c8cb1a`;
+its six-case derived `after.json` is
+`de48e903910123e8a8e66f9bd6c93f9343eeda84ee7e836d179ebe068736092a`.
+Final SDL executable SHA-256:
+`da37740c682a757ea011fc086f48f159352b531841459d6f7e6dff9fc6dd9ea5`.
+The initial broader probe stopped when section 8 also changed; inspection
+identified its exact publication counters, leading to the explicit scope
+clarification above before pin updates. The final probe checks both field
+values and byte-identical normalized sections, rather than ignoring whole
+GPU/renderer sections.
+
+Every case runs twice with full log/image comparison. Three affected pairs
+(`after-NAME-{1,2}.log/.sems`) authorize these new regression pins:
+
+| Case | Complete log SHA-256 | Whole snapshot SHA-256 | Generation / frame CRC32 | Refusals |
+| --- | --- | --- | --- | ---: |
+| widgets | `b290227ff5609fc8267b2c2419a5af8c849a93bfa8a7a207ec35ffcb902a24e4` | `10151154bba5a724bedf4c9fa3f4943dd44931f5b06fb48180642acc59d681c6` | 4854 / 26867705 | 0 |
+| browse | `8a31ead3fb899aa04fdcc8f5cfb1d0d24b2426361a521c364519cdca5b333300` | `6d6fa414565e60fa9401a5402ee66b11162a19ce4c89a620f24e54043753ea08` | 5001 / 26867705 | 0 |
+| control | `544d98bc51d6cdf11c6f5c08b1996b453f218aeb4f39e58207deabbe5a197e7b` | `80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc` | 4946 / 30847819 | 2 |
+
+Each complete log changes only by removing the one Widgets draw-refused line.
+Both Control 20x32 refusals remain byte-identical, as do all other log lines.
+All three terminate `stop=budget pc=000e1862 virtual_time_ns=44000000000`,
+with unchanged instruction counts 9801773346 / 10210850502 / 10123133602.
+All non-GPU/display snapshot sections and the whole file header are identical.
+Within section 8 only the two frame-generation fields increase by one. Within
+section 10 only generation increases by one and draw count by eleven; all
+pixel/cache/register payloads are unchanged. Exercise, Pin and Return retain
+byte-identical complete logs and snapshots, using the 803 pins.
+
+The missing transition frame was also captured twice before/after using
+`python3 /tmp/semu-widget-scale-20261002/transition.py`
+(source SHA-256 `4aaa86885662521acfe9d1ff34bb22cbfc327c7e5757fdc02fcc3c7b2b38f226`).
+It validates firmware first and uses 12B-instruction / 38122450000-ns /
+180-s wall bounds. Both binaries stop at PC000a6bea, 9514965748 instructions,
+38122450000 ns; all sections except 8/10 match. Private
+`transition-before-{1,2}.log` SHA-256
+`baa350ce8f3db273d3cbcb6888ec6ba87bcf1338fd53c5ab83a08e7b8c7c091a`,
+snapshot `54d3e5154c78182c4bd3bdf6e25f9310c3971aae156776d208e0d24ddc0871c2`;
+`transition-after-{1,2}.log`
+`890ae79efc0127195e8d60aaf873ab529acf4ef3219c46d5a1624fe7896a27c1`,
+snapshot `047991eacc3e893a05dde7e66a4c2cc108914d03c2f56fe01fa964c1ec390cd5`.
+Generation4778/CRC84e3cf2c becomes4779/CRCac34087c. The accepted child list
+publishes eleven draws instead of being rolled back: 1428 changed pixels,
+bounding box x23..230/y13..80, not merely the icon's footprint. Private PNGs
+from `/tmp/semu-nav-20261002/snapshot-frame.py` (SHA-256
+`4c86e276e479b2d3693958d12e8b1223e7c09021f43abbbcc485659085d18970`)
+were visually inspected. This is a restored animation frame, not a change to
+the settled screen and not a physical-device comparison.
+
+Exact production gates (all exit 0 unless the documented optional skip):
+
+- `make -j4 all sdl`; `make check` — 1042 PASS records, no failures.
+  `check.log` SHA-256 `aa72f161694edb9092fc6e65dcd1cfe255f2f23adc2d382ccf81432e81be61bc`.
+- `make sanitize` — 1037 PASS records, no ASan/UBSan findings.
+  `sanitize.log` SHA-256 `9f8a73288e4b9d093dcf98037d6149c5b5656621e8837e9c090585eb73484c7b`.
+- `make check-lines` — passes with existing advisory size notices.
+  `make check-task-contracts` — 169 valid tickets;
+  `contracts.log` SHA-256 `c65303b7c89cf88fdedcfbf0f16b63e4e2efab05accc0505438e07161d28d02e`.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main235-1.sems sh tools/test_sdl_sapporo_235_navigation_restore.sh`
+  — all six paired cases pass their full pins; `navigation.log` SHA-256
+  `6446fc28eeb3ef1aff556a86253a41275f20acdfd8dfb54109d909766cd961d8`.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main235-1.sems sh tools/test_sdl_sapporo_235_exercise.sh`
+  — paired tutorial and active Timer8 save/restore equal the uninterrupted
+  whole state; `exercise.log` SHA-256
+  `97ba73d3a1c434f77ed229ef8744d6adbc7a93a9a4371928e32d4820740e0019`.
+- `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-integration-20261002/main235-1.sems sh tools/test_sdl_sapporo_235_restore.sh`
+  — interactive restore continues natively with unchanged pins;
+  `restore.log` SHA-256 `a434b673d7a3dee81ae06a41380d90e6a997c57d26e7160d417b984c67ac5737`.
+- `make check-era` — explicit skip: missing verified
+  `SEMU_SAPPORO_239_FULL_FLASH`; `era.log` SHA-256
+  `4923d307a57ed0197d841d4740e313c1917050ad442dbc98bd6f28b9e69ee71e`.
+  The 2.39 snapshot pins still require ticket800 re-derivation and may have
+  drifted; no 2.39 golden was silently replaced.
+
+Scope changed only the renderer predicate, new synthetic test, three
+restored-navigation log/image pins and README/status/evidence documentation.
+Unknown auxiliary blocks, the 20x32 Control Panel icon, compressed writeback
+and unobserved shader/scale combinations remain unsupported. Ticket805 stays
+ready for integrator review; no additional interface change is requested.
+
+Final gates: `make check-sdl` passes the 2.22 live-input, complete onboarding,
+60-virtual-second active continuation and expected disabled-manual-time GPS-cap
+refusal, preserving their existing full log pins. `check-sdl.log` SHA-256
+`50cc4b9a1f282aadcfd47a955a2e4df31ee69df173ad99e437670986d5e38988`. Final `make check` after
+the navigation pin/documentation update again passes with 1042 PASS records;
+`check-final.log` SHA-256 `474d62fd84a4a1060fbf66ce43ea9fd602e66c81c166a02adc79dab5b6373376`.
+`git diff --check` passes. The full SDL gates ran explicitly despite the normal
+`make check` quick gate's deliberate private-walk skips.

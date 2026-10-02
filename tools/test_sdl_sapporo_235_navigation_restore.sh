@@ -3,7 +3,10 @@
 # These are emulator regression observations, not physical-device equivalence.
 set -eu
 # Ticket 803 / E-EMU-SAP235-EXERCISE-003: Apollo4 codec 1 snapshot pins.
-# Paired attribution changes only section 5 (+17 bytes); old logs are unchanged.
+# 803 attribution changed only section 5 (+17 bytes); logs were unchanged.
+# Ticket 805 / E-RE-SAP235-WIDGET-SCALE-001 removes the Widgets scale refusal.
+# Its three pins change only GPU/renderer publication counters; pixels and
+# guest CPU/memory/time remain identical. The two Control 20x32 refusals remain.
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
 if [ ! -f "$manifest" ]; then
@@ -48,17 +51,17 @@ cases = [
      '9d6a6202c88727b0c287ddb8cff12b4f8dae095d67c6dec7e3eb056aab9ff855',
      '19f7f8352bcd9fbf867b28b31cbd876a3b233fd05093b9f37caaa945da7842f8'),
     ('widgets', [(38, 'lower')], 44, 9801773346,
-     '02f9da48b10dd3ac4933a0033c34f14046178d8f30da9200ab174956e2e32bf2',
-     '2705ae017fa6bf9dcaeddfb3022cf2a82095dbdfc7f67955fe5569e0411f70b6'),
+     'b290227ff5609fc8267b2c2419a5af8c849a93bfa8a7a207ec35ffcb902a24e4',
+     '10151154bba5a724bedf4c9fa3f4943dd44931f5b06fb48180642acc59d681c6'),
     ('pin', [(38, 'middle')], 44, 9903048381,
      '79eba44837a8ebeff51d3e9ba8837a03020d574938b63610ff17a909cdabdae5',
      '99def5985da8ff820d994cee52d88ae18111f4138a8fa42345021dd10a92dd43'),
     ('browse', [(38, 'lower'), (39, 'lower'), (40, 'upper')], 44, 10210850502,
-     'ebb677cbd1af5cabd9b22cd54b913fadae698f1df1faf56f9e3e3beb2205d322',
-     '46372565ffe4bc2d497fd742583b5d449912da8b24bf9148751a9c4029a093c3'),
+     '8a31ead3fb899aa04fdcc8f5cfb1d0d24b2426361a521c364519cdca5b333300',
+     '6d6fa414565e60fa9401a5402ee66b11162a19ce4c89a620f24e54043753ea08'),
     ('control', [(38, 'lower'), (39, 'middle')], 44, 10123133602,
-     '76dd601d9c6501b0766a8d0f2640a3427edfe7dab12620ea1a3977a7318e5ef3',
-     '49a527115ffd6b0cbc6082b64385fe473d0dc0c0249df4faab93fa713da06e1d'),
+     '544d98bc51d6cdf11c6f5c08b1996b453f218aeb4f39e58207deabbe5a197e7b',
+     '80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc'),
     ('return', [(38, 'middle'), (44, 'middle')], 46, 10249573536,
      '9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a',
      '3de4d7112f4c4c282547332b315e06afa7f20071a2bf673df9b2eae968e7c85f'),

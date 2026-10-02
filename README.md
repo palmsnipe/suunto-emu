@@ -27,8 +27,10 @@ limits; the [ticket index](plans/index.tsv) controls roadmap acceptance.
 
 Compressed-icon clipping now decodes only visible blocks, so unsupported
 blocks outside the clip no longer prevent supported pixels from rendering.
-GPU support still lacks the compressed auxiliary-bit decoder, full writeback,
-and a distinct Widgets scale case; unknown visible blocks refuse atomically.
+The observed Widgets scale now renders through its transition without a GPU
+refusal. GPU support still lacks the compressed auxiliary-bit decoder and full
+writeback; Control Panel retains two refusals for a smaller 20x32 icon.
+Unknown visible blocks refuse atomically.
 
 ## Screenshots
 
