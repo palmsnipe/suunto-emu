@@ -19,23 +19,16 @@
 # compressed-source bounce repaints so settled generations drift further
 # (host-side only); every guest stop line and the navigation frame crc
 # stay byte-identical):
-#   MIDDLE 'm'  : inert — the post-788 tick pattern (7ef957e9 alternating
-#                 with 74e8d4f5/aec1d3a0/cf8a4285/0a576ff1) runs through
-#                 settled steps 25..31, walk QUITS naturally (stop=user).
-#   LOWER   'l' : at step 25 or 26 the transcript is the same: exactly one more
-#                 tick member (step 26) settles, then the guest publishes no
-#                 frame ever again (clock ticks die with it); the OHR poll loop
-#                 continues; window ends stop=budget. No carousel move frame
-#                 is observable inside the window (repaint stall, NOT 1:1
-#                 per-click navigation).
-#   UPPER   'u' : at step 26 the pattern continues through step 27, one settled
-#                 frame 9b554fd9 outside the tick pattern appears at step 28
-#                 (observed navigation evidence; crc unchanged from the
-#                 pre-EXT4 capture), then the guest issues a
-#                 second OHR 0x0002 request inside one poll cycle, which the
-#                 enumerated fixture answers fail-closed: terminal
-#                 stop=compat-refused is the E-SAP-0041 fixture ceiling, by
-#                 design, not a regression.
+# Ticket 801 / E-EMU-SAP235-NAVIGATION-002 corrects the old interpretation:
+# these are multi-click windows, not isolated buttons from the watchface.
+# MIDDLE alternates the watchface and the static widget-pinning prompt.
+# LOWER sends Middle at step 25 before Lower at step 26. CRC 7ef957e9 is
+# the pinning prompt; no repaint is expected from the observed lower press.
+# The frame-gated script then waits and supplies no further input. A later
+# Middle press returns to the watchface in the independent restored test.
+# UPPER reaches the Exercise menu (9b554fd9), then subsequent input reaches
+# an OHR fixture refusal. Opening the menu alone does not hit that boundary.
+# Exact historical stop/log/frame assertions remain unchanged below.
 # Re-derived 2026-09-30 after the ticket-710 tsc6a frame-lifecycle fix
 # (E-EMU-SAP235-TICKTRAIL-001): the seconds-sweep frames re-derive clean;
 # the guest stop lines, generations and refusal guards are unchanged.
@@ -99,7 +92,7 @@ done
 [ "$(shasum -a 256 "$run_dir/upper-1.log" | awk '{print $1}')" = \
     879630294064869a75e611c703291163d8b0ac58c31aa5528b6b6ab5eb8368ef ]
 
-# No-input baseline: the post-788 tick pattern must carry the walk to its
+# Repeated-Middle baseline: the recorded screen pattern carries the walk to its
 # natural QUIT (E-SAP-0041-EXT3 natural terminal + EXT4 accent raster +
 # EXT6 compressed-bounce admission; matches the era-pinned window).
 grep -Fqx 'SDL live test settled step=25 generation=4000 crc32=0e077730' \
@@ -111,16 +104,16 @@ grep -Fqx 'stop=user pc=0x0800009e instructions=9487528672 virtual_time_ns=37414
 
 # LOWER window: settled steps identical through step 26 (the press letters are
 # derived from the POST script: step N presses POST letter N-12), then the
-# repaint stall — step 27 must never settle and no GPU draw activity may
-# resume at or after 35 s virtual time.
+# static pinning prompt — no step 27 or GPU draw was observed after 35 s.
+# Preserve this historical control; it does not establish a renderer freeze.
 grep -Fqx 'SDL live test settled step=26 generation=4131 crc32=7ef957e9' \
     "$run_dir/lower-1.log"
 if grep -Fq 'SDL live test settled step=27' "$run_dir/lower-1.log"; then
-    echo 'error: lower-click window republished a settled frame after the stall' >&2
+    echo 'error: lower-click window changed the historical static-prompt checkpoint' >&2
     exit 1
 fi
 if grep -Eq 'time_ns=3[5-9][0-9]{9} .*subsystem=gpu' "$run_dir/lower-1.log"; then
-    echo 'error: lower-click window GPU activity resumed after the stall' >&2
+    echo 'error: lower-click window changed historical static-prompt GPU activity' >&2
     exit 1
 fi
 grep -Fqx 'stop=budget pc=0x000e1862 instructions=8000564488 virtual_time_ns=40000000000' \
@@ -148,4 +141,4 @@ for window in baseline lower upper; do
         exit 1
     }
 done
-echo 'PASS Sapporo 2.35 SDL: main-screen button navigation goldens (m inert, l repaint-stall, u navigate+fixture-ceiling)'
+echo 'PASS Sapporo 2.35 SDL: main-screen button navigation goldens (repeated-middle, static pin prompt, exercise+fixture-boundary)'

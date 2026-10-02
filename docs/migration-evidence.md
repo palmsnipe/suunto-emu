@@ -8681,3 +8681,91 @@ are unverified and expected to change with this format; ticket 800 requires
 the exact full flash and twice-derived replacements. Auxiliary-bit decoding,
 known-to-unknown cache clearing, compressed writeback and navigation/fixture
 extensions remain outside ticket 799.
+
+### E-EMU-SAP235-NAVIGATION-002 — isolated restored button paths (2026-10-02)
+
+Ticket 801; source `10b3cf6`. These are in-tree emulator/UI observations, not
+new hardware laws or physical-device equivalence. E-SAP-BUTTONS-001 supplies
+the button mapping and dispatch reference; E-EMU-RENDERER-SNAPSHOT-002 supplies
+the complete restore state. No runtime behavior, fixture budget, or old pin
+changes. All raw logs, snapshots, probes and pixels remain in the volatile
+`/tmp/semu-nav-20261002/` workspace.
+
+Inputs: `tests/private/sapporo-2.35.34.18929/firmware.semu`, SHA-256
+`a367830b696ae434db2946aea98443f06c698cd9f2525575b35869b94c5be824`;
+all three components validate before each run set. Resident, application and
+resource hashes remain `c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5`,
+`36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`,
+and `f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22`.
+The restored watchface is `/tmp/semu-renderer-v2-20261002/codec2-235-1.sems`,
+SHA-256 `e25c409d8868cd36a6d62c5c9f7da30442c98f9461b19fdd72ac3be1b245c971`,
+generation 4770 / CRC `500b350f`, 9487528672 instructions / 37414100700 ns.
+SDL dummy and the existing production-data/OHR-startup/GPS-startup/reopen/awake
+layers are used throughout. Clicks hold for 100 ms at the absolute virtual
+seconds below. Each case is independently repeated; full logs and snapshots
+match byte-for-byte. The runtime budget is 12B instructions, 44 or 46B ns;
+the committed runner imposes a 900-second wall bound per process.
+
+| Window | Presses (seconds: button) | Final screen | Instructions / end seconds | Generation / CRC |
+| --- | --- | --- | --- | --- |
+| exercise | 38: upper | Exercise, Running selected | 9809899994 / 44 | 4863 / `9b554fd9` |
+| widgets | 38: lower | Widgets, Control Panel selected | 9801773346 / 44 | 4853 / `26867705` |
+| pin | 38: middle | Double tap the screen to pin a widget | 9903048381 / 44 | 4904 / `7ef957e9` |
+| browse | 38: lower, 39: lower, 40: upper | Widgets, Control Panel selected | 10210850502 / 44 | 5000 / `26867705` |
+| control | 38: lower, 39: middle | Control Panel | 10123133602 / 44 | 4945 / `30847819` |
+| return | 38: middle, 44: middle | Watchface, clock updates resumed | 10249573536 / 46 | 5033 / `fa3eed01` |
+
+Every terminal is `budget / 000e1862`, exit 3; no guest reset or rendering/
+compatibility refusal appears. Screens were inspected using lossless RGB565
+snapshot extraction (`snapshot-frame.py`). A one-second Middle/Middle pair
+remains at the pinning prompt; the six-second pair returns. This establishes
+the tested timing windows, not a new debounce/settling law.
+
+| Case (both passes identical) | Full log SHA-256 | Snapshot SHA-256 |
+| --- | --- | --- |
+| exercise | `9d6a6202c88727b0c287ddb8cff12b4f8dae095d67c6dec7e3eb056aab9ff855` | `a69f4b5d4680823619d12427ca0cfd48c043257434d95e0f3eeb007713b64002` |
+| widgets | `02f9da48b10dd3ac4933a0033c34f14046178d8f30da9200ab174956e2e32bf2` | `86bfa8520ee691d6287aa2ce48e84889fa258d13653b858859db92771861fed2` |
+| pin | `79eba44837a8ebeff51d3e9ba8837a03020d574938b63610ff17a909cdabdae5` | `326172d81898ab69c534302408bfc4d70d3620e7e22317fbc59c0cb388abed95` |
+| browse | `ebb677cbd1af5cabd9b22cd54b913fadae698f1df1faf56f9e3e3beb2205d322` | `94a3d55d6cb980cb188b39209f7d7e586087084e1d6472f044e32561c338f310` |
+| control | `76dd601d9c6501b0766a8d0f2640a3427edfe7dab12620ea1a3977a7318e5ef3` | `c65ae7ecbb620c4992f328228fd727b3a50c2f17bc7ea3f61336676c538d6a07` |
+| return | `9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a` | `097614f3f1c6d71127abcd9bd7f71a4525b18e0932bc6d8cca4fe97c3932dc25` |
+
+The old cold LOWER window uses POST `mmlllmlllmmmmmlmlmmu`; its step-25
+Middle press is at 32819464617 ns and step-26 Lower at 33585767866 ns. The
+latter ends on the pinning prompt (generation 4131 / CRC `7ef957e9`), not a
+frozen watchface. Both cold captures end `budget / 000e1862 / 8000564488 /
+40000000000 ns`, full log SHA-256
+`61cbd3e887d533dc8c657fd75066aec2aaaee34b05b3f0a8e117afebc447578c`,
+snapshot SHA-256 `7e6a89eb3bcbf7194fc1b9b68ebe1e52ac8dfc18b0684149db47ca5aba7dc2f2`.
+Restoring it and pressing Middle at 41 s gives a ticking watchface at 44 s:
+`budget / 000e1862 / 8387505866 / 44000000000`, generation 4263 / CRC
+`7d9dfd5b`. Both recovery logs hash to
+`dbdd1d3feb9fcee1237ae5dc122ef80dec4bad115d7edc133a7c888ea3e159e0`,
+both snapshots to `59422e964a8ef332a4ec84efbe62afee2c33419f07c17412666514a920d61fe5`.
+The old cold UPPER pair, POST `mmlllmlllmmmmmmummmmm`, also retains its full
+log SHA-256 `879630294064869a75e611c703291163d8b0ac58c31aa5528b6b6ab5eb8368ef`
+and terminal `compat-refused / 001be85a / 8896815435 / 35626577524 ns`.
+It includes subsequent input after reaching Exercise, unlike the isolated
+Upper case above. The repeated-Middle baseline is the already twice-derived
+snapshot source, log `14ffff66146dfce6fabbb57ee2f96917431c02061d6c172ffac731b9adaa9aae`.
+Thus all three historical cold-window pins remain controls, while their
+former global “inert” and “repaint stall” labels are superseded.
+
+Probe/tool provenance (SHA-256):
+
+| External file | SHA-256 |
+| --- | --- |
+| `build/suunto-emu-sdl` | `eed88898bf1d01d17530e306e9782fae4f291170cb9df7eaf42ba36e509e18c8` |
+| `/tmp/semu-nav-20261002/cold-nav.py` | `5e0e630141a65380cc6a6aa5d21f80747294787b700e78576a22dffa1271c0d5` |
+| `/tmp/semu-nav-20261002/navigation.py` | `589231195414c323ba07721e5eefaadaa864f5d3768f5e8824b6232ec8ef91ed` |
+| `/tmp/semu-nav-20261002/snapshot-frame.py` | `4c86e276e479b2d3693958d12e8b1223e7c09021f43abbbcc485659085d18970` |
+| `/tmp/semu-nav-20261002/navigation-gate.log` | `6446fc28eeb3ef1aff556a86253a41275f20acdfd8dfb54109d909766cd961d8` |
+
+`python3 /tmp/semu-nav-20261002/cold-nav.py` runs each historical changed
+window twice (10B instructions / 40B ns / 900-second wall bound).
+`navigation.py` derives the independent restored cases, including old-prompt
+recovery, with 180-second wall bounds; the final six-case committed runner
+also reproduces both logs and snapshots. Missing optional firmware skips;
+explicit missing/mismatched input refuses. The runner's own hashes and exact
+commands are tracked in Git. Selecting a sport is a separate OHR request
+boundary; this evidence authorizes no extra response or GPU decoding mode.

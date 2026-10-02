@@ -6,6 +6,42 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 801 — restored navigation attribution — 2026-10-02
+
+Implemented for integrator review on `10b3cf6`; runtime behavior is unchanged.
+The previous “lower repaint stall” was a static widget-pinning prompt reached
+by an earlier Middle press. A later Middle press returns to the watchface.
+Isolated Upper opens Exercise, Lower opens Widgets, Middle opens the pinning
+prompt, and Lower then Middle opens Control Panel. Widget browsing and a
+Middle round trip pass twice with complete log/snapshot equality. A one-second
+Middle repeat remains on the prompt; a six-second interval returns to the
+watchface. No unobserved timing law is inferred.
+
+E-EMU-SAP235-NAVIGATION-002 records all input times, terminal tuples, frame
+CRCs, snapshot/log/probe hashes and the cold-window attribution, with existing
+E-SAP-BUTTONS-001 and E-EMU-RENDERER-SNAPSHOT-002 as references. The old cold
+LOWER and UPPER windows were repeated twice without changing their pins.
+Opening Exercise alone works; selecting a sport reaches a separate OHR
+configuration request boundary under investigation. GPS/OHR coverage remains
+finite. Auxiliary compressed modes and writeback remain unsupported, and
+2.39 era validation still needs the verified full-flash fixture (ticket 800).
+
+Changed files: new `tools/test_sdl_sapporo_235_navigation_restore.sh`, corrected
+comments/result labels in the existing navigation runner, README, this status,
+and the evidence ledger; planning setup adds ticket 801 and its index row.
+No firmware bytes, new screenshots, runtime semantics or old goldens change.
+Ticket 801 remains `ready` for integrator review.
+
+Verification artifacts: `/tmp/semu-nav-20261002/`. The new six-case runner
+passes with `SEMU_SDL_TEST_SNAPSHOT=/tmp/semu-renderer-v2-20261002/codec2-235-1.sems
+sh tools/test_sdl_sapporo_235_navigation_restore.sh`. Independent bounded
+`cold-nav.py` and `navigation.py` probes reproduce the historical and new
+windows respectively; all source components validate first. Full commands
+and paired hashes are retained in E-EMU-SAP235-NAVIGATION-002.
+`make check` passes (1,029 PASS records); `make check-task-contracts` validates
+165 tickets, and `make check-lines`, shell syntax and `git diff --check` pass.
+Explicit missing-manifest and wrong-snapshot probes refuse as expected.
+
 ## Ticket 799 — faithful compressed-frame snapshots — 2026-10-02
 
 Implemented for integrator review on top of `aeed58b`. Renderer codec 2
@@ -87,7 +123,8 @@ work. No proprietary artifacts were added to Git.
 Remaining GPU limits are unchanged: the auxiliary-plane codec law and surface
 writeback are unimplemented; known-to-unknown block rewrites can retain old
 pixels. This integration faithfully persists that existing cache policy.
-The 2.35 lower-button repaint stall and upper-button OHR boundary also remain.
+The earlier navigation interpretation is superseded by ticket 801 above;
+sport selection still reaches an OHR boundary.
 Earlier entries below describe their respective historical baselines.
 
 ## Sapporo GPU state hardening — 2026-10-02

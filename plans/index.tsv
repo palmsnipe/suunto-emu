@@ -163,3 +163,4 @@ id	phase	title	status	dependencies	ticket
 798	7	Sapporo 2.39 Refused-Path Observability For Wall Keys	done	729	plans/tasks/798-sapporo-239-refused-path-observability.md
 799	7	Renderer Frame Lifecycle Snapshot Integration	ready	615,761,791	plans/tasks/799-renderer-frame-snapshot-integration.md
 800	7	Renderer Snapshot 2.39 Era Re-derivation	blocked	799	plans/tasks/800-renderer-snapshot-239-era-rederivation.md
+801	7	Sapporo 2.35 Restored Navigation Evidence and Regression	ready	705,791,793,794	plans/tasks/801-sapporo-235-restored-navigation.md
