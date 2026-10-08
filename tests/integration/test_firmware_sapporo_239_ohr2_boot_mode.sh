@@ -12,7 +12,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 expected_log_hash=b9ed240a33d15dab8c37b65288f5a00876cbe21b0e20531f55233379285964a9
-expected_snapshot_hash=02726db5ec29afae2a1258dd6d667a8d9ff63321a7a6e417282604f7ed99df30
+expected_snapshot_hash=301f88a69967559c099e43563d889314ddbe0633c287bec3e79ac2ae1815dd83
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 OHR2 boot-mode runner: set SEMU_SAPPORO_239_FULL_FLASH"

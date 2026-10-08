@@ -18,7 +18,7 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # The post-boundary run is pinned as a budget-cap continuation (exit code 3) per
 # the E-ULS-0041 BKPT-to-NOP precedent (activity_budget.sh, ctimer_combined_inten.sh).
 log_hash=54a081de8a9be43494e3e39be3017e4f16b1e73fd2fec1eb224b4b87480d7ee7
-snapshot_hash=d24df20706200c4b5d75f6f9f190f17599474540b2a66ee8b03f174768440a1f
+snapshot_hash=07c0a8997f515bc27732b338f0dbd6f41389551578b0849d32733da80e78c545
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical seek return: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0

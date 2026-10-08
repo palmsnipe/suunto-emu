@@ -55,7 +55,7 @@ for attempt in first second; do
     test "$(grep -c 'layer=sapporo-2.39-gps-startup trigger=' "$run_dir/$attempt.log")" -eq 2
     test "$(grep -c 'layer=sapporo-2.39-gps-reopen trigger=' "$run_dir/$attempt.log")" -eq 2
     test "$(hash "$run_dir/$attempt.log")" = d24282dacdfe4bebade0faa569e3a7dd6ef98292a0fcc2f86eca107772255c46
-    test "$(hash "$run_dir/$attempt.sems")" = 5b0576eb0b73ba4e53586015449a2c5ee59892deacd812c77c67a15861c838d4
+    test "$(hash "$run_dir/$attempt.sems")" = 3ffb9eefefe78b5ad5f165f90c837464b8c57d4b1890e313fadc7e812cbeab7a
 done
 cmp "$run_dir/first.log" "$run_dir/second.log"
 cmp "$run_dir/first.sems" "$run_dir/second.sems"

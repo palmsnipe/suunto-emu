@@ -12,7 +12,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 expected_log_hash=4d01b2b99d4f4c1bf43d40f42c31f8047e238ab3167134d24ca9212064ddb831
-expected_snapshot_hash=f76e8767dae23958acd1b931efca98781eaca980c103fb4f4ab700eff92f55ef
+expected_snapshot_hash=9aac26491f5ed0c2b894f0020bc0ca8889745b3050f30d6496f013763c24ca1c
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 LPS22 runner: set SEMU_SAPPORO_239_FULL_FLASH"

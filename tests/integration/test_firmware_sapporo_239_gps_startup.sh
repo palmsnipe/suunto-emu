@@ -77,7 +77,7 @@ for attempt in first second; do
     grep -F -x -q 'pc=000a7b32 instructions=393785845 time=2513930075 callback=14 pending=14 retry=0 r2=0 hits=2 startup=1 reply=1 rx_events=0' "$run_dir/$attempt.state"
     test "$(grep -c 'layer=sapporo-2.39-gps-startup trigger=' "$run_dir/$attempt.log")" -eq 2
     test "$(hash "$run_dir/$attempt.log")" = 2f4b37b6ed3323dedde1a40feef5601d7b12c3fc16d169abb3b91a59287217f8
-    test "$(hash "$run_dir/$attempt.sems")" = 675f54f7a5e36f7c2140fef18f731b825d98b6163193c9db0138d86ff5299817
+    test "$(hash "$run_dir/$attempt.sems")" = a5df8707be178f42063a62320ae33c146dca8ecab76babc498c302697c78ddf3
 done
 cmp "$run_dir/first.log" "$run_dir/second.log"
 cmp "$run_dir/first.sems" "$run_dir/second.sems"

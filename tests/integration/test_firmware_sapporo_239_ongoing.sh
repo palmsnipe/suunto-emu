@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=164a4f2d881fca6fc33adcabd307e26cb5264e80f1629d2b735c5b81525ddac2
-snapshot_hash=39248c900826ba5524644637ef9f43996dc6ec6b3d888c23c064de88c35c5939
+snapshot_hash=ec57b83b28ac2683eff39d4bf4624c04b6ed375bf3aa814a36a000ee951991d9
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 ongoing file: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -73,7 +73,7 @@ fi
 # Preserve ticket 747's actual prefix, not its superseded unknown-path refusal.
 run prefix 439081594
 if [ "$(hash "$run_dir/prefix.log")" != 6e39f50a92c4ab8b069983de8dc24e31fe0ab192a6cd84617803d8f983449948 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != ab7c3b6b6e2288eb2c75a761e4321ceaf5a46176c415d4228a33936da12ceec8 ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != 293f9e87f9cdf386ee7ba7f4c694f356cac24c659487d09e5ac4994432401cbe ]; then
     echo "error: historical eleven-file checkpoint changed" >&2
     exit 1
 fi

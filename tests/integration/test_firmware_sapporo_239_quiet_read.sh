@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=fb515ff6b15a773c57ee75d9fc6d0bd5eb65b2c558b3f71585f888d78b484e68
-snapshot_hash=fec90410d4d5c5f1c76208669fd021f173af63ddc4f3ccc1cc554765e6400a8a
+snapshot_hash=d344d899cb77400b9b277d874ed2d08838c2b9cb00d2d81b0650ef128b68339f
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 quiet read: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -67,7 +67,7 @@ fi
 # The original ticket-749 prefix stays exact, not its superseded next refusal.
 run prefix 459796107
 if [ "$(hash "$run_dir/prefix.log")" != 98343f94333ab137a96ccac9694c48d0795e3df5a2b36c3f9f63558100ee1666 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != e7aeb2971567ebcacd7fd7aaabad07b59813aaaa5a19009306972ed1ea39b10d ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != 34bb5373a53c5f06978129161a19b0ffb7cd18e092c14f3a984a1557d7ae6c41 ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi

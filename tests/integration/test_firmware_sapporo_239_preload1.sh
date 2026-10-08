@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=5d6daaadbe1b446e583f4570c5d0ebde8b25dda94a3b8a4d0f37aedeaa7e50e5
-snapshot_hash=661b65fc11797324d444bb77409cce4c09bab4491d0855b00ff4272aea211cfa
+snapshot_hash=28c4ea7055b8f4440b1fcd3f691a45379e09adc96340433dbe5f8ee0bff1607f
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 second preload: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0

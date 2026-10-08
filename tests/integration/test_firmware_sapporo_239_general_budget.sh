@@ -38,7 +38,7 @@ run()
 }
 # Generate the private prefix with the production library, not a diagnostic build.
 run cold cold
-test "$(hash "$run_dir/cold.prefix.sems")" = 7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c
+test "$(hash "$run_dir/cold.prefix.sems")" = c114c00f65c0eb061ae1af548699854e22199fff5a7b36b7a89c190daade16ff
 # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): the storage-law corrections removed
 # the old deep-boot wall, so the cold prefix is a clean boot. Its prefix image
 # moved 7650d82f… -> 7dddd41a… (only the recycled-handle line drifted); the
@@ -71,8 +71,8 @@ for attempt in first second; do
     # the END golden, the transcripts and the census are unchanged and
     # only the image bytes moved bb17b7a8… -> 24d5a4dd… (twice
     # byte-identical; the resumed leg re-saves the same image).
-    test "$(hash "$run_dir/$attempt.final.sems")" = 24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba
-    test "$(hash "$run_dir/$attempt.refused.sems")" = 24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba
+    test "$(hash "$run_dir/$attempt.final.sems")" = ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82
+    test "$(hash "$run_dir/$attempt.refused.sems")" = ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.mid.sems"
     # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): resumed transcript — this

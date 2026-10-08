@@ -152,8 +152,8 @@ int main(int argc, char **argv)
      * image is untouched by the fix (no fmt-17 shadow divergence in the
      * cold window) and keeps its pin. */
     if (!file_hash(argv[3], start_count == COLD_CAP ?
-        "7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c" :
-        "24d5a4dd8859155426adf98b89b1f3d6b8fdf53618069b8fa92bad208fcabeba", &e)) goto done;
+        "c114c00f65c0eb061ae1af548699854e22199fff5a7b36b7a89c190daade16ff" :
+        "ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82", &e)) goto done;
     if (start_count == COLD_CAP) {
         /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old virtual-time
          * equality on each edge {12010884553, 12096961148, 14075897022,

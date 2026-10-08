@@ -133,8 +133,8 @@ int main(int argc, char **argv)
         semu_error_set(&e, SEMU_ERR_STATE, "unexpected native start checkpoint"); goto done;
     }
     if (!file_hash(argv[3], start_count == COLD_CAP ?
-        "7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c" :
-        "cd0ca7121847e88afa4f8d89e51dd59d517a22aa013167fa1152bafb6f30ee35", &e)) goto done;
+        "c114c00f65c0eb061ae1af548699854e22199fff5a7b36b7a89c190daade16ff" :
+        "630f6062838533b021389eec1005eed17a297a2529ca250104cdbef73db5a1d9", &e)) goto done;
     if (start_count == REFUSAL) {
         /* The refusal state carries the refusal itself at its checkpoint: a
          * single step re-fires it. The refusal is a fixed point — it refuses

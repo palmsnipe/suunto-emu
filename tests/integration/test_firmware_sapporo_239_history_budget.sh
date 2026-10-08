@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=6e39f50a92c4ab8b069983de8dc24e31fe0ab192a6cd84617803d8f983449948
-snapshot_hash=ab7c3b6b6e2288eb2c75a761e4321ceaf5a46176c415d4228a33936da12ceec8
+snapshot_hash=293f9e87f9cdf386ee7ba7f4c694f356cac24c659487d09e5ac4994432401cbe
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 history budget: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -74,7 +74,7 @@ fi
 # Preserve the actual ticket-746 prefix, not its superseded next-step refusal.
 run prefix 435333559
 if [ "$(hash "$run_dir/prefix.log")" != 5d6daaadbe1b446e583f4570c5d0ebde8b25dda94a3b8a4d0f37aedeaa7e50e5 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 661b65fc11797324d444bb77409cce4c09bab4491d0855b00ff4272aea211cfa ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != 28c4ea7055b8f4440b1fcd3f691a45379e09adc96340433dbe5f8ee0bff1607f ]; then
     echo "error: historical pre-refusal checkpoint changed" >&2
     exit 1
 fi

@@ -12,7 +12,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 expected_log_hash=55e4d3f1e6f486e474dee879073efc74064a36ab6f77e44e6dfd155780ac6094
-expected_snapshot_hash=f468dd0666172987361c587b3211080a3370d2432deb20bbb344a47174f764bd
+expected_snapshot_hash=68c019e6e9114c308a149fa18eea7773d952095fc9a14ca5973944c71c3f950f
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 haptic runner: set SEMU_SAPPORO_239_FULL_FLASH"

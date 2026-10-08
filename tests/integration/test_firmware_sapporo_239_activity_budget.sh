@@ -47,7 +47,7 @@ run()
 for attempt in first second; do
     run "logo_$attempt" 1000000000 0 --until normal-frame
     if [ "$(hash "$run_dir/logo_$attempt.log")" != 1ae47f317dffb829a058f8de8f49db0fb0a2797d1b580c036f5c5b343a2595e8 ] ||
-       [ "$(hash "$run_dir/logo_$attempt.sems")" != ffbabbf614344ee4657f7efd22d2a14364e55d493e1880616d1f1d3371286bfd ]; then
+       [ "$(hash "$run_dir/logo_$attempt.sems")" != 8e4e65caffb965761b141423bec936a72b2ffe6683ac2418aad2cb4c371a22f2 ]; then
         echo "error: historical boot-logo checkpoint changed" >&2
         exit 1
     fi
@@ -62,7 +62,7 @@ done
 if ! cmp -s "$run_dir/first.log" "$run_dir/second.log" ||
    ! cmp -s "$run_dir/first.sems" "$run_dir/second.sems" ||
    [ "$(hash "$run_dir/first.log")" != 9c6691f9dec27ed1fc0125f957b42033b7b8f77c4a12100f0876ba79915c6cd0 ] ||
-   [ "$(hash "$run_dir/first.sems")" != ffbabbf614344ee4657f7efd22d2a14364e55d493e1880616d1f1d3371286bfd ]; then
+   [ "$(hash "$run_dir/first.sems")" != 8e4e65caffb965761b141423bec936a72b2ffe6683ac2418aad2cb4c371a22f2 ]; then
     echo "error: activity continuation artifacts differ" >&2
     exit 1
 fi

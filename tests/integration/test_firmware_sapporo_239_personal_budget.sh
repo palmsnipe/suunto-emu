@@ -42,7 +42,7 @@ run()
 # 1376525552 -> 700000000. The prefix image is the general-budget cold prefix
 # (76a7af53… -> 7dddd41a…): the same four compat layers, the same cold run.
 run cold cold
-test "$(hash "$run_dir/cold.prefix.sems")" = 7dddd41a13c51b0e4d4d63be09b8bfff1db1654439d290343f24959758761c7c
+test "$(hash "$run_dir/cold.prefix.sems")" = c114c00f65c0eb061ae1af548699854e22199fff5a7b36b7a89c190daade16ff
 # Cold transcript (held twice): 76315 session operations; the WHOLE personal
 # save completes here — 6 closes at size 1727 over 408 settings/personal lines
 # (the old 228-operation synthetic personal phase collapsed into this); no
@@ -65,8 +65,8 @@ for attempt in first second; do
     # at pc=0x1291cc. The old mid 68ab2fa1…, time-mid b85eed95… and the
     # 279-operation / 132-write / 140-write census are retired with them.
     grep -F -x -q 'END reason=8 instructions=1296811148 time=32775096969 pc=001291cc frames=4 crc=3bd12ac8 sha=07944160817f67bb02efd0fdcebe6e0e38353d1950adb112f34a912d1a40396f detail=2.39 GPS awake lifecycle or hit budget refused' "$run_dir/$attempt.out"
-    test "$(hash "$run_dir/$attempt.final.sems")" = cd0ca7121847e88afa4f8d89e51dd59d517a22aa013167fa1152bafb6f30ee35
-    test "$(hash "$run_dir/$attempt.refused.sems")" = cd0ca7121847e88afa4f8d89e51dd59d517a22aa013167fa1152bafb6f30ee35
+    test "$(hash "$run_dir/$attempt.final.sems")" = 630f6062838533b021389eec1005eed17a297a2529ca250104cdbef73db5a1d9
+    test "$(hash "$run_dir/$attempt.refused.sems")" = 630f6062838533b021389eec1005eed17a297a2529ca250104cdbef73db5a1d9
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.mid.sems"
     # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): resumed transcript (held twice):

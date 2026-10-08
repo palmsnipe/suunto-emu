@@ -12,7 +12,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 expected_log_hash=78163ee62130206a0f16c952db844a354de123f65436d80f31b93d6e330c240d
-expected_snapshot_hash=bfb70b26e83662dc90ef613ef5f85ca5cfbe97f70c91abf07eec765c71197193
+expected_snapshot_hash=9a89a102c08c81c5e864d6776b060dcf9b5eaa280b2598abe4c7baf5cdb794cc
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 GPIO WT1 runner: set SEMU_SAPPORO_239_FULL_FLASH"

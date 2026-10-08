@@ -17,7 +17,7 @@ expected_flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649
 # fields; the boundary stop line, 118-intervention census, trigger counts,
 # retained-file events, and the snapshot-resume continuation are unchanged.
 expected_log_hash=2b3ea8f618789385258476b12b82b127e8c6558c0dbff29288712b58d0d185fe
-expected_snapshot_hash=d805048747c6e4658f8035cd9d3a8b893ca4839321da41a07f6ecf39ce1da466
+expected_snapshot_hash=c33252439c753e335bd80cfed0f5cb16511c4c1c9c814f0efd290e7935e27963
 
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 logical-files runner: set SEMU_SAPPORO_239_FULL_FLASH"

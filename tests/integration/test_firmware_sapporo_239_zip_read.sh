@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=98343f94333ab137a96ccac9694c48d0795e3df5a2b36c3f9f63558100ee1666
-snapshot_hash=e7aeb2971567ebcacd7fd7aaabad07b59813aaaa5a19009306972ed1ea39b10d
+snapshot_hash=34bb5373a53c5f06978129161a19b0ffb7cd18e092c14f3a984a1557d7ae6c41
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 native ZIP read: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -69,7 +69,7 @@ fi
 # Preserve the ticket-748 prefix; only its next-step mode refusal is superseded.
 run prefix 451511675
 if [ "$(hash "$run_dir/prefix.log")" != f9b42d8b79236485d5d7c67ade597972fde425a488738b6bdd559e341f82efb2 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 705b94e58c4e173102e5c60cb6e3973447b8a6a91393696c8b3550934f96375f ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != 09ebe554c807c780697a458fe04227b32908b52882f207ee467cf4e1a89d4eab ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi

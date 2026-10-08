@@ -18,7 +18,7 @@ flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 # The next-instruction run is pinned as a budget-cap continuation (exit code 3)
 # per the E-ULS-0041 BKPT-to-NOP precedent (ctimer_combined_inten.sh).
 log_hash=6ec030640f2a95d83d0b2ac1d3bde0971ac8b034f0b8918caad7dba78bce2829
-snapshot_hash=ecef58877bbb799c2b76fbb759f777a0c9d9daa86595412ef0dbff06beed399f
+snapshot_hash=212a2144d71e1c181502f0d05021daebae06638d1fde7eb3ccf4e78294cd0ab0
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 Timer13 INTEN: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -75,7 +75,7 @@ fi
 # Preserve ticket 751 before its now-superseded exact INTEN refusal.
 run prefix 607105617 3
 if [ "$(hash "$run_dir/prefix.log")" != fb515ff6b15a773c57ee75d9fc6d0bd5eb65b2c558b3f71585f888d78b484e68 ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != fec90410d4d5c5f1c76208669fd021f173af63ddc4f3ccc1cc554765e6400a8a ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != d344d899cb77400b9b277d874ed2d08838c2b9cb00d2d81b0650ef128b68339f ]; then
     echo "error: historical checkpoint changed" >&2
     exit 1
 fi

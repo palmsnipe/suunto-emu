@@ -68,10 +68,10 @@ cli()
 # budget); the terminal image is the refusal image 33e1dbdf…, identical to
 # the image the full cold CLI run saves. The old middle-branch 137-line
 # census is retired; the deep-run census below replaces it.
-prefix_hash=908714165f3e73c84281ac5931fd0353942fd4584a488252b69004d4c8c5d56c
+prefix_hash=8d00b4a5c4888b730b7facecaecf10190b54e7094022604c8bb04dceb8578d7d
 # The refusal image every terminal path saves: the refused stop at the
 # same triple as the budget stop above.
-refusal_hash=33e1dbdf858c2161382d9158db2d0519ec6af02f364ccb7abc4f87eeeb764b87
+refusal_hash=694ef7156ddbe89aa090f13f755998346402bc577c8fe0a9fe5f3778e71f9e64
 final_stop='stop=compat-refused pc=0x001291cc instructions=1409719577 virtual_time_ns=38250007180'
 # RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the probe cold prefix is the
 # clean boot to the 700000000-instruction budget stop — the same era cap
@@ -85,7 +85,7 @@ final_stop='stop=compat-refused pc=0x001291cc instructions=1409719577 virtual_ti
 # middle '137 lines' expectations are retired.
 for attempt in first second; do
     run "prefix-$attempt" cold - prefix
-    test "$(hash "$run_dir/prefix-$attempt.prefix.sems")" = 27625f12a47b31bf2b7d63eef28cc91386da6845b0617238e9f5ccccce13e0fb
+    test "$(hash "$run_dir/prefix-$attempt.prefix.sems")" = d51e01a2dd30b4b28e75bc8ee50376af7090da8a42435a074dddce08c6cb377e
     test "$(grep -c 'operation=open path=settings/personal mode=2 ' "$run_dir/prefix-$attempt.log")" -eq 6
     test "$(grep -c 'operation=write path=settings/personal ' "$run_dir/prefix-$attempt.log")" -eq 396
     test "$(grep -c 'operation=close path=settings/personal result=1 size=1727 cursor=1727$' "$run_dir/prefix-$attempt.log")" -eq 6

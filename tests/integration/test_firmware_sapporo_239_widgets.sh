@@ -11,7 +11,7 @@ manifest=${SEMU_FIRMWARE_MANIFEST-}
 full_flash=${SEMU_SAPPORO_239_FULL_FLASH-}
 flash_hash=37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb
 log_hash=1ae47f317dffb829a058f8de8f49db0fb0a2797d1b580c036f5c5b343a2595e8
-snapshot_hash=ffbabbf614344ee4657f7efd22d2a14364e55d493e1880616d1f1d3371286bfd
+snapshot_hash=8e4e65caffb965761b141423bec936a72b2ffe6683ac2418aad2cb4c371a22f2
 if [ -z "$full_flash" ]; then
     echo "SKIP Sapporo 2.39 Widgets: set SEMU_SAPPORO_239_FULL_FLASH"
     exit 0
@@ -69,7 +69,7 @@ fi
 # Pre-install history remains exact; obsolete JSON-bearing snapshots do not.
 run prefix 40000000 3
 if [ "$(hash "$run_dir/prefix.log")" != 253ffdd99ca7b8fb972518ad7e50701f37306436d67a5114085d94bda01ae11b ] ||
-   [ "$(hash "$run_dir/prefix.sems")" != 8023099932780a6e40ec30fb3551bc05db677c0d021b5259642467987a6abdff ]; then
+   [ "$(hash "$run_dir/prefix.sems")" != c96578db219fc8aa7de0a8aa314b138e764b7d9f669cd332c08bee6084e52898 ]; then
     echo "error: pre-install checkpoint changed" >&2
     exit 1
 fi

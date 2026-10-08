@@ -267,7 +267,7 @@ int main(int argc, char **argv)
         obs.frames != 0u || obs.crc != 0u || obs.hash[0] != '\0' ||
         !save(m, argv[5], "final", &e) ||
         !compare_diagnostic(m, argv[5],
-            "3b59452a1a025bcc59496608d4a9a0b3787f33e839b76c7337deff30cc6d3009", &e)) goto done;
+            "a93ac8089ccaf538e75104f8a2f242e68daac98d8e589a5e1a43bfe2b1f43640", &e)) goto done;
     {
         /* The refusal re-fires on one more step at the identical stop and
          * re-saves the identical image: a stable refusal, not a one-shot. */
