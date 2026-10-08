@@ -9988,3 +9988,59 @@ the navigation runner's control log pin and attribution note, ticket 806
 (re-scoped), this entry. Remaining GPU gaps unchanged: the 21-bit auxiliary
 law (now the named blocker for the icon's pixels), compressed writeback,
 and unobserved shader/transform cases.
+
+## E-SAP-0052 — 2.33.16 RTC arm census and live-RTC attachment (ticket 710)
+
+2026-10-08, ticket 710 instance (lane census + profile-seam attachment; the
+same-SoC-block firing cadence carry stated as in E-SAP-0033). Frontier
+inputs: today's tree parks the 2.33.16 boot at the WFI/ISB pair
+`0x000dbc08`/`0x000dbc0a` — the 200M/200ms budget ends
+`stop=budget pc=0x000dbc0a instructions=48412217 virtual_time_ns=339421286`
+(the pinned E-SAP-0018-family transcript) and 2B/300s ends
+`119524717 / 300000000000`. Private work directory `/tmp/sap233rtc/`;
+all artifacts volatile, hashes below; the read-only firmware tree untouched.
+
+Lane census (twice byte-identical): the full E-SAP-0050 staging (storage
+repl, authentic component-05 XIP, production fixture, both compat includes)
+plus `sysbus Unregister rtc` and an access-logging PythonPeripheral at
+`0x40004800` (the upstream `Timers.AmbiqApollo4_RTC` from
+`suunto-sapporo.repl` line 6 / `ambiq-apollo4.repl` line 143 unregistered,
+not the clkgen PythonPeripheral — that block ends at `0x400047FF`). The
+2.33.16 guest issues the exact 13-transaction arm block of E-SAP-0032:
+`R+0x0, W+0x0<-0, R+0x30, R+0x0, W+0x0<-0xE, R+0x30, W+0x30<-0,
+W+0x208<-1, R+0x200, W+0x200<-1, R+0x20, R+0x24, R+0x20` — the
+`0x208=1 && 0x200=1` pair is the alarm arm. Stream SHA-256
+`aafe50477f336e622636208e38bfbaea9a911000e65d03eba00e3a52eebf34df`
+(pass1 `probe5.log` `07bfcc2c…`, pass2 `probe6.log` `e4aa56c8…`; probe
+sources `rtcprobe.repl` `ad5da2a7…`, resc variants `rtcprobe4/5/6.resc`
+`ba549836…`/`205328bd…`/`bef597a1…`, wrapper `runprobe.sh` `4441baa8…`).
+No other RTC-window access occurs in the window; after the arm the guest
+enters a DebugMonitor exception flood (33k+ pending-IRQ lines) that is a
+lane-environment artifact — the tree shows no such loop (zero trace records).
+
+Attachment: `semu_apollo4_select_profile` now takes the live RTC block for
+`sapporo-2.33.16` as well as `sapporo-2.35.34` (the live IOM4 law stays
+2.35-only; the 2.33 census names no IOM4 mirror and the pressure235 gate
+stays keyed to 2.35). `tests/devices/test_sapporo_rtc.c`'s inert-exemplar
+moves from `sapporo-2.33.16` to `sapporo-2.39.20` with a citation comment;
+all 8 module cases pass.
+
+Result (twice byte-identical): `1.2B/310s` ends
+`stop=budget pc=0x000dbc0a instructions=121744396 virtual_time_ns=310000000000`
+— the same park PC, now with the guest alive on the one-second alarm cadence
+(zero resets, refusals, or trace records). Instruction curve against virtual
+time (with the live block): 1 s 83,663,763; 2 s 84,606,627; 5 s 84,610,206
+(only +3,579 across 2–5 s: parked); 10 s 85,536,729; 30 s 89,227,350
+(~185k instructions/s of periodic work); 300 s 119,882,664 (+357,947 over
+the stub run — the accumulated one-second services). The pre-RTC 200M/339 ms
+stop was instruction-budget-bound inside the boot's CPU-bound phase, not a
+deep park; the RTC arm changes the early-boot path (83.7M at 1 s vs the
+stub's faster burn). The per-second service shape and the reason the
+2–5 s window is parked are the next instance's census.
+
+Verification: `make test TEST_FILTER=sapporo_rtc` 8/8 (plus the focused
+device module 3/3 under the filter); the acceptance pair above;
+`make check-lines`, `make check-task-contracts` clean; `make check`,
+`make sanitize`, and the 2.39 era gate recorded in the instance handoff.
+No fixture, golden, or other-profile pin moved: the stub stays byte-for-byte
+for 2.22/2.39/Ulsan, and the 2.35 paths are untouched.

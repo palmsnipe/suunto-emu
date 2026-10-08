@@ -95,6 +95,10 @@ static void adv(semu_test_context *c, semu_scheduler *s, uint64_t ns)
     SEMU_TEST_ASSERT(c, semu_scheduler_advance(s, ns, &error) == SEMU_OK);
 }
 
+/* Foreign profiles keep the byte-for-byte stub.  The inert exemplar is
+ * sapporo-2.39.20: E-SAP-0052's lane census moved sapporo-2.33.16 to the
+ * live block (its guest issues the same 13-transaction arm), so 2.33 no
+ * longer exercises the stub path. */
 static void test_stub_profiles_stay_inert(semu_test_context *context)
 {
     semu_scheduler *scheduler;
@@ -114,7 +118,7 @@ static void test_stub_profiles_stay_inert(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_apollo4_init(soc, scheduler, alarm_sink, NULL, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_select_profile(
-        soc, "sapporo-2.33.16", &error));
+        soc, "sapporo-2.39.20", &error));
     SEMU_TEST_ASSERT(context, semu_apollo4_select_profile(NULL, NULL,
                                                           &error) != SEMU_OK);
     SEMU_TEST_EQ_U64(context, SEMU_OK,

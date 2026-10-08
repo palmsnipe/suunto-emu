@@ -445,11 +445,18 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
                        "Apollo4 profile selection requires soc and id");
         return SEMU_ERR_ARGUMENT;
     }
-    /* E-SAP-0032/E-SAP-0033: only the 2.35.34 startup path arms the
-     * one-second RTC alarm before parking; all other verified Sapporo
-     * profiles keep the auxiliary register stub byte-for-byte. */
-    soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ? 1 : 0;
-    semu_apollo4_iom_set_pressure235(soc->iom2, soc->rtc_live);
+    /* E-SAP-0032/E-SAP-0033: the 2.35.34 startup path arms the one-second
+     * RTC alarm before parking.  E-SAP-0052: the 2.33.16 startup path issues
+     * the identical 13-transaction arm block (lane census, twice
+     * byte-identical), so both profiles take the live block; all other
+     * verified Sapporo profiles keep the auxiliary register stub
+     * byte-for-byte.  The live IOM4 law stays 2.35-only: the 2.33 lane
+     * census names no IOM4 mirror. */
+    soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ||
+                    strcmp(profile_id, "sapporo-2.33.16") == 0
+                        ? 1 : 0;
+    semu_apollo4_iom_set_pressure235(soc->iom2,
+        strcmp(profile_id, "sapporo-2.35.34") == 0 ? 1 : 0);
     if (soc->rtc_live != 0 && soc->rtc == NULL) {
         soc->rtc = semu_sapporo_rtc_create(soc->scheduler,
                                           irq_sink_dispatch, soc, error);

@@ -178,3 +178,16 @@ refusals, layer hits or frames in the window; the 64-admission awake budget
 is untouched. No engine-seam gap is named and no src change is authorized;
 the deadline-list growth intent is recorded as observed-not-derived. The
 ticket rolls back to `ready` for the next named later-Sapporo gap.
+
+Instance 16 (2026-10-08, `sap233-rtc`, E-SAP-0052): the 2.33.16 boot park is
+RTC-waked. The lane census (full E-SAP-0050 staging, upstream RTC
+unregistered, logging peripheral at 0x40004800, twice byte-identical)
+captured the exact E-SAP-0032 13-transaction arm block, so
+`semu_apollo4_select_profile` now takes the live block for
+`sapporo-2.33.16` (IOM4 stays 2.35-only; pressure235 unchanged). The inert
+RTC-test exemplar moves to sapporo-2.39.20. Result twice byte-identical:
+1.2B/310s ends at the same park PC with the guest alive on the one-second
+alarm cadence, zero resets/refusals/trace records; the instruction curve
+(1s 83.7M ... 30s 89.2M, ~185k/s periodic) records the service cadence and
+the parked 2-5 s window as the next instance's census. No other profile's
+stub or pin moved; check/check-lines/sanitize/check-era green.

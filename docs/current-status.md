@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33.16 RTC wake attached — 2026-10-08
+
+Ticket 710 instance-16 (E-SAP-0052): a lane census with the full E-SAP-0050
+staging captured the exact E-SAP-0032 13-transaction RTC arm block from the
+2.33.16 boot (twice byte-identical), and `semu_apollo4_select_profile` now
+takes the live block for `sapporo-2.33.16` (IOM4 and pressure235 stay
+2.35-only). The guest is alive on the one-second alarm cadence: 1.2B/310 s
+ends at the same park PC twice byte-identically with zero resets, refusals
+or trace records, and the instruction curve (1 s 83.7M ... 30 s 89.2M,
+~185k/s periodic work; a parked 2-5 s window) records the service cadence as
+the next instance's census. The inert RTC-test exemplar moved to
+sapporo-2.39.20; all other profiles keep the byte-for-byte stub, and
+check/check-lines/sanitize/check-era are green.
+
 ## Control Panel 20x32 icon admission — 2026-10-08
 
 Ticket 806 admits the witnessed 20x32 Control Panel icon family (identity
