@@ -7,6 +7,11 @@ set -eu
 # Ticket 805 / E-RE-SAP235-WIDGET-SCALE-001 removes the Widgets scale refusal.
 # Its three pins change only GPU/renderer publication counters; pixels and
 # guest CPU/memory/time remain identical. The two Control 20x32 refusals remain.
+# Ticket 806 admits the 20x32 shape: the Control log pin moves again because
+# the two refusals now name the first unsupported block (2,0 auxiliary bits)
+# instead of the shape; count, ordinals, times and every other line are
+# unchanged and the control snapshot pin is byte-identical (zero writes
+# either way). The icon's aux-bit blocks remain unsupported.
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
 if [ ! -f "$manifest" ]; then
@@ -60,7 +65,7 @@ cases = [
      '8a31ead3fb899aa04fdcc8f5cfb1d0d24b2426361a521c364519cdca5b333300',
      '6d6fa414565e60fa9401a5402ee66b11162a19ce4c89a620f24e54043753ea08'),
     ('control', [(38, 'lower'), (39, 'middle')], 44, 10123133602,
-     '544d98bc51d6cdf11c6f5c08b1996b453f218aeb4f39e58207deabbe5a197e7b',
+     'caa658680323b8a0a44620e2a69e79280976edcad1c5ccbe2c9cfb3403974380',
      '80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc'),
     ('return', [(38, 'middle'), (44, 'middle')], 46, 10249573536,
      '9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a',

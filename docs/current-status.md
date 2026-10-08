@@ -6,6 +6,42 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Control Panel 20x32 icon admission — 2026-10-08
+
+Ticket 806 admits the witnessed 20x32 Control Panel icon family (identity
+scale, MM02 = -rect_x0 / MM12 = -rect_y0, exact 20x30 quad, two witnessed
+strips) through the existing compressed-asset resolver with a
+shape-following decode grid; red-first tests cover the positive render and
+16 near-miss refusals. The admission's census found the real blocker: the
+witnessed asset itself carries nonzero auxiliary bits (block 2,0 refuses;
+37..38 of the resource container's 40 blocks set bits 75..95), so rendering
+the icon's pixels requires the 21-bit auxiliary-region law — a separate
+offline-RE instance. Zero writes occur either way; the control snapshot pin
+is byte-identical and only the two refusal reason lines changed (control
+log pin re-derived with full attribution). The two Control Panel refusals
+remain, now naming block 2,0. All other five navigation cases unchanged.
+
+## 2.39 era snapshot re-derivation — 2026-10-07
+
+Ticket 800 is unblocked and implemented. The verified 2.39 full-flash fixture
+was rebuilt byte-exactly from the documented read-only recipe (component-05
+fragment FF-padded to 16 MiB plus the synthetic manufacturing sector at
+0x00FFF000) and matches the pinned SHA-256 `37134845…`. The era census at HEAD
+07e868c was 15/43 green, 28 red; every red is a stale snapshot-image pin only —
+every comparable complete log hash, stop line, layer census, compatibility
+count and grep anchor matched its existing pin, with internally byte-identical
+pairs. The drift is attributed to renderer codec 2 (ticket 799) and the Apollo4
+codec 1 timer routing/phase fields (ticket 803); no guest-visible behavior
+changed.
+
+All 28 scripts were re-derived stage by stage with two byte-identical runs per
+changed pin; 33 image pins across 28 runners plus three probe-source hash
+literals moved (full old/new table in
+E-SAP239-SNAPSHOT-REPIN-003). No stop expectation, cap, census count, refusal
+anchor, log hash or runtime source changed. `make check-era` passes 43/43
+twice back-to-back; `make check-task-contracts` validates 169 tickets and
+`make check` is green. The ticket remains ready for integrator review.
+
 ## Widgets GPU transition — 2026-10-02
 
 Ticket 805 admits the observed MM00=3f7fffff scale only for its exact Widgets

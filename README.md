@@ -18,7 +18,7 @@ end at an unsupported operation or an exhausted compatibility fixture.
 | **2.22.60** | Standalone onboarding via manual time entry; native menu and selection changes; paired snapshot restoration; active through 60 virtual seconds. | Broader watch functions and unbounded sessions remain unverified. |
 | **2.33.16** | Passes the former first boot fault, with no reset or refusal in the bounded early-boot check. | Setup, watchface, menu, and long-session acceptance remain unverified. |
 | **2.35.34** | Setup through Done, a ticking watchface, compressed icons, and interactive snapshot restoration. The seconds-hand trail is fixed; resolves reject unsupported compressed samples instead of publishing stale cached pixels. | Widgets, Control Panel, and the Exercise menu are reachable. Selecting Running reaches the first-exercise GPS tutorial with deterministic save/restore. Finite GPS/OHR support still limits sessions. |
-| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43). | Snapshot codec updates require pin re-derivation (ticket 800); its verified full-flash fixture is unavailable. GPS continuation and a complete setup/watchface/menu release remain open. |
+| **2.39.20** | Native boot/display, settings storage, and bounded GPS paths have recorded passing regression gates (43/43, re-derived 2026-10-07 after the renderer/Apollo4 snapshot codec updates). | GPS continuation and a complete setup/watchface/menu release remain open. |
 
 The [current status](docs/current-status.md) separates fresh checks from
 historical results and lists the next fidelity work.
@@ -29,8 +29,9 @@ Compressed-icon clipping now decodes only visible blocks, so unsupported
 blocks outside the clip no longer prevent supported pixels from rendering.
 The observed Widgets scale now renders through its transition without a GPU
 refusal. GPU support still lacks the compressed auxiliary-bit decoder and full
-writeback; Control Panel retains two refusals for a smaller 20x32 icon.
-Unknown visible blocks refuse atomically.
+writeback; Control Panel's 20x32 icon shape is admitted but its asset carries
+auxiliary-bit blocks, so its two refusals now name the first unsupported
+block (2,0). Unknown visible blocks refuse atomically.
 
 ## Screenshots
 

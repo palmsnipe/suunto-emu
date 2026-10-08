@@ -342,6 +342,20 @@ semu_status nema_tsc6a_resolve(const nema_tsc6a *surface,
  * family animates dstY through 151/192/220, census
  * /tmp/sap235-vscroll twice byte-identical). */
 #define TSC6A_MATRIX_ONE_ALT UINT32_C(0x3f7fffff)
+/* Ticket 806 / the restored-navigation Control Panel witness: the second
+ * observed compressed-asset family is a 20x32 fmt-17 icon drawn with an
+ * identity-scale matrix translated by the negative quad origin (the same
+ * composer set-matrix law, MM02 = -dstX and MM12 = -dstY, with the quad
+ * translating the source origin onto the rect).  5 blocks of 12 B per
+ * row, 8 block rows, so the source span is 60 * 8 = 480 B.  The
+ * witnessed quad maps only the source's top 30 rows; both observed draws
+ * use tex color and draw color 0xffffffff. */
+#define TSC6A_ICON_W 20u
+#define TSC6A_ICON_H 32u
+#define TSC6A_ICON_DRAW_H 30u
+#define TSC6A_ICON_STRIDE 60u
+#define TSC6A_ICON_SRC_BYTES 480u
+#define TSC6A_ICON_COLOR UINT32_C(0xffffffff)
 /* 2^-15 slack of the mm02 = 60 - rect_x1 law in 16.16 units (2 * 65536 *
  * 2^-15): the pinned instant's observed mm02 0xc32b0001 sits exactly one
  * binary32 ULP (2^-16 = 1 unit) off -171.0 at rect_x1 = 231, and every
@@ -373,39 +387,96 @@ static int tsc6a_compressed_asset_x_scale(const nema_draw_snapshot *s)
         s->point2_y == (81u << 16u) && s->point3_y == s->point2_y;
 }
 
+/* Ticket 806 witnessed Control Panel family: the exact 20x32 icon quad,
+ * identity-scale matrix translated by the negative quad origin, and the
+ * two observed screen strips.  Only the two witnessed clip_min_y values
+ * (162 and 193) are admitted; the quad is fully inside both, so the
+ * sampled block set is identical.  Every other field stays bit-pinned.
+ * Returns 1 only for the witnessed tuples; anything else falls through
+ * to the 60x60 family or the existing refusal. */
+static int tsc6a_compressed_icon_shape(const nema_draw_snapshot *s)
+{
+    if (s->mm00 != TSC6A_MATRIX_ONE || s->mm11 != TSC6A_MATRIX_ONE ||
+        s->mm02 != UINT32_C(0xc3480000) || s->mm12 != UINT32_C(0xc34b0000) ||
+        s->draw_color != TSC6A_ICON_COLOR ||
+        s->clip_min_x != 0u || s->clip_max_x != 240u ||
+        (s->clip_min_y != 162u && s->clip_min_y != 193u) ||
+        s->clip_max_y != 240u ||
+        (s->point0_x != (200u << 16u) || s->point3_x != s->point0_x) ||
+        (s->point1_x != (220u << 16u) || s->point2_x != s->point1_x) ||
+        (s->point0_y != (203u << 16u) || s->point1_y != s->point0_y) ||
+        (s->point2_y != (233u << 16u) || s->point3_y != s->point2_y)) {
+        return 0;
+    }
+    return 1;
+}
+
 /* Second accepted state of this resolve: the capture-pinned compressed
  * tuple with the ticket-788 animated predicates factored out into
  * tsc6a_compressed_asset_law.  bus must be present because the source
  * bytes are read from bounded guest SRAM; NULL bus fails closed into the
- * existing refusal. */
+ * existing refusal.  Ticket 806 adds the witnessed 20x32 Control Panel
+ * icon as a second shape; *icon_w reports which family matched so the
+ * law and resolver use the matching dimensions. */
 static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
-                                        semu_bus *bus)
+                                        semu_bus *bus, int *icon_w)
 {
+    uint32_t src_stride;
+    uint32_t src_w;
+    uint32_t src_h;
+    uint32_t src_bytes;
+
+    *icon_w = 0;
     if (bus == NULL || !s->src_present || s->draw_cmd != NEMA_DRAW_QUAD ||
         s->src_format != NEMA_FMT_TSC6A || s->src_sampling != 1u ||
-        s->src_stride != 180u || s->src_width != TSC6A_CROSSHAIR_W ||
-        s->src_height != TSC6A_CROSSHAIR_H ||
-        !tsc6a_bounded_sram(s->src_base, TSC6A_CROSSHAIR_SRC_BYTES) ||
         s->target_format != NEMA_FMT_RGB565 || s->target_stride != 480u ||
         s->target_width != 240u || s->target_height != 240u ||
         !tsc6a_bounded_sram(s->target_base, TSC6A_TARGET_RGB_BYTES) ||
-        /* Refuse span overlap before any read (nema_rgba4444.c style).
-         * Both spans are inside the bounded SRAM window at this point,
-         * so neither sum can overflow. */
-        (s->src_base < s->target_base + TSC6A_TARGET_RGB_BYTES &&
-         s->target_base < s->src_base + TSC6A_CROSSHAIR_SRC_BYTES) ||
         s->codeptr != TSC6A_RESOLVE_CODE || s->matmult != 0u ||
         s->imem_addr != TSC6A_IMEM_ADDRESS ||
         s->imem_datah != TSC6A_IMEM_DATAH ||
         s->imem_datal != TSC6A_IMEM_DATAL ||
-        !s->matrix_present || !tsc6a_compressed_asset_x_scale(s) ||
-        s->mm01 != 0u || s->mm10 != 0u ||
-        (s->mm11 != TSC6A_MATRIX_ONE &&
-         s->mm11 != TSC6A_MATRIX_ONE_ALT) ||
+        !s->matrix_present || s->mm01 != 0u || s->mm10 != 0u ||
         !tsc6a_ordered_clip(s, 240u, 240u) ||
         s->tex_color != TSC6A_TINT_IDENTITY) {
         return 0;
     }
+    if (s->src_stride == 180u && s->src_width == TSC6A_CROSSHAIR_W &&
+        s->src_height == TSC6A_CROSSHAIR_H) {
+        src_stride = 180u;
+        src_w = TSC6A_CROSSHAIR_W;
+        src_h = TSC6A_CROSSHAIR_H;
+        src_bytes = TSC6A_CROSSHAIR_SRC_BYTES;
+        if (!tsc6a_compressed_asset_x_scale(s) ||
+            (s->mm11 != TSC6A_MATRIX_ONE &&
+             s->mm11 != TSC6A_MATRIX_ONE_ALT)) {
+            return 0;
+        }
+    } else if (s->src_stride == TSC6A_ICON_STRIDE &&
+               s->src_width == TSC6A_ICON_W &&
+               s->src_height == TSC6A_ICON_H) {
+        src_stride = TSC6A_ICON_STRIDE;
+        src_w = TSC6A_ICON_W;
+        src_h = TSC6A_ICON_H;
+        src_bytes = TSC6A_ICON_SRC_BYTES;
+        if (!tsc6a_compressed_icon_shape(s)) {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+    if (!tsc6a_bounded_sram(s->src_base, src_bytes) ||
+        /* Refuse span overlap before any read (nema_rgba4444.c style).
+         * Both spans are inside the bounded SRAM window at this point,
+         * so neither sum can overflow. */
+        (s->src_base < s->target_base + TSC6A_TARGET_RGB_BYTES &&
+         s->target_base < s->src_base + src_bytes)) {
+        return 0;
+    }
+    (void)src_stride;
+    (void)src_w;
+    (void)src_h;
+    *icon_w = (int)src_w;
     return 1;
 }
 
@@ -438,7 +509,9 @@ static int tsc6a_compressed_asset_shape(const nema_draw_snapshot *s,
  * host FP.
  * Returns SEMU_OK when admitted; otherwise names the first failing
  * predicate, refuses with SEMU_ERR_UNSUPPORTED and zero writes (no
- * source memory is read here). */
+ * source memory is read here).  Ticket 806: the 20x32 icon family is
+ * validated by tsc6a_compressed_icon_law instead; this function is
+ * only called for the 60x60 family. */
 static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
                                               int rect_x0, int rect_y0,
                                               int rect_x1, int rect_y1,
@@ -510,14 +583,72 @@ static semu_status tsc6a_compressed_asset_law(const nema_draw_snapshot *s,
     return SEMU_OK;
 }
 
-/* Use exactly the same pixel-center mapping for preflight and rendering. */
+/* Ticket 806 law for the witnessed 20x32 icon family: the only observed
+ * rect is the exact 20x30 quad at the asset origin (the composer maps the
+ * source's top 30 rows through MM02 = -rect_x0 / MM12 = -rect_y0; rows
+ * 30..31 are never sampled in either witnessed draw), with the witnessed
+ * 0xffffffff draw color.  The translations are exact integers, so no
+ * slack class applies.  Zero writes on any refusal. */
+static semu_status tsc6a_compressed_icon_law(const nema_draw_snapshot *s,
+                                             int rect_x0, int rect_y0,
+                                             int rect_x1, int rect_y1,
+                                             semu_error *error)
+{
+    int32_t matrix_tx;
+    int32_t matrix_ty;
+    semu_status st;
+
+    if (s->draw_color != TSC6A_ICON_COLOR) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed icon draw_color 0x%08x is outside the "
+            "witnessed 0xffffffff", s->draw_color);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (rect_x1 - rect_x0 != (int)TSC6A_ICON_W ||
+        rect_y1 - rect_y0 != (int)TSC6A_ICON_DRAW_H) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed icon rect (%d,%d)-(%d,%d) is outside "
+            "the witnessed 20x30 quad of the 20x32 asset",
+            rect_x0, rect_y0, rect_x1, rect_y1);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    st = tsc6a_float_to_fp16(s->mm02, &matrix_tx, error);
+    if (st != SEMU_OK) {
+        return st;
+    }
+    if (matrix_tx != (int64_t)-rect_x0 * TSC6A_FP16_ONE) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed icon matrix mm02 0x%08x is outside the "
+            "witnessed -rect_x0 translation law",
+            s->mm02);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    st = tsc6a_float_to_fp16(s->mm12, &matrix_ty, error);
+    if (st != SEMU_OK) {
+        return st;
+    }
+    if (matrix_ty != (int64_t)-rect_y0 * TSC6A_FP16_ONE) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+            "nema_tsc6a: compressed icon matrix mm12 0x%08x is outside the "
+            "witnessed -rect_y0 translation law",
+            s->mm12);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
+}
+
+/* Use exactly the same pixel-center mapping for preflight and rendering.
+ * bounds_w/bounds_h are the matched shape's source dimensions; the mapper
+ * clamps to those, so both admitted families sample inside their own
+ * source. */
 static int tsc6a_asset_sample(const tsc6a_fixed_matrix *matrix, int x, int y,
+                              unsigned bounds_w, unsigned bounds_h,
                               unsigned *sx, unsigned *sy)
 {
     int64_t tx, ty;
     tsc6a_resolve_point(matrix, x, y, &tx, &ty);
-    if (tx < 0 || ty < 0 || tx >= (int64_t)TSC6A_CROSSHAIR_W ||
-        ty >= (int64_t)TSC6A_CROSSHAIR_H) return 0;
+    if (tx < 0 || ty < 0 || tx >= (int64_t)bounds_w ||
+        ty >= (int64_t)bounds_h) return 0;
     *sx = (unsigned)tx; *sy = (unsigned)ty;
     return 1;
 }
@@ -525,20 +656,32 @@ static int tsc6a_asset_sample(const tsc6a_fixed_matrix *matrix, int x, int y,
 /* Ticket 804: validate the entire source-memory span as before, then decode
  * every sampled block before any target write. EXT6/7 clip/transform laws and
  * the E-RE-SAP235-TSC6A-001 decoder are unchanged. Offscreen auxiliary blocks
- * cannot affect visible pixels; an unknown visible block still fails closed. */
+ * cannot affect visible pixels; an unknown visible block still fails closed.
+ * Ticket 806: shape_w/shape_h select the admitted family (60x60 or 20x32);
+ * the block grid, stride and span follow those dimensions. */
 static semu_status tsc6a_resolve_compressed_asset(
     semu_bus *bus, const nema_draw_snapshot *s, uint8_t *rgb565_le,
-    uint32_t stride, int x0, int y0, int x1, int y1, semu_error *error)
+    uint32_t stride, int shape_w, int shape_h, int x0, int y0, int x1,
+    int y1, semu_error *error)
 {
+    uint32_t shape_stride = (uint32_t)shape_w / 4u * 12u;
+    uint32_t shape_bytes = shape_stride * (uint32_t)shape_h / 4u;
     uint8_t source[TSC6A_CROSSHAIR_SRC_BYTES];
     uint8_t texels[TSC6A_CROSSHAIR_H][TSC6A_CROSSHAIR_W][4];
-    uint8_t sampled[225] = {0};
+    uint8_t sampled[(TSC6A_CROSSHAIR_W / 4u) * (TSC6A_CROSSHAIR_H / 4u)] = {0};
     tsc6a_fixed_matrix matrix;
     unsigned by, bx, py, px, offset;
     int x, y;
     semu_status st;
 
-    for (offset = 0u; offset < TSC6A_CROSSHAIR_SRC_BYTES; ++offset) {
+    if (shape_w != (int)TSC6A_CROSSHAIR_W &&
+        shape_w != (int)TSC6A_ICON_W) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "nema_tsc6a: unsupported compressed shape %dx%d",
+                       shape_w, shape_h);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    for (offset = 0u; offset < shape_bytes; ++offset) {
         st = semu_bus_copy_out(bus, s->src_base + offset,
                                &source[offset], 1u, error);
         if (st != SEMU_OK) return st;
@@ -556,15 +699,17 @@ static semu_status tsc6a_resolve_compressed_asset(
     for (y = y0; y < y1; ++y) {
         for (x = x0; x < x1; ++x) {
             unsigned sx, sy;
-            if (tsc6a_asset_sample(&matrix, x, y, &sx, &sy))
-                sampled[(sy / 4u) * 15u + sx / 4u] = 1u;
+            if (tsc6a_asset_sample(&matrix, x, y,
+                                   (unsigned)shape_w, (unsigned)shape_h,
+                                   &sx, &sy))
+                sampled[(sy / 4u) * (TSC6A_CROSSHAIR_W / 4u) + sx / 4u] = 1u;
         }
     }
-    for (by = 0u; by < TSC6A_CROSSHAIR_H / 4u; ++by) {
-        for (bx = 0u; bx < TSC6A_CROSSHAIR_W / 4u; ++bx) {
+    for (by = 0u; by < (unsigned)shape_h / 4u; ++by) {
+        for (bx = 0u; bx < (unsigned)shape_w / 4u; ++bx) {
             uint8_t block[16][4];
-            if (sampled[by * 15u + bx] == 0u) continue;
-            if (!tsc6a_expand_block(source + (size_t)by * 180u +
+            if (sampled[by * (TSC6A_CROSSHAIR_W / 4u) + bx] == 0u) continue;
+            if (!tsc6a_expand_block(source + (size_t)by * shape_stride +
                                     (size_t)bx * 12u, block)) {
                 semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                     "nema_tsc6a: compressed TSC6A block %u,%u sets the "
@@ -584,7 +729,9 @@ static semu_status tsc6a_resolve_compressed_asset(
         for (x = x0; x < x1; ++x) {
             unsigned sx, sy;
             uint32_t argb;
-            if (!tsc6a_asset_sample(&matrix, x, y, &sx, &sy)) continue;
+            if (!tsc6a_asset_sample(&matrix, x, y,
+                                    (unsigned)shape_w, (unsigned)shape_h,
+                                    &sx, &sy)) continue;
             argb = ((uint32_t)texels[sy][sx][3] << 24u) |
                    ((uint32_t)texels[sy][sx][0] << 16u) |
                    ((uint32_t)texels[sy][sx][1] << 8u) |
@@ -604,6 +751,7 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
                                     semu_error *error)
 {
     tsc6a_fixed_matrix matrix;
+    int icon_w;
     int x0, y0, x1, y1, x, y;
     semu_status st;
 
@@ -614,16 +762,24 @@ semu_status nema_tsc6a_resolve_mask(const nema_tsc6a *surface,
     }
     /* The compressed state writes with the captured 480 B pitch and no
      * other caller pitch (the shadow branch keeps its stride >= 480 form
-     * inside the existing cascade below). */
-    if (stride == 480u && tsc6a_compressed_asset_shape(s, bus) &&
+     * inside the existing cascade below).  Ticket 806: the matched shape
+     * (60x60 asset or 20x32 icon) selects the law and the decoder
+     * dimensions; only those two witnessed families are admitted. */
+    if (stride == 480u && tsc6a_compressed_asset_shape(s, bus, &icon_w) &&
         tsc6a_rectangle(s, &x0, &y0, &x1, &y1)) {
-        st = tsc6a_compressed_asset_law(s, x0, y0, x1, y1, error);
+        st = icon_w == (int)TSC6A_ICON_W
+                 ? tsc6a_compressed_icon_law(s, x0, y0, x1, y1, error)
+                 : tsc6a_compressed_asset_law(s, x0, y0, x1, y1, error);
         if (st != SEMU_OK) {
-            /* Census-shaped but outside the ticket-788 law: the named
+            /* Census-shaped but outside the admitted law: the named
              * refusal above, zero writes, no source-memory read. */
             return st;
         }
         return tsc6a_resolve_compressed_asset(bus, s, rgb565_le, stride,
+                                              icon_w,
+                                              icon_w == (int)TSC6A_ICON_W
+                                                  ? (int)TSC6A_ICON_H
+                                                  : (int)TSC6A_CROSSHAIR_H,
                                               x0, y0, x1, y1, error);
     }
     if (!tsc6a_bounded_sram(s->src_base, 1u) ||

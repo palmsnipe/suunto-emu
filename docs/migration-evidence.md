@@ -9753,3 +9753,238 @@ the navigation pin/documentation update again passes with 1042 PASS records;
 `check-final.log` SHA-256 `474d62fd84a4a1060fbf66ce43ea9fd602e66c81c166a02adc79dab5b6373376`.
 `git diff --check` passes. The full SDL gates ran explicitly despite the normal
 `make check` quick gate's deliberate private-walk skips.
+
+
+## E-SAP239-SNAPSHOT-REPIN-003 — 2.39 era snapshot re-derivation after codecs 2/1 (ticket 800)
+
+2026-10-07, ticket 800. The verified full-flash fixture became reproducible
+again from read-only evidence: the exact pinned 2.39 component-05 fragment
+FF-padded to 16 MiB with the synthetic manufacturing sector at 0x00FFF000 and
+an all-FF upper 16 MiB. Rebuilt image SHA-256
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb` (the pinned
+value; reconstruction inputs `artifacts/analysis/sapporo-2.39.20.22297/component-05-type-1-v3.raw`
+and `emulator/storage/fixtures/sapporo-production-data.synthetic.bin`
+`c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53`).
+
+Census at HEAD 07e868c (rebuilt binary): 15 of 43 era scripts green; 28 red.
+Every red was classified by rerunning with retained artifacts: **every
+comparable complete log hash, stop line, layer census, compatibility count and
+in-script grep anchor matches its existing pin**, and each failing pair is
+internally byte-identical (deterministic). The 28 failures are exclusively
+stale snapshot-image pins: renderer codec 2 (ticket 799, renderer section
+grew by 1,094,412 bytes) and the Apollo4 codec 1 timer routing/phase fields
+(ticket 803, section 5 +17 bytes) changed serialized bytes. No guest-visible
+behavior drift exists on any compared transcript.
+
+Each of the 28 scripts was then re-derived with two bounded identical runs per
+changed pin (the runners themselves enforce paired `cmp` equality), the new
+image hash was substituted for the old one in the same comparison, and the
+script re-run to green; multi-stage runners (activity_budget, ctimer13_inten,
+gps_five, general_budget, history_budget, ongoing, personal_budget, quiet_read,
+widgets, zip_read) were advanced stage by stage, deriving each next image from
+its own twice-identical capture. gps_awake's image pin moved with its log hash
+held; the three probe C files (`sapporo_239_five_probe.c`,
+`sapporo_239_general_probe.c`, `sapporo_239_personal_probe.c`) had only their
+in-source `file_hash` literals updated to the re-derived images. No stop
+expectation, cap, census count, refusal anchor or log hash changed anywhere.
+
+Pin moves (old -> new, complete SHA-256 in the runners):
+
+| Script | Moved pins |
+| --- | --- |
+| ohr2_boot_mode | `02726db5…` -> `301f88a6…` |
+| ohr2_bsl_identity | `aa07d38e…` -> `d4bff205…` |
+| ohr2_command2 | `26a6b414…` -> `aa81dee0…` |
+| ohr2_echo | `6017bda1…` -> `9e9ad425…` |
+| ohr2_main_identity | `549682f2…` -> `cb5cbaf4…` |
+| ohr2_result_13 | `334bc054…` -> `3acc7eb1…` |
+| ohr2_result_14 | `b6e49ac2…` -> `8886ed6b…` |
+| file_seek | `d24df207…` -> `07c0a899…` |
+| file_size | `cfd37f8e…` -> `a236b645…` |
+| gpio_wt1 | `bfb70b26…` -> `9a89a102…` |
+| gps_awake | `6fd9faea…` -> `9199684c…` |
+| gps_reopen | `5b0576eb…` -> `3ffb9eef…` |
+| gps_startup | `675f54f7…` -> `a5df8707…` |
+| haptic | `f468dd06…` -> `68c019e6…` |
+| haptic_calibration | `bfdb2a4a…` -> `182d452c…` |
+| history_budget | terminal `ab7c3b6b…` -> `293f9e87…`; prefix `661b65fc…` -> `28c4ea70…` |
+| logical_files | `d8050487…` -> `c3325243…` |
+| lps22 | `f76e8767…` -> `9aac2649…` |
+| ongoing | terminal `39248c90…` -> `ec57b83b…`; prefix `ab7c3b6b…` -> `293f9e87…` |
+| preload1 | `661b65fc…` -> `28c4ea70…` |
+| quiet_read | terminal `fec90410…` -> `d344d899…`; prefix `e7aeb297…` -> `34bb5373…` |
+| widgets | terminal `ffbabbf6…` -> `8e4e65ca…`; prefix `80230999…` -> `c96578db…` |
+| zip_read | terminal `e7aeb297…` -> `34bb5373…`; prefix `705b94e5…` -> `09ebe554…` |
+| activity_budget | logo+continuation `ffbabbf6…` -> `8e4e65ca…` |
+| ctimer13_inten | terminal `ecef5887…` -> `212a2144…`; prefix `fec90410…` -> `d344d899…` |
+| general_budget + probe | cold prefix `7dddd41a…` -> `c114c00f…`; terminal `24d5a4dd…` -> `ca654b44…` |
+| personal_budget + probe | cold prefix `7dddd41a…` -> `c114c00f…`; terminal `cd0ca712…` -> `630f6062…` |
+| gps_five | prefix `27625f12…` -> `d51e01a2…`; refusal-state `90871416…` -> `8d00b4a5…`; refusal/final `33e1dbdf…` -> `694ef715…`; normalized `3b59452a…` -> `a93ac808…` |
+
+The general/personal `END` goldens (instructions, time, pc, frames, crc, frame
+sha, refusal detail), the gps_five stop triples and pulse census, and every
+logical-file/compatibility budget are unchanged; the terminal frame sha values
+in the END lines (`6eb15b72…` general, `07944160…` personal) still match the
+run output exactly. All moved values are serialized machine-image bytes only.
+
+Verification: `make check-era` — all 43 Sapporo 2.39 era scripts passed, run
+twice back-to-back after the final pin set (plus one intermediate run whose
+single gps_awake image pin was derived and applied). `make check-task-contracts`
+— 169 tickets valid. `make check` — 0 failed. No runtime source file changed;
+the diff is confined to `tests/integration/test_firmware_sapporo_239_*.sh`
+and the three probe sources' hash literals. Ticket 800 leaves implementation
+with 43/43 twice-green; status promotion remains integrator work.
+
+## E-SAP-0051 — 2.35 GPS-awake post-admission high-rate region census (ticket 710)
+
+2026-10-07, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are the pinned E-SAP-0049 records: the cold
+5-layer run (`production-data`, `ohr-startup`, `gps-startup`, `gps-reopen`,
+`gps-awake`) to 26B instructions / 400 s ends
+`stop=budget pc=0x000ccac4 instructions=26000000000 virtual_time_ns=328673254682`.
+This entry reproduces that frontier twice and names the region with a bounded
+slice census. Private work directory `/tmp/sap235-hrate/`; all artifacts
+volatile, hashes below; the read-only firmware tree was untouched.
+
+Reproduction pair (extended frontier, 26B/400s): `extended-1.log` =
+`extended-2.log` SHA-256
+`4d5077d637ef3bbd18a1225b86bef41b0db4e645be8d3a4ca944d721afc0c81a`, rc=3,
+terminal tuple identical to the pin; 55 awake hits with the last at
+`306707503135`.
+
+Census method: a CLI prefix run to `--max-time 306707503136` (1 ns past the
+55th hit; 5,312,219,608 instructions, pc `0x00125a00`) saved
+`hrate-prefix.sems` (`a47877c24c3bf68bb4033d7cb396f214e80ac4d0b37a790f1f756f11592bfc24`,
+prefix log `6d619a9517aeaf35a5677613b3032fa65d1c5ec66a4891b3455f058b835e2e45`).
+A private observer (`hrate_probe.c`
+`b3dcddb80ddca4102f812d3449cf4dedd93216af797653987c96a3ae807e0c0f`, linked
+against the production `build/libsemu.a`, public machine API only) resumed
+that image and recorded the end-of-slice `(instructions, virtual time, pc)`
+for 3,500 x 2,000,000-instruction slices (7B instructions, window
+5.312B-12.312B, vt 306.71-314.99 s). Both passes are byte-identical:
+`census-1.log` = `census-2.log` SHA-256
+`f6815097ecc912dd9c46a3504ce57a99aa1bd45c9617ebf1e743e92782e07aea`.
+
+Census findings:
+
+1. The region is a **persistent guest CPU-bound spin**, not a device wait.
+   Every slice consumes its full 2M-instruction budget at the engine's
+   1 ns/instruction cadence (vt delta exactly 2,000,000 ns in 3,490 of 3,499
+   slices; the 9 remaining contain the boundary idle-to-busy transition at
+   slice 10). Zero resets, refusals, assertions or layer hits occur in the
+   window (the only stderr record is the production-data install hit at
+   resume time); zero frames publish (`frames=0` throughout).
+2. Composition by 4 KiB pc page (share of 3,500 slices): `0x000bd` 26.8%,
+   `0x000bf` 15.7%, `0x000cc` 15.3%, `0x000a7` 15.2%, `0x000a6` 11.7%,
+   `0x000c0` 6.4%, `0x000a5` 3.4%, `0x001b9` 2.5%, `0x000d8` 2.1%,
+   remainder <1%. The top slice-end pcs sit in three named guest routines
+   (pristine `component-04-type-4-v2.raw`
+   `36a14dc5bad7b9cb8a7c8164bfaaedaf68c75a9611bc3a9e6efaa47418a5a38a`,
+   capstone 5.0.7):
+   - `0x000bdce4` — ordered linked-list insert (`ldr r4,[r3,#4]; ldr r5,[r4];
+     cmp r2,r5; bhs` walk, keyed by the node word at `[r1]`, incrementing a
+     counter at `[r0]`): a deadline/timestamp-ordered insertion, and the
+     single hottest loop (`0x000bdcf8`-`0x000bdd00`, 26.8% of all slices).
+   - `0x000a66e6`/`0x000a6540`/`0x000ccaac`/`0x000ccac4` — the guest's
+     timekeeping: the `0xccb14` `cpsid i` triple-read seqlock (the same
+     section E-SAP-0037 named at `0xccb1a`-`0xccb2e`), the tick getter
+     multiplying the read by 1000, and the critical-section tick read whose
+     compare loop `0x000ccac4`-`0x000ccad8` is the frontier stop pc.
+   - `0x001b9cce` — a rolling mean (`ldr r2,[r0,#0xc]; add.w r1,r1,r2,asr #1`
+     with an even/odd split), a statistics accumulator over the same
+     structures.
+3. Cadence: after a ~587M-instruction ramp the guest settles into a
+   deterministic two-phase cycle of 866M instructions / 866 ms — a
+   512,000,000-instruction phase and a 354,000,000-instruction phase
+   alternating with slice-exact stability (periods 256/177/256/177... across
+   the whole 7B window). This is guest-logic cadence at the engine's
+   1 ns/instruction cost law, not an awake-cadence gap: the E-SAP-0049
+   64-admission budget is untouched and no awake poll fires in the window.
+
+Attribution: the region is the guest's own tickless-scheduler bookkeeping —
+each cycle re-walks and re-inserts into an ever-growing ordered deadline
+list (the O(n) insert dominating `0x000bd`), re-reads the tick seqlock, and
+updates the rolling mean — consistent with the E-SAP-0047/0049 note that the
+engine charges 1 ns per executing instruction while the lane's virtual time
+is host-throughput-derived inside CPU-bound code. No engine-seam gap is
+named: the scheduler, timers and compat layers behave exactly as pinned, the
+compatibility budget is untouched (zero additional hits), and the observed
+instruction burn is guest logic. Under the ticket-710 evidence rule no
+device, scheduler or CPU change is authorized by this census. The named
+residual — whether the guest's own intent is a bounded scan or an unbounded
+growth of that deadline list — is an application-behavior question that the
+lane cannot observe (the lane's own pulse-64 census shows the same clock
+state clean at 430 s); it is recorded as observed-not-derived, and the
+frontier remains the pinned 26B/400s stop.
+
+Verification: the two census passes and the extended frontier pair are
+byte-identical; `hrate_probe` exits 0 through the public API with the prefix
+image validated by `semu_machine_snapshot_load`; no repository file changed
+in this instance (documentation-only entry, validated by
+`make check-task-contracts`).
+
+
+## E-EMU-SAP235-ICON20-001 — Control Panel 20x32 admission and the auxiliary-bit blocker (ticket 806)
+
+2026-10-08, ticket 806 implementation. The restored-navigation Control Panel
+case refuses the same 20x32 fmt-17 asset twice (draw ords 347/355 at
+39438579302/39447038897 ns, child `0x100d0800` offsets 5488/3808). The
+witnessed tuple, reproduced twice byte-identically from the pinned watchface
+snapshot `c56057a9…` (fresh capture; cold transcript `14ffff66…` matches the
+pinned self-capture):
+
+- source fmt 0x17, sampling 1, stride 60, 20x32, base `0x100a7aac`,
+  span 480 B (5 x 8 blocks); target RGB565 240x240 stride 480; draw 5;
+  tex color and draw color both `0xffffffff`; code `0x941e8000`, matmult 0,
+  imem (0, `0x004e0002`, `0x804b1286`); matrix (3f800000, 0, c3480000;
+  0, 3f800000, c34b0000) = identity scale with MM02 = -200, MM12 = -203;
+  quad (200,203)-(220,203)-(220,233)-(200,233); clips (0,162)-(240,240)
+  and (0,193)-(240,240), the quad fully inside both.
+
+Shape admission (this entry): the resolver now admits a second witnessed
+family — the 20x32/stride-60/480-B icon with the exact witnessed quad,
+colors, and MM02 = -rect_x0 / MM12 = -rect_y0 identity translations, decode
+grid following the matched shape (5 x 8 blocks), all 804 preflight/rollback
+and 793 decoder laws unchanged, and the two witnessed clip strips. The
+witnessed rect maps source rows 0..29 only (rect height 30); rows 30..31
+are never sampled. Red-first module `tests/unit/test_nema_tsc6a_icon20.c`
+(3 cases): positive per-pixel render for both witnessed clips on a synthetic
+pattern, 16 near-miss refusals (scales, swapped/one-ULP translations, wrong
+strips, wrong rect ends, the 60x60 color pair, wrong shape), and the
+atomic 480-B-span/aux-bit refusals. All 36 TSC6A-filter cases pass
+(33 pre-existing + 3 new).
+
+Auxiliary-bit blocker (the naming finding): with the shape admitted the
+runtime refusal becomes `compressed TSC6A block 2,0 sets the unverified
+auxiliary bits; refusing with zero writes` — the witnessed asset itself
+carries nonzero bits 75..95. The pinned component-05 resource partition
+contains two width-20 PXB2 containers with 8 block rows
+(`0x9b8a00`/`0xa66000`, 20x30 visual, span field 480 matching the texture
+layout; plus two 20x28 at `0x9b9800`/`0xa65e00`), and 37..38 of each
+candidate's 40 blocks set the auxiliary region, block 2,0 included —
+matching the runtime refusal. This is the SRAM-verbatim-copy class already
+established by TICKTRAIL-002's resting-cache census (aux-bit blocks outside
+resolve regions). Rendering the icon therefore requires the 21-bit
+auxiliary-region law: a separate offline-RE evidence instance under the
+owner-authorized 2026-09-23 class, with no lane oracle for the compressed
+path. Zero writes occur either way.
+
+Attribution (paired, twice byte-identical): Control Panel log hash moves
+`544d98bc51d6cdf11c6f5c08b1996b453f218aeb4f39e58207deabbe5a197e7b` ->
+`caa658680323b8a0a44620e2a69e79280976edcad1c5ccbe2c9cfb3403974380` —
+exactly two lines change (the refusal reason text names block 2,0 instead
+of the shape); refusal count, ordinals, timestamps, child offsets, stop
+line (`stop=budget pc=0x000e1862 instructions=10123133602
+virtual_time_ns=44000000000`) and every other line are unchanged. The
+Control Panel SNAPSHOT hash is byte-identical to the pinned
+`80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc` — no
+pixel is committed before or after, the strongest available zero-write
+attribution. The other five navigation cases and their log/image pins are
+untouched (runner passes 6/6 with only the control log pin updated).
+
+Changed scope: `src/display/nema_tsc6a_raster.c` (shape dispatch, icon law,
+dimension-following decoder), new `tests/unit/test_nema_tsc6a_icon20.c`,
+the navigation runner's control log pin and attribution note, ticket 806
+(re-scoped), this entry. Remaining GPU gaps unchanged: the 21-bit auxiliary
+law (now the named blocker for the icon's pixels), compressed writeback,
+and unobserved shader/transform cases.
