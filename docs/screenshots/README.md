@@ -6,6 +6,10 @@ six UI screenshots in Git on that date. Firmware/resource bytes, raw PPMs,
 logs, and snapshots remain private; this exception does not cover additional
 images automatically.
 
+These images contain third-party watch UI artwork and are excluded from the
+repository's MIT source and documentation license. Their inclusion follows
+the specific capture authorization above.
+
 | File | Firmware | Settled step | Generation | RGB565 CRC32 |
 | --- | --- | ---: | ---: | --- |
 | `sapporo-235-language.png` | 2.35.34.18929-P | 3 | 79 | `405422e1` |

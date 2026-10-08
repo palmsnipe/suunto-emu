@@ -209,3 +209,15 @@ and the [roadmap](plans/roadmap.md).
 Agents must follow [AGENTS.md](AGENTS.md). Guest-visible behavior requires
 recorded evidence and an eligible roadmap ticket; bounded maintenance follows
 the repository's proportional verification rules.
+
+## License and project affiliation
+
+The emulator source and project documentation are available under the
+[MIT License](LICENSE). The six screenshots in `docs/screenshots/` contain
+third-party watch UI artwork and are excluded from that license; see their
+[capture authorization and provenance](docs/screenshots/README.md).
+Firmware and resource packages are supplied separately by the user and are
+not covered by the project's license.
+
+This is an independent project, unaffiliated with Suunto. Product names and
+trademarks belong to their respective owners.
