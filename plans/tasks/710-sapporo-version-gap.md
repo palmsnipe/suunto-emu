@@ -164,3 +164,17 @@ shape (no pinned window uses it) are recorded as observed-not-derived
 in E-EMU-SAP235-TICKTRAIL-002. The ticket rolls back to `ready` for
 the next named later-Sapporo gap.
 
+
+Instance 15 (2026-10-07, `sap235-710-hrate`, E-SAP-0051): the E-SAP-0049
+named frontier — the post-55th-admission high-rate region at pc
+0x000ccac4 — is closed as a census. The 26B/400s frontier was reproduced
+twice byte-identically; a 3,500-slice x 2M-instruction resume census from a
+1-ns-past-the-55th-hit prefix (both passes byte-identical) shows a persistent
+guest CPU-bound spin at the engine's 1 ns/instruction law: an ordered
+deadline-list insert at 0xbdce4 (26.8%), the tick seqlock/timekeeping family
+(a66e6/a6540/ccaac/ccac4), and a rolling mean at 0x1b9cce, settling into a
+slice-exact 866 ms two-phase cycle (512M + 354M instructions). Zero resets,
+refusals, layer hits or frames in the window; the 64-admission awake budget
+is untouched. No engine-seam gap is named and no src change is authorized;
+the deadline-list growth intent is recorded as observed-not-derived. The
+ticket rolls back to `ready` for the next named later-Sapporo gap.
