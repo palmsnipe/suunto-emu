@@ -6,6 +6,17 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33.16 display gate decoded — 2026-10-09
+
+Ticket 710 instance-20 (E-SAP-0056): the full boot-log decode shows the
+display gate precisely — the 2.33.16 guest requests `settings/ui.txt` and
+`settings/uiv2.txt`, both fail (result 3), the ResourceProvider reports
+403 twice, and WbStoPreload fails 204/500. The UI resource stage fails
+before any display access, so the boot idles forever (consistent with
+E-SAP-0053/0054/0055). The next instance pins the smallest compat
+translation (provisioned-WbStorage contents or the 2.35 equivalent
+lookups); no change authorized.
+
 ## 2.33.16 boot-log census — 2026-10-09
 
 Ticket 710 instance-19 (E-SAP-0055): the guest's own boot log (MSPI2 TX DMA

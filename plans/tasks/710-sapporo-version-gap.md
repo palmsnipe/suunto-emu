@@ -223,3 +223,15 @@ after the resource stage; the 2.35 analogue reaches its setup UI through
 the same stages, so the divergence is version-specific. The next instance's
 census is the boot flow after resources. No change authorized; the ticket
 rolls back to `ready`.
+
+Instance 20 (2026-10-09, `sap233-uifiles`, E-SAP-0056): the display gate is
+decoded. The full boot-log records show the 2.33.16 guest requesting
+settings/ui.txt and settings/uiv2.txt, both failing with result 3, the
+ResourceProvider reporting 403 twice, and WbStoPreload failing 204/500 —
+the UI resource stage fails before any display access, so the boot idles
+forever (E-SAP-0053/0054/0055 consistent). The empty-cache compat layer
+translates only the final WbStoPreload result, not the UI file lookups.
+The next instance pins the smallest compat translation: whether a
+provisioned 2.33 WbStorage carries those files, or how the 2.35 boot's
+equivalent lookups succeed. No change authorized; the ticket rolls back
+to `ready`.

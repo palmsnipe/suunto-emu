@@ -10181,3 +10181,52 @@ Verification: the decoded record stream above is reproducible from the
 retained log; the run reaches its RunFor with no halt and no reset; no
 repository file changed (documentation-only entry, validated by
 `make check-task-contracts`).
+
+## E-SAP-0056 — 2.33.16 display gate decoded: the UI resource files fail to open (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0055's record set — this entry
+completes the decode that E-SAP-0055's slot-truncated view cut off.
+Private work directory `/tmp/sap233rtc/`; artifacts volatile, hashes below.
+
+Full decode (`decode_log.py`
+`7879be446232c1008e9b13ffc12ed106c0522e90ba132db59322d8666f83fd93` against
+the retained `plain60.log`
+`cfed03f5f087e9ad90432342121bccf25618107dffc7fcd3d77a3da79016732f`; the
+earlier regex truncated each record at 11 payload bytes — the full records
+carry complete lines). The 2.33.16 boot log, in order:
+
+| Guest time | Message |
+| --- | --- |
+| 0.172 s | `ExtFID 0x20,0xbb,0x19` |
+| 0.177 s | `Start 2.33.16 in mode 5 (asked 80h)`; `HwVersion: -00100`; `BID: 6625752/acf9fa01` |
+| 0.178 s | `#start bl:00000000 c:00000000 r:0000 s:01`; `Last liveness: 0 s ago`; `Initial battery voltage: 3840.000000 mV` |
+| 0.179-0.186 s | `onInputEvent 1`; `VolM: creating new metadata`; `VolM: allocated 10ff (0) sz:262144`; `iSV: alloc/new (10ff)`; `FSS crc:3529574969[ok] sta:0 sec:65535 reb:0`; `FSS cu:…` — the fsimage validation passing |
+| 0.563 s | `f_open: 3, maxh: 0, 0 settings/ui.txt` — **result 3, failure** |
+| 0.564 s | `f_open: 3, maxh: 0, 0 settings/uiv2.txt` — **failure** |
+| 0.567-0.568 s | `ResourceProvider.cpp(98/13597): 403`; `ResourceProvider.cpp(98/13628): 403` |
+| 0.569-0.574 s | `f_open settings/general` (3), `settings/personal` (3), `SETTINGS/CMGRPLST.TXT` (3), `f_delete routes/in_pts.tmp`, `routes/in_pts.sbm`, `f_open settings/ble/device` (3) |
+| 0.576 s | `[42014]: CACHE_PRELOAD_FAIL (204)` |
+| 0.577 s | `PRELOAD_DONE Cache free: idx:25 mem:1792B`; `Module WbStoPreload cmd 0 failed. Result 500` |
+
+The display gate, named: the boot asks for the UI resource files
+`settings/ui.txt` and `settings/uiv2.txt`, both fail with result 3, the
+ResourceProvider reports 403 twice, and the WbStoPreload module then fails
+(204/500). No display-controller access ever occurs (E-SAP-0054) because
+the UI resource stage failed before the UI could start. The 2.35 analogue
+publishes its setup UI through the same stage, so the divergence is the
+missing UI resource files in the 2.33 storage view — the empty-cache
+compat layer translates only the final WbStoPreload result, not the UI
+file lookups.
+
+Under the 710 evidence rule no change is authorized by this entry. The
+next instance's census: whether a provisioned 2.33 watch's WbStorage
+carries those files (the lane's own storage staging is the same public-OTA
+view), or whether the 2.35 boot's log shows the equivalent lookups
+succeeding — either pins the smallest compat translation. The remaining
+f_open failures (general/personal/CMGRPLST.TXT/ble device) are the same
+class and fail closed today.
+
+Verification: the decode above is reproducible from the retained log with
+the retained script; no repository file changed (documentation-only entry,
+validated by `make check-task-contracts`).
