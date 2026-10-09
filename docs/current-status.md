@@ -6,6 +6,17 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33 second display gate found — 2026-10-09
+
+Ticket 710 instance-23 (E-SAP-0059): seeding the missing UI files through
+the compat layer's retention dict clears the E-SAP-0056 failures (the
+lookups succeed, both 403s disappear) and the boot reaches a new
+`wuiDu…` stage — but the display still never powers on (zero
+display-controller traffic and zero frames in 60 s). The gate has a
+second layer after the resource stage; the next census is the wuiDu
+stage and the display power-on path. Lane-side diagnostic only; no
+compat intervention authorized.
+
 ## 2.33 UI files are provisioned-watch artifacts — 2026-10-09
 
 Ticket 710 instance-22 (E-SAP-0058): the 2.33 resource partition's JSON

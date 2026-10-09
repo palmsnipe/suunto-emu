@@ -257,3 +257,14 @@ is the provider refusing the missing files. Candidate fixes (extend the
 empty-cache compat to creation-mode opens, or supply via the production
 fixture) each need their own instance and ticket under the compatibility
 policy. No change authorized; the ticket rolls back to `ready`.
+
+Instance 23 (2026-10-09, `sap233-uiseed`, E-SAP-0059): the seeding
+experiment clears the E-SAP-0056 failures - pre-seeding ui.txt/uiv2.txt
+through the compat layer's retention dict makes the lookups succeed and
+both ResourceProvider 403 lines disappear - but reveals a SECOND display
+gate: the boot reaches a new `wuiDu...` stage and never powers on or
+writes the display controller in 60 s (zero 0x400A0xx traffic, zero
+frames). The seed is a lane-side diagnostic with synthetic content; no
+compat intervention is authorized. The next instance's census is the
+wuiDu stage and the display power-on path. The ticket rolls back to
+`ready`.

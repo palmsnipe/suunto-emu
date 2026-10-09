@@ -10341,3 +10341,59 @@ census.
 Verification: the manifest decodes are reproducible from the retained
 partition files by offset; no repository file changed (documentation-only
 entry, validated by `make check-task-contracts`).
+
+## E-SAP-0059 — UI-file seeding experiment: the 403s clear, a new stage appears, the display stays dark (ticket 710)
+
+2026-10-09, ticket 710 instance (experiment; no src change, no repo
+fixture). Frontier inputs are E-SAP-0058's finding that
+`settings/ui.txt`/`settings/uiv2.txt` are provisioned-watch artifacts
+absent from the OTA staging. This entry tests the hypothesis directly:
+pre-seeding those files through the logical-file compat layer's own
+retention dict and observing the boot. Private work directory
+`/tmp/sap233rtc/`; artifacts volatile, hashes below; the read-only
+firmware tree untouched.
+
+Experiment: the full E-SAP-0050 staging plus, before the boot, a monitor
+python block filling the layer's `s233_file_data` with
+`settings/ui.txt` = `# test ui seed\n` and `settings/uiv2.txt` =
+`# test uiv2 seed\n` (`uiseed.resc`
+`6cda54ee106c60adc6b18143595d59df1628f8ef89be76879cc772848ecf7891`).
+Result (8 s run, log `uiseed.log`
+`f0f1daaa58852ef14236695856e696ec17d3a77ba19b6f2f9aeee0d90773151d`):
+the lookups now succeed through the overlay —
+`S233_LOGICAL_FILE_OPEN path=settings/ui.txt mode=1 handle=0x1015F100`,
+two reads (`result=8 size=15 cursor=8`, `result=7 … cursor=15`, then
+`result=0` EOF) — and **both `ResourceProvider.cpp … 403` lines are
+gone**. The RTC arm block is unchanged (13 accesses).
+
+Extended run: all four failing files seeded (ui.txt, uiv2.txt, general,
+personal), 60 s (`uiseed2.resc`
+`6d13022e6aedbd6d81ff2b1d157937a9e041a18c6ad1da15e6a9acd62514fa3a`, log
+`uiseed2.log`
+`ce2cdc63d0507c35b83ffaffbe35196d5cb84a374932d31aa7ad920df2c91862`).
+Result: the resource stage passes and the boot reaches a **new stage it
+never logged before** — two records at 0.563/0.564 s beginning `wuiDu…`
+(previously `f` failure records at the same slots) — and then the same
+silence. Still zero display-controller access (`0x400A0xx`), zero NEMA
+records, zero frames across the whole 60 s; the DebugMonitor flood
+persists (33,810 lines, the same lane artifact).
+
+Attribution: the seeded files clear the E-SAP-0056 resource failures —
+the UI resource stage's file lookups are the sole cause of the 403s —
+but the display gate has a **second layer** after the resource stage: the
+boot enters a `wuiDu…` (wui-dummy/placeholder) path and never powers on
+or writes the display controller. The E-SAP-0057 mode divergence stands
+(mode 2 skips this stage entirely). Under the 710 evidence rule no
+change is authorized: the seed experiment is a lane-side diagnostic with
+synthetic content, not a compatibility intervention, and no seeded bytes
+enter Git or any fixture.
+
+The next instance's census: what the `wuiDu` stage checks (the strings
+around it in the pristine application, and whether the display power-on
+sequence — the PWRENDISP-class writes of E-SAP-0050's hypothesis — is
+reachable at all in this boot), before any compat design is proposed.
+
+Verification: both runs reach their RunFor; the seeded reads and the
+disappeared 403s are reproducible from the retained logs; no repository
+file changed (documentation-only entry, validated by
+`make check-task-contracts`).
