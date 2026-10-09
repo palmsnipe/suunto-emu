@@ -10147,8 +10147,11 @@ below; the read-only firmware tree untouched.
 
 Method: the full E-SAP-0050 staging at `logLevel 0`, `emulation RunFor
 "60.000"` (`plain60.resc` `87259163036fbb1fbc308102a12cc13d7a7057a391f78f
-d67ac472b25f04e076`, log `plain60.log`
-`eb842f68f960d499c7b62bcf5724a80fa313e51789be3576af97e78331920eb6`). The
+d67ac472b25f04e076`, log `plain60.log`; the retained file's final SHA-256
+is `cfed03f5f087e9ad9043…` because Renode's console-input thread appended
+crash-trace lines after the 60 s RunFor completed — the boot-log record set
+(30 records, last at 0.577 s, `0x00FD0740`) is byte-intact and is what this
+entry decodes). The
 guest's boot log reaches the storage as MSPI2 TX DMA records at 0x40-stride
 slots in `0x00FD0000`-`0x00FD07FF` (64-byte records with a `'2x` prefix and
 the line text truncated to the slot); 141 records decode. No
