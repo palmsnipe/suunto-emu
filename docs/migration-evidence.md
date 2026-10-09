@@ -10100,3 +10100,38 @@ Verification: the two census passes are byte-identical; the probe exits 0
 through the public API with the snapshot validated by
 `semu_machine_snapshot_load`; no repository file changed in this instance
 (documentation-only entry, validated by `make check-task-contracts`).
+
+## E-SAP-0054 — 2.33.16 cadence re-anchor and the display gap (ticket 710)
+
+2026-10-08/09, ticket 710 instance (observation-only census; no src change
+authorized). This entry re-anchors E-SAP-0053's cadence from an earlier
+snapshot and names the next gap. Private work directory `/tmp/sap233rtc/`;
+artifacts volatile, hashes below.
+
+Re-anchor: a 1 s prefix (`stop=budget pc=0x000dbc0a instructions=83663763
+virtual_time_ns=1000000000`, snapshot `p1s.sems`) sliced 20,000 x 100k —
+both passes byte-identical (`c1s.log` = `c1s-2.log` SHA-256
+`b13d6577dbf25ab06a06a62129dd3a38ca58637747b902a7366b067c9d3830cd`).
+Findings: the first wake is at 1.373 s (the E-SAP-0053 "parked 2-5 s
+window" is the pre-first-wake park of that run's anchor, not a fixed
+state); the cluster spacing distribution is identical to E-SAP-0053's
+(1,515 exact 10.0 s spacings, 304+304 of the 60-s sub-cycle) across 2B
+instructions and 18,282 s of guest time. The cadence is time-based and
+anchor-independent in the idle state.
+
+Named gap: **the 2.33.16 boot never publishes a frame.** Across both
+censuses (4B instructions, ~36,600 s of combined guest time) the frame
+counter stays zero, no NEMA/GPU/refusal record appears in any log, and a
+10 s lane run with the full E-SAP-0050 staging shows no display-controller
+traffic at the default logger — matching the tree's zero-frame result.
+The boot reaches its tickless idle without ever opening the display; the
+gate (display power sequence, a UI-task precondition, or a missing boot
+input) is unnamed. Per the 710 evidence rule no change is authorized; the
+next instance's census is the display path: whether the guest writes the
+display-controller/PLAY registers at all, and which precondition it waits
+on. Lane artifacts: the staged 10 s run `probe5.log`
+(`07bfcc2c…`) contains zero `0x400A0xx` mentions.
+
+Verification: the census pair is byte-identical; the probe exits 0 through
+the public API; no repository file changed (documentation-only entry,
+validated by `make check-task-contracts`).

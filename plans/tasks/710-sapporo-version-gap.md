@@ -202,3 +202,13 @@ instruction residual and no frame publishes. No engine-seam gap is named
 and no src change is authorized; whether the tick accelerates under UI
 activity is the next instance's observation. The ticket rolls back to
 `ready` for the next named later-Sapporo gap.
+
+Instance 18 (2026-10-09, `sap233-display`, E-SAP-0054): the E-SAP-0053
+cadence is re-anchored from a 1 s snapshot — first wake at 1.373 s, the
+spacing distribution identical (the parked window was anchor-relative, not
+a fixed state). Named gap: the 2.33.16 boot never publishes a frame —
+zero frames across 4B instructions / ~36,600 s of guest time in both
+censuses, zero GPU/refusal records, and zero display-controller traffic in
+the staged 10 s lane run. The display gate (power sequence, UI-task
+precondition, or missing input) is unnamed and is the next instance's
+census; no change authorized. The ticket rolls back to `ready`.

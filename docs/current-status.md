@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33.16 display gap named — 2026-10-09
+
+Ticket 710 instance-18 (E-SAP-0054): the E-SAP-0053 cadence re-anchors from
+a 1 s snapshot (first wake 1.373 s; the spacing distribution is identical,
+so the parked window was anchor-relative). Named gap: the 2.33.16 boot
+never publishes a frame — zero frames across 4B instructions and ~36,600 s
+of guest time in both censuses, zero GPU or refusal records, and zero
+display-controller traffic in the staged 10 s lane run. The display gate
+is unnamed and is the next instance's census; no change authorized.
+
 ## 2.33.16 idle cadence named — 2026-10-08
 
 Ticket 710 instance-17 (E-SAP-0053): a 20,000-slice census from a 5 s park
