@@ -268,3 +268,12 @@ frames). The seed is a lane-side diagnostic with synthetic content; no
 compat intervention is authorized. The next instance's census is the
 wuiDu stage and the display power-on path. The ticket rolls back to
 `ready`.
+
+Instance 24 (2026-10-09, `sap233-assert`, E-SAP-0060): the second display
+gate is an ASSERT - with the UI files seeded, the boot's UI resource
+provider fails `wuiDump Assert ngsProvider.cpp:228` at 0.563s and begins
+a `wui_dump.bin` dump that never completes; no display access or frame
+occurs in 60s. Naming the line-228 condition is a bounded offline-RE
+instance on the pristine 2.33 application (the assert call site for the
+ngsProvider.cpp string). No compat intervention authorized until that
+condition is named; the ticket rolls back to `ready`.

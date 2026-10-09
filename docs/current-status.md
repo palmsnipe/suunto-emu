@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33 second gate is an ngsProvider assert — 2026-10-09
+
+Ticket 710 instance-24 (E-SAP-0060): the second display gate is an
+assert — with the UI files seeded, the boot's UI resource provider fails
+`wuiDump Assert ngsProvider.cpp:228` and begins a `wui_dump.bin` dump
+that never completes; no display access or frame occurs in 60s. Naming
+the line-228 condition is a bounded offline-RE instance on the pristine
+2.33 application. No compat intervention authorized until that
+condition is named.
+
 ## 2.33 second display gate found — 2026-10-09
 
 Ticket 710 instance-23 (E-SAP-0059): seeding the missing UI files through

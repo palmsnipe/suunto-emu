@@ -10397,3 +10397,51 @@ Verification: both runs reach their RunFor; the seeded reads and the
 disappeared 403s are reproducible from the retained logs; no repository
 file changed (documentation-only entry, validated by
 `make check-task-contracts`).
+
+## E-SAP-0060 — the second display gate is an ngsProvider.cpp:228 assert (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0059's `wuiDu…` records. This entry
+completes their decode with the count-bounded parser and names the gate.
+Private work directory `/tmp/sap233rtc/`; artifacts volatile, hashes below.
+
+Full decode (`decode_full.py`
+`4baad1570b0098a50f931777cecce473e179df8e44c404a1b9a96463ca74d77e` against
+the retained `uiseed2.log`
+`ce2cdc63d0507c35b83ffaffbe35196d5cb84a374932d31aa7ad920df2c91862`; the
+earlier parse stopped at the first non-hex token):
+
+- 0.563 s, slot `0x00FD0440`: **`wuiDump Assert ngsProvider.cpp:228`**
+- 0.564 s, slot `0x00FD0480`: **`wuiDump fopen wui_dump.bin`**
+
+The strings live in the pristine application (`wuiDump %s` at VA
+`0x7882c`, `wuiDump fopen %s` at `0x78838`, and the assert formats
+`Assert %s:%zu` / `Assert ..%s:%zu` at `0x788d0`/`0x788e0` — composed as
+`wuiDump("Assert " + file + ":" + line)`). `ngsProvider.cpp` itself is
+compiled in; the assert's condition at line 228 is not recoverable from
+strings alone.
+
+Census: with the UI files seeded (E-SAP-0059), the boot's UI resource
+stage passes its file lookups but then **fails an internal assert in
+`ngsProvider.cpp:228`** — the UI framework's resource provider hits a
+consistency check that the staging's data does not satisfy — and its
+handler begins a `wui_dump.bin` dump. The dump file's creation never
+appears in the compat layer's opens (only `settings/sync.txt` and
+`settings/ui.txt` do), and no display-controller access, NEMA record, or
+frame occurs across the whole 60 s. The boot then logs nothing further.
+
+Attribution: the second display gate is an **assert in the UI resource
+provider**, not a file lookup. The provider's state machine expects
+provisioned-watch data (or a stage the OTA staging lacks) that the
+staging does not satisfy; the assert fires before any display
+initialization. Naming the line-228 condition requires offline RE of the
+pristine `component-04-type-4-v2.raw`
+(`17293321d88986c0a4f1ed9e5bb9834d55e4cb6331be906458d71294e234ea05`) —
+locating the assert call site for the `ngsProvider.cpp` string and
+reading its check — a bounded offline-RE instance under the
+owner-authorized class. No compat intervention is authorized until that
+condition is named.
+
+Verification: the decode above is reproducible from the retained log with
+the retained parser; no repository file changed (documentation-only
+entry, validated by `make check-task-contracts`).
