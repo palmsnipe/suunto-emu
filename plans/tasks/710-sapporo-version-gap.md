@@ -191,3 +191,14 @@ alarm cadence, zero resets/refusals/trace records; the instruction curve
 (1s 83.7M ... 30s 89.2M, ~185k/s periodic) records the service cadence and
 the parked 2-5 s window as the next instance's census. No other profile's
 stub or pin moved; check/check-lines/sanitize/check-era green.
+
+Instance 17 (2026-10-08, `sap233-cadence`, E-SAP-0053): the post-wake
+cadence is named by a 20,000-slice census (twice byte-identical, from a 5 s
+park snapshot). The 2.33.16 idle guest runs a 10-second tickless cycle —
+~900k instructions of timekeeping at 0x000a4bdc-0x000a4c06 per wake, 1,516
+exact 10.0 s spacings — plus a once-per-60 s two-part housekeeping burst
+(~2.6M instructions), while the one-second RTC alarm service is a ~1.2k-
+instruction residual and no frame publishes. No engine-seam gap is named
+and no src change is authorized; whether the tick accelerates under UI
+activity is the next instance's observation. The ticket rolls back to
+`ready` for the next named later-Sapporo gap.

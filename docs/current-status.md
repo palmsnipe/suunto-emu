@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33.16 idle cadence named — 2026-10-08
+
+Ticket 710 instance-17 (E-SAP-0053): a 20,000-slice census from a 5 s park
+snapshot (twice byte-identical) names the 2.33.16 idle cadence — a
+10-second tickless cycle of ~900k instructions of timekeeping at
+`0x000a4bdc`-`0x000a4c06` (1,516 exact 10.0 s spacings), a once-per-60 s
+two-part housekeeping burst (~2.6M instructions), and a ~1.2k-instruction
+one-second RTC service residual; no frame publishes. Observation-only; the
+next observation is the tick's behavior under UI activity.
+
 ## 2.33.16 RTC wake attached — 2026-10-08
 
 Ticket 710 instance-16 (E-SAP-0052): a lane census with the full E-SAP-0050

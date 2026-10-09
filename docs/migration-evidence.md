@@ -10044,3 +10044,59 @@ device module 3/3 under the filter); the acceptance pair above;
 `make sanitize`, and the 2.39 era gate recorded in the instance handoff.
 No fixture, golden, or other-profile pin moved: the stub stays byte-for-byte
 for 2.22/2.39/Ulsan, and the 2.35 paths are untouched.
+
+## E-SAP-0053 — 2.33.16 post-wake cadence census (ticket 710)
+
+2026-10-08, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0052's records: the 2.33.16 boot with
+the live RTC is alive on the one-second alarm cadence, and the instruction
+curve showed ~185k instructions/s of periodic work plus a nearly-parked
+2-5 s window. This entry names the cadence with a bounded slice census.
+Private work directory `/tmp/sap233rtc/`; all artifacts volatile, hashes
+below; the read-only firmware tree untouched.
+
+Method: a CLI prefix run to `--max-time 5000000000` (the parked window;
+`stop=budget pc=0x000dbc0a instructions=84610206`) saved `p5s.sems`
+(`cc9de40abc66a0839c3786770211a32bff148cf8edf863a1c2c897260ba61d1b`). A
+private observer (`slice_probe.c`
+`2a9c6b03ce05ecd65cf140c0b3066d07ae2d3608ebe66981375f3672b3b9464f`, public
+machine API only, 2.33.16 profile) resumed it and recorded end-of-slice
+`(instructions, virtual time, pc)` for 20,000 x 100,000-instruction slices
+(2B instructions; guest virtual time runs to 18,292 s because the guest
+parks most of it). Both passes are byte-identical: `census1.log` =
+`census2.log` SHA-256
+`e43d22cf7b1e53a6058ad1319c2970c77fd982d7afa19a4bc1162db152858181`.
+
+Census findings:
+
+1. The cadence is a **10-second tickless-idle cycle**: 2,145 busy clusters,
+   1,516 of them spaced exactly 10.0 s of guest time apart, each ~9 slices
+   (~900k instructions) of work, then a re-park (the scheduler advances
+   virtual time to the next event). The first wake is at 6.372 s; the
+   parked 2-5 s window of the instruction curve is the pre-first-wake park.
+2. The steady-state work is the guest's tickless timekeeping at
+   `0x000a4bdc`-`0x000a4c06` (pristine `component-04-type-4-v2.raw`
+   `17293321d88986c0a4f1ed9e5bb9834d55e4cb6331be906458d71294e234ea05`,
+   capstone 5.0.7): a tick counter subtract (`[r2,#0x6c] - [r2,#0x50]`),
+   a wake-counter increment at `+0x74`, and the state flags at `+0x54`/
+   `+0x28` — the E-SAP-0037-named structures, unchanged.
+3. A once-per-60-s two-part sub-cycle (spacing 3.8 s then 6.2 s; 304
+   occurrences each) adds a ~2.6M-instruction housekeeping burst.
+4. The one-second RTC alarm service is the tiny residual: the parked
+   2-5 s window consumed only 3,579 instructions across 3 s (~1.2k per
+   alarm service — the guest acknowledges and re-parks). Zero frames
+   publish anywhere in the window; zero resets, refusals or trace records.
+
+Attribution: the 10-s tick and the 60-s sub-cycle are the guest's own
+timer policy (the lane's RTC class never fires; the tree's 1-s alarm is
+the only scheduled wake and the guest's service of it is the 1.2k-instruction
+residual). No engine-seam gap is named; the scheduler, RTC and compat
+layers behave exactly as pinned. Under the ticket-710 evidence rule no
+device, scheduler or CPU change is authorized. Whether the 10-s tick
+accelerates under UI activity (the parked window is the idle state) is the
+next instance's observation; the frontier remains the recorded budget stop.
+
+Verification: the two census passes are byte-identical; the probe exits 0
+through the public API with the snapshot validated by
+`semu_machine_snapshot_load`; no repository file changed in this instance
+(documentation-only entry, validated by `make check-task-contracts`).
