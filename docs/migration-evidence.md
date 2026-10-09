@@ -10230,3 +10230,64 @@ class and fail closed today.
 Verification: the decode above is reproducible from the retained log with
 the retained script; no repository file changed (documentation-only entry,
 validated by `make check-task-contracts`).
+
+## E-SAP-0057 — 2.35 lane boot-log comparison: the mode divergence (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0056's display gate: the 2.33.16
+boot fails its UI resource lookups (`settings/ui.txt`,
+`settings/uiv2.txt`, result 3; ResourceProvider 403 twice; WbStoPreload
+204/500) and idles forever. This entry runs the 2.35 lane boot through the
+same decoder to isolate what differs. Private work directory
+`/tmp/sap233rtc/`; artifacts volatile, hashes below.
+
+Method: the 2.35 lane resc plus the same storage staging (component-05 XIP
+at `0x14000000`, production fixture at `0x14fff000`), the same RTC logger
+replacement (26 RTC accesses captured — the boot arm block), 5 s at
+`logLevel 0` (`sap235probe.resc`
+`6c024338c20ce84a6430a3970dab06e1c29b90b1e915a2d368ce30ed89db6a62`, log
+`sap235.log`
+`aafa150cf966988119266d5985128dd66cb80470f992549d3aed3c0ff9562b52`).
+
+Findings — the two versions' boots diverge before the resource stage:
+
+| Guest time | 2.35.34 boot log |
+| --- | --- |
+| 0.175 s | `ExtFID 0x20,0xbb,0x19` |
+| 0.175 s | **`Attempting to start APP without valid fsimage!`** — the E-SAP-0050-class gate failing on this staging |
+| 0.309 s | (after the registered reset) `ExtFID 0x20,0xbb,0x19`; **`OVERRIDING system mode with 2`** |
+| 0.313 s | `mfdata HLAT: frame empty`; **`Start 2.35.34 in mode 2 (asked 11h)`** |
+| 0.314 s | `HwVersion: UNKNOW`; `BID: 6786436/b0e8e377`; `#start bl:… s:01`; `Last liveness: 0 s ago`; `Initial battery voltage: 3840.000000 mV` |
+| 0.317-0.466 s | `VBUS state is OFF`; `FG init`; `DEVNAME 0x0000 != 0x4031 (expected), retries exhausted`; `Charging 3 Batt 1 -> 5`; `Initial battery: 3840 mV soc: 50 %` |
+| 1.759 s | **`SFL failureMask:e`** — then silence for the remaining 3.2 s |
+
+Comparison with E-SAP-0056's 2.33.16 record set:
+
+1. The 2.35 lane boot **fails its own fsimage check first** (the staging's
+   fsimage is not valid for 2.35's validator), resets, and **`OVERRIDING
+   system mode with 2`** — the E-SAP-0038 limited-boot-mode law observed
+   directly. It never attempts `settings/ui.txt` or `settings/uiv2.txt`:
+   mode 2 does not run the UI.
+2. The 2.33.16 lane boot passes its fsimage check (mode 5, `asked 80h`)
+   and reaches the resource stage, where the UI lookups fail.
+3. The 2.35 lane boot also stops logging after 1.759 s (`SFL
+   failureMask:e`) with no display access in this window — the lane boot
+   never reaches a display for either version; the 2.35 tree's setup UI
+   comes from the five-layer staging (production-data + the boot-mode
+   records), not from this bare lane state.
+4. The E-SAP-0056 gate is therefore **the 2.33 boot's mode-5 resource
+   stage**, not a universal missing-file condition: mode 2 skips the UI
+   entirely, and the 2.35 tree boot reaches the UI only through the
+   production-data layer's manufacturing records. The smallest 2.33
+   candidate remains a production-data-class layer for that profile — an
+   implementation decision needing its own evidence instance and ticket.
+
+Under the 710 evidence rule no change is authorized by this entry. The
+next instance's census: the 2.33 boot with the manufacturing-record class
+present (the tree's `sapporo-2.35-production-data` law applied to 2.33's
+fixture), compared against this mode-5 record set.
+
+Verification: the decode above is reproducible from the retained log with
+`decode_log.py` (`7879be44…`); the run reaches its RunFor with no reset
+beyond the recorded one and no halt; no repository file changed
+(documentation-only entry, validated by `make check-task-contracts`).

@@ -235,3 +235,15 @@ The next instance pins the smallest compat translation: whether a
 provisioned 2.33 WbStorage carries those files, or how the 2.35 boot's
 equivalent lookups succeed. No change authorized; the ticket rolls back
 to `ready`.
+
+Instance 21 (2026-10-09, `sap233-modecmp`, E-SAP-0057): the 2.35 lane boot
+log through the same decoder isolates the divergence - the 2.35 staging
+fails its own fsimage check, resets, OVERRIDES system mode with 2, and
+boots in mode 2 (the E-SAP-0038 limited boot mode) which never attempts
+UI files; the 2.33 boot passes fsimage (mode 5, asked 80h) and fails in
+the mode-5 resource stage. The 2.35 lane boot also stops logging after
+SFL failureMask:e at 1.759s with no display access - the lane never
+reaches a display for either version; the 2.35 tree's setup UI comes from
+the five-layer staging. The smallest 2.33 candidate is a production-data-
+class layer for that profile (its own evidence instance + ticket). No
+change authorized; the ticket rolls back to `ready`.
