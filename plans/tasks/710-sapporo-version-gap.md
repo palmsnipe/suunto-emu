@@ -247,3 +247,13 @@ reaches a display for either version; the 2.35 tree's setup UI comes from
 the five-layer staging. The smallest 2.33 candidate is a production-data-
 class layer for that profile (its own evidence instance + ticket). No
 change authorized; the ticket rolls back to `ready`.
+
+Instance 22 (2026-10-09, `sap233-uimanifest`, E-SAP-0058): the UI files are
+provisioned-watch artifacts. The 2.33 resource partition's JSON manifest
+DECLares settings/ui.txt (with personal/general/time) but carries no file
+content - no ui.txt payload exists in the image; the 2.35 partition has the
+same shape. The OTA staging cannot satisfy the UI resource stage; the 403
+is the provider refusing the missing files. Candidate fixes (extend the
+empty-cache compat to creation-mode opens, or supply via the production
+fixture) each need their own instance and ticket under the compatibility
+policy. No change authorized; the ticket rolls back to `ready`.

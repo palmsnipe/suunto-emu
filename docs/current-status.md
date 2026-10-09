@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33 UI files are provisioned-watch artifacts — 2026-10-09
+
+Ticket 710 instance-22 (E-SAP-0058): the 2.33 resource partition's JSON
+manifest declares `settings/ui.txt` (with personal/general/time) but
+carries no file content — no `ui.txt` payload exists in the image, and the
+2.35 partition has the same shape. The files are provisioned-watch
+artifacts; the OTA staging cannot satisfy the UI resource stage (hence the
+E-SAP-0056 403s). Candidate fixes each need their own instance and ticket
+under the compatibility policy; no change authorized.
+
 ## 2.33.16 mode divergence isolated — 2026-10-09
 
 Ticket 710 instance-21 (E-SAP-0057): the 2.35 lane boot log through the

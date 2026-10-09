@@ -10291,3 +10291,53 @@ Verification: the decode above is reproducible from the retained log with
 `decode_log.py` (`7879be44…`); the run reaches its RunFor with no reset
 beyond the recorded one and no halt; no repository file changed
 (documentation-only entry, validated by `make check-task-contracts`).
+
+## E-SAP-0058 — the UI files are provisioned-watch artifacts; the OTA staging lacks them (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0056/0057: the 2.33.16 mode-5 boot
+fails its UI resource stage on `settings/ui.txt`/`settings/uiv2.txt`
+(result 3, ResourceProvider 403 twice). This entry pins what those files
+are. Private work directory `/tmp/sap233rtc/`; artifacts volatile, hashes
+below.
+
+Census: the 2.33.16 resource partition (`component-05-type-1-v3.raw`,
+this instance reads the 2.33.16 file directly) contains a JSON directory
+manifest at `0x8229fd` declaring the settings directory:
+
+```
+"Recursive": false, "Backup": false,
+"Files": [ "ui.txt", "personal", "general", "time" ]
+```
+
+with the sibling entry at `0xb529fd` identical — the partition **declares**
+`ui.txt` (and `personal`, `general`, `time`) but **does not carry the file
+content**: no `ui.txt` payload exists anywhere in the image. The 2.35.34
+partition has the same shape at `0x8835fd`. The `settings/desctbls/*` and
+`settings/ble` entries are separate manifest directories; none carry
+`ui.txt`.
+
+Attribution: `settings/ui.txt` and `settings/uiv2.txt` are
+**provisioned-watch artifacts** — files the firmware creates in its
+WbStorage cache and a public-OTA resource package never contains. The
+2.33.16 OTA staging therefore cannot satisfy the UI resource stage; the
+ResourceProvider's 403 is the provider refusing the missing files, and the
+boot continues into tickless idle without a UI (E-SAP-0053/0054/0055
+consistent). The 2.35 lane boot sidesteps this entirely — its fsimage
+failure overrides the boot to mode 2, which never starts the UI
+(E-SAP-0057). The 2.35 tree's setup UI works through the five-layer
+staging whose production-data records select the full boot; whether its
+`ui.txt` lookup succeeds or the UI tolerates absence is its own census.
+
+Under the 710 evidence rule no change is authorized by this entry. The
+candidate fixes, each needing its own instance and ticket: (a) extend the
+empty-cache compat to retain creation-mode opens of the declared-but-
+absent files (the layer already retains bytes the firmware writes), or
+(b) supply the files through the production fixture. Both are
+compatibility interventions under `docs/compatibility-policy.md` — named,
+hash-pinned, opt-in, hit-bounded — and neither is authorized by this
+census.
+
+Verification: the manifest decodes are reproducible from the retained
+partition files by offset; no repository file changed (documentation-only
+entry, validated by `make check-task-contracts`).
