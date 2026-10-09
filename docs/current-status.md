@@ -45,6 +45,17 @@ mechanical with the rebuilt fixture and green era gate) and **800**'s
 implementation already covered the era surface. The release-gate line
 (715/718) remains blocked on 710 instances.
 
+## 2.33 assert call site bounded — 2026-10-09
+
+Ticket 710 instance-26 (E-SAP-0062): the assert record is byte-exact
+(`wuiDump Assert ngsProvider.cpp:228`), the app's only provider string is
+`SettingsProvider.cpp` whose `[5:]` is that text, and a literal pool at
+`0x8c760` holds the pointer amid the storage-stage strings — but an
+app-wide LDR-literal scan finds zero direct consumers (the pool is reached
+via a base register). The call site needs a constant-propagation pass over
+the storage-stage functions; the assert is in SettingsProvider.cpp:228.
+No change authorized.
+
 ## 2.33 assert unit pinned to SettingsProvider.cpp — 2026-10-09
 
 Ticket 710 instance-25 (E-SAP-0061): the app has no standalone

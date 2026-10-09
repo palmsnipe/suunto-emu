@@ -169,3 +169,4 @@ id	phase	title	status	dependencies	ticket
 804	7	Sapporo Compressed Asset Clipping	done	504,513,793	plans/tasks/804-sapporo-compressed-asset-clipping.md
 805	7	Sapporo Widgets GPU Scale Integration	done	504,513,793,794	plans/tasks/805-sapporo-widgets-gpu-scale.md
 806	7	Sapporo Control Panel 20x32 Icon GPU Admission	ready	504,513,793,794	plans/tasks/806-sapporo-control-icon-20x32.md
+807	7	Sapporo TSC6A Auxiliary-Region Law	ready	504,513,793	plans/tasks/807-sapporo-tsc6a-aux-law.md

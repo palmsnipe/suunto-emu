@@ -10526,3 +10526,48 @@ Verification: `make check-era` 43/43 twice back-to-back (this entry) plus
 the earlier pair; `make check-task-contracts` 170 valid; `make check`
 green; `git diff --check` clean. The era scripts and runtime source are
 untouched by this audit — documentation and status only.
+
+## E-SAP-0062 — the assert call-site census is bounded but not closed (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only offline-RE; no src change
+authorized). Frontier inputs are E-SAP-0061's string census. This entry
+bounds the remaining work. Private work directory `/tmp/sap233rtc/`;
+artifacts volatile, hashes below.
+
+Findings (pristine `component-04-type-4-v2.raw`
+`17293321d88986c0a4f1ed9e5bb9834d55e4cb6331be906458d71294e234ea05`):
+
+1. The record text is confirmed byte-exact:
+   `wuiDump Assert ngsProvider.cpp:228` (payload
+   `00 27 32 78 01 36 00 00 77 75 69 44 75 6D 70 20 41 73 73 65 72 74 20
+   6E 67 73 50 72 6F 76 69 64 65 72 2E 63 70 70 3A 32 32 38 00`).
+2. The application contains **no standalone `ngsProvider.cpp`** and **no
+   word-aligned literal-pool entry** for its VA — but
+   **`"SettingsProvider.cpp"` (VA `0x8da68`) `[5:]` is exactly
+   `ngsProvider.cpp`**, and the pool entry at `0x8c760` holds that
+   pointer, in a literal pool whose neighbors are the boot's storage-stage
+   strings (`settings/uiv2.txt` at `0x8c75c`, `routes` at `0x8c768`,
+   `settings` at `0x8c76c`).
+3. An app-wide LDR-literal scan (T1 and T2 forms, whole code region)
+   finds **zero instructions** referencing `0x8c75c`, `0x8c760`,
+   `0x8c768`, or `0x8c76c` — the pool is consumed via a base register
+   computed elsewhere (PC-relative ADD/ADR pairs or a table walk), not by
+   direct LDR-literal. The data-flow pass therefore needs a full
+   constant-propagation disassembly of the boot's storage-stage functions,
+   not a pattern scan.
+4. The most defensible reading stands: the assert fired in
+   **`SettingsProvider.cpp:228`** and the record renders the `__FILE__`
+   pointer five bytes in (a firmware quirk in the record writer, or a
+   deliberate suffix pass); a genuinely separate `ngsProvider.cpp`
+   translation unit cannot exist because its `__FILE__` string would be
+   in the binary.
+
+Remaining work, precisely bounded: a constant-propagation pass over the
+storage-stage functions to find the consumer of the `0x8c760` pool entry,
+then reading the assert's guard condition at that call site — one bounded
+offline-RE instance. No compat intervention is authorized until the
+line-228 condition is named.
+
+Verification: the byte-exact record and the string census are reproducible
+from the retained log and component file; no repository file changed
+(documentation-only entry, validated by `make check-task-contracts`).

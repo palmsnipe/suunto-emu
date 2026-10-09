@@ -287,3 +287,14 @@ compose the record through wuiDump %s; no word-aligned pool entry equals
 the string VA, so the exact call site needs a data-flow pass. Naming the
 line-228 condition remains the open offline-RE continuation. No change
 authorized; the ticket rolls back to `ready`.
+
+Instance 26 (2026-10-09, `sap233-callsite`, E-SAP-0062): the assert
+call-site census is bounded but not closed. The record text is byte-exact
+(wuiDump Assert ngsProvider.cpp:228); the app's only provider string is
+SettingsProvider.cpp whose [5:] is exactly that text; a literal pool at
+0x8c760 holds the pointer amid the storage-stage strings; and an app-wide
+LDR-literal scan finds zero direct consumers - the pool is reached via a
+base register, so the call site needs a constant-propagation pass over
+the storage-stage functions (one bounded offline-RE instance). The
+assert is in SettingsProvider.cpp:228. No change authorized; the ticket
+rolls back to `ready`.
