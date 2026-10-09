@@ -1,6 +1,6 @@
 # 802 — Compressed Resolve Refusal Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,761,793
 
@@ -93,3 +93,5 @@ admission, old-pin replacement, or claim of complete GPU fidelity.
 
 Report regression and firmware evidence, exact commands/results, unchanged
 pins, unsupported cases and any integration blocker. Integrator owns promotion.
+
+Integrator review (2026-10-09): acceptance verified — DRAW_CMD=10 checks the full sampled footprint before destination writes, stale-pixel publication is refused atomically (test_nema_tsc6a_lifecycle 8/8), and the native pins hold. Status done.

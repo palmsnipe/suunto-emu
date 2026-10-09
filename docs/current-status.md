@@ -6,6 +6,30 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Integrator review pass — 2026-10-09
+
+Eight tickets promoted to done after acceptance review against their
+recorded evidence: **792** (2.35 snapshot codecs), **799** (renderer frame
+lifecycle), **801** (restored navigation), **802** (compressed resolve
+refusal), **803** (exercise entry), **804** (asset clipping), **805**
+(Widgets GPU scale), and **800** (the 2.39 era re-derivation, unblocked by
+the rebuilt fixture). Each has a dated note in its ticket file citing the
+verifying evidence; the index and ticket statuses are synced and
+`check-task-contracts` validates 170 tickets.
+
+**Ticket 806 stays `ready`**: its admission slice is complete and verified,
+but the ticket's own acceptance requires zero Control Panel refusals and
+the witnessed asset's auxiliary-bit blocks keep two refusals by design
+(E-SAP-0059/0060). Rendering completion needs the 21-bit auxiliary-region
+law — a separate ticket the integrator should scope before any compat
+work. The 2.33 display chain (E-SAP-0052..0061) likewise stops here until
+its compat intervention is scoped and ticketed.
+
+Unblocked by this pass: **783** (the 2.39 post-erase era audit — now
+mechanical with the rebuilt fixture and green era gate) and **800**'s
+implementation already covered the era surface. The release-gate line
+(715/718) remains blocked on 710 instances.
+
 ## 2.33 assert unit pinned to SettingsProvider.cpp — 2026-10-09
 
 Ticket 710 instance-25 (E-SAP-0061): the app has no standalone

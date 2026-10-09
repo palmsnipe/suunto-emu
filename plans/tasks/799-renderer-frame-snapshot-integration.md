@@ -1,6 +1,6 @@
 # 799 — Renderer Frame Lifecycle Snapshot Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 615,761,791
 
@@ -112,3 +112,5 @@ or unrelated golden changes. Do not infer omitted legacy lifecycle state.
 Report files, exact tests, old/new hashes and their attribution, repeated
 censuses with log/probe hashes, legacy incompatibility, and ticket 800's gap.
 Leave status ready for integrator review.
+
+Integrator review (2026-10-09): acceptance verified — codec 2 preserves strokes/lifecycle/cache history, recreate-snapshot refusal, the 2.22 drift attributed and resolved (E-EMU-RENDERER-SNAPSHOT-002), and the 2.39 era re-derivation landed separately (E-SAP239-SNAPSHOT-REPIN-003). Status done.

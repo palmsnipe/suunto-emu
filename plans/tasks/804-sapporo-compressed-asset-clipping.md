@@ -1,6 +1,6 @@
 # 804 — Sapporo Compressed Asset Clipping
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,793
 
@@ -91,3 +91,5 @@ cache changes, silent golden replacement, firmware bytes or new dependencies.
 Report changed files, evidence IDs, exact commands/results and preserved pins;
 list the remaining auxiliary-plane, writeback and Widgets matrix gaps. Keep
 the six authorized README screenshot files unchanged.
+
+Integrator review (2026-10-09): acceptance verified — clipped-asset preflight decodes only visible blocks, unknown visible blocks refuse with zero writes (test_nema_tsc6a_clip 3/3), and the native gates hold. Status done.

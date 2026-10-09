@@ -154,18 +154,18 @@ id	phase	title	status	dependencies	ticket
 789	7	Sapporo 2.22 and 2.35 Post-Branch Gate Re-derivation	done	220,225,670,705	plans/tasks/789-sapporo-post-branch-gate-rederivation.md
 790	7	One Future-Product Release Gate	blocked	780	plans/tasks/790-product-release-gate.md
 791	7	Renderer Snapshot and Interactive Restore Integration	done	513,615,761	plans/tasks/791-renderer-snapshot-integration.md
-792	7	Sapporo 2.35 Live Device Snapshot Codec Integration	ready	615,791	plans/tasks/792-sapporo-235-device-snapshot.md
+792	7	Sapporo 2.35 Live Device Snapshot Codec Integration	done	615,791	plans/tasks/792-sapporo-235-device-snapshot.md
 793	7	Sapporo 2.35 TSC6A Compressed Texture Runtime Integration	done	504,513,761,788	plans/tasks/793-sapporo-235-compressed-texture-runtime.md
 794	7	Sapporo 2.35 Main-Screen Settling And Button Navigation	done	504,513,761,789,793	plans/tasks/794-sapporo-235-main-screen-navigation.md
 795	7	Sapporo 2.33.16 First-Fault Attribution And Boot Refusal Closure	done	504,513,761,762,764	plans/tasks/795-sapporo-233-first-fault-attribution.md
 796	7	Sapporo 2.39 Native Storage JSON Write Law	done	729,768	plans/tasks/796-sapporo-239-storage-json-law.md
 797	7	Sapporo 2.39 OHR2 BSL Refusal-Semantics Attribution	done	729	plans/tasks/797-sapporo-239-ohr2-bsl-attribution.md
 798	7	Sapporo 2.39 Refused-Path Observability For Wall Keys	done	729	plans/tasks/798-sapporo-239-refused-path-observability.md
-799	7	Renderer Frame Lifecycle Snapshot Integration	ready	615,761,791	plans/tasks/799-renderer-frame-snapshot-integration.md
-800	7	Renderer Snapshot 2.39 Era Re-derivation	blocked	799	plans/tasks/800-renderer-snapshot-239-era-rederivation.md
-801	7	Sapporo 2.35 Restored Navigation Evidence and Regression	ready	705,791,793,794	plans/tasks/801-sapporo-235-restored-navigation.md
-802	7	Compressed Resolve Refusal Integration	ready	504,513,761,793	plans/tasks/802-compressed-resolve-refusal.md
-803	7	Sapporo 2.35 Exercise Entry Integration	ready	705,779,794	plans/tasks/803-sapporo-235-exercise-entry-integration.md
-804	7	Sapporo Compressed Asset Clipping	ready	504,513,793	plans/tasks/804-sapporo-compressed-asset-clipping.md
-805	7	Sapporo Widgets GPU Scale Integration	ready	504,513,793,794	plans/tasks/805-sapporo-widgets-gpu-scale.md
+799	7	Renderer Frame Lifecycle Snapshot Integration	done	615,761,791	plans/tasks/799-renderer-frame-snapshot-integration.md
+800	7	Renderer Snapshot 2.39 Era Re-derivation	done	799	plans/tasks/800-renderer-snapshot-239-era-rederivation.md
+801	7	Sapporo 2.35 Restored Navigation Evidence and Regression	done	705,791,793,794	plans/tasks/801-sapporo-235-restored-navigation.md
+802	7	Compressed Resolve Refusal Integration	done	504,513,761,793	plans/tasks/802-compressed-resolve-refusal.md
+803	7	Sapporo 2.35 Exercise Entry Integration	done	705,779,794	plans/tasks/803-sapporo-235-exercise-entry-integration.md
+804	7	Sapporo Compressed Asset Clipping	done	504,513,793	plans/tasks/804-sapporo-compressed-asset-clipping.md
+805	7	Sapporo Widgets GPU Scale Integration	done	504,513,793,794	plans/tasks/805-sapporo-widgets-gpu-scale.md
 806	7	Sapporo Control Panel 20x32 Icon GPU Admission	ready	504,513,793,794	plans/tasks/806-sapporo-control-icon-20x32.md

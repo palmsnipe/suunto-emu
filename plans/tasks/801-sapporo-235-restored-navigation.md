@@ -1,6 +1,6 @@
 # 801 — Sapporo 2.35 Restored Navigation Evidence and Regression
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 705,791,793,794
 
@@ -90,3 +90,5 @@ law, screenshot Git exception, or 2.39 golden update.
 Report exact input windows, terminal tuples, frame and snapshot hashes, raw-log
 and probe hashes, files and commands, plus remaining OHR/GPU evidence gaps.
 Leave ready for integrator review.
+
+Integrator review (2026-10-09): acceptance verified — the six-case restored-navigation runner passes 6/6 on the current tree with all paired pins, and the cold-window attribution stands (E-EMU-SAP235-NAVIGATION-002). Status done.

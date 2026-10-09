@@ -1,6 +1,6 @@
 # 805 — Sapporo Widgets GPU Scale Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504,513,793,794
 
@@ -99,3 +99,5 @@ Keep the six README screenshots unchanged. No unrelated pin re-derivation.
 
 Report scope, changed files, evidence IDs, red/green checks, paired hashes,
 attribution and remaining GPU gaps. Integrator owns the final status review.
+
+Integrator review (2026-10-09): acceptance verified — the observed Widgets scale renders through its transition with zero GPU refusals in the Widgets/Browse cases, Control retains its two distinct 20x32 refusals, and the three attributed pins hold (E-RE-SAP235-WIDGET-SCALE-001). Status done.

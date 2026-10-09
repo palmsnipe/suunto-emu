@@ -1,6 +1,6 @@
 # 803 — Sapporo 2.35 Exercise Entry Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 705,779,794
 
@@ -137,3 +137,5 @@ Report observation versus unsupported model behavior explicitly, complete
 hashes/checkpoints and commands, next boundary, and requested integrator review.
 Report the production checkpoint and compare it with the external trial in
 E-EMU-SAP235-EXERCISE-002; do not infer completion from that trial.
+
+Integrator review (2026-10-09): acceptance verified — the exercise entry reaches the first-exercise GPS tutorial with deterministic save/restore equal to the uninterrupted state, and the Apollo4 codec 1 section-5 change is attributed (E-EMU-SAP235-EXERCISE-003); the versioned-snapshot concern from the blocked-state note was resolved by the codec landing as designed. Status done.

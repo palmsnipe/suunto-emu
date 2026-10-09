@@ -1,6 +1,6 @@
 # 800 — Renderer Snapshot 2.39 Era Re-derivation
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 799
 
@@ -66,3 +66,10 @@ extensions, runtime fixes, or changes to unobserved snapshot hashes.
 
 Report per-script results, changed pins, complete derived census and evidence
 hashes. Do not change this ticket's status during implementation.
+
+Integrator review (2026-10-09): acceptance verified — the fixture was rebuilt
+byte-exactly (37134845…), all 28 red scripts re-derived with two byte-identical
+runs per moved pin, 33 pins across 28 runners plus three probe literals moved
+with full attribution, and make check-era passes 43/43 twice back-to-back
+(E-SAP239-SNAPSHOT-REPIN-003). Status done; the roadmap credit belongs to the
+implementation commit db87bdc.

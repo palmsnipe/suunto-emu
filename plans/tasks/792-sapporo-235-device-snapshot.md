@@ -1,6 +1,6 @@
 # 792 — Sapporo 2.35 Live RTC and IOM4 Snapshot Codec Integration
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 615,791
 
@@ -95,3 +95,5 @@ read-as-zero field defaults, no snapshot version bump, no era repins, no
 
 Report changed files, exact commands/results, save/restore hashes, refusal
 cases, drift statements for other profiles, and any integrator change needed.
+
+Integrator review (2026-10-09): acceptance verified — 2.35 save/load round-trip, byte-identical saves, the paired native continuation, atomic refusal cases (test_sapporo_235_snapshot 3/3), and no 2.22/2.39 snapshot byte drift (era gate 43/43 after the codec updates, E-SAP239-SNAPSHOT-REPIN-003). Status done; the roadmap credit belongs to the implementation commits.
