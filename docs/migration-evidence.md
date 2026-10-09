@@ -10135,3 +10135,46 @@ on. Lane artifacts: the staged 10 s run `probe5.log`
 Verification: the census pair is byte-identical; the probe exits 0 through
 the public API; no repository file changed (documentation-only entry,
 validated by `make check-task-contracts`).
+
+## E-SAP-0055 — 2.33.16 boot-log census and the resource-stage gate (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only census; no src change
+authorized). Frontier inputs are E-SAP-0054's display gap: the 2.33.16 boot
+never publishes a frame and never submits a draw. This entry names where
+the boot stops, from the guest's own log written through the MSPI2 storage
+path. Private work directory `/tmp/sap233rtc/`; artifacts volatile, hashes
+below; the read-only firmware tree untouched.
+
+Method: the full E-SAP-0050 staging at `logLevel 0`, `emulation RunFor
+"60.000"` (`plain60.resc` `87259163036fbb1fbc308102a12cc13d7a7057a391f78f
+d67ac472b25f04e076`, log `plain60.log`
+`eb842f68f960d499c7b62bcf5724a80fa313e51789be3576af97e78331920eb6`). The
+guest's boot log reaches the storage as MSPI2 TX DMA records at 0x40-stride
+slots in `0x00FD0000`-`0x00FD07FF` (64-byte records with a `'2x` prefix and
+the line text truncated to the slot); 141 records decode. No
+`0x400A0xx` display-controller access appears anywhere in the run.
+
+Census: the boot log ends at guest 0.577 s. The stages, in order:
+`ExtFID 0x20` (0.172 s), `Start 2`, `HwVersi…`, `BID`, `#start b…`
+(0.177-0.178 s), `iSV`/`FSS crc`/`FSS cu` (0.183-0.186 s — the fsimage
+validation of E-SAP-0050 passing), then a gap to 0.563 s and the resource
+stage (`Res…` markers 0.567-0.568 s), trailing `f` records to 0.577 s.
+After 0.577 s the guest logs nothing for the remaining ~59.4 s: no UI
+stage, no display init, no boot-completion marker. The lane also floods
+21,141 `Set pending IRQ DebugMonitor` lines (a Renode-environment artifact;
+the tree shows zero corresponding records).
+
+Attribution: the 2.33.16 boot completes the fsimage and resource stages,
+then stops progressing — the display gate sits in the boot flow after the
+resource stage, before any display-controller access. This is consistent
+with the tree (zero frames, zero GPU/refusal records, idle tickless
+cadence per E-SAP-0053) and with E-SAP-0054's zero-traffic finding. Under
+the 710 evidence rule no change is authorized. The next instance's census
+is the boot flow after the resource stage: which task or flag the guest
+waits on (the 2.35 analogue reaches its setup UI after the same stages,
+so the divergence is version-specific, not a missing lane model).
+
+Verification: the decoded record stream above is reproducible from the
+retained log; the run reaches its RunFor with no halt and no reset; no
+repository file changed (documentation-only entry, validated by
+`make check-task-contracts`).

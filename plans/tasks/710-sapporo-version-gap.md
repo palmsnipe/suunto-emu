@@ -212,3 +212,14 @@ censuses, zero GPU/refusal records, and zero display-controller traffic in
 the staged 10 s lane run. The display gate (power sequence, UI-task
 precondition, or missing input) is unnamed and is the next instance's
 census; no change authorized. The ticket rolls back to `ready`.
+
+Instance 19 (2026-10-09, `sap233-bootlog`, E-SAP-0055): the guest's own boot
+log (written via MSPI2 TX DMA to 0x00FD0000-0x00FD07FF, 141 records decoded)
+shows the 2.33.16 boot completing the fsimage stage (FSS crc/cu) and the
+resource stage (Res markers at 0.567-0.568 s), then logging nothing for the
+remaining ~59.4 s of a 60 s lane run - no UI stage, no display init, and no
+0x400A0xx display access anywhere. The display gate sits in the boot flow
+after the resource stage; the 2.35 analogue reaches its setup UI through
+the same stages, so the divergence is version-specific. The next instance's
+census is the boot flow after resources. No change authorized; the ticket
+rolls back to `ready`.

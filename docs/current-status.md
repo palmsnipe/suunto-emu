@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33.16 boot-log census — 2026-10-09
+
+Ticket 710 instance-19 (E-SAP-0055): the guest's own boot log (MSPI2 TX DMA
+records at 0x00FD0000, 141 decoded) shows the 2.33.16 boot completing the
+fsimage and resource stages by guest 0.577 s, then logging nothing for the
+remaining ~59.4 s of a 60 s lane run — no UI stage, no display init, and no
+0x400A0xx display access anywhere. The display gate sits in the boot flow
+after the resource stage; the next instance's census is the boot flow after
+resources.
+
 ## 2.33.16 display gap named — 2026-10-09
 
 Ticket 710 instance-18 (E-SAP-0054): the E-SAP-0053 cadence re-anchors from
