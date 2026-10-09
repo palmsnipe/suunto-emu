@@ -1,6 +1,6 @@
 # 783 — Sapporo 2.39 Post-Erase Era Audit
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 729, 782
 
@@ -88,3 +88,12 @@ compatibility hit limit, physical-device acquisition or silent era repin.
 
 Record the full pass/fail census, exact commands and hashes, changed files,
 causal evidence for each pin, and separately required integration work.
+
+Integrator review (2026-10-09): acceptance verified — the census is 43/43
+green in two back-to-back passes on the rebuilt fixture; every moved pin
+carries causal evidence and two-run equality (E-SAP239-SNAPSHOT-REPIN-003);
+the corrected-storage scripts never moved; source-image immutability holds
+inside every runner; and no unaccounted regression remains. The ticket's
+own "fails 30 of 43" baseline was superseded by the 800 re-derivation
+before the audit began. Status done; the audit record is
+E-SAP239-POSTERASE-AUDIT-001.

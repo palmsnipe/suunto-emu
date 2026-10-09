@@ -145,7 +145,7 @@ id	phase	title	status	dependencies	ticket
 780	7	One Future-Product Observed Gap	blocked	775	plans/tasks/780-product-observed-gap.md
 781	7	Sapporo 2.35 OHR Startup Integration	done	705	plans/tasks/781-sapporo-235-ohr-startup-integration.md
 782	7	Sapporo 2.35 Block Erase Integration	done	402,705	plans/tasks/782-sapporo-235-block-erase-integration.md
-783	7	Sapporo 2.39 Post-Erase Era Audit	blocked	729,782	plans/tasks/783-sapporo-239-post-erase-era-audit.md
+783	7	Sapporo 2.39 Post-Erase Era Audit	done	729,782	plans/tasks/783-sapporo-239-post-erase-era-audit.md
 784	7	Sapporo 2.35 GPS Startup Integration	done	416,705	plans/tasks/784-sapporo-235-gps-startup-integration.md
 785	7	Sapporo 2.35 GPS Reopen Integration	done	416,705	plans/tasks/785-sapporo-235-gps-reopen-integration.md
 786	7	Sapporo 2.35 GPS Awake Integration	done	416,705	plans/tasks/786-sapporo-235-gps-awake-integration.md

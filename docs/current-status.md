@@ -6,6 +6,21 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 783 post-erase audit closed — 2026-10-09
+
+The 783 audit ran as its own two-pass census on the rebuilt fixture:
+**43/43 era scripts green both passes**, on top of the earlier pair. The
+classification resolves cleanly — every moved pin has causal evidence and
+two-run equality (E-SAP239-SNAPSHOT-REPIN-003), the corrected-storage
+scripts (nor_program, block-erase) never moved a checkpoint through any
+codec change, source-image immutability holds inside every runner, and no
+new native-storage behavior or logical-file refusal appeared. **No
+unaccounted era regressions remain.** The ticket's own "fails 30 of 43"
+baseline was superseded by the 800 re-derivation before the audit began.
+Status done; the audit record is E-SAP239-POSTERASE-AUDIT-001. Remaining
+named gaps are unchanged: the 21-bit aux law (806's blocker), compressed
+writeback, and the GPS/OHR boundaries.
+
 ## Integrator review pass — 2026-10-09
 
 Eight tickets promoted to done after acceptance review against their

@@ -10487,3 +10487,42 @@ until the condition is named.
 Verification: the string census is reproducible from the retained
 component file by offset; no repository file changed (documentation-only
 entry, validated by `make check-task-contracts`).
+
+## E-SAP239-POSTERASE-AUDIT-001 — the 783 post-erase audit closes with zero unaccounted regressions (ticket 783)
+
+2026-10-09, ticket 783 audit. Baseline correction first: the ticket's
+"fails 30 of 43" claim predates the 800 re-derivation — with the rebuilt
+fixture (`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`,
+re-verified) and the current tree, the census is **43/43 green in two
+back-to-back full passes** (the audit's own two-run equality requirement),
+on top of the earlier pair recorded in E-SAP239-SNAPSHOT-REPIN-003.
+
+The audit's classification question — corrected-storage checkpoints vs
+remaining defects — resolves cleanly:
+
+1. **Every pin that moved has causal evidence and two-run equality.** The
+   33 moved snapshot-image pins across 28 runners (plus three probe
+   literals) each carry an old→new pair, two byte-identical runs, and the
+   attribution that only serialized-image bytes changed while every log
+   hash, stop line, layer census, compatibility count and grep anchor
+   held (E-SAP239-SNAPSHOT-REPIN-003). No gate was restored by weakening.
+2. **The corrected-storage scripts never moved.** `nor_program` and the
+   block-erase surface passed before, during and after every codec change
+   — the shared NOR erase correction of 782 did not shift a single
+   storage-path checkpoint. Their flash-hash gates validate the source
+   image inside every run (source-image immutability holds).
+3. **No new native-storage behavior or logical-file refusal appeared** in
+   any pass; the compatibility budgets are unchanged (`maximum_hits`
+   untouched), and wrong-hash/wrong-snapshot/unsupported operations still
+   refuse (each runner's refusal cases are part of its pin set).
+
+Verdict: **no unaccounted era regressions remain.** The remaining named
+gaps are unchanged and explicit — the 21-bit auxiliary-region law (ticket
+806's blocker, two Control Panel refusals), compressed writeback, and the
+per-instance GPS/OHR boundaries. Nothing is re-pinned beyond the
+attributed moves; nothing is blocked that is not explicitly recorded.
+
+Verification: `make check-era` 43/43 twice back-to-back (this entry) plus
+the earlier pair; `make check-task-contracts` 170 valid; `make check`
+green; `git diff --check` clean. The era scripts and runtime source are
+untouched by this audit — documentation and status only.
