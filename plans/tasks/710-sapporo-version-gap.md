@@ -277,3 +277,13 @@ occurs in 60s. Naming the line-228 condition is a bounded offline-RE
 instance on the pristine 2.33 application (the assert call site for the
 ngsProvider.cpp string). No compat intervention authorized until that
 condition is named; the ticket rolls back to `ready`.
+
+Instance 25 (2026-10-09, `sap233-assertfile`, E-SAP-0061): the assert
+translation unit is SettingsProvider.cpp - the app has no standalone
+ngsProvider.cpp string; the recorded text is exactly
+"SettingsProvider.cpp"[5:] (the firmware renders the __FILE__ pointer
+five bytes in). The assert formats Assert %s:%zu / Assert ..%s:%zu
+compose the record through wuiDump %s; no word-aligned pool entry equals
+the string VA, so the exact call site needs a data-flow pass. Naming the
+line-228 condition remains the open offline-RE continuation. No change
+authorized; the ticket rolls back to `ready`.

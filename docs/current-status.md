@@ -6,6 +6,15 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## 2.33 assert unit pinned to SettingsProvider.cpp — 2026-10-09
+
+Ticket 710 instance-25 (E-SAP-0061): the app has no standalone
+`ngsProvider.cpp` string — the recorded assert text is exactly
+`"SettingsProvider.cpp"[5:]`, so the translation unit is
+**SettingsProvider.cpp**, line 228 (the firmware renders the `__FILE__`
+pointer five bytes in). The exact call site needs a data-flow pass; no
+change authorized.
+
 ## 2.33 second gate is an ngsProvider assert — 2026-10-09
 
 Ticket 710 instance-24 (E-SAP-0060): the second display gate is an

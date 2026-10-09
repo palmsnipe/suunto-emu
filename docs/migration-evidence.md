@@ -10445,3 +10445,45 @@ condition is named.
 Verification: the decode above is reproducible from the retained log with
 the retained parser; no repository file changed (documentation-only
 entry, validated by `make check-task-contracts`).
+
+## E-SAP-0061 — the assert file is SettingsProvider.cpp (the record renders its suffix) (ticket 710)
+
+2026-10-09, ticket 710 instance (observation-only offline-RE; no src change
+authorized). Frontier inputs are E-SAP-0060's
+`wuiDump Assert ngsProvider.cpp:228`. This entry pins the translation unit.
+Private work directory `/tmp/sap233rtc/`; artifacts volatile, hashes below.
+
+String census (pristine `component-04-type-4-v2.raw`
+`17293321d88986c0a4f1ed9e5bb9834d55e4cb6331be906458d71294e234ea05`,
+capstone 5.0.7):
+
+- The application contains **no standalone `ngsProvider.cpp` string** — the
+  only provider-source string is **`SettingsProvider.cpp`** at VA
+  `0x8da68` (pool entry at `0x8c760`), plus `ngsProvider.hpp` at
+  `0xb2b35`.
+- The recorded assert text `ngsProvider.cpp` is exactly
+  **`"SettingsProvider.cpp"[5:]`** — the firmware renders the `__FILE__`
+  pointer five bytes into the string (a quirk or an intentional strip of
+  `Setti`), or the assert site shares the suffix of the longer string.
+  Either way the translation unit is **SettingsProvider.cpp**, line 228.
+- The assert formats `Assert %s:%zu` (VA `0x788d0`) and
+  `Assert ..%s:%zu` (`0x788e0`) compose the recorded
+  `wuiDump("Assert " + file + ":" + line)` through `wuiDump %s`
+  (`0x7882c`); no word-aligned literal pool entry equals the string VA
+  (the reference flows through a register or a base+delta), so locating
+  the exact call site needs a full data-flow pass, not a pool scan.
+- The resources and resident components contain neither string.
+
+Attribution: the second display gate (E-SAP-0060) is an assert in
+**SettingsProvider.cpp:228** — the settings-provider translation unit of
+the UI framework, consistent with the gate being a settings-data
+consistency check (the seeded `settings/ui.txt`/`uiv2.txt` satisfied the
+file lookups; the provider's own state check still failed). Naming the
+line-228 condition requires locating the assert call site (a data-flow
+pass over the `0x8c760` pool consumer, or the assert-helper's callers) —
+a bounded offline-RE continuation. No compat intervention is authorized
+until the condition is named.
+
+Verification: the string census is reproducible from the retained
+component file by offset; no repository file changed (documentation-only
+entry, validated by `make check-task-contracts`).
