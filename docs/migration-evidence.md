@@ -12358,3 +12358,35 @@ therefore the staging element the tree lacks. The verified facts of
 this entry chain stand: the check is on the cmgroups document, the
 group id is the uninitialized static, the gate returns the ui.txt
 handle, and the static has no in-app writer in the boot window.
+
+
+### Correction: the static is the pushed argument, not a verified callback; the parse returned normally
+
+Re-decoding the frames invalidated one link in the previous entry's
+chain. At the parse's return (census21) the guest had executed
+normally to lr with r0=0x1e - a fault mid-walk would not produce that
+return shape. And re-checking the frame arithmetic: the walker's
+`blx r2` reads its callback from a slot whose owner is ambiguous in a
+static decode (the pushed incoming r2 and higher frames land in an
+overlapping window), so the claim "the callback is the uninitialized
+static" is withdrawn. What stands verified: the parse's third argument
+is the static's value (0xffffffff) at entry, the parse returns
+normally, and the document the wfn lookup then walks lacks the record.
+
+The remaining candidates for why the document lacks the wfn record:
+(a) the parse's output document is keyed by something the seed does
+not provide (the formatted group id ffffffff becomes part of the
+record namespace, so the wfn lookup searches a different record set);
+(b) the parse succeeded but the caller's document handle (fp, the
+settings/ui.txt pointer passed to the gate) selects a different
+record collection than the one the parse filled; or (c) the parse
+itself filters records by the group id, dropping all of them while the
+id is the unset sentinel. Each is decodable by instrumenting the parse's
+output document at its return (census21's harness plus a dump of
+sp+4's target), which is the next instance's bounded probe: dump the
+document structure the parse produces for the seeded ui.txt and compare
+it against the record the wfn lookup expects.
+
+No compat intervention is authorized; the verified facts of the entry
+chain (the cmgroups document, the uninitialized static, the gate
+returning the ui.txt handle, no in-app writer) stand unchanged.
