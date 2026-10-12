@@ -12208,3 +12208,43 @@ the assert on the lane; with this decode the mechanism is likely
 indirect — the seed changed a gate or flow condition, not the cmgroup
 document. No compat intervention is authorized until the group id's
 producer and the lane's skip/pass mechanism are named.
+
+### The gate decoded and the skip branch named
+
+The gate `0x90b80('settings/ui.txt', 1)` decodes as: pre-calls
+(`0xbb088`, `0x90d6e`), then **the native file open `0xbb094`** with
+the path and mode, then a scan of a 7-entry static handle table
+(storing the returned handle in the first free slot). On the lane this
+open was overlay-admitted (the retained `S233_LOGICAL_FILE_OPEN
+path=settings/ui.txt mode=1 handle=0x1015F100` line is this call), so
+the gate returned nonzero and the cmgroup check ran there too.
+
+No lane log shows any `cmgroups` path activity: the parse of
+`settings/cmgroups/ffffffff.txt` — the uninitialized group id — fails
+on the lane exactly as in-tree, yet the lane did not assert. The
+remaining divergence is the branch at the function's head:
+`0x0008bd7a: ldrb r0,[r7]` (`r7 = argument + 0xeed`) `cmp r0,#5;
+bne.w 0x8beee` — a mode/state byte on the function's argument object
+that **skips the entire settings block (including the assert) when it
+is not 5**. In-tree the byte is 5 and the block runs; the lane's staged
+boot plausibly took the skip. The next census: identify the object
+passed to `0x8bd4c` (who calls it, with what), what `+0xeed` counts,
+and why the lane's value differed — that decides whether the evidenced
+fix is a staging element (the object's state) or the group id's
+producer. No compat intervention is authorized until then.
+
+### Addendum: the head branch is a boot-mode dispatcher
+
+The skip target `0x0008beee` is not a simple exit: it re-checks the
+same byte (`cmp r0,#0xf`) and runs a different settings block, with a
+final else at `0x0008bf62`. The head of `0x8bd4c` is therefore a
+**boot-mode dispatcher** — the byte at `argument + 0xeed` selects
+which settings flow runs (5 → the block containing the cmgroup parse
+and the 228 assert; 0xf → another block; otherwise a third). This
+aligns with the E-SAP-0057 family: the boot mode decides which
+settings stage attempts its files. The next census thus reduces to the
+mode byte's source and value on each side: in-tree it is 5 (the block
+runs and asserts); the lane's staged boot plausibly ran a different
+mode for this object. Whether that byte is the system boot mode
+(E-SAP-0057's fsimage/mode law) or a settings-stage state is the
+deciding fact, and it is readable from the object the caller passes.
