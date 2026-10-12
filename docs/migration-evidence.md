@@ -12270,3 +12270,23 @@ built by the constructor at 0xfda8c, which initializes the sub-object
 at +0x10 via 0x8bc40), and the mode byte at sub-object +0xeed is 5
 in-tree - the same mode E-SAP-0057 recorded for the lane's staged
 fsimage pass.
+
+### The group-id static's reference census (this instance's final decode)
+
+A whole-application scan for code references to the group-id static
+(`0x1bc7ec`) finds exactly **one** pc-relative load in code: at
+`0x000cf93c`, inside the settings-writing service region (the same
+address family as the `stimer.c:102` caller and the
+`settings/devicesettings` stage). The other eleven literal occurrences
+are pool copies and data. So the static is written by the settings
+service - the same service whose earlier stages the tree's boot has
+not reached by 276 ms - and the next instance's census is bounded:
+decode the writer at `0x000cf93c`'s function (which boot record it
+consumes), and determine whether the tree's boot reaches it before or
+after the cmgroup check. If the writer runs only after the resource
+stage, the group id cannot be valid at the 276 ms check on any
+staging, and the lane's non-assert must come from the check being
+skipped another way (the `0x90b80` gate or the mode byte) - resolvable
+by decoding the caller chain of `0x8bd4c` against the lane's retained
+flow. No compat intervention is authorized by this entry; all probes
+remain volatile under `/tmp/semu-233-integ/`.
