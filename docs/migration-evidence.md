@@ -12390,3 +12390,32 @@ it against the record the wfn lookup expects.
 No compat intervention is authorized; the verified facts of the entry
 chain (the cmgroups document, the uninitialized static, the gate
 returning the ui.txt handle, no in-app writer) stand unchanged.
+
+
+### The out-param decoded: 0x908f8 is the path formatter, and the document question resets
+
+The bounded probe ran (census24, volatile): the parse's out param at
+0x10028ca4 contains, after the return, the ASCII string
+settings/cmgroups/ffffffff.txt and the return value is 0x1e - its
+length. **0x908f8 is the path formatter** (a sprintf-class helper),
+not a document parser: it correctly produced the cmgroups path from
+the uninitialized group id. The "output document" the previous entry
+sought does not exist at that address.
+
+This resets the document question. The flow at 0x0008bdc8 is: format
+the cmgroups path, then the gate opens settings/ui.txt (its handle
+stored at [sp]), then the wfn lookup (0xac4f8) and the fuwe lookup
+(0xac0c2) run against **the ui.txt handle** - E-SAP-0063's original
+attribution stands, and my cmgroups correction was wrong: the
+cmgroups path is formatted for a different purpose (likely a later
+stage), not for this check.
+
+So the assert means: the wfn lookup against the overlay-served
+ui.txt handle fails, despite the handle's reads returning the correct
+seed bytes (the logged 8+8+EOF). The remaining candidates: the lookup
+reads the file through a path my overlay does not serve (a size or
+metadata operation, or a re-open by name through the native path), or
+it validates a record format detail my seed does not satisfy. The next
+instance's probe is single-stepping the 0xac4f8 lookup with an
+access trace of its bus reads - which will name the exact operation
+that diverges. No compat intervention is authorized by this entry.
