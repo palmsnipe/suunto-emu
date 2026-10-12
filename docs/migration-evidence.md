@@ -12248,3 +12248,25 @@ runs and asserts); the lane's staged boot plausibly ran a different
 mode for this object. Whether that byte is the system boot mode
 (E-SAP-0057's fsimage/mode law) or a settings-stage state is the
 deciding fact, and it is readable from the object the caller passes.
+
+### Open question for the next instance (the contradiction, stated)
+
+The gate's return is the only skip: the parse result (r0=0x1e) is
+discarded (the caller overwrites r0 with fp and r1 with 1 before the
+gate call), so whenever the gate 0x90b80('settings/ui.txt', 1)
+returns nonzero the cmgroup check runs on the parse of
+settings/cmgroups/ffffffff.txt. The lane overlay admitted that ui.txt
+open (its handle 0x1015F100 is the gate's), so the check ran on the
+lane too - and the lane's cmgroup parse must have SUCCEEDED (no
+assert, no wuiDump), while no cmgroups path appears in any retained
+lane log. In-tree the same parse fails. The next census therefore
+targets the parse's input pipeline for a file neither staging
+supplies: what 0x908f8 does when its internal open fails (whether it
+returns a still-checkable document, synthesizes records from the
+production data, or reads through a fallback the lane's storage model
+answers differently), and what the group id 0xffffffff selects. The
+caller context: 0x8bd4c is invoked once from 0x000fdab0 (the object
+built by the constructor at 0xfda8c, which initializes the sub-object
+at +0x10 via 0x8bc40), and the mode byte at sub-object +0xeed is 5
+in-tree - the same mode E-SAP-0057 recorded for the lane's staged
+fsimage pass.
