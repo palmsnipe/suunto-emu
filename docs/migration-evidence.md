@@ -12480,3 +12480,29 @@ Two consequences bound the next census:
 No compat intervention is authorized by this entry; the trace
 harnesses and this decode remain volatile under
 /tmp/semu-233-integ/.
+
+
+### The record-object dump: the wfn lookup leaves its out field unchanged
+
+The final probe of this round (census29, volatile) captured the caller
+object (r5 = 0x10038410 at the parse entry, confirming the object
+identity) and dumped the region at r5+0x918 - the wfn lookup's out
+field per the caller decode - both before the lookup and after its
+return: the 64 bytes are **byte-identical**, so the successful wfn
+lookup did not write the field the decode expected. Either the out
+field is written on a later path, or the r2 argument of 0xac4f8 means
+something other than the record out-param.
+
+This is the natural stopping point for static-plus-stepwise census:
+the remaining questions (the exact record-object layout, the fuwe
+sub-lookup's input source, and why the lane's staged flow passed) all
+require either the parse's internal state dumped per-line (a heavier
+instrumented run) or the reader functions' full decode. The named
+targets for the next instance: (a) dump r5+0x918 at the fuwe
+sub-lookup's entry (after the wfn lookup committed its state) and
+compare; (b) trace the fuwe sub-lookup's internal reads (what buffer
+it walks); (c) decode 0xac0c2's head fully (its 0xac110 pre-call and
+the handle it walks). The failing operation itself is named and
+verified: the fuwe sub-lookup returns zero, sending the flow to the
+line-228 assert, under a seed whose sibling-line layout the grammar
+apparently does not accept.
