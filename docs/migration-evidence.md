@@ -12446,3 +12446,37 @@ which names the exact on-disk grammar that places fuwe inside
 wfn, and therefore the seed content the lane's staged flow satisfied.
 No compat intervention is authorized by this entry; the trace
 harnesses remain volatile under /tmp/semu-233-integ/.
+
+
+### The cursor evidence: the record reader consumes the whole file before the sub-lookup
+
+The overlay's operation log pins the read sequence: read result=8
+cursor=8, read result=8 cursor=16, then two EOF reads. The wfn
+record reader consumed both seed lines during its scan (the cursor
+ends at 16 = the file end) before the fuwe sub-lookup runs - so a
+sub-lookup that reads through the handle finds only EOF. Whether the
+fuwe lookup re-reads the handle or walks an in-memory record object,
+its input is exhausted or scoped to the wfn line alone under the
+current sibling-line seed.
+
+Two consequences bound the next census:
+
+1. The seed layout is the prime suspect: the grammar evidently wants
+   fuwe inside the wfn record's scope (the sub-lookup's first
+   argument is the wfn record handle at r5+0x918), so a seed that
+   places the fuwe data on the wfn line itself - or in whatever
+   continued-line form the readers accept - is the candidate fix. The
+   exact grammar comes from decoding the record reader 0xac4f8
+   (which builds the record object) and the sub-field reader
+   0xac0c2 (which walks it): what the record object contains after
+   the wfn lookup, dumped at r5+0x918, names the accepted form
+   directly.
+2. The lane contradiction (the same sibling seed passed there) needs
+   the lane's overlay cursor semantics re-examined - the retained
+   resc's open/read logs may show a different cursor advance, or the
+   lane's staging satisfied the check through one of its other
+   elements. Both are bounded offline tasks.
+
+No compat intervention is authorized by this entry; the trace
+harnesses and this decode remain volatile under
+/tmp/semu-233-integ/.
