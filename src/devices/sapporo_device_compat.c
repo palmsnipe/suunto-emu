@@ -201,6 +201,25 @@ semu_status semu_sapporo_devices_bind_no_device_fixtures(
     return SEMU_OK;
 }
 
+semu_status semu_sapporo_devices_bind_233_gps(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error)
+{
+    if (devices == NULL || !devices->gps_233_profile || state == NULL ||
+        logger == NULL || !state->enabled || state->hits != 0u ||
+        state->descriptor != &semu_sapporo_233_gps_layer ||
+        devices->gps_233_context.state != NULL) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "invalid 2.33 GPS fixture binding");
+        return SEMU_ERR_CONFLICT;
+    }
+    devices->gps_233_context.state = state;
+    devices->gps_233_context.logger = logger;
+    semu_sapporo_cxd5610_set_exchange(devices->gps,
+        semu_sapporo_233_gps_exchange, &devices->gps_233_context);
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 semu_status semu_sapporo_devices_bind_235_ohr(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error)
@@ -232,6 +251,15 @@ semu_status semu_sapporo_devices_apply_compat_hook(
     }
     /* Device refusals are observed at the next machine boundary. This is
      * status propagation only: no guest instruction or CPU register changes. */
+    if (state->descriptor == &semu_sapporo_233_gps_layer) {
+        if (devices->gps_233_context.state != state ||
+            devices->gps_233_context.logger != logger) {
+            semu_error_set(error, SEMU_ERR_STATE, "2.33 GPS fixture is not bound");
+            return SEMU_ERR_STATE;
+        }
+        return semu_sapporo_233_gps_startup(&devices->gps_233_context,
+            devices->gps, bus, cpu_state, error);
+    }
     if (state->descriptor == &semu_sapporo_235_ohr_layer) {
         if (devices->ohr_235_context.state != state ||
             devices->ohr_235_context.logger != logger) {
@@ -336,7 +364,10 @@ int semu_sapporo_devices_235_bindings_valid(
     if (devices == NULL || layers == NULL) return 0;
     for (i = 0u; i < count; ++i) {
         const semu_layer_descriptor *d = layers[i].descriptor;
-        if (d == &semu_sapporo_235_ohr_layer) {
+        if (d == &semu_sapporo_233_gps_layer) {
+            if (devices->gps_233_context.state != &layers[i] ||
+                devices->gps_233_context.logger != logger) return 0;
+        } else if (d == &semu_sapporo_235_ohr_layer) {
             if (devices->ohr_235_context.state != &layers[i] ||
                 devices->ohr_235_context.logger != logger) return 0;
         } else if (d == &semu_sapporo_235_gps_layer) {
@@ -370,6 +401,10 @@ int semu_sapporo_devices_compat_idle(const semu_sapporo_devices *devices,
         if (devices->ohr_235_context.refusal.code != SEMU_OK) return 0;
         semu_error_clear(error);
     }
+    if (devices->gps_233_context.state != NULL &&
+        (devices->gps_233_context.refusal.code != SEMU_OK ||
+         pc == SEMU_SAPPORO_233_GPS_PC))
+        return 0;
     if ((devices->gps_235_context.state != NULL &&
          (devices->gps_235_context.refusal.code != SEMU_OK ||
           pc == SEMU_SAPPORO_235_GPS_PC)) ||

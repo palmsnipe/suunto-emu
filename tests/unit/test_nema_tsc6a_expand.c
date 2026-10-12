@@ -146,24 +146,29 @@ static void test_alpha_and_refusals(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 1u, tsc6a_expand_block(blk, out));
     SEMU_TEST_EQ_U64(context, 255u, out[0][3]);
 
-    /* Auxiliary refusals: lowest aux bit (bit 75 = byte 9 bit 3),
-     * bit 80 = byte 10 low bit, bit 95 = byte 11 high bit.  Refusal is
-     * fail-closed: return 0 with the output left exactly as found. */
+    /* Ticket 807: an aux-bearing block is now an exact-color block —
+     * the 21 bits are a 7-bit-per-channel RGB triple replicated to all
+     * sixteen texels, with the pinned 11-bit alpha law.  Lowest
+     * (bit 75 -> v0=1 -> 2), mid (bit 80 -> v0=32 -> 64) and highest
+     * (bit 95 -> v2=64 -> 128) aux bits; output is written, not
+     * refused. */
     {
         static const unsigned aux_bytes[3] = { 9u, 10u, 11u };
         static const uint8_t aux_masks[3] = { 0x08u, 0x01u, 0x80u };
+        static const uint8_t k_exact[3][3] = {
+            { 2u, 0u, 0u }, { 64u, 0u, 0u }, { 0u, 0u, 128u }
+        };
         unsigned k;
         for (k = 0u; k < 3u; ++k) {
             unsigned p;
             memcpy(blk, k_block_grad, sizeof(blk));
             blk[aux_bytes[k]] |= aux_masks[k];
-            memset(out, 0xA5u, sizeof(out));
-            SEMU_TEST_EQ_U64(context, 0u, tsc6a_expand_block(blk, out));
+            SEMU_TEST_EQ_U64(context, 1u, tsc6a_expand_block(blk, out));
             for (p = 0u; p < 16u; ++p) {
-                SEMU_TEST_EQ_U64(context, 0xA5u, out[p][0]);
-                SEMU_TEST_EQ_U64(context, 0xA5u, out[p][1]);
-                SEMU_TEST_EQ_U64(context, 0xA5u, out[p][2]);
-                SEMU_TEST_EQ_U64(context, 0xA5u, out[p][3]);
+                SEMU_TEST_EQ_U64(context, k_exact[k][0], out[p][0]);
+                SEMU_TEST_EQ_U64(context, k_exact[k][1], out[p][1]);
+                SEMU_TEST_EQ_U64(context, k_exact[k][2], out[p][2]);
+                SEMU_TEST_EQ_U64(context, 255u, out[p][3]);
             }
         }
     }
@@ -361,28 +366,40 @@ static void test_resolve_aux_refusal_atomic(semu_test_context *context)
     semu_bus *bus;
     nema_tsc6a *surface = NULL;
     nema_draw_snapshot s;
+    unsigned x, y;
 
     semu_error_clear(&error);
     bus = make_sram_bus(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
     SEMU_TEST_EQ_U64(context, SEMU_OK, nema_tsc6a_create(&surface, &error));
     fill_white_asset();
-    /* One bit in the auxiliary region of block (bx=3, by=2): byte 10
-     * low bit (bit 80) of the block at span offset 2*180 + 3*12. */
+    /* Ticket 807: one bit in the auxiliary region of block (bx=3, by=2)
+     * (bit 80, byte 10 low bit) makes that block an exact-color block:
+     * v0 = 32 -> red 64, at the white asset's alpha 0x7ff -> 255.  The
+     * resolve renders it into texels x 12..15, y 8..11 of the window
+     * (target 183..186 x 98..101); every other pixel keeps the white
+     * blend.  The old aux refusal surface is gone by design; the
+     * transactional rollback tests still cover atomicity. */
     asset[2u * 180u + 3u * 12u + 10u] |= 0x01u;
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_load(bus, SRC_BASE, asset, sizeof(asset),
                                    &error));
     s = compressed_tuple();
     memset(panel, 0x5Au, sizeof(panel));
-    memcpy(panel_before, panel, sizeof(panel));
-    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u,
                                              &error));
-    SEMU_TEST_ASSERT(context, strstr(error.text, "auxiliary") != NULL);
-    /* Zero writes anywhere in the full 115200-byte destination. */
-    SEMU_TEST_ASSERT(context, memcmp(panel_before, panel,
-                                      sizeof(panel)) == 0);
+    for (y = 90u; y < 150u; ++y) {
+        for (x = 171u; x < 231u; ++x) {
+            int exact = (x >= 183u && x < 187u && y >= 98u && y < 102u);
+            /* exact red channel 64 -> RGB565 r5 = (64*31+127)/255 = 8
+             * -> 0x4000; white blend -> 0xFFFF. */
+            SEMU_TEST_EQ_U64(context, exact ? 0x4000u : 0xFFFFu,
+                             panel_pixel(x, y));
+        }
+    }
+    SEMU_TEST_EQ_U64(context, 0x5a5au, panel_pixel(170u, 89u));
+    SEMU_TEST_EQ_U64(context, 0x5a5au, panel_pixel(239u, 161u));
     nema_tsc6a_destroy(surface);
     semu_bus_destroy(bus);
 }

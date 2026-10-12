@@ -150,10 +150,14 @@ int main(int argc, char **argv)
      * transcript hash are unchanged; only the image bytes moved
      * bb17b7a8… -> 24d5a4dd… (twice byte-identical). The cold prefix
      * image is untouched by the fix (no fmt-17 shadow divergence in the
-     * cold window) and keeps its pin. */
+     * cold window) and keeps its pin.
+     * RE-PINNED (807/E-RE-SAP235-TSC6A-AUX-001, 2026-10-10): the
+     * exact-color block law decodes the resting cache's aux blocks and
+     * moves the serialized image again; END golden, stop and transcripts
+     * unchanged; 24d5a4dd… -> 1f733942… (twice byte-identical). */
     if (!file_hash(argv[3], start_count == COLD_CAP ?
         "c114c00f65c0eb061ae1af548699854e22199fff5a7b36b7a89c190daade16ff" :
-        "ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82", &e)) goto done;
+        "1f733942b77b4d4bd3fccf4d28d9cab73b08f7aaca0f4c0eaa61a05b4b2209b2", &e)) goto done;
     if (start_count == COLD_CAP) {
         /* RE-SCOPED (777/E-SAP239-DEEPCLEAN-001): the old virtual-time
          * equality on each edge {12010884553, 12096961148, 14075897022,

@@ -65,6 +65,12 @@ semu_status semu_sapporo_devices_bind_235_ohr(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error);
 
+/* Explicit E-SAP-0071 2.33 initial GPS status/version fixture, cleared on
+ * reset. Requires the sapporo-2.33.16 profile selection. */
+semu_status semu_sapporo_devices_bind_233_gps(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error);
+
 /* Explicit 2.39 binding; lifecycle is held in instance-owned layer counters. */
 semu_status semu_sapporo_devices_bind_gps_startup_fixture(
     semu_sapporo_devices *devices, semu_layer_state *state,

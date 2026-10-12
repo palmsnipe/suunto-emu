@@ -1,6 +1,7 @@
 #include "machine_internal.h"
 
 #include "../compat/sapporo_239.h"
+#include "../compat/sapporo_233_gps.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
 #include "../compat/sapporo_235_gps_reopen.h"
@@ -95,7 +96,8 @@ static int apply_compat_hook(semu_machine *machine,
 
     for (i = 0u; i < machine->layer_count; ++i) {
         semu_layer_state *layer = &machine->layers[i];
-        if (layer->descriptor == &semu_sapporo_235_ohr_layer ||
+        if (layer->descriptor == &semu_sapporo_233_gps_layer ||
+            layer->descriptor == &semu_sapporo_235_ohr_layer ||
             layer->descriptor == &semu_sapporo_235_gps_layer ||
             layer->descriptor == &semu_sapporo_235_gps_reopen_layer ||
             layer->descriptor == &semu_sapporo_235_gps_awake_layer ||
@@ -155,7 +157,8 @@ static void summarize_compat_gates(semu_machine *machine, compat_gates *gates)
     memset(gates, 0, sizeof(*gates));
     for (i = 0u; i < machine->layer_count; ++i) {
         const semu_layer_descriptor *d = machine->layers[i].descriptor;
-        if (d == &semu_sapporo_235_ohr_layer ||
+        if (d == &semu_sapporo_233_gps_layer ||
+            d == &semu_sapporo_235_ohr_layer ||
             d == &semu_sapporo_235_gps_layer ||
             d == &semu_sapporo_235_gps_reopen_layer ||
             d == &semu_sapporo_235_gps_awake_layer) {

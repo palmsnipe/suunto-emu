@@ -6,6 +6,232 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+
+## Ticket 710 — the 2.33 GPS startup fixture is machine-wired — 2026-10-12
+
+The instance-35 integration request is implemented: `sapporo-2.33-gps-startup`
+is registered in the layer table, bound through the device factory, dispatched
+from the run-loop compat gates, and cleared on reset. The 2.33 profile now
+declares the layer, so it is selectable via `--layer` and refused for wrong
+profiles or component hashes before any instruction. A new two-case
+integration test covers the machine-level bind/dispatch/refuse/reset lifecycle
+(`make test TEST_FILTER=sapporo_233_gps`, 6/6). `make check` passes 1,053;
+`make sanitize` 1,048; the snapshot round trip with the layer enabled is
+byte-pair-identical, and the layer is a provable no-op until the arm PC
+(4 s stop tuple byte-identical to the no-layer control, 1 s tuple reproducing
+the E-SAP-0052 curve). All nine 2.35 firmware gates and both restore gates
+pass unchanged. The authentic 2.33 boot still needs the E-SAP-0069
+session-file/boot prerequisite before the guest can reach the GPS arm, so no
+authentic hit is claimed; ticket 710 stays ready.
+
+## Ticket 710 instance 35 — initial GPS exchange derived; component tested — 2026-10-11
+
+E-SAP-0071 establishes the 2.33.16 initial UART/status/version contract.
+At PC `0x11d990`, callback `0x11d593` is installed with state/pending 4/2
+and retry zero. Two delayed synthetic `$PSS0000` lines through UART1's FIFO/
+IRQ path cause the native `@VER` exchange, states 2/14/15/18 and UART close.
+At 11.775 s the lane has no assertion/refusal, PC `0xdbc0a`, 130,924,409
+instructions, six TX/twenty RX bytes. Baseline, positive, wrong-prefix causal,
+bounded retry refusal and premature-state controls each reproduce twice
+byte-identically. Later reopen/pending 7 is observed but not supplied.
+
+The new `sapporo-2.33-gps-startup` component pins three hashes and the exact
+initial allocation/state/register shape, allows only two response hits and
+logs both. Its four unit cases include 37 atomic-refusal configurations,
+delayed UART RX, reset cancellation and owner isolation. `make check` passes
+1,051 tests; `make sanitize` passes 1,046. Lines/contracts (171), three-part
+private validation and the existing paired 2.35 GPS firmware gate pass with
+unchanged transcript/checkpoint pins. All pre-existing work is preserved.
+
+Component registration/device binding and snapshot/refusal routing still need
+an integrator-scoped attachment; no CLI enablement or authentic 2.33 interpreter
+advancement is claimed. The separate session-file/boot prerequisite remains.
+GPS success still yields zero GPU submissions/frame generation (UI census
+point runs 22 times), so the no-draw UI boundary remains open. Ticket 710
+stays ready until integration and authentic acceptance pass.
+
+## Ticket 710 instance 34 — UI path executes; third GPS timeout asserts — 2026-10-11
+
+E-SAP-0070 extends the exact instance-33 experimental lane state to 11.775
+virtual seconds. The control and observer each reproduce twice identically:
+`CXD5610GF-driver.cpp:889`, caller `0x11dbcc`, at 11.7698585 s. Native state
+5 increments retry byte `0x1005b8f8` from 0 to 3 across three timeouts, then
+asserts. Final PC/LR/SP are `0x7890c`/`0x11dbd1`/`0x10033050`, with
+143,209,642 instructions and zero CFSR/HFSR. GPS UART TX/RX and awake pulses
+are absent in this staging; no receiver response is fabricated.
+
+A native UI-engine census point runs 23 times, starting at 2.4951565 s,
+but there are still zero GPU submissions and frame generation remains zero.
+The earlier `0xdbc0a` checkpoint follows WFI, so it alone does not establish
+a scheduler defect. The cause of the missing draw commands remains open;
+GPS success has not been shown to clear it. The next bounded GPS census is
+the 2.33.16 callback/arming boundary and status-line recognizer, followed by
+successful and refusal controls. The session-file/boot integration request
+from instance 33 is unchanged and remains separate from GPS admission.
+
+Only evidence/status/ticket handoff changed; production and all pre-existing
+work are preserved. `make check` (1,047), `make sanitize` (1,042), lines,
+contracts (171) and private three-component validation pass. Ticket 710 stays
+ready; this evidence instance does not meet implementation acceptance.
+
+## Ticket 710 instance 33 — post-NEMA activity-store failure attributed — 2026-10-11
+
+E-SAP-0069 identifies the next lane gate as `ActivityTimelineStore.cpp:368`:
+the entry count remains `0xffffffff` although capacity is 1,152. The guest
+creates a valid 46,112-byte `actitmln/247.bin` header; the lane's logical-file
+overlay omits native file-size function `0xbb204`, so the length check receives
+zero, loading fails and the v7 status translation exposes the uninitialized
+store. Correcting only that size in a volatile diagnostic moves the same
+assert to the valid 152-byte `actitmln/ongoing.bin` store (capacity 3).
+
+The two-file diagnostic eliminates both asserts and the `actitmln` status
+translation. At 8 virtual seconds it reaches PC `0xdbc0a`, 118,163,913
+instructions, with zero assertions, DebugMonitor-pending records or GPU command
+submissions. Every control/observer/diagnostic pair is byte-identical after
+host timestamp normalization; full hashes and derived fields are in the ledger.
+Production remains unchanged. Integration must scope the 2.33.16 logical-file
+size ABI and boot layer together before adopting the v7 translations; UI
+scheduling after this corrected startup remains the next census. `make check`
+(1,047 including quick SDL), `make sanitize` (1,042), lines and contracts pass.
+Ticket 710 remains ready; this evidence instance does not claim implementation
+acceptance. All earlier uncommitted GPU/evidence changes are preserved.
+
+## Ticket 710 instance 32 — the first-boot wave is cleared; the 2.33 boot reaches NEMA init — 2026-10-10
+
+E-SAP-0068: the `0x119734` checker is shared — one SRAM client
+(`0x10028f04`) whose `+12` name pointer rotates per module (78-entry
+probe), so per-provider constants can't work; translations must be
+name-based on `[client+12]` with the status already 500 at entry.
+Iterative name-based layers cleared the whole first-boot wave
+(sleepln, TrainingTss, PoiP cmd 1, actitmln — 6 translations in the
+8 s window) and the boot now reaches **`NEMA_INITIALIZED`** (GPU
+command ring up, 1024-entry ring) with the guest in normal post-boot
+operation. Twice byte-identical. The v7 layer stays volatile; the
+integrator-scoped 2.33.16 first-boot compat ticket now has its full
+evidence (per-translation hit counts, the shared-client mechanism,
+and the next census: post-NEMA panel bring-up).
+
+## Ticket 710 instance 31 — the 30 s corrected-layer boot terminates at the sleepln gate — 2026-10-10
+
+E-SAP-0067: extending the corrected-layer boot to 30 s adds nothing
+after `Module sleepln cmd 0 failed. Result 500` (guest 2.159 s) —
+no UI stage, no Settings activity, no further records for ~27.8 s.
+The terminal state is the first-boot provider wave's own completion
+condition: the sleepln translation is gated on observing a native
+17,888-byte `sleepln/sleep.bin` write, and the guest never creates
+that file in this staging (`f_delete: 3` = absent). The next
+instance's census is the 2.33.16 sleepln provider contract (the same
+decode shape as WbStoPreload). No compat intervention authorized;
+both runs two-run equal.
+
+## Ticket 710 instance 30 — empty-cache hook root-caused; corrected layer advances the 2.33 boot — 2026-10-10
+
+E-SAP-0066: the stock empty-cache layer pins the 2.33.12 app (hook
+`0x0011978C`, provider `0x001B9024`); the 2.33.16 app's registry is
+`(WbStoPreload, 0x1b8f44 name ptr, 0x1b1b08 id)` at `0x113AA0` and
+its failure path is the function at `0x119734` (client in `r0`,
+status in `r3`, provider field = the name pointer `0x1b8f44`).
+A corrected lane layer (v4: hook `0x119734`, provider `0x1b8f44`,
+set `r3`=200) **fires once and the 2.33.16 boot advances past its
+former terminal idle for the first time** — through the full
+first-boot provider wave (pressure/ALS/OHR/battery/Logbook/Sleep) to
+a new gate: `Module sleepln cmd 0 failed. Result 500`, whose
+translation needs the 2.33.16 sleepln constant and the observed
+native-size law. Twice byte-identical. The corrected layer stays a
+volatile lane artifact — the 2.33.16 empty-cache translation is the
+integrator's ticket to scope (with the `general` user-profile key
+table recorded; the guest writes `general` itself, no seed needed).
+
+## Ticket 710 instance 29 — the fuwe gate clears on the lane; frontier returns to the settings family — 2026-10-10
+
+E-SAP-0065: seeding schema-valid `wfn:00`/`fuwe:T` alone **clears the
+line-228 assert** (no `wuiDump` at all, twice byte-identical) and the
+guest deletes the seed and proceeds; `uiv2.txt` is opened read-mode,
+fails, and the validator is **skipped with a flag** — no 242 assert
+(boot-time creation never happens; that's the Settings app's job).
+The boot then lands exactly on the E-SAP-0056 record set: the
+ResourceProvider 403s for `general`/`personal`/`CMGRPLST.TXT`/
+`ble/device` and the WbStoPreload 500. The frontier is the
+provisioned-settings family (E-SAP-0058 class) plus the empty-cache
+hook's non-firing in this staging — both bounded as the next
+instance's census. No compat intervention authorized.
+
+## Ticket 710 instance 28 — the settings schema is decoded; the gate advances to uiv2 — 2026-10-10
+
+E-SAP-0064 decodes the record format (`"<key>:<value>\r\n"` lines —
+the sscanf table in the application) and the full `uiv2.txt` schema
+chain (`0xac860`: wfn, fuwe, ir, it, id, idi, irt, ird, irdi, sltm,
+dndm, dnds, dnde, bts, bte, chm, anm, tbm, then the daily list). The
+lane experiment proves the named condition: seeding schema-valid
+`wfn:00`/`fuwe:T` **cleared the line-228 assert** and moved the gate
+to the line-242 `uiv2.txt` validator (the provider also deletes the
+seed file). The uiv2 seed cannot work through the logical overlay —
+its validator walks a parsed document object the guest's own Settings
+flow creates, which the thin overlay handles cannot carry. The next
+instance's route: let the guest create `uiv2.txt` itself (the proven
+2.39 native-Settings class) — its own ticket under the compatibility
+policy. Two-run equality holds for both experiments.
+
+## Ticket 710 instance 27 — the 2.33 assert condition is named — 2026-10-10
+
+E-SAP-0063 closes the call-site census: the assert helper (`0x70b20`)
+contains the decoded `adds r0, r0, #5` quirk (confirming the
+`ngsProvider.cpp` = `"SettingsProvider.cpp"[5:]` record), and the
+line-228 site `0x8be24` loads its file pointer from the E-SAP-0062
+pool entry `0x8c760` via a far `ldr.w r8, [pc, …]` — the scan gap is
+explained. The condition is **the settings provider's
+`settings/ui.txt` schema check**: after opening and parsing the file,
+it requires a `"wfn"` record with a `"fuwe"` field (`"daily"` and
+`"sport"` appear in the same validation chain) and asserts when
+absent — so the assert fires exactly when a seeded-but-schema-less
+`ui.txt` exists (E-SAP-0059/0060 sequence explained). A schema-valid
+seed is the candidate fix but is NOT authorized; the record's exact
+shape (fields, value format, `daily`/`sport` semantics) is the next
+bounded census and needs its own instance + ticket.
+
+## Ticket 807 exact-color law admitted — the Control Panel icon renders — 2026-10-10
+
+The 807 implementation (E-RE-SAP235-TSC6A-AUX-002) admits the derived
+law: a nonzero TSC6A auxiliary region marks an **exact-color block** —
+the 21 bits are a 7:7:7 RGB triple replicated to every texel
+(`v*255/127` per channel), 4-bit endpoints and indices ignored, the
+pinned 11-bit alpha law intact. The discriminator was the 140x6
+all-aux spectrum strip (constant garbage endpoints per band, a unique
+boundary color, and an index plane the encoder only maintains on
+visible rows). Red-first `test_nema_tsc6a_aux.c`; the full TSC6A
+family, `make check` (1,042), `make sanitize` (1,042) and contracts
+are green. **The two Control Panel refusals are gone**: the control
+log changes by exactly the two removed draw-refused lines and the
+settled Control frame CRC moves `30847819 → 5f2c742c`; the other five
+navigation cases keep byte-identical logs and settled CRCs, with only
+serialized renderer-section bytes moving (verified by full-file diff).
+The 2.39 era census on the rebuilt pinned flash (`37134845…`) is
+**42/43**, the single red being general_budget's image-only re-pin
+(END golden, log hash, stop line and census all held; re-pinned with a
+dated note, twice byte-identical). Remaining GPU gaps: compressed
+writeback, unobserved shader/transform cases, and the named
+unrepresentable exact-color-black case.
+
+## Ticket 807 aux-region derivation — no pixel oracle, refusal stands — 2026-10-09
+
+The 807 offline-RE instance (E-RE-SAP235-TSC6A-AUX-001) names the
+21-bit TSC6A auxiliary region: it parses as **three 7-bit RGB
+channels** (80.3% grays; saturated white `(127,127,127)` the most
+common value), proven by byte-packing identities and by the all-aux
+140x6 spectrum-strip container whose aux colors (`#0054ff`, `#00ffff`)
+are not representable in the 4-bit endpoint fields. The ticket's
+per-pixel-modifier and alpha-exponent hypotheses are refuted by the
+corpus (22,296 blocks across 61 containers; the 2.33 partition
+corroborates with 18,580 blocks). The witness SRAM asset is pinned to
+container `0x9b8a00` (block 2,0 aux-bearing; a per-container count
+correction to 29/40 and 32/40 for the two candidates is recorded).
+How the 7-bit color combines with the four-point ramp remains
+undecidable: **no native pixel oracle exists anywhere** (lane refuses
+TSC6A; the Renode model uses an uncompressed shadow; no device), so
+per the ticket's own acceptance clause the law stays fail-closed, the
+two Control Panel refusals stand, and no pin moved. The next instance
+needs a pixel oracle or an integrator policy ruling.
+
 ## Ticket 783 post-erase audit closed — 2026-10-09
 
 The 783 audit ran as its own two-pass census on the rebuilt fixture:

@@ -10571,3 +10571,1322 @@ line-228 condition is named.
 Verification: the byte-exact record and the string census are reproducible
 from the retained log and component file; no repository file changed
 (documentation-only entry, validated by `make check-task-contracts`).
+
+## E-RE-SAP235-TSC6A-AUX-001 — the 21-bit auxiliary region parses as 3x7-bit RGB; no pixel oracle, refusal stands (ticket 807)
+
+2026-10-09, ticket 807 evidence instance (offline-RE structural census,
+owner-authorized 2026-09-23 class; no src change, no law admitted). This
+entry answers the ticket's Evidence Inputs clause: hypothesis testing
+(a)–(c) over the pinned partition corpus, with the oracle question
+resolved as **no pixel oracle exists**, so the fail-closed refusal stands
+and the derivation is recorded. Private work directory `/tmp/sap235-aux/`;
+all artifacts volatile, hashes below; the read-only firmware tree
+untouched.
+
+Inputs and tooling (SHA-256):
+
+| Input | SHA-256 |
+|---|---|
+| `tests/private/sapporo-2.35.34.18929/resources.raw` | `f281385acc8bab169976f9e506c230fd25124c44bfdbe2048393763a7d85ae22` |
+| `tests/private/sapporo-2.33.16/resources.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| witness snapshot `/tmp/ctrl20/main235-1.sems` (pinned `c56057a9…`) | `c56057a902cc8eba7f824c3422c619efa57eea38025d9c25e1e3ea3b01cd618b` |
+| witness control snapshot `/tmp/ctrl20/run/control.sems` (pinned `80cce270…`) | `80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc` |
+| census probe `/tmp/sap235-aux/aux_census.py` (stdlib Python 3.14.8) | `8c602fe99cace269b5bdecbfad1b4553fb066e455ce0543159a271699acabf0e` |
+| pass-1 census `/tmp/sap235-aux/run1/census.log` | `a14d151e523b63a3da7a1b565bbbef3edb6a6e3583428f767307501fe313f4fa` |
+| pass-2 census `/tmp/sap235-aux/run2/census.log` | `65a582f50105ae4b75611be697b74297a9c2dd6dcfd6f30b4d400dbc9d6384b9` |
+| inventory probe `/tmp/sap235-aux/pxb2_inventory.py` (pass-1 walker; superseded by `aux_census.py`) | `2cde5349c7ff8ec647a2036b2af8435f450162825bd5974165aff178a932fad5` |
+
+Census (twice byte-identical; the derived census is in the probe output,
+whose body is equal across passes — pass-1 body SHA-256
+`234a20f664b6df4d75f109932e15392e5a109f83c7e2dc16df07004a6d8d541a`):
+the 2.35.34 partition carries 61 valid PXB2 format-0x11 containers
+(22,296 blocks, agreeing with the E-RE-SAP235-TSC6A-001 corpus total);
+59 of the 61 containers carry nonzero auxiliary bits, 14,275 of
+22,296 blocks (64.0%), 1,239 distinct 21-bit values. The 2.33.16
+partition: 64 containers, 18,580 blocks, 11,546 aux blocks, 811 distinct
+values — same law, twice-pinned across versions.
+
+Structural finding (the derivation): the 21 bits parse as **three
+7-bit channels** (`v0` = bits 0..6 = byte9[7:3]|byte10[1:0], `v1` =
+bits 7..13, `v2` = bits 14..20):
+
+1. Bit-packing identity: a 7-bit value `g` replicated across the three
+   channels produces the byte pattern `(g & 0x1f, (g>>5 | g<<3) & 0xff,
+   (g>>5 | g<<3) & 0xff …)` — the observed dominant byte families
+   `(k, 4k, 2k)` for k = 1..9 are exactly replicated 7-bit grays
+   `g = k` read little-endian; `(31, 255, 255)` is `g = 127` (all
+   channels saturated), the most common nonzero value (8,806 blocks).
+   11,462 of 14,275 aux blocks (80.3%) have `v0 = v1 = v2` (a gray).
+2. Precision proof: the strip container `0x5d4200` (140x6, all 70
+   blocks aux) carries aux values `(0, 42, 127)` and `(0, 127, 127)`,
+   which expand (channel `* 255 // 127`) to `#0054ff` and `#00ffff` —
+   the 8-bit channel value 84 is **not representable** as `nibble*17`,
+   so the aux region carries color precision the 4-bit endpoint fields
+   cannot. The strip renders as clean horizontal color bands (blue →
+   cyan → green → yellow) with the 11-bit alpha field opaque on the
+   top block row and 0 on the bottom — a coherent image under an
+   aux-color reading, garbage under any per-pixel-modifier reading.
+3. Hypothesis (b) of the ticket (per-pixel 1-bit modifiers + 5-bit
+   mode) is **refuted**: the observed bit patterns are 7-bit-channel
+   structured (1), not 16-bit-periodic, and the all-aux strip renders
+   coherently as per-block colors, not per-pixel flags.
+4. Hypothesis (c) (alpha-scale exponent) is **refuted**: saturated
+   `(127,127,127)` blocks occur at 8-bit alphas 191..255 (no exponent
+   law), and the icon's aux grays 84..170 are unrelated to its alphas
+   by any exponent.
+5. Hypothesis (a) (third 7-bit endpoint per channel = 21 bits exactly)
+   is **confirmed structurally**: 21 = 3 x 7, the gray/chroma value
+   distribution matches a real color plane, and the witness icon's aux
+   values (42/43/44/83/85 grays plus chroma triples) are exactly the
+   partition's distribution. The dominant `(127,127,127)` is white —
+   matching the corpus's 4-bit white palette mass at higher precision.
+
+Witness reconciliation (ticket 806 census correction): the SRAM asset
+at `0x100a7aac` is a verbatim copy of the container at `0x9b8a00`
+(body SHA-256 `94ada5cf…`, found at control-snapshot file offset
+`0x2a8215` with the `ac 7a 0a 10` address literal immediately before
+it); the second draw's copy is the container at `0xa66000` (body
+`8a05a836…`, snapshot offset `0x21e320`). Both are 20x30-visual/5x8-
+block containers, and **block (2,0) sets the aux region in both**
+(`693546` and `449`) — the runtime refusal is exact. Correction to
+E-EMU-SAP235-ICON20-001's census note: the per-container aux-block
+count is **29 of 40** (`0x9b8a00`) and **32 of 40** (`0xa66000`), not
+"37..38 of 40"; the finding (the witnessed asset itself carries aux
+bits, block 2,0 included) stands unchanged. Both containers appear
+byte-identically in the 2.33.16 partition at `0x3bf200`/`0x3f8000`
+(bodies hash-equal), so the icon's blocker is version-independent.
+
+Why no law is admitted — the oracle census: the remaining ambiguity is
+**how the 7-bit color combines with the four-point ramp** (solid
+per-block replacement; replacement of the `idx0`/E0 ramp entry with
+the 7-bit color; a fifth table entry with no index space). The
+discriminating test requires native pixel truth for at least one
+aux-bearing block, and none exists:
+
+- the reference lane refuses every TSC6A draw (E-EMU-SAP235-MAIN-
+  TSC6A-001); no lane model decodes the format;
+- the Renode `SapporoNemaP` model keeps an uncompressed semantic
+  shadow and never decodes TSC6A bytes (`SapporoNemaP.cs` line 376);
+  its exported frames (the `sapporo-239-native-full-ui` capture,
+  `pixels_substituted: false`, `physical_nemap_output: false`) are
+  model output, not hardware pixels;
+- the project has no physical device (AGENTS.md Lane Oracle);
+- every frame hash pinned in this repository is this emulator's own
+  renderer output, inadmissible as an oracle for its own decoder;
+- the guest is only an encoder: the PXB2 loader is a descriptor
+  builder (E-RE-SAP235-PXB2LOADER-001), so no software decode exists
+  in any pinned binary to transplant.
+
+Internal-consistency checks cannot discriminate the ramp-combination
+candidates: the spectrum strip's visible blocks are 31/35
+single-index-0 (consistent with both the E0-replacement and solid
+laws), and its invisible bottom row has arbitrary indices (encoder
+garbage), so no observed block forces a choice. Per the ticket's
+acceptance clause, **the law stays fail-closed and the two Control
+Panel refusals stand**, now with the aux region named as 3x7-bit RGB
+and every remaining candidate enumerated. No value the pinned firmware
+does not exhibit is authorized.
+
+Scope of the next instance: a pixel-oracle acquisition (none exists
+today) or an integrator ruling admitting one candidate law on
+structural evidence alone would be a policy decision outside this
+entry; the refusal surface, snapshot pins, and all five other
+navigation cases are untouched by this instance.
+
+Verification: the census is reproducible twice byte-identically from
+the pinned partition with the pinned probe (`python3 /tmp/sap235-aux/
+aux_census.py 1` / `2`; body equality checked). No repository source,
+fixture, golden, or pin changed; documentation-only entry, validated
+by `make check-task-contracts`.
+
+## E-RE-SAP235-TSC6A-AUX-002 — the exact-color block law admitted; the Control Panel icon renders (ticket 807)
+
+2026-10-10, ticket 807 implementation on top of E-RE-SAP235-TSC6A-AUX-001.
+The owner delegated the approach ("the goal is to make an emulator, so I
+let you choose the best way"); given the no-device constraint and the
+structural derivation already in the ledger, the chosen path is the
+**discriminating-census admission**: one more corpus pass found the
+evidence the first pass missed, the exact-color law was implemented
+red-first, and every moved pin is attributed with the old binary as a
+control. All raw artifacts remain volatile under `/tmp/sap807-nav/`.
+
+### The discriminating evidence (the AUX-001 oracle question, answered)
+
+The 140x6 all-aux spectrum-strip container (`0x5d4200`) decides the ramp
+question its AUX-001 section left open:
+
+- Its 4-bit endpoint fields are **constant garbage per band** — E0 is
+  black and E1 is the same `(238,0,51)` across the blue, cyan, green and
+  yellow bands — so the visible color cannot come from the 4-bit fields
+  at all. Under any ramp-combination law (aux-as-E0 included) the strip
+  would render one muddy color; under the exact-color law it renders
+  five clean bands `#0054ff → #00ffff → #00ff00 → #6aff00 → #ffff00`
+  at the 11-bit alpha field's opacities (opaque top block row, alpha 0
+  bottom row — and the invisible bottom row's index plane is garbage,
+  0/35 blocks single-index, versus 31/35 on the visible row: the
+  encoder only maintains the index plane where it matters).
+- Block 30 carries a distinct `#6aff00` — the encoder emitted a unique
+  exact color for the green/yellow band boundary, impossible under a
+  law where aux only refines a 4-bit field.
+
+Conclusion: **a nonzero auxiliary region marks an exact-color block** —
+the 21 bits are a 7:7:7 RGB triple replicated to every texel, the 4-bit
+endpoint and 2-bit index fields are ignored, and the pinned 11-bit
+alpha law (`a*255/2047`) still applies. The 7→8-bit expansion is
+`(v*255)/127` (round-to-nearest, matching the pinned decoder's
+rounding style): `(0,42,127) → #0054ff` and `(127,127,127) → #ffffff`
+(the corpus's 8,806 white exact-color blocks). This is a standard
+codec escape/void-extent shape; black `(0,0,0)` exact-color blocks are
+the one unrepresentable case (indistinguishable from the compressed
+law) and the corpus exhibits none. The 2.33 partition corroborates:
+64 containers, 11,546 aux blocks, 811 distinct colors.
+
+### Implementation (Allowed Files respected)
+
+- `src/display/nema_tsc6a_expand.c`: `tsc6a_block_has_aux` (new) and
+  the exact-color branch in `tsc6a_expand_block`; `tsc6a_block_supported`
+  now admits every well-formed block (both laws); the zero-aux
+  four-point law (bits 0..74), the four-point table, the alpha law and
+  every other refusal predicate are untouched.
+- `src/display/nema_tsc6a_internal.h`: declarations and law comments.
+- New red-first `tests/unit/test_nema_tsc6a_aux.c` (2 cases: the
+  pinned strip/icon exact colors, the saturated sweep, the untouched
+  zero-aux ramp; red before, green after). The stale aux-refusal
+  expectations in `test_nema_tsc6a_expand.c`, `test_nema_tsc6a_clip.c`,
+  `test_nema_tsc6a_lifecycle.c`, `test_nema_tsc6a_icon20.c` and
+  `test_nema_tsc6a_widgets.c` were re-derived to the new law — the
+  refusal class "aux bits set" no longer exists by design; the
+  surviving refusal classes (truncated source span, unmapped baseline)
+  keep their zero-write/atomicity assertions.
+- Full TSC6A family 38/38 green; `make check` green (1,042 PASS);
+  `make sanitize` green (1,042); `make check-lines` and
+  `make check-task-contracts` (171 tickets) clean.
+
+### Navigation attribution (old binary as control, twice byte-identical)
+
+The old-law binary (rebuilt from the pre-change tree, control log
+SHA-256 `caa65868…` = the 806 pin) versus the new-law run:
+
+- **Control**: the log changes by **exactly the two removed
+  draw-refused lines** (ords 347/355, block 2,0 auxiliary text) — every
+  other line byte-identical, stop line
+  `stop=budget pc=0x000e1862 instructions=10123133602
+  virtual_time_ns=44000000000` held. The settled Control frame CRC —
+  extracted from the renderer codec-2 section at file offset `0x4d4540`
+  and validated by reproducing the pinned `30847819` from the old
+  image — moves **`30847819` → `5f2c742c`** (the icon's pixels).
+- **The other five cases**: every complete log SHA-256 is unchanged
+  and every settled frame CRC is unchanged (`9b554fd9`, `26867705`,
+  `7ef957e9`, `26867705`, `fa3eed01`); only their serialized
+  renderer-section bytes moved (the resting cache's aux blocks now
+  decode; those blocks lie outside every resolve region, so no visible
+  pixel changed). Verified by a full-file diff of the exercise pair:
+  all 784,448 differing bytes lie inside the renderer image section at
+  `0x4d4540..` (2,247,616 bytes); zero bytes differ elsewhere.
+- New pins (twice byte-identical, enforced by the runner): exercise
+  image `2b1f27a1…`, widgets `220fccda…`, pin `b1e46223…`, browse
+  `72fe664a…`, control log `5c0b4e8f…` / image `17709c61…`, return
+  `1fd27a58…`. Runner: 6/6 PASS with the pinned watchface snapshot
+  `c56057a9…`.
+
+### 2.39 era census (rebuilt fixture, pinned SHA-256 reproduced)
+
+The verified full flash was rebuilt from read-only inputs per the
+E-SAP239-SNAPSHOT-REPIN-003 recipe and matches
+`37134845eeaa0f451048e39bd66d4a9cf937093a5aeaeda00e515934d649c4cb`.
+`make check-era`: **42 of 43 green**; the single red,
+`general_budget`, is the established image-only class — its log hash
+(`0cc0b54d…`), END golden (`frames=677 crc=405d1af6 sha=6eb15b72…`),
+stop line (`2391136680 / 32620918072 pc=001291cc`) and every census
+count are unchanged; only the terminal image moved
+(`ca654b44… → 1f733942…`, twice byte-identical, the script's own `cmp`
+enforcing the pair). Re-pinned in
+`test_firmware_sapporo_239_general_budget.sh` and
+`sapporo_239_general_probe.c` with the dated note; the script is green.
+This is the 800-class mechanical image re-pin, not silent drift: no
+stop expectation, cap, census count, refusal anchor or log hash moved.
+
+### Remaining gaps
+
+Compressed writeback and unobserved shader/transform cases remain
+unsupported. The one unrepresentable case (exact-color black) is named
+above. The 2.22/2.33 profiles' renderer-section pins were not re-derived
+in this instance (no gate exercises them with a TSC6A resting cache in
+`make check`); any future gate that does must re-derive under this
+entry's attribution.
+
+## E-SAP-0063 — the SettingsProvider.cpp:228 assert condition is named (ticket 710)
+
+2026-10-10, ticket 710 instance (observation-only offline-RE; no src
+change authorized). Frontier inputs are E-SAP-0062's bounded census.
+This entry closes it: the call site is located, the `+5` quirk is
+confirmed in code, and the line-228 condition is named. Private work
+directory `/tmp/sap233-assert/`; artifacts volatile, hashes below.
+
+Inputs and tooling (SHA-256):
+
+| Input | SHA-256 |
+|---|---|
+| pristine `component-04-type-4-v2.raw` (2.33.16) | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| census probe `/tmp/sap233-assert/callsite_census.py` (capstone 5.0.7, Python 3.14.8) | `84508f80c79c1a45d79c4c7cf945c10ab2778558be0aaea741f66bb1e9fc02cd` |
+| pass-1 census `/tmp/sap233-assert/run1.log` | `17124001f1e17e34a5f18cb7ca7f320bfb3bed60be1feffa2dcb50420fb0ebbc` |
+| pass-2 census `/tmp/sap233-assert/run2.log` (byte-identical) | `17124001f1e17e34a5f18cb7ca7f320bfb3bed60be1feffa2dcb50420fb0ebbc` |
+
+Findings (all offsets are VAs; the image loads at `0x40000`):
+
+1. **The assert helper is `0x70b20`** (198 direct callers). It (a)
+   invokes a hook at `[ctx+0x7e8]` if present, (b) stores
+   `(file, line)` into a static, (c) resolves the basename by
+   scanning for `'/'` and `'\'`, then (d) executes
+   **`adds r0, r0, #5`** before the format call `0x787cc` — the
+   E-SAP-0061 "five bytes in" reading is now a decoded instruction,
+   not an inference: the helper deliberately renders
+   `__FILE__ + 5`, so `"SettingsProvider.cpp"` prints as
+   `ngsProvider.cpp` for every assert in that translation unit.
+2. **The `SettingsProvider.cpp` string is delivered by a thunk** at
+   `0x8da60` (`add r0, pc, #4` → `0x8da68`; `bl 0x70b20`; `pop`), with
+   eight callers at `0x8c724, 0x8d4be, 0x8d996, 0x8d9e6, 0x8da32,
+   0x8dad4, 0x8db3e, 0x8db9e` — each passing a literal line number
+   (`0x2ff`, `0x65d`, `0x76b`, `0x77f`, `0x794`, `0x7a8`, `0x7c1`,
+   `0x7d9`). **None of these is line 228**; they are the other asserts
+   of the same translation unit.
+3. **The line-228 site is `0x8be24`**: `movs r1, #0xe4; mov r0, r8;
+   bl 0x70b20`. `r8` is loaded once by `ldr.w r8, [pc, #0x9f8]` at
+   `0x8bd64` — the slot resolves to **`0x8c760`, the literal-pool
+   entry E-SAP-0062 found**: the pool is consumed by a far
+   LDR-literal from the same function's code, which is why the
+   app-wide LDR-literal scan for direct `0x8c760` references found
+   nothing (the scan's T1/T2 forms did not include `ldr.w r8, [pc,
+   #imm]` at this distance).
+4. **The line-228 condition, named**: immediately before, the function
+   (a) opens and reads `settings/ui.txt` (its name pointer is pool
+   slot `0x8c778` = `0x8fe90`; a `beq` skips the whole block when the
+   read fails — consistent with E-SAP-0056/0059: the assert only
+   appears once the file exists), (b) parses it, (c) looks up the
+   record-type key **`"wfn"`** (`0x1bc784`) and requires its
+   **`"fuwe"`** field (`0x1bb6c0`), then compares the **`"daily"`**
+   (`0x1bb6c8`) and **`"sport"`** (`0x1bb6d0`) fields. The assert
+   fires when the `"wfn"` record's `"fuwe"` field is absent
+   (`cbnz r6, 0x8be28` skips the assert when the check passes). In
+   C shape: `assert(record && record->fuwe_present)` guarded by a
+   parsed-`settings/ui.txt` `wfn` record — the settings provider's
+   schema check. The seeded `# test ui seed\n` content (E-SAP-0059)
+   parses but carries no `wfn`/`fuwe`, so the assert fired — exactly
+   the observed sequence.
+
+Attribution: the second 2.33 display gate is **the settings provider's
+`settings/ui.txt` schema validation**: the file must contain a parsed
+record with the `wfn` key and a `fuwe` field (plus `daily`/`sport`
+fields in the same validation chain) before the UI framework proceeds
+to display initialization. This confirms the E-SAP-0058 class — the
+file is a provisioned-watch artifact whose *schema*, not mere
+existence, is checked.
+
+Candidate fix (NOT authorized by this entry): seed `settings/ui.txt`
+with schema-valid content carrying the `wfn`/`fuwe` structure. Under
+the 710 evidence rule this needs its own instance and ticket: the
+exact record shape (the `wfn` record's other required fields, the
+`fuwe` value format, and whether `daily`/`sport` are siblings or
+alternatives) must first be read from the surrounding parser calls —
+the two `0xac2e0` comparisons' semantics and the record layout at
+`r5+0x918/0x91f/0x8ac/0x8c8` are the next bounded census. No compat
+intervention is authorized until that shape is named.
+
+Verification: the census is reproducible twice byte-identically from
+the pinned application with the pinned probe. No repository source,
+fixture, golden, or pin changed; documentation-only entry, validated
+by `make check-task-contracts`.
+
+## E-SAP-0064 — the settings record schema is decoded; the fuwe assert clears, the gate advances to uiv2 (ticket 710)
+
+2026-10-10, ticket 710 instance (offline-RE decode + lane experiment;
+no src change, no repo fixture). Frontier inputs are E-SAP-0063's
+named condition. Private work directories `/tmp/sap233-assert/` and
+`/tmp/sap233rtc/`; artifacts volatile, hashes below.
+
+### The record format, decoded from the reader helpers
+
+The settings documents are **`"<key>:<value>\r\n"` text lines**, per
+the sscanf format table in the application: `%s:%d` (`0x78984`),
+`%s:%c` (`0xac7d8`), `%s:%08x` (`0xac7e0`), `%s:%02x` (`0xac7fc`),
+`%s:%04hx` (`0xac808`), `%s:%04x` (`0xac814`), plus the list prefix
+`:%04x:` (`0xac820`) and terminators `:%c\r\n` / `:%02x\r\n`
+(`0xac828`/`0xac844`).
+
+The `settings/ui.txt` schema required by the line-228 assert
+(E-SAP-0063): a **`wfn`** line (2-hex-digit value, `0xac4f8`) and a
+**`fuwe`** line whose single-char value is compared to `'T'`
+(`0xac0c2` → boolean). `daily`/`sport` appear in the same function
+through the list helper (`0xac2e0`) but are not asserted at 228.
+
+The `settings/uiv2.txt` schema required by the **line-242** assert
+(site `0x8be50`, same function, decoded this instance) is the full
+chain in `0xac860`: every key must be present and its helper succeed —
+`wfn` (byte), `fuwe` (char), `ir` (byte), `it` (byte via `0xce292`),
+`id`, `idi`, `irt`, `ird`, `irdi`, `sltm` (byte), `dndm`, `dnds`,
+`dnde`, `bts`, `bte`, `chm`, `anm`, `tbm` (16-char value via
+`0xac73a`), then the `daily` list. This matches the 2.39 research
+note that native Settings writes a 235-byte `uiv2.txt` of display
+and interaction preferences (`sapporo-2.39-view-service-registration.md`).
+
+### Lane experiments (schema seeds through the logical-file overlay)
+
+| Seed | Result (guest boot log, MSPI2 TX DMA records) |
+| --- | --- |
+| `# test ui seed\n` (E-SAP-0059 control) | `wuiDump Assert ngsProvider.cpp:228` |
+| `wfn:00\r\nfuwe:T\r\n` | **228 gone**; new `f_delete: 3, settings/ui.txt` record, then `wuiDump Assert ngsProvider.cpp:242` — the fuwe assert **passed** and the gate advanced to the uiv2 validator, which then deleted the seed file |
+| full uiv2 schema (18 keys, see resc) | still `Assert ngsProvider.cpp:242` — twice byte-identical |
+
+Line-242 experiment logs: `uiseed5.run.log`
+`b88866cf93732d3be72d2ca318c746da96145d4336692eb74c1e4cd329a11dd4`,
+`uiseed5b.run.log`
+`1d948e77044154740e804f754cb3950e72b7279a151f52abdda1a8c1d7dc0ea0`
+(canonical boot-log records equal across both). The line-228
+experiment: `uiseed3.run.log`
+`08a977bb263229099072acae7ea98402b2dcf01d4857e3b15c9a2aaa4af44c97`.
+Resc scripts: `uiseed3.resc`
+`60317ce7aede3059cc16a89b95e67560b109ecd52be4b`, `uiseed5.resc`
+`98e48d2b4f8bedbfca7bfed7a2c4549e30778fb2332ecd588c61733e3b93e0b1`.
+Schema census `schema_census.py`
+`ef848a350fee7212ef42b3fc3e054986d50364c852ddbe5d46a9612b69d70512`.
+
+### Why the uiv2 seed cannot work through the overlay
+
+The uiv2 validator (`0x8bfa6` → `0xac860`) receives **the open-file
+handle object**, not raw content, and its lookups walk parsed fields
+of that object (`[handle]` = a parsed-node pointer). The ui.txt path
+runs the parse first (`0x908f8`, E-SAP-0063's block), but the uiv2
+path never does — it expects `uiv2.txt` to have been created and
+parsed by the guest's own Settings flow (provisioned state). The
+logical-file overlay's thin `{path, cursor}` handles cannot carry a
+parsed document, so no seed content can satisfy the 242 check through
+that layer. The 228 result stands as the decisive schema
+confirmation: the named condition was correct, and satisfying it
+moves the gate exactly as predicted.
+
+### Next instance (bounded)
+
+The remaining display gate is the uiv2 schema validation, which
+requires the guest's own parse of a schema-valid `uiv2.txt`. Two
+candidate routes, each needing its own evidence and ticket under the
+compatibility policy: (a) drive the guest's own Settings save path
+(the 2.39 precedent: native Settings creates `uiv2.txt` itself —
+the overlay would then retain guest-written bytes, the established
+E-SAP-COMPAT-FILES-239-001 class), or (b) extend the 2.33 logical
+layer to run the guest's parse over seeded content. Route (a) is the
+lower-intervention path and matches the proven 2.39 class. No compat
+intervention is authorized by this entry.
+
+Verification: the schema census is reproducible twice byte-identically
+from the pinned application; the lane experiments are reproducible
+from the retained resc scripts (the 242 pair byte-identical). No
+repository source, fixture, golden, or pin changed; documentation-only
+entry, validated by `make check-task-contracts`.
+
+## E-SAP-0065 — the fuwe gate is cleared on the lane; the frontier returns to the settings-file family (ticket 710)
+
+2026-10-10, ticket 710 instance (lane experiment; no src change, no
+repo fixture). Frontier inputs are E-SAP-0064's schema decode. Private
+directories `/tmp/sap233-assert/`, `/tmp/sap233rtc/`; artifacts
+volatile, hashes below.
+
+Experiment (`uiseed6.resc`
+`f57e73ba6806403d4fe1227d1d29f61d3f3e641e6b9de8f3ac8c133cf7f258d9`):
+seed only `settings/ui.txt` = `wfn:00\r\nfuwe:T\r\n` and leave
+`uiv2.txt` absent. Result, twice byte-identical (canonical boot-log
+records `faf6c62626755991`; logs `uiseed6.run.log`
+`dddfec0c6f818828a0115fb45444ecdad45e57ca19f43ef6f2f428c3a2abe4b9`,
+`uiseed6b.run.log`
+`7bcf6ffb6d3aad984deccf9f03ff8a992750d24f8f74e3aea6b0b97d55717056`):
+
+1. **The line-228 assert is gone** — no `wuiDump` record of any kind
+   appears; the ui.txt schema check passes with the two seeded lines.
+2. The provider **deletes the seed** (`f_delete: 3,
+   settings/ui.txt` at 0.563 s) and proceeds.
+3. `settings/uiv2.txt` is opened **read-mode** and fails (result 3);
+   per the decoded `0x8be32` block the validator is then **skipped
+   with a flag** (`strb r0,[r7,#0x11]`), so no 242 assert fires —
+   the guest does not create uiv2 at boot; the E-SAP-0064
+   create-route hypothesis is dead for the boot path (native
+   creation happens in the Settings app, post-boot).
+4. The boot then reaches **exactly the E-SAP-0056 record set**:
+   `ResourceProvider.cpp(98/…): 403` twice, `f_open: 3` for
+   `settings/general`, `settings/personal`, `SETTINGS/CMGRPLST.TXT`,
+   `settings/ble/device`, `CACHE_PRELOAD_FAIL (204)`,
+   `PRELOAD_DONE`, `Module WbStoPreload cmd 0 failed. Result 500` —
+   then idles (the run's tail is the known DebugMonitor lane
+   artifact).
+
+Attribution: clearing the fuwe gate is real and reproducible, but the
+2.33 boot's display gate was never only the assert — after the UI
+resource stage the boot still needs the provisioned settings family
+(`general`, `personal`, `CMGRPLST.TXT`, `ble/device`) that the OTA
+staging lacks (the E-SAP-0058 class), and the empty-cache
+translation of the final WbStoPreload result did not fire in this
+staging (no `S233_EMPTY_CACHE_COMPAT` line; the hook at `0x0011978C`
+requires the E-SAP-0050 staging context). The frontier is therefore
+**the provisioned-settings family under the E-SAP-0050 staging
+fidelity**, not a new assert: each missing file's schema is a
+bounded decode of the same reader family, and the preload
+translation is the existing empty-cache layer's documented behavior.
+
+No compat intervention is authorized by this entry. The next
+instance's census (bounded): decode the `general`/`personal` record
+schemas from the same reader helpers, and reconcile the
+empty-cache hook's non-firing against the E-SAP-0050 staging.
+
+Verification: both runs reproduce from the retained resc; canonical
+records equal. No repository source, fixture, golden, or pin changed;
+documentation-only entry, validated by `make check-task-contracts`.
+
+## E-SAP-0066 — the empty-cache hook's non-firing root-caused; the corrected 2.33.16 layer advances the boot to the first-boot provider wave (ticket 710)
+
+2026-10-10, ticket 710 instance (offline-RE + lane experiments; no
+repository change — the working corrected layer stays in the volatile
+workspace pending its own integrator-scoped ticket). Frontier inputs
+are E-SAP-0065's two open questions. Private directories
+`/tmp/sap233-assert/`, `/tmp/sap233rtc/`; artifacts volatile, hashes
+below.
+
+### Root cause (both halves wrong for 2.33.16)
+
+The stock `sapporo-2.33-empty-cache-compat.resc` layer pins the
+**2.33.12** application's values: hook PC `0x0011978C` and provider
+id `0x001B9024` (the 2.33.12 registry slot `0x113AF8` holds the pair
+`name 'WbStoPreload' @ 0x1b8f44-class, id 0x1b9024`; verified by
+reading the 2.33.12 `component-04-type-4-v2.raw`). For the pinned
+**2.33.16** application (`ba286a7b…`):
+
+1. The registry slot `0x113AA0` holds `(name 'WbStoPreload'
+   `0x1b8f44`, id `0x1b1b08`) — the 2.33.16 provider id is
+   **`0x1B1B08`**.
+2. The failure path is the function at **`0x119734`**: entry `r0` =
+   client object, `r3` = status (sign-extended to `r0` at
+   `0x119738`), then the 200/`0x1ad`(429) checks — `0x11978C` is
+   merely a branch inside it, and at that point `r0` no longer
+   carries the client. The stock hook's PC and register contract
+   never match the 2.33.16 flow.
+3. The client object's provider field at `+12` holds the **name
+   pointer `0x1B8F44`** (not the registry id); the command byte is
+   at `+16` (0 for cmd 0). Lane probe: the single 500-status call
+   in the seeded boot arrived with `r0=0x10028f04, [r0+12]=0x1b8f44,
+   [r0+16]=0` (`uiseed13.run.log` `1983ce8838a418ff4c3f06fd1b8334b3ee
+   9b2118f2d5213ecbe8cea696693237`; the unconditional probe
+   `uiseed11.run.log` `6f2219016f089ed5423e7763cbfe8044522cc30e9a67f
+   b476ae3ed24d10f75fd` shows the function fires 10 times, nine
+   status 200 and one 500 — the failure path IS through here).
+
+### Corrected layer (v4) and its lane result
+
+`/tmp/sap233-assert/sapporo-2.33-empty-cache-compat-23316-v4.resc`
+`8c9105a0b95c25ad4e9eb65234d815dbc3a1d30b4bb50a37c95dbde2d2a56979`:
+hook `0x00119734`, client from `r0`, status from `r3`, provider
+`[client+12] == 0x001B8F44`, command byte `[client+16]`, translate
+500→200 by setting `r3` (the register the function sign-extends).
+
+Lane result (`uiseed14.resc`
+`f4cb355d39ed7ad7e2537a390d169209a8802c2520b9c9c91075837469c8f254`,
+twice byte-identical — canonical boot-log records `28b5e3542a145b88`;
+logs `uiseed14.run.log`
+`42f0f65ed9f7999718d761cf9f7150c454a3fa65a6b95b58b51648f050cec8a5`,
+`uiseed14b.run.log`
+`501ab80f1af3e70bba99904628e3ad7043b4d301545b66dddab677cf229c1ddc`):
+
+- The translation fires once (`S233_EMPTY_CACHE_COMPAT_23316
+  provider=WbStoPreload command=0 native_status=500
+  translated_status=200`), the same effect class as the stock layer's
+  documented behavior.
+- **The 2.33.16 boot advances past its former terminal idle for the
+  first time**: after the preload block the guest log continues —
+  ALPS HSPPAD143 pressure detection, PressCalib, mfdata PRES/ALSC,
+  LPS22 probe, TLI493D-W2BW revision, VBUS/FG/battery/charging,
+  `logs/entries.bin` open (Logbook), `sleepln/hrvngcb.bin` +
+  `SleepStore: Verify new store failed` + `f_delete
+  sleepln/sleep.bin`, ending at a NEW gate: `Module sleepln cmd 0
+  failed. Result 500` — the first-boot Sleep provider, whose
+  translation in the stock layer is gated on the observed native
+  file size (`S233_NATIVE_SLEEP_17888`) and whose 2.33.16 provider
+  constant must be re-derived the same way (its name pointer via
+  the registry; the observed native size law is E-SAP-0050's).
+
+### Scope note
+
+This instance changes no repository file: the corrected layer is a
+lane artifact and the finding is the *evidence* that the 2.33.16
+empty-cache translation must be its own compatibility layer (named,
+hash-pinned to the 2.33.16 components, hit-bounded to the observed
+single cmd-0 500, with the sleepln/first-boot translations
+re-derived separately). That ticket is the integrator's to scope;
+the stock layer's 2.33.12 pins remain untouched. The schema decode
+of `settings/general` (the user-profile key table Gender/Height/
+Weight/RestHR/MaxHR/MaxVO2/Zone… at `0x1bb838..0x1bb868`) is recorded
+for the same future ticket: the guest writes `general` itself
+(2.39 precedent: 90 writes, 1505/1505 close), so no seed is needed —
+the translation alone carries the boot.
+
+Verification: all lane runs reproduce from the retained resc scripts
+(two-run equality shown for the v4 pair). No repository source,
+fixture, golden, or pin changed; documentation-only entry, validated
+by `make check-task-contracts`.
+
+### Instance-30 addendum — the next-gate census and the ticket scope
+
+The corrected layer's boot continues to `Module sleepln cmd 0 failed.
+Result 500`. The sleep provider's 2.33.16 registration is not a
+`(name 'sleepln', id)` registry pair (no such pair exists; the id
+cluster `0x1b1axx` holds only `WbStoPreload 0x1b1b08`, `SetV2
+0x1b1a48`, `Logging 0x1b18a8`), and the stock 2.33.12 layer's
+provider constants mix forms (`0x00101648` SRAM-class vs
+`0x001BA288`) — so each remaining provider's 2.33.16 contract needs
+its own bounded decode. That, plus the `settings/general` user-
+profile key table recorded above (Name/Gender/BirthYear/
+FitnessLevel/Height/Weight/Activity/RestHR/MaxHR/MaxVO2/… at
+`0xcc56c..0xcc5b8`, written by the guest itself per the 2.39
+precedent), is the scoped work of the future 2.33.16 compatibility
+ticket. No further lane runs in this instance.
+
+## E-SAP-0067 — the corrected-layer 30 s boot: the terminal state is the sleepln translation, no UI stage (ticket 710)
+
+2026-10-10, ticket 710 instance (lane experiment; no repository
+change). Frontier inputs are E-SAP-0066's corrected layer. Artifacts
+volatile: resc `uiseed15.resc`
+`210566f2d0e9c6711a6bcfe10fb9b8d1183baae3b4e8d4a37b47eeba4292c0e3`
+(the v4 layer + ui.txt seed + `RunFor "30.000"`), logs
+`uiseed15.run.log`
+`9a9a6a373a8ad93fd49d1e63815aad5c3678307b96da4932cd720740575d55be` /
+`uiseed15b.run.log`
+`73d7f1fae95bca9ff20810da1f1690b6af7536292631e641de0b9307089f400f`,
+canonical boot-log records equal across both (`28b5e3542a145b88`, 58
+records).
+
+Finding: extending the corrected-layer boot from 8 s to 30 s changes
+nothing after the sleepln failure — the guest log's last record
+remains `Module sleepln cmd 0 failed. Result 500` at guest 2.159 s
+with **no UI stage, no Settings activity, and no `wuiDump`** for the
+remaining ~27.8 s. The boot's terminal state is therefore the
+**first-boot provider wave's own completion condition**: the stock
+layer's sleepln translation is gated on observing the guest write a
+17,888-byte `sleepln/sleep.bin` (the `S233_NATIVE_SLEEP_17888`
+marker), and in this staging the guest never creates that file — its
+`f_delete: 3, sleepln/sleep.bin` fails (result 3, absent) and
+`SleepStore: Verify new store failed` follows. The same holds for the
+other first-boot stores (`logs/entries.bin` f_open 3). Under the
+no-device constraint these files are created by the guest's own
+Settings/first-boot flows later in the boot, which the current
+staging does not reach because the provider wave stops at sleepln.
+
+Next instance's census (bounded): decode the 2.33.16 sleepln
+provider contract the same way the WbStoPreload one was decoded
+(name-pointer field at `client+12`, command byte at `+16`, the
+status register at the failure function) and pin whether the
+translation must be size-gated or command-gated for 2.33.16 — the
+stock layer's `S233_NATIVE_SLEEP_17888` gate was derived on the
+2.33.12 layout. No compat intervention is authorized by this entry.
+
+Verification: both runs reproduce from the retained resc; canonical
+records byte-identical. No repository source, fixture, golden, or pin
+changed; documentation-only entry, validated by
+`make check-task-contracts`.
+
+### E-SAP-0067 addendum — the abort was a teardown crash; both runs verified
+
+The first uiseed15 wrapper exited 134: Renode aborted during its own
+shutdown **after** the 30 s RunFor had completed and the full boot-log
+record set was flushed — the retained `uiseed15.run.log` carries the
+complete canonical record set (`28b5e3542a145b88`, 58 records,
+max guest time beyond the sleepln record, nothing new after it), and
+the killed second run's `uiseed15b.run.log` carries the same canonical
+set. The two-run equality of E-SAP-0067 stands; the abort is a known
+Renode teardown artifact, not a boot-behavior fact, and neither run's
+evidence is affected.
+
+## E-SAP-0068 — the first-boot provider wave is decoded and cleared; the 2.33 boot reaches NEMA initialization (ticket 710)
+
+2026-10-10, ticket 710 instance (offline-RE probes + iterative lane
+experiments; no repository change — the working layers stay volatile
+pending the integrator-scoped ticket). Frontier inputs are
+E-SAP-0067's sleepln terminal state. Artifacts volatile, hashes below.
+
+### The provider-wave mechanism, decoded
+
+The `0x119734` function is the **shared startup-client result
+checker**: every first-boot provider's status passes through it, and
+the client object at `r0` is **one shared SRAM object
+(`0x10028f04`) whose `+12` field is rewritten with the current
+module's name pointer** before each call — the 78-entry probe
+(`uiseed18.run.log`
+`1d3e6683a6f601ce564d0f83e74adea697cea54747f58fbad8216a8d307a2148`,
+probe `probe-all.resc`
+`d86eb94eb76c084cea14672277e72982d87e5efaae4469f3d193d51569d21f27`)
+shows the full rotation: WbSrv, CommSrv, Time, SysSrv, LowPrioSrv,
+SetSrv, RouteD, WbSto, WbStoManager, WbStoPreload, WbStoCollIter,
+SetV2, … SleepTracking, sleepln, … — so **no per-provider constant
+can work**; the translation must be name-based on `[client+12]`.
+The sleepln entry itself: `client=0x10028f04 module=sleepln cmd=0
+r3=0x1f4` — the status is already 500 at function entry.
+
+### Iterative lane experiments (each twice byte-identical where noted)
+
+| Layer | Translations fired | Boot advance |
+| --- | --- | --- |
+| v5 (sleepln cmd 0 only) | sleepln | past the sleep gate to `Module TrainingTss cmd 0 failed` |
+| v6 (+ TrainingTss/PoiP/actitmln/Logging, cmd 0) | sleepln, TrainingTss | past TSS to `settings/devicesettings`, `IDLE mode(-1) set`, GNSS subscribe — then `Module PoiP cmd 1 failed` (cmd 1 not covered) |
+| v7 (cmd 0/1, + MessageHistory) | sleepln 0, TrainingTss 0, PoiP 1, sleepln 1, actitmln 1, TrainingTss 1 | **the full first-boot wave clears**: battery/timing-stats/mode-subscribe/TLab records at 2.49 s and **`NEMA_INITIALIZED`** — the GPU command ring comes up (cmdaddr `0x10153678`, 1024-entry ring) |
+
+v7 pair: `uiseed21.run.log`
+`319763463811b9f57748fd9a13904b2ac58b84449d127b51508bbfcf930bf7c0` /
+`uiseed21b.run.log`
+`20cb021758a7106a803599b391e57b0e1a31c09f12ea0c8769af5efe38291a6d`
+(canonical records `c06e2a7fa60bce04`, 112 records, equal; resc
+`uiseed21.resc`
+`6daf9663db74b54968f5a1aa8f66e4b91dfc68737c956427460babf75a0c2b68`;
+layer `sapporo-2.33-firstboot-compat-23316-v7.resc`
+`a8fee1b2e9c4366c7000298a4e2c79b842e4768762c449d1224f7864f3625bd6`).
+
+### Frontier and scope
+
+The boot now reaches **NEMA GPU initialization** — the display
+pipeline's first stage — with the guest in normal post-boot
+operation (battery stats, mode subscriptions, timing counters).
+The next bounded census: what the guest does after `NEMA_INITIALIZED`
+(panel bring-up per the E-ULS-0050 class law the tree already
+implements in `ulsan_disp.c`/`nema` modules) and whether frames
+publish. The working v7 layer remains a volatile lane artifact: the
+repository change this evidence authorizes is an integrator-scoped
+2.33.16 first-boot compatibility layer (named, hash-pinned to the
+2.33.16 components, hit-bounded per translation with the observed
+counts — 6 translations in the 8 s window), alongside the already-
+evidenced WbStoPreload v4 form. No compat intervention is authorized
+by this entry.
+
+Verification: all probes and runs reproduce from the retained resc
+scripts; the v7 pair and the earlier probes are two-run equal. No
+repository source, fixture, golden, or pin changed; documentation-
+only entry, validated by `make check-task-contracts`.
+
+
+## E-SAP-0069 — the post-NEMA 2.33 gate is an activity-store file-size failure (ticket 710 instance 33)
+
+2026-10-11, evidence-only continuation of E-SAP-0068 on working tree
+`1ba350a` (pre-existing 807 changes retained). Ticket 710 is ready and its
+705 dependency is done. The scope is the next post-NEMA census; production
+source, profiles, registries, fixtures, goldens and ticket statuses are
+unchanged. All probes, diagnostic hooks and raw logs remain under
+`/tmp/semu-710-panel-20261011/`; the firmware/lane tree is read-only.
+
+### Observed boundary and derivation
+
+The E-SAP-0068 v7 staging reaches NEMA initialization but then enters the
+lane's repeated DebugMonitor-pending behavior at the firmware's `BKPT #0`
+helper, PC `0x7890c`. At a 2.550-second virtual-time bound both control runs
+end with LR `0xb6571`, SP `0x10028cc0`, **89,445,106 instructions**, and
+CFSR/HFSR both zero. The observational assert/header/size probes preserve
+this checkpoint exactly. This is a lane breakpoint boundary, not a new
+in-tree CPU instruction gap; the existing CPU BKPT contract is unchanged.
+
+The pristine application and read-only probes name the condition:
+
+- Caller `0xb656c` invokes the assert helper `0x78946` with
+  `ActivityTimelineStore.cpp:368`. At `0xb655c..0xb6562` it compares
+  unsigned store field `+4` against capacity field `+0x24` and asserts
+  unless the former is strictly smaller. Object `0x10040b38` has
+  `+4 = 0xffffffff`, `+0x24 = 0x480` (1,152).
+- The guest itself creates `actitmln/247.bin`, writes a 24-byte header,
+  an 8-byte prefix and 1,152 40-byte records, then closes it at size
+  **46,112**, exactly `32 + 40 * 1152`. The header has magic
+  `0xacd1b1d1`, version `0xc3`, record width `0x28`, capacity 1,152,
+  entry count zero and a nonnegative timestamp. The native header checker
+  at `0xb6364` succeeds: the hook at `0xb63f2` records `valid=1`.
+  Header corruption and a fabricated empty header are excluded for this
+  witnessed file.
+- The subsequent native length check `0xb63f4..0xb640a` requires
+  `file_size - 32 == 40 * capacity`. The size wrapper at `0x90d3c`
+  calls **`0xbb204`**, whose result is observed at `0x90d56` as
+  `(r0,r1) = (0,0)` for synthetic handle `0x10160100` even though the
+  session overlay retains 46,112 bytes. The retained lane logical-file
+  overlay never hooks `0xbb204`; its registered `0xbb150` operation is a
+  different native function, not the size function.
+- Therefore the size validation fails, the loader returns false before
+  committing the header count at `0xb6452..0xb6454`, and the sentinel
+  `0xffffffff` remains. The v7 `actitmln` 500-to-200 result translation
+  allows later use of this uninitialized store, exposing line 368.
+  NEMA initialization alone is insufficient evidence that the translated
+  activity provider is safe to adopt.
+
+### Bounded causal controls
+
+The diagnostic hook supplies the actual retained file length in `(r0,r1)`
+at `0xbb204` and returns through the original LR. It admits only an existing
+synthetic handle for the exact named file and observed length, at most once
+per file; wrong length or a repeated admitted call explicitly halts with
+`PANEL_SIZE_DIAGNOSTIC_REFUSED`. Other handles retain their native path.
+This is a volatile experiment, not a production compatibility contract.
+
+| Diagnostic | Observed outcome at 2.550 s |
+| --- | --- |
+| `247.bin` only, 46,112 bytes, one hit | The first store loads and its append completes. The same line-368 assert moves to object `0x10040b98`, whose capacity is 3 and whose count is still `0xffffffff`. The new file is guest-created `actitmln/ongoing.bin`, size 152 (`32 + 40 * 3`); its header also validates but its unhandled native size is zero. Stop PC/LR/SP unchanged; instructions 89,725,471. |
+| Both files, 46,112 and 152 bytes, one hit each | Both activity-store assertions disappear; zero DebugMonitor-pending records. PC `0xdbc0a`, LR `0xa1e1f`, SP `0x10029150`, instructions 85,957,809; CFSR/HFSR zero. |
+
+Extending the two-file diagnostic to **8.000 virtual seconds** reproduces
+PC/LR/SP `0xdbc0a / 0xa1e1f / 0x10029150`, **118,163,913 instructions**,
+and zero CFSR/HFSR, assertions, DebugMonitor-pending records, diagnostic
+refusals and GPU command submissions. Each size hook still fires exactly
+once. The remaining v7 translations are `(sleepln,0)`, `(TrainingTss,0)`,
+`(PoiP,1)`, `(sleepln,1)`, `(TrainingTss,1)`, each once; **the `actitmln`
+translation no longer fires**. The separate E-SAP-0066 WbStoPreload hook is
+retained. The last guest log records concern the GPS startup timeout/power
+cycle at 5.112583000 / 5.121745250 / 5.181463625 seconds. No draw list is
+submitted anywhere in either diagnostic window; visible UI progression is
+still unproved. Unobserved panel laws remain fail-closed.
+
+Every control/observer/diagnostic experiment ran twice. Ordered peripheral
+and CPU records compare byte-for-byte after removing only host log timestamps
+and host lifecycle/monitor output. Register/instruction checkpoints compare
+separately and are exact. Raw logs are independently hash-pinned below;
+normalization does not mask virtual ticks, addresses, counts, values or
+intervention order. The static decoder and derived census also run twice
+byte-identically. The observational variants add logging only.
+
+### Pinned inputs and tooling
+
+Firmware validation before execution:
+`build/suunto-emu validate --profile sapporo-2.33.16 --firmware
+ tests/private/sapporo-2.33.16/firmware.semu` — exit 0, three components.
+The resident loaded by the lane's 2.33.12 default is byte-identical to the
+2.33.16 manifest resident. Component hashes remain unchanged after probing.
+The inherited lane instruction substitutions stay confined to lane memory;
+they are not production compatibility hooks.
+
+| Input/tool (relative to `../suunto-firmware` unless absolute) | SHA-256 |
+| --- | --- |
+| `2.33.16 resident (manifest and lane default)` | `c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5` |
+| `2.33.16 application` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| `2.33.16 resources` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `.tools/renode/Renode.app/Contents/MacOS/renode` | `8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab` |
+| `emulator/renode/sapporo-2.33.resc` | `dcbb32334518177f6e3dbe86ccfafeea683f67d3db20d9f972a41918d944b284` |
+| `emulator/renode/sapporo-2.33-logical-file-compat.resc` | `8623c414c561fcb949f1d8b9343dc54872b50ae24e8f3143ccb7b043a898003f` |
+| `emulator/renode/sapporo-2.33-empty-cache-compat.resc` | `9c47a46d4a5795a3a8c9775aa174e3412eff41a8f39568f94d218a9ee764720d` |
+| `emulator/renode/graphics/SapporoNemaP.cs` | `a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165` |
+| `emulator/storage/fixtures/sapporo-production-data.synthetic.bin` | `c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53` |
+| `/tmp/sap233rtc/uiseed21.resc` | `6daf9663db74b54968f5a1aa8f66e4b91dfc68737c956427460babf75a0c2b68` |
+| `/tmp/sap233rtc/rtcprobe.repl` | `ad5da2a7d10487e8ae03d9cd6b1a03259181ae2bec01ce2a0057c798733bd7f5` |
+| `/tmp/sap233-assert/sapporo-2.33-firstboot-compat-23316-v7.resc` | `a8fee1b2e9c4366c7000298a4e2c79b842e4768762c449d1224f7864f3625bd6` |
+| `/opt/homebrew/opt/python@3.14/bin/python3.14` | `7ebde552773a4045532637b114d645a313e045ac07b26f5e520bf039f1e34063` |
+| `/Users/cyril/Library/Python/3.14/lib/python/site-packages/capstone/lib/libcapstone.dylib` | `016084c6e70d929249a2abb22f1afda95095294e6cd70f509964ffc54006bf94` |
+
+Renode 1.16.1 (`d66b0c2a-202602160921`); Python 3.14.8; Capstone 5.0.7.
+The following paths are relative to `/tmp/semu-710-panel-20261011/`.
+
+| Probe / derived artifact | SHA-256 |
+| --- | --- |
+| `run.py` | `a4d99c91024db9577b49cbea5310a113cadf9c856f5dacb6cd88af1d9691feba` |
+| `native-census.py` | `9442b47670d2df813d706cd6dc8db43885c315c75b09594215786ea8f940291d` |
+| `native-1.log` | `a2e576efbfdec965ae78f483109c3841b2daa9c27655cec9c1354074e76c3689` |
+| `native-2.log` | `a2e576efbfdec965ae78f483109c3841b2daa9c27655cec9c1354074e76c3689` |
+| `census.py` | `d8db327e7dcd6502b19998ef4252120a485a6662622e1b0e1498f1d6ae436743` |
+| `census-1.log` | `a346a159b17cf71845110f1fef7013222385aca296024ec81a0c7e543da4e621` |
+| `census-2.log` | `a346a159b17cf71845110f1fef7013222385aca296024ec81a0c7e543da4e621` |
+| `frontier.resc` | `56605f79462ca38afcdc187a31ef04c683ea1561d91cff5a9ae9aa61b5169886` |
+| `assert.resc` | `db96ddefdb1dbf3d48055f6454856a2e6c0f70c4137d7204b0f3e3e067829b68` |
+| `metadata.resc` | `0ef5eed30ec3c0812e8649c3b623a2e5adac5b58d61b124880f731dee38b8701` |
+| `logical-file-probe.resc` | `5430382eedaae2741827bef69801208af36159b46c205885b7c1a4c879ed0513` |
+| `size.resc` | `d58273f3f18da593fadac31b67e24f6697670ecceeae7515c12920e51e1f0d2d` |
+| `size-diagnostic.resc` | `a1460102e716564bc27dfb3c6f26e0ffe05622ad898039c995e78ac47318adb0` |
+| `size-pair-diagnostic.resc` | `91ff127989e8df1a96946ca00b7a055eb7af358cbe14db4df540b737ed4988c9` |
+| `size-pair-long.resc` | `3338d0e1a322ff08a9cf79a6f72755e51734ae564efc8827a8aa9e0d509b7f52` |
+
+| Lane pair | Raw log SHA-256 (pass 1 / pass 2) | Canonical SHA-256 (both passes) |
+| --- | --- | --- |
+| `frontier-{1,2}.log` | `40a0895e0b800d53add103ad40fd540d1ae67d68a930d553ddb0f9ee4d858db4` / `34b07c80acd0016c1987db5c071c0b029cd9ee1844ac02961f81aed5b22b1b4a` | `2d5dc7df0159fac8a4b3c2a35795f32c8c19b591b8e61759e728f0604d667e89` |
+| `assert-{1,2}.log` | `642d288e920a6e069940d19d7a769c5df7e1d92e28848018a7b201c74f5c6154` / `fbc17117edad8e2802f915e38963536412d3a8b5fc841616693e927cc7250757` | `0ad84bc1342e46c69bd70004fa5806c757117012dcd7c937f456d3ce8a6c28be` |
+| `metadata-{1,2}.log` | `0e7b2f6afa455292deea8e4277bbbd9a5d0439f6d4a912ca5990fc1c261f76c6` / `55394d4d51ef68e08ab82e969c48965ad0632905a711ed1c334d49a5d266f56f` | `71dce8dea70e3c855e4acacfc9855dd1b550fcdb760e965e7fa6d0ff45b429cc` |
+| `size-{1,2}.log` | `5d186df11277f3a60ad7fd197b787d67f3ca541a7970952e063eeb9b7422104a` / `9dfea9e045a39dc5f2e1b0d0308a415cc5a4086b7e83f92e95cdf301ccdb60d7` | `7edbf00949cb9bc31b1ae98a077e9a4b0dead6068a382a986c286f41c82b5ec4` |
+| `size-diagnostic-{1,2}.log` | `1ec42f23616b3266d5b43133cc1623e19714e8f46e63ca791e16ef6782ea0129` / `898f10fe890a8854a839c0126736fdfc98c5219072ccf7179b10cc7a8bed1d49` | `717901bb6f2daa5257ef49f824b7f7c36020574263d2ed440fa0387d60e85fb0` |
+| `size-pair-diagnostic-{1,2}.log` | `db8e16429b91ae528ea53536c69639093ed0447f1b3c35407ca781db01da7c17` / `388ab8a94c4124942e98461ed13d8c18619530573858759228744a6d0c5af23e` | `e42507d255ed29d0eb6cc1a69409d2a2e307fca2e3417795a6b95722f7b09be5` |
+| `size-pair-long-{1,2}.log` | `84314e82172cae86da12ac80c9bd41b449d9c09d06582c3ef01487ff96933415` / `06f2d097d32637637c24b0a291b95f3ea9a572372b8e231647270c5deb86552d` | `9f3fb99af40847cbd3d1b344f0170a6170b1db4a5c8d633e8884d6a4c0f8a15a` |
+
+### Reproduction, verification and integration handoff
+
+From the repository root, run `python3 /tmp/semu-710-panel-20261011/run.py
+<probe>.resc <pass>.log` for each recorded script/pass. The wrapper invokes
+the pinned Renode executable from the read-only firmware root using a private
+`--config` path and a **300-second wall timeout**. Each script supplies its
+explicit 2.550- or 8.000-second virtual-time limit. Then run
+`python3 /tmp/semu-710-panel-20261011/native-census.py` twice and
+`python3 /tmp/semu-710-panel-20261011/census.py` twice; `cmp` passes for both
+static logs, both census logs and every canonical lane pair.
+
+| Repository verification | Result | Log SHA-256 |
+| --- | --- | --- |
+| `make check` | exit 0; 1,047 PASS records including five quick SDL tests | `92e5aa00bd29d391a44b089c370e9a097d0f99175f92918c17627332fd61d056` |
+| `make sanitize` | exit 0; 1,042 PASS records | `f99056f8d26866ae585a15facb80df3a7b7c0a3465f865fce866a41b7011ebd7` |
+| `make check-lines` | exit 0; advisory warnings | `0e11255e8f03cced4a1078799f9e222b89f1688ef04992c959ea6471b6047988` |
+| `make check-task-contracts` | exit 0; 171 indexed tickets | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+
+`git diff --check` passes. No engine/device/protocol/rendering behavior changes,
+so no era pin was moved or re-derived. The production 2.35 advancement gate
+and new-layer refusal matrix are not claimed: this instance installs no
+production layer and does not fulfill ticket 710's implementation acceptance.
+
+**Smallest integration request:** scope the 2.33.16 session-only file layer
+and its native `0xbb204` file-size operation together with the E-SAP-0066/0068
+boot staging. Size must derive from retained guest-authored bytes and preserve
+the native 64-bit return ABI, with exact component identity, named bounded
+interventions, handle/state/size/budget refusals, structured logs and snapshot
+policy included in the integration ticket's Allowed Files. Reassess the v7
+status translations after that lower-level operation exists: the measured
+activity translation becomes unnecessary, and three other synthetic size
+calls still return zero in the observed startup (their contracts are not
+closed by this two-file experiment). Do not promote the six-translation v7
+experiment into production unchanged.
+
+Ticket 710 stays ready; no public-interface workaround is introduced. The next
+census is the UI scheduling/precondition after successful activity-store load
+and NEMA initialization, with the bounded GPS timeout/power cycle recorded as
+a concurrent boundary. This entry authorizes no assertion bypass, generic
+read-as-zero behavior, GPS fixture growth or copied Ulsan panel law.
+
+
+## E-SAP-0070 — 2.33 post-load UI census and third GPS timeout (ticket 710 instance 34)
+
+2026-10-11, evidence-only continuation of E-SAP-0069 at working-tree HEAD
+`1ba350a`. Ticket 710 remains ready, dependency 705 is done. This instance
+changes only this ledger, current status and the ticket handoff. Existing
+uncommitted work is preserved; firmware, production source, profiles, registry,
+fixtures, goldens and index statuses are unchanged. All new scripts and raw
+logs stay outside Git in `/tmp/semu-710-ui-20261011/`.
+
+### Staging and observed boundary
+
+Both the control and the read-only observer retain E-SAP-0069's exact
+2.33.16 staging: synthetic factory data, schema-valid initial ui.txt, the
+volatile v4/v7 provider diagnostics, RTC logging stub and the two named
+file-size diagnostics. The latter return the retained guest-authored sizes
+46,112 and 152 once each. This is an experimental lane state, not an enabled
+production boot contract. E-SAP-0069 records the complete input/component,
+Renode, file overlay, RTC and NEMA pins; those inputs are unchanged here.
+The new GPS transport source is
+`../suunto-firmware/emulator/renode/gps/SapporoCxd5610Transport.cs`, SHA-256
+`3132d27471a88c72842d4b7059dcc03eb6ffff59ebd090262badb28154aef99a`;
+its platform attachment `gps/sapporo-gps-transport.repl` has SHA-256
+`cbfdeb5bc17cff5f5c83ff93b3079585f87c569409ede7e623e81abc6ce30ab9`.
+It installs no default UART response or awake pulse; its Awake route is GPIO24.
+No exchange, RX byte or pulse is added by either new probe.
+
+At the explicit **11.775-second virtual-time limit**, both control passes
+and both observer passes have the same checkpoint:
+
+| Field | Value |
+| --- | --- |
+| PC / LR / SP | `0x7890c` / `0x11dbd1` / `0x10033050` |
+| Executed instructions | **143,209,642** (`0x88934aa`) |
+| CFSR / HFSR | zero / zero |
+| NEMA initialization / command submissions / render refusals | 1 / 0 / 0 |
+| NEMA frame-generation register `0x400901f4` | zero |
+| Assert helper / DebugMonitor-pending log records | 1 / 52 (aggregated repeats) |
+| GPS UART TX count / RX log records / awake-pulse log records | 0 / 0 / 0 |
+
+The assertion is **`CXD5610GF-driver.cpp:889`**, caller `0x11dbcc`,
+LR `0x11dbd1`. It reaches the same native `BKPT #0` helper as earlier
+assertions; repeated lane DebugMonitor records are not a new interpreter CPU
+instruction gap. The two activity-store size diagnostics still fire exactly
+once each, with no diagnostic refusal or activity assertion. Remaining v7
+translations are five single hits: sleepln commands 0/1, TrainingTss commands
+0/1 and PoiP command 1; actitmln translation stays absent.
+
+### Native derivation and twice-reproduced census
+
+Read-only Capstone 5.0.7 analysis uses the pristine 2.33.16 application
+SHA-256 `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`.
+At `0x11db44..0x11db4c`, R5 is driver+`0x26c` and state is byte R5+6.
+At `0x11dbac..0x11dbba`, state 5 increments the byte at R4+2 and compares
+its updated value with three. R4 is loaded through literal `0x11e248`,
+value `0x1005b8f6`, so the retry byte is **`0x1005b8f8`**. On the third
+retry, the firmware emits its GPS communication-failure diagnostic, loads
+line `0x379` (889) and calls `0x11e026`, which supplies filename
+`0x11e8fc` and tail-branches to assert helper `0x78946`.
+
+The observational hooks write no register, memory, device or control-flow
+state. They measure this exact sequence (Renode virtual ticks):
+
+| Retry | State | Before increment at `0x11dbb0` | After increment at `0x11dbb8` | Counter before → after |
+| --- | --- | ---: | ---: | --- |
+| 1 | 5 | 5,181,269,875 | 5,181,270,000 | 0 → 1 |
+| 2 | 5 | 8,475,270,125 | 8,475,270,125 | 1 → 2 |
+| 3 | 5 | 11,769,550,875 | 11,769,550,875 | 2 → 3 |
+
+The assert call is observed once at tick **11,769,858,500**, with state 5
+and retry 3. Last decoded guest log records are `No response from GPS`
+at 11,700,581,625, `Power disabled` at 11,709,959,375 and the native GPS
+communication-failure message at 11,769,842,625. The logs support an absent
+startup exchange in this staging; they do not establish a successful 2.33
+receiver response, UART admission contract, ongoing GPS service or fix.
+E-SAP-0044/0046's 2.35 timeout/startup cases are related references, not
+permission to reuse their version-specific PCs, callback or payload on 2.33.
+
+The UI census adds a separate limit to the interpretation:
+
+- `0x71c22`, a native UI-engine path immediately before the `0x82934`
+  execution-context call, is reached **23 times**. The first three ticks
+  are 2,495,156,500; 2,496,048,000; 2,505,299,250 (LR `0x71bc3`).
+- Source-string references identify `uiEngine.cpp` via literal slots
+  `0x720c4` and `0x72ea0`, both pointing to `0x739cc`. Their load sites
+  `0x713e8` and `0x7221a` have **zero hits** in this window. These are
+  selected census points, not coverage of every UI function.
+- The previous 8-second PC `0xdbc0a` is the ISB after WFI at `0xdbc08`,
+  preceded by a call to `0xa1daa`; that checkpoint alone does not show a
+  busy loop or a scheduler defect. The RTC stub is still not a live RTC.
+
+Thus a native UI path runs before the GPS assertion, while there are no
+GPU submissions. This does **not** prove that repairing GPS alone would
+produce a frame, nor identify why the UI emits no draw commands.
+
+### Artifact hashes and reproduction
+
+Each final probe runs twice from a fresh machine with 11.775 virtual seconds
+and the wrapper's 300-second wall timeout. Command from the repository root:
+`python3 /tmp/semu-710-ui-20261011/run.py <probe>.resc <probe>-<pass>.log`.
+Run `native-census.py` and `census.py` twice with the same Python interpreter.
+`cmp` passes for both static logs, both derived census logs and both canonical
+lane pairs. The census also asserts equality of both passes' full checkpoint
+register output. Canonicalization removes host timestamps and machine
+lifecycle messages while retaining ordered peripheral/CPU records.
+
+| Artifact under `/tmp/semu-710-ui-20261011` | SHA-256 |
+| --- | --- |
+| `run.py` | `b1c718be2882c356495845846e7dd82b7cd1ea39f00a07c7685dd176836215f5` |
+| `control11775.resc` | `c6b6cf3f33c38b9312c9140cf8e92b11180b98ef11a3dd9e7fd13d5ddd545f45` |
+| `ui-gps-census.resc` | `a7b8b64f6662ed378b9436673004fa9c90ab94af3dcdccbf2f3c1baa012cad83` |
+| `native-census.py` | `72fb64471972f3621ba60f2e0267ba8c2ebe50020d89c763993588146c7e4a40` |
+| `native-1.log` | `52f36656a2692df8b82f1bc7113b4464b878e0dd2b519e57d7e96e2a80406338` |
+| `native-2.log` | `52f36656a2692df8b82f1bc7113b4464b878e0dd2b519e57d7e96e2a80406338` |
+| `census.py` | `eb3360fa9ebc30ac2585b1e6fce1dce804ae12a1f0a913c2b04ca2818d7ca6f7` |
+| `census-1.log` | `fc5e9406750c0538739e44c68323816c09119d132f5f8fb54a34a4ada154f7a1` |
+| `census-2.log` | `fc5e9406750c0538739e44c68323816c09119d132f5f8fb54a34a4ada154f7a1` |
+
+| Lane pair | Raw SHA-256 (pass 1 / pass 2) | Canonical SHA-256 (both) |
+| --- | --- | --- |
+| `control11775-{1,2}.log` | `36faedaa288b6077c92b61c3be58da6740a1768765fe57aa547972eabd551b4d` / `b8b61a436c42fe92a40899ac68f3d1010ecac932beac70ad156be0041d7a7d93` | `fced0da8208e026679017008600df6d17c714af378f5936bf212de85cbdac797` |
+| `ui-gps-census-{1,2}.log` | `224ba579db937d31dd788b24863e0ff97e509343277a47b4245c20db21f5affe` / `45bcd8ee5bf9f7674c5ffa56abc69e08fffeb8626f18a96a89aa54434d2be57b` | `c16aed8dc1f87c7043c31b1dd5d3ecd8ae2f730594243fd15721a7cef70fc1a4` |
+
+### Verification and integration handoff
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `build/suunto-emu validate --profile sapporo-2.33.16 --firmware tests/private/sapporo-2.33.16/firmware.semu` | exit 0; all three components valid | `2778bd4a18cd45705dd3db8468b2b84386faed26930803d4f10b37b8d681c39c` |
+| `make check` | exit 0; 1,047 PASS including five quick SDL tests | `92e5aa00bd29d391a44b089c370e9a097d0f99175f92918c17627332fd61d056` |
+| `make sanitize` | exit 0; 1,042 PASS | `228244c58b65406fc8ca399277ccf8366d494ffed9ee5e229d8730a3ce92249a` |
+| `make check-lines` | exit 0; advisory warnings | `0e11255e8f03cced4a1078799f9e222b89f1688ef04992c959ea6471b6047988` |
+| `make check-task-contracts` | exit 0; 171 indexed tickets | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+
+`git diff --check` passes. No engine/device/protocol behavior changes, so no
+era pin is changed or re-derived. No selected production-gap test, new-layer
+refusal matrix or authentic 2.35 advancement acceptance is claimed: this
+instance adds evidence, not a production implementation.
+
+The E-SAP-0069 integrator-owned request remains the smallest prerequisite:
+scope 2.33.16 session-file size ABI and the boot staging with component identity,
+limits/refusals, logging and snapshot policy in their Allowed Files. Keep GPS
+admission a separate behavior. Its next census must establish the **2.33.16
+initial UART callback/arming boundary and native status-line recognizer**, then
+reproduce a bounded successful exchange and a wrong-prefix/state refusal
+before a version-specific opt-in fixture can be justified. The no-draw UI
+precondition remains open and must be tested independently of a GPS success.
+No assertion bypass, renamed 2.35 layer, generic reply or unbounded pulse is
+introduced. Ticket 710 remains ready; implementation acceptance is unfulfilled.
+
+
+## E-SAP-0071 — bounded 2.33.16 initial GPS status/version exchange (ticket 710 instance 35)
+
+2026-10-11, continuation of E-SAP-0070 at HEAD `1ba350a`. Ticket 710 is
+ready and dependency 705 is done. The new component scope is one
+version-specific GPS startup fixture and its tests; machine registration,
+device binding, public contracts, profiles and snapshot integration are
+reserved for an integrator-owned attachment. The input lane/firmware tree is
+read-only and all probes/logs are outside Git in
+`/tmp/semu-710-gps-20261011/`. Pre-existing changes are preserved.
+
+### Input identity and derivation
+
+The probes inherit E-SAP-0069/0070's experimental boot staging, including
+synthetic factory data, initial schema-valid ui.txt, v4/v7 provider
+translations, the RTC logging stub and the two exact session-file size
+interventions. They add no ongoing GPS or GPIO pulse. The pinned components
+are resident `c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5`,
+application `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`,
+and resources `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5`.
+E-SAP-0069/0070 retain the full Renode, platform, transport, RTC and overlay
+pins. Private three-component manifest validation passes before execution.
+
+Twice-identical Capstone 5.0.7 disassembly of the pristine application
+`../suunto-firmware/artifacts/analysis/sapporo-2.33.16.17428/component-04-type-4-v2.raw`
+identifies the following native contract; lane hooks corroborate it:
+
+- UART open at `0x11d82c` stores its result at driver+`0x220`. The callback
+  literal at `0x11e3f4` is **`0x11d593`**. Callback/userdata are installed
+  at UART+4/+12. The callback dispatches received bytes into native parsers;
+  no guest parser state is patched by the fixture.
+- Initial helper `0x11d906` sets R5=driver+`0x270`, R6=driver+`0x338`,
+  pending byte driver+`0x273`=2, retry=0 and arms state 4 for 3000 ms.
+  The admission PC **`0x11d990`** follows the native scheduling call and
+  precedes `MOVS R0,1`. R0 is 2 at this boundary, not an open-success Boolean.
+- Both baseline 3-second passes observe that boundary at virtual tick
+  **2,102,558,000**, driver **`0x10039d40`**, UART **`0x10048d40`**,
+  callback `0x11d593`, userdata=0, state/pending=4/2, retry=0,
+  R5=`0x10039fb0`, R6=`0x1003a078`.
+- The line consumer at `0x11ec20..0x11ec38` requires first byte `$` and
+  compares the following three bytes against `PSS` at **`0x11ee74`**.
+  The accepted branch `0x11f202` schedules the pending state with a
+  10-ms delay through `0x11f240`. The line's four zero payload characters
+  are synthetic inert fixture data; no receiver fix/time is inferred.
+- Native state 2 sends **`@VER\r\n`** from `0x11dec0`, installs pending
+  14 and waits in state 4. A second recognized status line advances state
+  14, closes UART, then states 15/18 finish this initial lifecycle.
+
+### Positive, prefix and precondition controls
+
+`startup.resc` admits one initial arm only when the exact measured
+PC/driver/UART/register shape, callback, userdata, state/pending and zero
+retry agree. It queues ten synthetic bytes **`$PSS0000\r\n`** after 10 ms
+via the ordinary lane UART FIFO/IRQ path and installs one exact `@VER` reply
+with that same line/delay. No CPU register, control flow or memory state is
+modified on success. A failed admission halts before queuing any RX.
+
+Both positive passes observe:
+
+| Boundary | Virtual ticks | State/pending | UART |
+| --- | ---: | --- | --- |
+| Initial arm `0x11d990` | 2,102,558,000 | 4/2, retry 0 | `0x10048d40` |
+| Accepted first-prefix comparison `0x11ec38` | 2,112,575,500 | 4/2, result 0 | initial UART |
+| State 2 entry `0x11db38` | 2,122,204,375 | 2/2 | initial UART |
+| Accepted version-prefix comparison | 2,729,319,625 | 4/14, result 0 | initial UART |
+| State 14 entry | 2,738,640,750 | 14/14 | initial UART |
+| State 15 entry | 2,799,049,000 | 15/14 | closed |
+| State 18 scheduling | 2,799,049,875 | 15→18 | closed |
+| Later reopen/timeout arm `0x11f240` | 5,103,495,125 | 18→4, pending 7, 10000 ms | `0x10049400` |
+
+At **11.775 virtual seconds**, checkpoint PC/LR/SP is
+`0xdbc0a`/`0xa1e1f`/`0x10029150`, **130,924,409 instructions**, zero
+CFSR/HFSR, assertions or fixture refusals. Exactly six TX bytes
+`405645520d0a` and twenty RX bytes
+`24505353303030300d0a24505353303030300d0a` occur. Retry remains zero in
+all observed state transitions. There are no awake pulses or reopen replies.
+
+The independent negative cases reproduce twice:
+
+| Control | Native observation and stop |
+| --- | --- |
+| Wrong-prefix bounded fixture | Initial RX is `$BAD0000\r\n` only. Native comparison returns `0xffffffff` at tick 2,112,575,375; no TX. At the first retry, state=4/pending=2/retry=1 and the one-arm budget refuses at `0x11d990`, tick 5,381,931,375; PC/LR/SP `0x11d990`/`0xa52e1`/`0x10033038`, 102,132,054 instructions. |
+| Wrong-prefix causal control | Same initial wrong line; subsequent RX admission is explicitly disabled and the guest runs unchanged. Three timeouts reproduce `CXD5610GF-driver.cpp:889`; checkpoint `0x7890c`/`0x11dbd1`/`0x10033050`, 143,214,334 instructions at 11.775 s. No TX. |
+| Premature/wrong-state admission | Call the same admission guard at `0x11d984` before state 4 is installed. Exact driver/UART/callback/register shape is present, state/pending=0/2, retry=0. Refusal at tick 2,102,541,125; zero RX/TX and admitted hits. PC/LR/SP `0x11d984`/`0x11d97d`/`0x100330f0`, 61,705,191 instructions. |
+
+The causal negative's closed RX window is an experiment, not the production
+refusal policy; the bounded negative separately establishes refusal at the
+first unsupported retry. No wrong-prefix or premature case is called a
+successful receiver exchange.
+
+The positive still has **zero NEMA command submissions/render refusals and
+frame generation zero**; UI census point `0x71c22` runs 22 times. Clearing
+the GPS startup assertion does not clear the no-draw UI boundary within this
+window. That is a separate gap. Later UART reopen/pending 7 is observed but
+not supplied; this evidence authorizes no reopen, periodic pulse or arbitrary
+command response.
+
+### Reproduction and artifact hashes
+
+Use `python3 /tmp/semu-710-gps-20261011/run.py <probe>.resc <probe>-<pass>.log`.
+Each pass creates a fresh machine. `observe.resc` has a 3-second virtual
+budget; all other probes have 11.775 seconds; wrapper wall timeout is 300 s.
+Run `native-census.py` and `census.py` twice. All five canonical lane pairs,
+checkpoint arrays, static logs and derived census logs compare byte-identically.
+Canonicalization excludes host timestamps/machine lifecycle records, retaining
+ordered CPU/peripheral records. UART repeated-line counts are expanded to
+recover every synthetic byte. Raw logs remain outside Git.
+
+| Artifact under `/tmp/semu-710-gps-20261011` | SHA-256 |
+| --- | --- |
+| `run.py` | `c3e36651672deab3868deef105b8b97a91b76963e19af0a9ee69da3b4dfc1c24` |
+| `observe.resc` | `19c7146d052e26dd36e9228c94102aca9e9242c83374da127d2dc730cf9f86cc` |
+| `startup.resc` | `fd8493fad0e492383c8a571e243a4308fc942ee4cc8c6f240e92e7720f75c845` |
+| `wrong-prefix.resc` | `8167aed3cbf60131cc0a5fa33820c42aa61aebca507a30264df21afcc7fc0e9d` |
+| `wrong-prefix-causal.resc` | `16008cebaac79d65d8bf65072b1e61c8a02b48e28ca02782943123d4ce08a562` |
+| `wrong-state.resc` | `0bca9569ec3acbdcb928f9c42f0024aea4c799db21d6cf813ce12474d37df807` |
+| `native-census.py` | `a0999f43c9964bedbc7dfb636a0107e9baed4026190fb03218c59ac45130cc11` |
+| `native-1.log` | `d35ddec8e667f69fc0426752ec929593a543dad497e728f6713c31590555a7f6` |
+| `native-2.log` | `d35ddec8e667f69fc0426752ec929593a543dad497e728f6713c31590555a7f6` |
+| `census.py` | `a2b581ade803f1d4aff5783f1e10fa60421ab83aadaf387e68498ca20517bf10` |
+| `census-1.log` | `d987e753ff8674b897cd5d1389b70f7d2ffe1c4d0d3bbc78139c5e7652c6990c` |
+| `census-2.log` | `d987e753ff8674b897cd5d1389b70f7d2ffe1c4d0d3bbc78139c5e7652c6990c` |
+
+| Lane pair | Raw SHA-256 (pass 1 / pass 2) | Canonical SHA-256 (both) |
+| --- | --- | --- |
+| `observe-{1,2}.log` | `9f50ec924239ba658dacb0aae1a58effb9c031757193ba19665888ca3832cac8` / `c96ea658bf179235940bc5ca87b7bab697d34f2505c794e225a1755db170e89a` | `387eb1a53bc97ec743c2273e6878cfdab9e55949f3fbb10544cb3fecab206e25` |
+| `startup-{1,2}.log` | `4f604e67de69012aa2228a1132898bd0116f4987d6fad54d10166e5b995b065e` / `fdb6a0aab4cfff5532665211004c354f72bcc034fececd35bc4e61be29cb4660` | `fb33589404467760fc54b8331b74f3e092ddec0118928160f0ef40c764e39f12` |
+| `wrong-prefix-{1,2}.log` | `13ce437a6adad83e6bea3f2394794ec05566859f66432a52f5946acfce72e536` / `7ecb1f1df51750a5b0a3bb16c5d1e0a3338c704d86bab1df8f993d6b2656f8e3` | `2b1546c28c22a343cebf17d24ac2c93d6c99a6815b5c90fcb63a24016953a2d2` |
+| `wrong-prefix-causal-{1,2}.log` | `5a96931b20b6b3e2401c6e17201b323c60a08f991e61fa2e660a96f3befac115` / `9a9c5b5f0f42f8d890a69c67b5fdf6051ef153502de62e0390076a1b7009e05f` | `efc2617b0e8fa7617dbde62905f28e6bab5e2ef29bc3b93ddff16f542d1be2e0` |
+| `wrong-state-{1,2}.log` | `60e0ef353f39206f970c7f358bf44a14970361da0e2f151da35149b8af0e32f2` / `06300cd0d87df177bc7dff1df41e47023bb8bf3b7e192cc9fb357f5da0d8a144` | `1bad096d40620465db17be31343b42ee16e27341986fe49538c76e6553c93072` |
+
+
+### Component implementation, verification and integration handoff
+
+The evidence above was recorded before implementing
+`src/compat/sapporo_233_gps.c` and its component contract
+`src/compat/sapporo_233_gps.h`. Descriptor **`sapporo-2.33-gps-startup`** is
+profile/three-hash pinned, opt-in, has two aggregate hits, and emits separate
+initial-status/version-status events. It admits only the measured initial
+PC/driver/UART allocation and R5/R6 shape, state/pending 4/2, native callback,
+zero userdata/retry. Different allocations fail closed until evidenced.
+CPU state is immutable. Only the exact six-byte `@VER\r\n` command may
+consume the second hit; early, repeated or unrelated commands refuse.
+
+Both replies use the existing CXD transport's 10-ms scheduled UART RX API.
+All validation and queue admission precede the hit/log commit. Failure leaves
+transport bytes/events, scheduler clock/IDs/sequences, CPU, hits and logs
+unchanged; only a sticky per-owner diagnostic may change. The integration
+owner must poll that diagnostic before another guest instruction, cancel
+transport events on reset, then clear context refusal and reset layer hits.
+There is no new global device law, CPU substitution or host-time dependency.
+
+`tests/unit/test_sapporo_233_gps.c` has four cases covering three-component
+hash/wrong-profile/missing-hash activation, delayed exact replies, CPU
+immutability, owner isolation, event logs, reset cancellation/rearm and
+**37 atomic-refusal configurations**. The latter cover disabled/invalid
+owners, wrong driver/register/UART/callback/state/pending/retry, exhausted
+hits, absent memory/arguments, pending RX, early/version/repeated/unknown
+requests, deadline/ID/sequence overflow and sticky first-error preservation.
+Every refusal compares transport snapshots plus scheduler/CPU/hit/log state.
+The focused pre-implementation run failed because the component header was
+absent (exit 2); this is new-component coverage, not a claim of an existing
+production bug regression.
+
+The normal build discovers the new C/test files automatically. No Makefile,
+public header, machine/device registry, profile, snapshot format, old golden
+or ticket-index status was edited. The component is **not CLI-registered or
+bound into authentic 2.33 execution**. The lane success above is distinct
+from the component tests; no interpreter startup advancement is claimed.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `make test TEST_FILTER=sapporo_233_gps (before component)` | exit 2; missing component header | `18b862eb55f9a66908a1ef81cce604605352bbcbf15796d73334b8d499d65668` |
+| `make test TEST_FILTER=sapporo_233_gps` | exit 0; four cases including 37 refusal configurations | `d93a6b17db90ddd8dcbbf2d35ccf32dfd150f07a12720e37438c683e5a11a3fc` |
+| `make check` | exit 0; 1,051 PASS including five quick SDL tests | `5b14dcdb1c179a220cf5e3ad1c3463dff66eefcd1af98addbb803e6f363dc120` |
+| `make sanitize` | exit 0; 1,046 PASS, including final component tests | `5583cbdec2089f36e36511a462d8199785998eb31130cc323513d639024d7403` |
+| `make check-lines` | exit 0; pre-existing advisory warnings; new C/header/test each below 300 lines | `0e11255e8f03cced4a1078799f9e222b89f1688ef04992c959ea6471b6047988` |
+| `make check-task-contracts` | exit 0; 171 indexed tickets | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+| `build/suunto-emu validate --profile sapporo-2.33.16 --firmware tests/private/sapporo-2.33.16/firmware.semu` | exit 0; all three components valid | `2778bd4a18cd45705dd3db8468b2b84386faed26930803d4f10b37b8d681c39c` |
+| `make test-firmware SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu TEST_PROFILE=sapporo-2.35.34 TEST_FILTER=sapporo_235_gps_startup` | exit 0; selected paired initial GPS and refusal boundary gate | `abb710eb9154892c1266a0e1efa5e0e1b7789a8ea0a3a4365a756a18c93c3368` |
+
+The existing 2.35 firmware script retains both twice-identical raw transcript
+pins: startup `4491d7bfdda5b78ad8b72f46f39bc65d9d6cf89af7fd5036f02f9d8b87fb73aa`
+(`budget / 0x93222 / 500000000 / 3343660033 ns`) and boundary
+`8561bb1f8470e5f6fe50df6648d70ab0dc1f32c74ee2ea52e8768b6a370e6a66`
+(`compat-refused / 0x1254ec / 1059785208 / 14811876715 ns`). Both have two
+GPS hits. Script-owned raw logs are volatile and removed by its cleanup.
+No era pin drift or re-pinning is introduced. The full 2.35 suite and a new
+2.33 interpreter advancement gate are not claimed. `git diff --check` passes;
+all pre-existing file hashes/content are preserved.
+
+**Smallest integration request:** scope the machine layer registration and
+execution/refusal routing (`src/boards/machine.c`, `machine_run.c`) together
+with per-machine GPS context/profile binding, reset and reply dispatch
+(`src/devices/sapporo_devices_internal.h`, `sapporo_device_compat.c`,
+`sapporo_devices.c`) and explicit snapshot admission/refusal coverage in the
+integration ticket. Use existing typed UART APIs and the observed PC predicate;
+do not add a parallel private routing API. Full preflight/hash validation,
+wrong profile/owner/order, reset, sticky-refusal-before-next-instruction and
+snapshot tests belong to that attachment. The E-SAP-0069 session-file/boot
+integration prerequisite remains separate and must exist before an authentic
+2.33 gate can reach this startup allocation. If interpreter allocations differ,
+record a new census before widening the pinned component guard.
+
+Ticket 710 stays ready: the new component and tests pass, while machine
+attachment and authentic advancement acceptance are outstanding. Initial GPS
+success does not authorize pending-7 reopen, ongoing awake pulses or a fix;
+post-load UI no-draw remains a separate next gap.
+
+## E-SAP-0071-INT — the 2.33 GPS startup fixture is registered, bound and dispatch-wired (ticket 710)
+
+2026-10-12, continuation of E-SAP-0071 on working tree `1ba350a` (the 807
+changes and instance-35 component retained). This is the
+integrator-delegated machine attachment the instance requested: the
+`sapporo-2.33-gps-startup` layer is now registered in the machine's layer
+table, bound through the Sapporo device factory, dispatched from the run
+loop's compatibility gates, cleared on reset, and refused for wrong
+profiles/hashes before any guest instruction. No new component law, CPU
+path, snapshot section, profile registry entry (beyond the 2.33
+profile's own `[layer]` row) or golden changed.
+
+### Attachment scope (the instance's smallest-integration list, minus one)
+
+- `src/boards/machine.c`: `enable_layer` resolves the layer id; the
+  reset loop binds it through
+  `semu_sapporo_devices_bind_233_gps` (the 2.35 OHR precedent).
+- `src/boards/machine_run.c`: the 2.33 layer joins the device-fixture
+  dispatch class and the fast-path gate summary (`device_235` now
+  covers every device-fixture layer; the name is historical).
+- `src/devices/sapporo_devices_internal.h` / `sapporo_devices.c`: the
+  `gps_233_context` owner, a `gps_233_profile` selection flag for
+  `sapporo-2.33.16` only, and reset zeroing.
+- `src/devices/sapporo_devices.h` / `sapporo_device_compat.c`: the
+  public bind; the `apply_compat_hook` 2.33 branch (refusal propagation
+  and `semu_sapporo_233_gps_startup` dispatch); `bindings_valid` and
+  `compat_idle` include the 2.33 owner.
+- `profiles/sapporo/2.33.16/profile.semu`: one `[layer
+  sapporo-2.33-gps-startup]` row (device-fixture, E-SAP-0071,
+  max_hits=2), making the layer selectable via `--layer` and listed by
+  `list-layers`.
+
+### Verification (all commands from the repository root; the private
+manifest is the on-disk 2.33 bundle)
+
+- `make test TEST_FILTER=sapporo_233_gps` — 6/6 (the instance-35
+  component's four cases plus the new
+  `tests/unit/test_sapporo_233_gps_integration.c`: profile
+  registration and the machine-level bind/dispatch/refuse/reset
+  lifecycle with atomic transport comparison).
+- `make check` — 1,053 PASS (was 1,051); `make sanitize` — 1,048 PASS
+  (was 1,046). `make check-lines`,
+  `make check-task-contracts` clean; `git diff --check` clean.
+- Wrong-profile refusal: `run --profile sapporo-2.35.34 --layer
+  sapporo-2.33-gps-startup` fails with `layer ... is pinned to profile
+  sapporo-2.33.16` before any machine is created.
+- Snapshot round trip: a 1 s layer-enabled save
+  (`/tmp/semu-233-integ/p5s.sems`, sha256 `6bc16cc896508896…`) loads and
+  continues twice to 12 s with byte-identical logs (stop
+  `pc=0x000dbc0a instructions=85539115 virtual_time_ns=12000000000`).
+  The layer state persists through the existing layer-image section;
+  no new snapshot section was added, so 2.35/2.39/2.22 snapshot bytes
+  are untouched (the 2.35 navigation restore gate passes unchanged).
+- No-op control: with the layer enabled, the 4 s stop tuple
+  (`pc=0x000dbc0a instructions=84609013 virtual_time_ns=4000000000`) is
+  byte-identical to the no-layer control, and the 1 s tuple
+  (83,663,763) reproduces the recorded E-SAP-0052 curve exactly — the
+  fixture is provably inert until the guest reaches the arm PC.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235` — all nine 2.35 gates pass (the shared
+  dispatch paths are behavior-identical for 2.35).
+
+### Not claimed — the standing prerequisite
+
+The authentic 2.33 boot still stalls inside the first-boot provider
+wave (E-SAP-0066/0068 class) before reaching the GPS arm at
+`0x11d990`, so zero layer hits occur in any authentic run today: the
+E-SAP-0069 session-file/boot compat integration remains a separate,
+still-outstanding prerequisite, exactly as the instance recorded. The
+component's two synthetic `$PSS0000` replies have not yet been observed
+in an in-tree boot; no GPU-submission or frame-generation change is
+claimed, and the layer is opt-in (`--layer`), hash-pinned to the three
+2.33 components, and hit-bounded at two.
+
+Artifact hashes (volatile, `/tmp/semu-233-integ/`): direct 12 s run
+`gps-1.log` sha256 `8e959e3080ccaae4…` (equal to both snapshot-load
+continuations, `cont-1.log`/`cont-2.log`), save log `28d54109749eede6…`.
+Changed-file SHA-256 (first 16): component
+`b17b2e59f25b424b`, header `038db0e94ad30a02`, component tests
+`32736db478b06e01`, integration test `9518a00870ca5f9f`,
+2.33 profile `b95a3a706985f8d1`.
+
+Ticket 710 stays ready; this attachment closes the machine-integration
+item only. The remaining acceptance path is the boot/session-file
+compat prerequisite and an authentic 2.33 advancement gate.

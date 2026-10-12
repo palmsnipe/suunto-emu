@@ -110,3 +110,41 @@ no silent pin move.
 Report the derivation result (law or no-oracle outcome), changed files,
 red/green checks, paired hashes, and remaining gaps. Integrator owns
 the final status review.
+
+## Evidence instance 1 (2026-10-09, `sap235-aux`, E-RE-SAP235-TSC6A-AUX-001)
+
+The offline-RE census ran twice byte-identically over the pinned 2.35
+partition (61 containers / 22,296 blocks) and the 2.33 partition (64 /
+18,580). Outcome: the aux region is structurally **3 x 7-bit RGB**
+(hypothesis (a) confirmed; (b) per-pixel modifiers and (c) alpha
+exponent refuted), but **no pixel oracle exists** to fix the
+ramp-combination law (lane refuses TSC6A; the Renode model uses an
+uncompressed shadow; no device). Per the acceptance clause the refusal
+stands and the derivation is recorded; no src change, no pin moved.
+The witness asset is pinned to container `0x9b8a00` (block 2,0
+aux-bearing), with a per-container count correction (29/40, 32/40)
+to E-EMU-SAP235-ICON20-001. The remaining work is a pixel-oracle
+acquisition or an integrator ruling on structural evidence alone —
+the ticket stays `ready` for that decision.
+
+## Evidence instance 2 (2026-10-10, `sap235-aux-law`, E-RE-SAP235-TSC6A-AUX-002)
+
+The owner delegated the approach; the chosen path was a second corpus
+pass that found the discriminator AUX-001 lacked: the 140x6 all-aux
+spectrum strip's endpoint fields are constant garbage per band and its
+index plane is only maintained on visible rows — so a nonzero
+auxiliary region marks an **exact-color block** (21 bits = 7:7:7 RGB,
+`v*255/127`, alpha law intact). Implemented red-first
+(`test_nema_tsc6a_aux.c`); the stale aux-refusal expectations in five
+existing TSC6A modules were re-derived to the new law. The full family
+(38), `make check` (1,042), `make sanitize` (1,042), contracts and
+lines are green. The two Control refusals are gone (log diff = exactly
+the two removed refusal lines; settled CRC `30847819 -> 5f2c742c`); the
+other five cases keep byte-identical logs and settled CRCs with only
+renderer-section bytes moving (full-file diff verified). The 2.39 era
+census on the rebuilt pinned flash is 42/43; the single red
+(general_budget) is the image-only re-pin class — END golden, log
+hash, stop line and census held — re-pinned with a dated note and
+twice byte-identical. The law is fail-total (every 96-bit block
+decodes); the one unrepresentable case (exact-color black) is named in
+the entry. The ticket stays `ready` for integrator review.

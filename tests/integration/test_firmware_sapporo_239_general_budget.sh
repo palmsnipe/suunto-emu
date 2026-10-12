@@ -71,8 +71,8 @@ for attempt in first second; do
     # the END golden, the transcripts and the census are unchanged and
     # only the image bytes moved bb17b7a8… -> 24d5a4dd… (twice
     # byte-identical; the resumed leg re-saves the same image).
-    test "$(hash "$run_dir/$attempt.final.sems")" = ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82
-    test "$(hash "$run_dir/$attempt.refused.sems")" = ca654b44212f50c6310e2ee298529cba6bad4d03182e528c8a96dced1ec85e82
+    test "$(hash "$run_dir/$attempt.final.sems")" = 1f733942b77b4d4bd3fccf4d28d9cab73b08f7aaca0f4c0eaa61a05b4b2209b2
+    test "$(hash "$run_dir/$attempt.refused.sems")" = 1f733942b77b4d4bd3fccf4d28d9cab73b08f7aaca0f4c0eaa61a05b4b2209b2
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.refused.sems"
     cmp "$run_dir/$attempt.final.sems" "$run_dir/$attempt.mid.sems"
     # RE-PINNED (777/E-SAP239-DEEPCLEAN-001): resumed transcript — this

@@ -143,10 +143,17 @@ static void test_widgets_invalid_source_refuses(semu_test_context *c)
         if (variant == 0u) asset[224u * 12u + 11u] = 128u;
         SEMU_TEST_EQ_U64(c, SEMU_OK, semu_bus_load(bus, SOURCE, asset, size, &error));
         memset(panel, 0xa5, sizeof(panel)); memcpy(before, panel, sizeof(panel));
-        SEMU_TEST_ASSERT(c, nema_tsc6a_resolve_mask(surface, bus, &s,
-            panel, 480u, &error) != SEMU_OK);
-        if (variant == 0u) SEMU_TEST_ASSERT(c, strstr(error.text, "auxiliary") != NULL);
-        SEMU_TEST_ASSERT(c, memcmp(before, panel, sizeof(panel)) == 0);
+        if (variant == 0u) {
+            /* Ticket 807: an aux-bearing block is an exact-color block
+             * and no longer refuses; the draw renders. */
+            SEMU_TEST_EQ_U64(c, SEMU_OK,
+                nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u, &error));
+        } else {
+            /* The truncated source span still refuses with zero writes. */
+            SEMU_TEST_ASSERT(c, nema_tsc6a_resolve_mask(surface, bus, &s,
+                panel, 480u, &error) != SEMU_OK);
+            SEMU_TEST_ASSERT(c, memcmp(before, panel, sizeof(panel)) == 0);
+        }
         semu_bus_destroy(bus);
     }
     nema_tsc6a_destroy(surface);

@@ -12,6 +12,13 @@ set -eu
 # instead of the shape; count, ordinals, times and every other line are
 # unchanged and the control snapshot pin is byte-identical (zero writes
 # either way). The icon's aux-bit blocks remain unsupported.
+# Ticket 807 / E-RE-SAP235-TSC6A-AUX-001 admits the exact-color block law:
+# the two Control refusals disappear (log changes are exactly the two
+# removed draw-refused lines, ords 347/355) and the icon renders — the
+# settled Control frame CRC moves 30847819 -> 5f2c742c while the other five
+# cases keep their settled CRCs; every serialized renderer-section image
+# hash moves because the resting-cache aux blocks now decode, with zero
+# guest CPU/memory/time change (all stop lines byte-identical).
 emulator=${SEMU_SDL_EMULATOR:-build/suunto-emu-sdl}
 manifest=${SEMU_FIRMWARE_MANIFEST:-tests/private/sapporo-2.35.34.18929/firmware.semu}
 if [ ! -f "$manifest" ]; then
@@ -54,22 +61,22 @@ def run(args, log, expected, child_env=env):
 cases = [
     ('exercise', [(38, 'upper')], 44, 9809899994,
      '9d6a6202c88727b0c287ddb8cff12b4f8dae095d67c6dec7e3eb056aab9ff855',
-     '19f7f8352bcd9fbf867b28b31cbd876a3b233fd05093b9f37caaa945da7842f8'),
+     '2b1f27a179b625fa9587f750a1adc8821cf4c85808933819a4569cc51e6aa11d'),
     ('widgets', [(38, 'lower')], 44, 9801773346,
      'b290227ff5609fc8267b2c2419a5af8c849a93bfa8a7a207ec35ffcb902a24e4',
-     '10151154bba5a724bedf4c9fa3f4943dd44931f5b06fb48180642acc59d681c6'),
+     '220fccdafb8017b590a019e5a53c8ae2c3f0d531f85361ad6a9335b716c33228'),
     ('pin', [(38, 'middle')], 44, 9903048381,
      '79eba44837a8ebeff51d3e9ba8837a03020d574938b63610ff17a909cdabdae5',
-     '99def5985da8ff820d994cee52d88ae18111f4138a8fa42345021dd10a92dd43'),
+     'b1e462231b3287ee99538870dffc16909ac9613df6341c840258813875bccbf1'),
     ('browse', [(38, 'lower'), (39, 'lower'), (40, 'upper')], 44, 10210850502,
      '8a31ead3fb899aa04fdcc8f5cfb1d0d24b2426361a521c364519cdca5b333300',
-     '6d6fa414565e60fa9401a5402ee66b11162a19ce4c89a620f24e54043753ea08'),
+     '72fe664a8d56badba72f43572ba2f79d28fd2f8bcc611399f87f3106193a56c8'),
     ('control', [(38, 'lower'), (39, 'middle')], 44, 10123133602,
-     'caa658680323b8a0a44620e2a69e79280976edcad1c5ccbe2c9cfb3403974380',
-     '80cce27096848e339c43a929f7580d91d2832950a752d2cce861d7235c66a9fc'),
+     '5c0b4e8fc0e5816b291506a1ca012d2bf6db325a99d4ae328de539ee45f9e63b',
+     '17709c61e10cdcf0c23792a90d24cf7517350661bf64b0c4970c7642e606affc'),
     ('return', [(38, 'middle'), (44, 'middle')], 46, 10249573536,
      '9f404d6b67adc87b6df9c3f310a33465d944ec53be45c4cbd947b91de3b2e54a',
-     '3de4d7112f4c4c282547332b315e06afa7f20071a2bf673df9b2eae968e7c85f'),
+     '1fd27a58598e5062dd90250cfd6a0f1003952002f8450ab231fd222cf3f0c3e9'),
  ]
 with tempfile.TemporaryDirectory(prefix='semu-sap235-nav-') as directory:
     work = pathlib.Path(directory)

@@ -194,13 +194,16 @@ static void test_snapshot_preserves_cached_history(semu_test_context *context)
     SEMU_TEST_ASSERT(context, init(&f) && init(&restored));
     red_block(&f); red_block(&restored);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
-    /* The current model retains a previously decoded block on an auxiliary
-     * rewrite outside the sampled footprint (x=4). Persistence must retain
-     * that history without publishing it or inventing a codec. */
+    /* Ticket 807: the auxiliary rewrite makes block 0 an exact-color
+     * block; the next resolve decodes it fresh (the old "retained
+     * history on aux rewrite" policy is superseded — every block now
+     * has a total decode).  Persistence retains the decoded baseline
+     * without inventing pixels: the exact color of the rewritten block
+     * is v0 = 1 -> (2,0,0) at alpha 0x7ff -> 255. */
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus, SURFACE+9u, 1u, 15u, &e));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(restored.bus, SURFACE+9u, 1u, 15u, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
-    SEMU_TEST_EQ_U64(context, 0xffff0000u, f.gpu->baseline->pixels[0]);
+    SEMU_TEST_EQ_U64(context, 0xff020000u, f.gpu->baseline->pixels[0]);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.save(f.gpu, &data, &size, &e));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_nema_backend_snapshot_ops.load(restored.gpu, data, size, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
@@ -228,15 +231,21 @@ static void test_unknown_resolve_preserves_committed_state(semu_test_context *co
                 submit(&f, resolve(&f, SURFACE), &e));
         }
         frames=f.frames;
-        SEMU_TEST_EQ_U64(context, SEMU_OK,
-            semu_nema_backend_snapshot_ops.save(f.gpu, &before, &a, &e));
+        /* Ticket 807: an auxiliary rewrite no longer refuses — the
+         * rewritten block decodes as an exact color and the resolve
+         * commits a frame (the baseline re-derives on the span
+         * rewrite).  The committed-state guarantee moves to the
+         * surviving refusal class: an unmapped baseline still refuses
+         * without any state change (test_unmapped_baseline_...). */
         SEMU_TEST_EQ_U64(context, SEMU_OK,
             semu_bus_write(f.bus, SURFACE+9u, 1u, 15u, &e));
-        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
             submit(&f, resolve(&f, SURFACE), &e));
-        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, e.code);
-        SEMU_TEST_ASSERT(context, strstr(e.text, "unsupported baseline block") != NULL);
-        SEMU_TEST_EQ_U64(context, frames, f.frames);
+        SEMU_TEST_EQ_U64(context, frames + 1u, f.frames);
+        SEMU_TEST_EQ_U64(context, cold ? 0xdf020000u : 0xff020000u,
+            f.gpu->baseline->pixels[0]);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_nema_backend_snapshot_ops.save(f.gpu, &before, &a, &e));
         SEMU_TEST_EQ_U64(context, SEMU_OK,
             semu_nema_backend_snapshot_ops.save(f.gpu, &after, &b, &e));
         SEMU_TEST_ASSERT(context, a==b && memcmp(before,after,a)==0);
@@ -247,20 +256,22 @@ static void test_resolve_checks_actual_source_footprint(semu_test_context *conte
 {
     fixture f; semu_error e;
     SEMU_TEST_ASSERT(context, init(&f)); red_block(&f);
-    /* Block 1 starts at x=4; the first pixel samples the known block 0. */
+    /* Block 1 starts at x=4; the first pixel samples the known block 0.
+     * Ticket 807: an aux-bit block decodes as an exact color (v2 = 64
+     * -> blue 128) instead of refusing. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_write(f.bus, SURFACE+12u+11u, 1u, 0x80u, &e));
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         submit(&f, resolve(&f, SURFACE), &e));
-    /* Translation samples block 1, including the pixel-center boundary 3.5+.5. */
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+    /* The shifted translations now sample block 1's exact color. */
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         submit(&f, resolve_at(&f, SURFACE, 0x40800000u, 0x10001u), &e));
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         submit(&f, resolve_at(&f, SURFACE, 0x40600000u, 0x10001u), &e));
-    /* A later destination sample is unknown: no partial frame is published. */
-    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+    /* The wide clip samples only decodable blocks now. */
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         submit(&f, resolve_at(&f, SURFACE, 0u, 0x10005u), &e));
-    SEMU_TEST_EQ_U64(context, 1u, f.frames);
+    SEMU_TEST_EQ_U64(context, 4u, f.frames);
     SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
         submit(&f, resolve(&f, SURFACE), &e));
     finish(&f);

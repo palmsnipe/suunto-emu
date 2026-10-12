@@ -311,6 +311,7 @@ semu_status semu_sapporo_devices_select_profile(
         devices->ohr2_profile_239 = 1;
     }
     devices->ohr2_profile_235 = strcmp(profile_id, "sapporo-2.35.34") == 0;
+    devices->gps_233_profile = strcmp(profile_id, "sapporo-2.33.16") == 0;
     devices->profile_selected = 1;
     semu_error_clear(error);
     return SEMU_OK;
@@ -336,6 +337,7 @@ void semu_sapporo_devices_reset(semu_sapporo_devices *devices)
 {
     if (devices == NULL) return;
     memset(&devices->ohr_235_context, 0, sizeof(devices->ohr_235_context));
+    memset(&devices->gps_233_context, 0, sizeof(devices->gps_233_context));
     memset(&devices->gps_235_context, 0, sizeof(devices->gps_235_context));
     memset(&devices->gps_235_reopen_context, 0, sizeof(devices->gps_235_reopen_context));
     memset(&devices->gps_235_awake_context, 0, sizeof(devices->gps_235_awake_context));

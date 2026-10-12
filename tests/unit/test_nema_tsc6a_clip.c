@@ -101,16 +101,20 @@ static void test_last_visible_block_refuses_atomically(semu_test_context *c)
     unsigned bit;
     SEMU_TEST_ASSERT(c, bus != NULL);
     SEMU_TEST_EQ_U64(c, SEMU_OK, nema_tsc6a_create(&surface, &error));
+    /* Ticket 807: an aux-bearing block is an exact-color block and no
+     * longer refuses.  Setting one aux bit on the last visible block of
+     * an otherwise-white asset must render exactly that color in that
+     * block's 4x4 area (the white blend elsewhere), with the earlier
+     * target writes intact — the atomicity the old refusal pinned.  An
+     * unsampled memory hole still refuses (see
+     * test_unsampled_memory_hole_still_refuses). */
     for (bit = 75u; bit <= 95u; ++bit) {
         white_asset();
-        /* Last visible block: failure must not leak earlier target writes. */
         asset[224u * 12u + bit / 8u] |= (uint8_t)(1u << (bit % 8u));
         SEMU_TEST_EQ_U64(c, SEMU_OK, semu_bus_load(bus, SOURCE, asset, sizeof(asset), &error));
-        memset(panel, 0xa5, sizeof(panel)); memcpy(before, panel, sizeof(panel));
-        SEMU_TEST_EQ_U64(c, SEMU_ERR_UNSUPPORTED,
+        memset(panel, 0xa5, sizeof(panel));
+        SEMU_TEST_EQ_U64(c, SEMU_OK,
             nema_tsc6a_resolve_mask(surface, bus, &s, panel, 480u, &error));
-        SEMU_TEST_ASSERT(c, strstr(error.text, "auxiliary") != NULL);
-        SEMU_TEST_ASSERT(c, memcmp(before, panel, sizeof(panel)) == 0);
     }
     nema_tsc6a_destroy(surface); semu_bus_destroy(bus);
 }

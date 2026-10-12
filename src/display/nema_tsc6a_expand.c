@@ -70,10 +70,32 @@ static void tsc6a_third(const uint32_t a[3], const uint32_t b[3],
     }
 }
 
+int tsc6a_block_has_aux(const uint8_t blk[TSC6A_BLOCK_BYTES])
+{
+    return blk != NULL && ((blk[9] & 0xf8u) != 0u || blk[10] != 0u ||
+                           blk[11] != 0u);
+}
+
 int tsc6a_block_supported(const uint8_t blk[TSC6A_BLOCK_BYTES])
 {
-    return blk != NULL && (blk[9] & 0xf8u) == 0u &&
-           blk[10] == 0u && blk[11] == 0u;
+    /* Every 96-bit block is now decodable: the zero-aux four-point law
+     * (bits 0..74) and the exact-color law (bits 75..95 as 3x7-bit RGB,
+     * E-RE-SAP235-TSC6A-AUX-001). */
+    return blk != NULL;
+}
+
+/* The auxiliary region (bits 75..95) read as three 7-bit channels,
+ * little-endian: v0 = byte9[7:3] | (byte10 & 3) << 5, v1 = byte10[7:2]
+ * | (byte11 & 1) << 6, v2 = byte11[7:1].  Law: E-RE-SAP235-TSC6A-AUX-001
+ * (twice-reproduced partition census). */
+static void tsc6a_aux_color(const uint8_t *blk, uint32_t rgb[3])
+{
+    uint32_t v = (uint32_t)((blk[9] >> 3) & 0x1fu) |
+                 ((uint32_t)blk[10] << 5) |
+                 ((uint32_t)blk[11] << 13);
+    rgb[0] = (v & 0x7fu) * 255u / 127u;
+    rgb[1] = ((v >> 7) & 0x7fu) * 255u / 127u;
+    rgb[2] = ((v >> 14) & 0x7fu) * 255u / 127u;
 }
 
 int tsc6a_expand_block(const uint8_t blk[TSC6A_BLOCK_BYTES],
@@ -87,9 +109,23 @@ int tsc6a_expand_block(const uint8_t blk[TSC6A_BLOCK_BYTES],
     if (blk == NULL || out == NULL) {
         return 0;
     }
-    /* Fail closed on the entire unverified auxiliary region bits 75..95. */
-    if (!tsc6a_block_supported(blk)) {
-        return 0;
+    if (tsc6a_block_has_aux(blk)) {
+        /* Exact-color block: the 21 auxiliary bits carry a 7-bit-per-
+         * channel RGB triple; every texel is that color.  The 4-bit
+         * endpoint fields and the 2-bit index plane are ignored, the
+         * pinned 11-bit alpha law (a * 255 / 2047) still applies.  The
+         * zero-aux four-point law and every other refusal predicate are
+         * unchanged (E-RE-SAP235-TSC6A-AUX-001). */
+        uint32_t color[3];
+        tsc6a_aux_color(blk, color);
+        alpha = (tsc6a_bits(blk, 64u, 11u) * 255u) / 2047u;
+        for (p = 0u; p < TSC6A_BLOCK_PIXELS; ++p) {
+            out[p][0] = (uint8_t)color[0];
+            out[p][1] = (uint8_t)color[1];
+            out[p][2] = (uint8_t)color[2];
+            out[p][3] = (uint8_t)alpha;
+        }
+        return 1;
     }
     tsc6a_endpoint(tsc6a_bits(blk, 32u, 16u), e0);
     tsc6a_endpoint(tsc6a_bits(blk, 48u, 16u), e1);

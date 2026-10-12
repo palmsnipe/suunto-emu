@@ -28,10 +28,10 @@ limits; the [ticket index](plans/index.tsv) controls roadmap acceptance.
 Compressed-icon clipping now decodes only visible blocks, so unsupported
 blocks outside the clip no longer prevent supported pixels from rendering.
 The observed Widgets scale now renders through its transition without a GPU
-refusal. GPU support still lacks the compressed auxiliary-bit decoder and full
-writeback; Control Panel's 20x32 icon shape is admitted but its asset carries
-auxiliary-bit blocks, so its two refusals now name the first unsupported
-block (2,0). Unknown visible blocks refuse atomically.
+refusal. The compressed auxiliary region is now derived as an exact-color
+block law (E-RE-SAP235-TSC6A-AUX-002): the Control Panel 20x32 icon renders
+with zero GPU refusals. GPU support still lacks full compressed writeback;
+unknown visible blocks refuse atomically.
 
 ## Screenshots
 

@@ -57,13 +57,20 @@ int64_t tsc6a_edge(int64_t ax, int64_t ay, int64_t bx, int64_t by,
 uint32_t tsc6a_blend_argb(uint32_t source, uint32_t destination,
                           uint32_t coverage);
 
-/* Pure TSC6A format-17 block expansion (nema_tsc6a_expand.c, ticket 793).
- * Returns 0 (fail closed, output untouched) when any auxiliary bit
- * 75..95 of the block is nonzero; otherwise writes 16 RGBA8888 texels
- * (pixel p = 4*r + c, row 0 first) and returns 1.  Law:
- * E-RE-SAP235-TSC6A-001. */
+/* Pure TSC6A format-17 block expansion (nema_tsc6a_expand.c, ticket 793;
+ * exact-color law ticket 807).  Writes 16 RGBA8888 texels (pixel
+ * p = 4*r + c, row 0 first) and returns 1, or returns 0 leaving the
+ * output untouched.  Two block laws:
+ *   - bits 0..74 four-point ramp, aux region zero (E-RE-SAP235-TSC6A-001);
+ *   - bits 75..95 nonzero: an exact-color block, the 21 bits are a
+ *     7-bit-per-channel RGB triple replicated to every texel, alpha from
+ *     the pinned 11-bit field (E-RE-SAP235-TSC6A-AUX-001). */
 int tsc6a_expand_block(const uint8_t blk[12], uint8_t out[16][4]);
-/* The same auxiliary-bit admission check, without decoding texels. */
+/* True when the block's auxiliary region (bits 75..95) is nonzero, i.e.
+ * the block is an exact-color block. */
+int tsc6a_block_has_aux(const uint8_t blk[12]);
+/* Decodability check shared with the resolve preflight: true for every
+ * well-formed block (both laws). */
 int tsc6a_block_supported(const uint8_t blk[12]);
 /* DRAW_CMD=10 samples pixel centers, with fixed-point floor semantics. */
 void tsc6a_resolve_point(const tsc6a_fixed_matrix *matrix, int x, int y,

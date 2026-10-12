@@ -298,3 +298,129 @@ base register, so the call site needs a constant-propagation pass over
 the storage-stage functions (one bounded offline-RE instance). The
 assert is in SettingsProvider.cpp:228. No change authorized; the ticket
 rolls back to `ready`.
+
+Instance 27 (2026-10-10, `sap233-assert-cond`, E-SAP-0063): the
+line-228 assert condition is NAMED. The assert helper 0x70b20 decodes
+the `adds r0, r0, #5` quirk (E-SAP-0061 confirmed in code); the site
+is 0x8be24 (r1=0xe4, r0=r8 loaded from the 0x8c760 pool entry via a
+far ldr.w — the E-SAP-0062 scan gap). The condition: after opening and
+parsing settings/ui.txt, the provider requires a "wfn" record with a
+"fuwe" field ("daily"/"sport" in the same chain) and asserts when
+absent; the file-open failure path skips the assert entirely, which
+explains why the assert appeared only after the E-SAP-0059 seed. The
+candidate fix (schema-valid ui.txt seed) is NOT authorized: the
+record's exact shape is the next bounded census and needs its own
+instance + ticket. No change authorized; the ticket rolls back to
+`ready`.
+
+Instance 28 (2026-10-10, `sap233-schema`, E-SAP-0064): the record
+schema is decoded - "<key>:<value>\r\n" lines (sscanf table), ui.txt
+needs wfn (byte) + fuwe (char 'T'/'F'), uiv2.txt needs the full
+0xac860 chain (18 keys + the daily list). Lane experiment: the
+schema-valid ui.txt seed CLEARED the line-228 assert and advanced the
+gate to the line-242 uiv2 validator (the provider deletes the seed
+file). The uiv2 seed cannot work through the overlay: its validator
+walks a parsed document object only the guest's own Settings flow
+creates (the thin overlay handle lacks the parsed fields). Next
+route: guest-authored uiv2.txt via the native Settings path (the
+proven E-SAP-COMPAT-FILES-239-001 class) - its own evidence instance
+and ticket. No change authorized; the ticket rolls back to `ready`.
+
+Instance 29 (2026-10-10, `sap233-fuwe-clear`, E-SAP-0065): seeding
+schema-valid ui.txt (wfn:00 + fuwe:T) CLEARS the line-228 assert on
+the lane (twice byte-identical, no wuiDump at all). The guest deletes
+the seed and opens uiv2 read-mode; the 242 validator is SKIPPED with
+a flag (no boot-time creation - that is the Settings app's job). The
+boot lands on the exact E-SAP-0056 record set: ResourceProvider 403s
+for general/personal/CMGRPLST/ble-device and WbStoPreload 500, then
+idle. The frontier is the provisioned-settings family (E-SAP-0058
+class) plus the empty-cache hook's non-firing in this staging. Next
+census: decode the general/personal schemas from the same reader
+family and reconcile the hook. No change authorized; the ticket
+rolls back to `ready`.
+
+Instance 30 (2026-10-10, `sap233-hook`, E-SAP-0066): the stock
+empty-cache layer's non-firing is root-caused - it pins the 2.33.12
+app (hook 0x11978C, provider 0x1b9024) while the 2.33.16 registry is
+(WbStoPreload, name ptr 0x1b8f44, id 0x1b1b08) at 0x113AA0 and the
+failure path is the function at 0x119734 (client r0, status r3,
+provider field = name pointer). A corrected v4 lane layer fires once
+and the 2.33.16 boot advances past its former terminal idle through
+the whole first-boot provider wave to a new sleepln gate. The
+corrected layer stays a volatile artifact: the 2.33.16 empty-cache
+translation is the integrator's ticket to scope (with the general
+user-profile key table recorded; the guest writes general itself).
+No change authorized; the ticket rolls back to `ready`.
+
+Instance 31 (2026-10-10, `sap233-sleepgate`, E-SAP-0067): the
+corrected-layer boot extended to 30 s terminates at the same
+sleepln failure (guest 2.159 s; no UI stage, no Settings, no
+further records for ~27.8 s). The terminal state is the first-boot
+provider wave's completion condition: the sleepln translation is
+gated on observing a native 17888-byte sleep.bin write that the
+guest never creates in this staging. Next census: the 2.33.16
+sleepln provider contract (same decode shape as WbStoPreload).
+No change authorized; the ticket rolls back to `ready`.
+
+Instance 32 (2026-10-10, `sap233-firstboot`, E-SAP-0068): the
+0x119734 checker is SHARED - one SRAM client (0x10028f04) whose +12
+name pointer rotates per module (78-entry probe), so translations
+must be name-based; the sleepln status is already 500 at entry.
+Iterative name-based layers cleared the entire first-boot wave
+(sleepln/TrainingTss/PoiP-cmd1/actitmln - 6 translations) and the
+boot reaches NEMA_INITIALIZED (GPU ring up) with normal post-boot
+operation. Twice byte-identical. The v7 layer stays volatile; the
+2.33.16 first-boot compat ticket is now fully evidenced (hit counts,
+mechanism, next census = post-NEMA panel bring-up). No change
+authorized; the ticket rolls back to `ready`.
+
+
+Instance 33 (2026-10-11, `sap233-panel-size`, E-SAP-0069): the post-NEMA
+lane gate is ActivityTimelineStore.cpp:368, caused by the logical-file
+overlay omitting native size operation 0xbb204. The guest-written 247.bin
+header is valid and its retained size is 46112, but the native length check
+receives zero and leaves count 0xffffffff. A one-file diagnostic moves the
+same assertion to ongoing.bin (152 bytes); the two-file diagnostic clears
+both asserts and removes the need for the actitmln result translation.
+At 8 s: PC 0xdbc0a, 118163913 instructions, no asserts/DebugMonitor records
+or GPU command submissions; every experiment reproduced twice identically.
+No production behavior or pin changed. Integrator must scope the 2.33.16
+session-file size ABI, identity/budgets/refusals/snapshot policy and boot
+staging before adopting the v7 translations. Next census: the post-load UI
+scheduling/precondition and the concurrent bounded GPS startup timeout.
+Ticket remains ready; implementation acceptance is not claimed.
+
+
+Instance 34 (2026-10-11, `sap233-ui-gps`, E-SAP-0070): extending the
+instance-33 corrected-size staging to 11.775 s reaches the third native GPS
+timeout and `CXD5610GF-driver.cpp:889` (call 0x11dbcc, tick 11769858500).
+State 5 increments retry byte 0x1005b8f8 from 0 to 3; no GPS UART TX/RX or
+awake pulse occurs. Control and read-only observer pairs are byte-identical;
+final PC/LR/SP 0x7890c/0x11dbd1/0x10033050, 143209642 instructions,
+CFSR/HFSR zero. A native UI census point runs 23 times from 2.4951565 s,
+but GPU submissions/frame generation stay zero. The 8 s checkpoint follows
+WFI and does not establish a scheduler defect; GPS's causal relation to the
+no-draw condition is unproven. Production and pins unchanged; session-file/
+boot integration request from instance 33 remains. Next separate GPS census:
+2.33.16 initial UART callback/arming boundary and status-line recognizer,
+with successful and wrong-prefix/state controls before fixture integration.
+Ticket remains ready; no production implementation acceptance is claimed.
+
+
+Instance 35 (2026-10-11, `sap233-gps-startup`, E-SAP-0071): native
+initial-arm PC 0x11d990, callback 0x11d593, state/pending 4/2, retry zero
+and the $PSS consumer are derived. Five probe pairs reproduce identically.
+Two delayed synthetic status lines produce six @VER TX bytes, twenty RX
+bytes and states 2/14/15/18; at 11.775 s PC 0xdbc0a, 130924409
+instructions, no assertions/refusals. Wrong prefix causes native rejection;
+its causal control repeats line-889 assertion, bounded control refuses the
+first retry, and premature state 0 refuses before RX. The new version-specific
+component src/compat/sapporo_233_gps.{c,h} and its four-case unit suite pass
+(37 atomic refusal configurations); make check 1051, sanitize 1046,
+lines/contracts171 and existing paired 2.35 GPS firmware gate pass.
+No registry/profile/public header/Makefile/snapshot/golden or index change.
+Machine layer registration/device binding/reset/refusal and snapshot policy
+need integrator-owned attachment; authentic 2.33 advancement is not claimed.
+E-SAP-0069 boot/session-file prerequisite remains separate. Pending-7 reopen
+is observed but not supplied; GPS success still emits no GPU submissions.
+Ticket remains ready; full implementation acceptance is outstanding.

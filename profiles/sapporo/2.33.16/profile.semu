@@ -25,3 +25,8 @@ role=resources
 load_address=0x14000000
 size=16519168
 sha256=b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5
+
+[layer sapporo-2.33-gps-startup]
+kind=device-fixture
+evidence=E-SAP-0071
+max_hits=2
