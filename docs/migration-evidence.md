@@ -11974,21 +11974,22 @@ CPU-bound work. Two runs are byte-identical (stop and full trace):
 stop=budget pc=0x000bb6b4 instructions=2000000000 virtual_time_ns=2213224611
 ```
 
-The new stop is a **livelock in the guest's own ordered list insert**:
-PC `0x000bb6b4` inside the list-insert helper at `0x000bb69c`
-(`ldr r4,[r3,#4]; ldr r5,[r4]; cmp r2,r5; bhs` walk), called from
-`0x000a5574` (`bl 0xbb69c` with the object at r5), first reached near
-45.57M instructions (0.508 s guest) and CPU-bound from there. The walked
-list's ordering invariant is broken, so the insert never terminates.
-The layer state at the stop shows the production sector installed
-(`ProductionData`, version 1000), the ui.txt seed consumed, and
-`settings/sync.txt` created empty — consistent with the lane's staged
-boot reaching the same settings stage (E-SAP-0056's record set) before
-its provider wave. This is a guest-side data/state boundary, not an
-engine seam: the next census is the walked object (which store, why its
-order is broken, and which staging element the lane had that the tree
-still lacks). No further compat intervention is authorized by this
-entry.
+The new stop is a **CPU-bound stall inside the guest's own STIMER
+configuration path**, refined by a follow-up census in this instance
+(see the next entry). PC `0x000bb6b4` is merely the hottest instruction
+of the phase — the ordered list insert at `0x000bb69c` is a legitimate
+sorted-insert helper called from many sites (LR samples: `0x000a4774`
+69%, `0x000df1b8`, `0x000c8797`, `0x000a4e8b`, `0x000a5575`); the
+walked list is a well-formed sorted list with a by-design infinity-keyed
+header sentinel (`0xffffffff` at `r0+8`, next = the first node), not a
+cycle. The guest keys advance over time (74 → 5150 → 5272 across the
+spin window), so guest-internal time advances; the phase simply repeats
+the same work without reaching the provider wave (zero `0x119734`
+checker hits through 3G instructions). The layer state at the stop
+shows the production sector installed (`ProductionData`, version 1000),
+the ui.txt seed consumed, and `settings/sync.txt` created empty —
+consistent with the lane's staged boot reaching the same settings
+stage (E-SAP-0056's record set) before its provider wave.
 
 Artifact hashes (volatile, `/tmp/semu-233-integ/`): staged stop log
 `staged2-1.log` sha256 `66742f85629bfd89…` (pair byte-identical),
@@ -12002,4 +12003,68 @@ Ticket 710 stays ready: the staging is implemented and the next stop is
 recorded, but the ticket's implementation acceptance (an authentic 2.33
 advancement gate with the full staged set reaching the recorded
 checkpoint twice) is the next instance's work, now unblocked by this
-boundary being named.
+boundary being named. The boundary's own census continues in the next
+entry.
+
+## E-SAP-0052-STIMER-CENSUS — the staged 2.33 boot stalls in the guest's own stimer.c:102 assert-retry path (ticket 710)
+
+2026-10-12, follow-up census of the E-SAP-0057/0066/0068/0069-STAGING
+stop, same working tree. This entry corrects and replaces the first
+entry's provisional "livelock in the ordered list insert" reading: the
+list insert is legitimate and the stall is named below. Observation
+only; no src change is authorized. All probes are volatile under
+`/tmp/semu-233-integ/` (census6–census11).
+
+### The stall, named
+
+Long-run progress census: with all four staged layers the boot reaches
+its settings stage (the ui.txt seed consumed, `settings/sync.txt`
+created empty — matching the lane's staged flow record-for-record:
+sync.txt then ui.txt) but then settles into an **idle timer loop and
+never reaches the provider wave** — the first-boot checker `0x119734`
+has zero hits through 3G+ instructions, and the budget lands at PC
+`0x000bb6b4` in every 100M-instruction chunk (that PC is merely the
+hottest instruction of the phase: the ordered list insert at
+`0x000bb69c` is a legitimate sorted-insert helper called from many
+sites — LR samples `0x000a4774` 69%, `0x000df1b8`, `0x000c8797`,
+`0x000a4e8b`, `0x000a5575` — and the walked list is well-formed, with
+a by-design infinity-keyed header sentinel at `r0+8`).
+
+The phase is a **healthy WFI-driven timer loop, not a livelock and not
+an assert-retry loop**: windowed counters show the STIMER counter
+tracking virtual time exactly (71–72 ticks per 2M ns ≈ 32768 Hz; the
+two "jump" windows are single WFI waits of 17.1M and 77.0M ns — 574
+and 2534 ticks — the compare deadlines the guest itself programmed),
+zero bus errors in 16M stepped instructions, and the guest's own
+`stimer.c` configuration path (`0x000a4780`, guarded by the
+`stimer.c:102` assert at `0x000c83fc`) completing without the assert
+firing (zero `0x000c840e` hits in 24M sampled instructions). The
+guest configures compares, WFI-sleeps, wakes on the compare IRQ,
+processes its timer list, and repeats — the in-tree STIMER at
+`0x40008800` is behaving as its contract says. (This entry's own
+earlier draft attributed the phase to a `stimer.c:102` assert-retry
+loop; the windowed counter/bus-error census disproved that reading
+and it is withdrawn here.)
+
+### What the lane's staged boot did differently
+
+The lane's staged record sequence (E-SAP-0071's `startup-1.log`,
+retained) is: `settings/sync.txt` create (~0.3 s), `settings/ui.txt`
+seed read + close, **`settings/time` native open at vt ~0.56 s**,
+`settings/uiv2.txt`, `settings/general`, `settings/personal`, then the
+WbStoPreload cmd-0 translation at **vt 576,571,625 ns (0.577 s)** —
+the E-SAP-0055 resource-stage completion. In-tree the boot consumes
+sync.txt/ui.txt and then idles in the timer loop instead of proceeding
+to the `settings/time` native open and the resource stage. The next
+census is therefore that window: why the tree's boot does not advance
+from the settings-file stage to the `settings/time` open and the
+WbStoPreload call — most likely one missing staging element between
+the UI seed and the resource stage (candidate: the `settings/time`
+native open's storage path, or a record the lane's stock empty-cache
+layer supplied). No compat intervention, no STIMER behavior change,
+and no assertion bypass is authorized by this entry; the E-ULS-0047
+core cadence-law disposition remains integrator-owned and separate.
+
+The first entry's "livelock in the ordered list insert" reading is
+superseded by this entry; the stop tuple and both layer-state
+observations stand.

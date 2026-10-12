@@ -7,6 +7,25 @@ its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
 
+## Ticket 710 — the staged 2.33 boot's stall is named: an idle timer loop before the resource stage — 2026-10-12
+
+The follow-up census corrects two provisional readings. The `0x000bb6b4`
+stop is neither a list-insert livelock (that helper is legitimate and
+the walked list is well-formed with a by-design infinity sentinel) nor
+a `stimer.c:102` assert-retry loop (the windowed counter/bus-error
+census disproved that). The staged boot consumes the settings-file
+stage exactly as the lane does (sync.txt created, the ui.txt seed
+read), then settles into a **healthy WFI-driven timer loop** — the
+STIMER counter tracks virtual time at 32768 Hz, the guest wakes on its
+own compare IRQs, and zero bus errors occur — and never reaches the
+provider wave. The lane's staged record sequence shows the next step
+the tree never takes: the `settings/time` native open at vt ~0.56 s,
+the uiv2/general/personal reads, then WbStoPreload cmd-0 at 0.577 s.
+The next census is that window — why the tree's boot does not advance
+from the settings-file stage to the resource stage. No compat
+intervention is authorized; the staging entry's provisional wording is
+superseded, and the stop tuple plus layer-state observations stand.
+
 ## Ticket 710 — the 2.33 boot staging is implemented; the boot advances to a new stop — 2026-10-12
 
 The integrator-scoped 2.33.16 staging is in the tree: a production-data
