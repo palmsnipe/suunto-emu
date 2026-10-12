@@ -11890,3 +11890,116 @@ Changed-file SHA-256 (first 16): component
 Ticket 710 stays ready; this attachment closes the machine-integration
 item only. The remaining acceptance path is the boot/session-file
 compat prerequisite and an authentic 2.33 advancement gate.
+
+## E-SAP-0057/0066/0068/0069-STAGING — the 2.33.16 boot staging is implemented; the boot advances to a new bounded stop (ticket 710)
+
+2026-10-12, ticket 710 instance 36 on top of the E-SAP-0071-INT commit
+`52bc20a`. The integrator-scoped staging the instances requested is now in
+the tree: the recovered synthetic production-data sector (E-SAP-0057
+class), the session-only logical-file overlay with the native 0xbb204
+size operation and the schema-valid ui.txt seed (E-SAP-0059/0064/0065/
+0069 class), and the name-based first-boot result translations
+(E-SAP-0066/0068 class). Each layer is opt-in (`--layer`), hash-pinned
+to the three 2.33.16 components, and hit-bounded. The GPS startup
+fixture (E-SAP-0071-INT) completes the staged set. No CPU, device,
+rendering or snapshot behavior changed for any other profile.
+
+### The three layers
+
+- `sapporo-2.33-production-data` (`src/compat/sapporo_233_production.{c,h}`,
+  synthetic-state, one hit): installs the E-SAP-0038 recovered container
+  (ProductionData/ACCR/ACCC/MAGN/HLAT, 4096-byte sector at 0x14fff000)
+  generated with the 2.33 application's own checksum table. The table is
+  the **unique 64-byte copy of the pinned 16-word table in the 2.33
+  application at VA 0x1abb14** (the 2.35 table bytes appear exactly
+  once), so the generated sector is byte-identical to the recorded
+  synthetic fixture class (`c08816067aed620f…`, reproduced in this
+  session). Install admits only an empty (all-0/all-FF) sector or an
+  exact retained copy; an unrelated populated sector refuses. The
+  E-SAP-0057 mode-5/fsimage dependency is the recorded class evidence.
+- `sapporo-2.33-logical-files` (`src/compat/sapporo_233_files.{c,h}`,
+  device-fixture, 4096 aggregate hits): the session-only writable
+  overlay. Missing files opened for creation are retained in memory from
+  guest-written bytes; existing overlay files open for update; unknown
+  paths stay native. The seed is the E-SAP-0065 schema-valid
+  `settings/ui.txt` (`wfn:00\r\nfuwe:T\r\n`, 16 bytes). The native size
+  operation at 0xbb204 returns the retained length in (r0,r1) at most
+  once per file (E-SAP-0069); seek uses the lane ABI (offset r2|r3<<32,
+  origin at sp+0, the new 64-bit position returned in r0/r1). Sticky
+  refusal on unsupported shapes.
+- `sapporo-2.33-firstboot` (`src/compat/sapporo_233_firstboot.{c,h}`,
+  device-fixture, 7 aggregate hits): the shared startup-client result
+  checker at 0x119734 (client r0, native status r3&0xffff, name pointer
+  [client+12], command [client+16]) translates 500→200 only for the
+  seven observed (name, command) pairs — (WbStoPreload,0) from the
+  E-SAP-0066 v4 form plus the E-SAP-0068 v7 wave (sleepln 0/1,
+  TrainingTss 0/1, PoiP 1, actitmln 1). The client guard is the lane's
+  `client ∈ [0x10000000, 0x10060000)`; every hit is logged with the
+  provider/command/status triple.
+
+All three wire through the existing machine dispatch
+(`src/boards/machine.c` reset-loop install and the
+`src/boards/machine_run.c` compatibility gates); the 2.33 profile
+declares all four layers.
+
+### Verification
+
+- `make test TEST_FILTER=sapporo_233_production` — 1/1 (container shape,
+  record CRCs, version 1000, the exact retained-fixture reinstall,
+  unrelated-populated refusal, exhausted-budget refusal).
+- `make test TEST_FILTER=sapporo_233_files` — 2/2 (seed shape, create/
+  write/close/reopen/size lifecycle with the observed handle stride,
+  native-path passthrough for unknown paths and handles, capacity
+  refusal, exhausted-layer passthrough).
+- `make test TEST_FILTER=sapporo_233_firstboot` — 1/1 (all seven
+  admitted pairs translate, repeated pairs consume aggregate budget,
+  non-500/unknown-name/out-of-span clients stay native, wrong-profile
+  activation refuses).
+- `make check` — 1,057 PASS; `make sanitize` — 1,052 PASS;
+  `make check-lines` and `make check-task-contracts` (171) clean;
+  `git diff --check` clean. The 2.35 navigation restore gate and the
+  no-layer 2.33 control (4 s stop tuple `pc=0x000dbc0a
+  instructions=84609013`) are unchanged.
+
+### The staged boot advances; the next boundary is named
+
+With all four layers enabled, the authentic 2.33.16 boot advances past
+its former terminal idle for the first time in-tree: the production
+sector installs, the guest creates `settings/sync.txt` through the
+overlay and consumes the ui.txt seed (both observed in the layer state
+at the stop), and the run continues through the settings stage into
+CPU-bound work. Two runs are byte-identical (stop and full trace):
+
+```
+stop=budget pc=0x000bb6b4 instructions=2000000000 virtual_time_ns=2213224611
+```
+
+The new stop is a **livelock in the guest's own ordered list insert**:
+PC `0x000bb6b4` inside the list-insert helper at `0x000bb69c`
+(`ldr r4,[r3,#4]; ldr r5,[r4]; cmp r2,r5; bhs` walk), called from
+`0x000a5574` (`bl 0xbb69c` with the object at r5), first reached near
+45.57M instructions (0.508 s guest) and CPU-bound from there. The walked
+list's ordering invariant is broken, so the insert never terminates.
+The layer state at the stop shows the production sector installed
+(`ProductionData`, version 1000), the ui.txt seed consumed, and
+`settings/sync.txt` created empty — consistent with the lane's staged
+boot reaching the same settings stage (E-SAP-0056's record set) before
+its provider wave. This is a guest-side data/state boundary, not an
+engine seam: the next census is the walked object (which store, why its
+order is broken, and which staging element the lane had that the tree
+still lacks). No further compat intervention is authorized by this
+entry.
+
+Artifact hashes (volatile, `/tmp/semu-233-integ/`): staged stop log
+`staged2-1.log` sha256 `66742f85629bfd89…` (pair byte-identical),
+trace `60324d2633dfe34c…` (pair byte-identical). New-file SHA-256
+(first 12): production `e10e5b004358`/`f370fddfcbe7`, files
+`052c88a7b588`/`c6f330e27fc5`, firstboot `f2b29158a55b`/`4d388ae6619d`,
+tests `2ae21daf15a6`/`0c349d95e17c`/`6f0131c867f5`, profile
+`a10d6978fa47`.
+
+Ticket 710 stays ready: the staging is implemented and the next stop is
+recorded, but the ticket's implementation acceptance (an authentic 2.33
+advancement gate with the full staged set reaching the recorded
+checkpoint twice) is the next instance's work, now unblocked by this
+boundary being named.

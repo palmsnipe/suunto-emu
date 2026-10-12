@@ -7,6 +7,27 @@ its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
 
+## Ticket 710 — the 2.33 boot staging is implemented; the boot advances to a new stop — 2026-10-12
+
+The integrator-scoped 2.33.16 staging is in the tree: a production-data
+layer (the E-SAP-0038 recovered container generated from the 2.33 app's
+own checksum table, uniquely located at VA 0x1abb14), a session-only
+logical-file overlay with the schema-valid ui.txt seed and the native
+0xbb204 size operation (E-SAP-0069 class), and name-based first-boot
+result translations at the shared checker 0x119734 (the E-SAP-0066 v4
+form plus the E-SAP-0068 v7 wave, seven admitted pairs, aggregate budget
+7). All are opt-in, three-hash pinned and hit-bounded. `make check`
+passes 1,057; `make sanitize` 1,052; the 2.35 navigation restore gate
+and the no-layer 2.33 control are unchanged. With all four staged
+layers enabled the authentic boot advances past its former terminal
+idle for the first time in-tree — the production sector installs, the
+guest creates `settings/sync.txt` through the overlay and consumes the
+ui.txt seed — and stops twice byte-identically at a new bounded
+boundary: a livelock in the guest's own ordered list insert (PC
+0x000bb6b4, called from 0x000a5574, first reached at ~45.57M
+instructions). That boundary is the next census; no further compat
+intervention is authorized by the entry.
+
 ## Ticket 710 — the 2.33 GPS startup fixture is machine-wired — 2026-10-12
 
 The instance-35 integration request is implemented: `sapporo-2.33-gps-startup`

@@ -30,3 +30,18 @@ sha256=b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5
 kind=device-fixture
 evidence=E-SAP-0071
 max_hits=2
+
+[layer sapporo-2.33-production-data]
+kind=synthetic-state
+evidence=E-SAP-0057
+max_hits=1
+
+[layer sapporo-2.33-logical-files]
+kind=device-fixture
+evidence=E-SAP-0069
+max_hits=4096
+
+[layer sapporo-2.33-firstboot]
+kind=device-fixture
+evidence=E-SAP-0068
+max_hits=7

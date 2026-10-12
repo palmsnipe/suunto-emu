@@ -28,11 +28,17 @@ static void test_profile_loads(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 240u, profile.display_width);
     SEMU_TEST_EQ_U64(context, 240u, profile.display_height);
     SEMU_TEST_EQ_U64(context, 3u, profile.required_count);
-    /* Ticket 710 instance-35 integration: the E-SAP-0071 GPS startup
-     * fixture is the profile's single opt-in layer. */
-    SEMU_TEST_EQ_U64(context, 1u, profile.layer_count);
+    /* Ticket 710 instances 33-36: the staged-boot layer set (GPS startup,
+     * production data, logical files, first-boot translations). */
+    SEMU_TEST_EQ_U64(context, 4u, profile.layer_count);
     SEMU_TEST_ASSERT(context,
         strcmp(profile.layers[0], "sapporo-2.33-gps-startup") == 0);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[1], "sapporo-2.33-production-data") == 0);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[2], "sapporo-2.33-logical-files") == 0);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[3], "sapporo-2.33-firstboot") == 0);
 }
 
 static void test_profile_components(semu_test_context *context)

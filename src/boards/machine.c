@@ -8,7 +8,10 @@
 #include "semu/scheduler.h"
 #include "semu/storage.h"
 #include "../compat/sapporo_222.h"
+#include "../compat/sapporo_233_files.h"
+#include "../compat/sapporo_233_firstboot.h"
 #include "../compat/sapporo_233_gps.h"
+#include "../compat/sapporo_233_production.h"
 #include "../compat/sapporo_235_production.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
@@ -239,8 +242,14 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
     state = &machine->layers[machine->layer_count];
     if (strcmp(id, semu_sapporo_222_no_device_layer.id) == 0) {
         descriptor = &semu_sapporo_222_no_device_layer;
+    } else if (strcmp(id, semu_sapporo_233_files_layer.id) == 0) {
+        descriptor = &semu_sapporo_233_files_layer;
+    } else if (strcmp(id, semu_sapporo_233_firstboot_layer.id) == 0) {
+        descriptor = &semu_sapporo_233_firstboot_layer;
     } else if (strcmp(id, semu_sapporo_233_gps_layer.id) == 0) {
         descriptor = &semu_sapporo_233_gps_layer;
+    } else if (strcmp(id, semu_sapporo_233_production_layer.id) == 0) {
+        descriptor = &semu_sapporo_233_production_layer;
     } else if (strcmp(id, semu_sapporo_235_production_layer.id) == 0) {
         descriptor = &semu_sapporo_235_production_layer;
     } else if (strcmp(id, semu_sapporo_235_ohr_layer.id) == 0) {
@@ -386,6 +395,11 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
     if (!preserve_ram) {
         semu_bus_reset(machine->bus);
         semu_sapporo_239_files_reset(machine->sapporo_239_files);
+        /* Session-only 2.33 staging: a cold reset re-seeds the overlay. */
+        memset(&machine->sapporo_233_files, 0,
+               sizeof(machine->sapporo_233_files));
+        memset(&machine->sapporo_233_firstboot, 0,
+               sizeof(machine->sapporo_233_firstboot));
     }
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
@@ -414,6 +428,25 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
                     &machine->layers[i], machine->logger, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_233_files_layer) {
+                machine->sapporo_233_files.state = &machine->layers[i];
+                machine->sapporo_233_files.logger = machine->logger;
+                if (semu_sapporo_233_files_install(&machine->sapporo_233_files,
+                        machine->bus, error) != SEMU_OK) {
+                    machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                    return error->code;
+                }
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_233_production_layer &&
+                semu_sapporo_233_install_production(machine->bus,
+                    &machine->layers[i], machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_233_firstboot_layer) {
+                machine->sapporo_233_firstboot.state = &machine->layers[i];
+                machine->sapporo_233_firstboot.logger = machine->logger;
             }
             if (machine->layers[i].descriptor == &semu_sapporo_233_gps_layer &&
                 semu_sapporo_devices_bind_233_gps(machine->devices,
