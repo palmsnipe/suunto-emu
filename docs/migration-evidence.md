@@ -12321,3 +12321,40 @@ check's gate or the store load must be ordered as the lane's flow
 orders them, via a staging element rather than a code change. No compat
 intervention is authorized by this entry; probes remain volatile under
 `/tmp/semu-233-integ/` (census23, writers2/3).
+
+
+### The gate's return semantics decoded; the contradiction narrowed to the parse's fault path
+
+The gate's tail (0x00090e40) decodes as: a finalizer (bl 0x90e72,
+which is `mov r0,sp; b 0xbb414` - another file operation on the same
+handle), then `mov r0,r4; pop` - **the gate returns the handle from its
+0xbb094 open** (r4 was set at `0x90b9e: movs r4,r0`). So the gate
+returns nonzero exactly when the ui.txt open succeeds; on the lane the
+overlay admitted that open (handle 0x1015F100), so the lane's check
+ran with the same parse inputs the tree has.
+
+The remaining difference is therefore inside the parse itself. The
+observed third argument (r2 = *(0x1bc7ec)) is consumed by the
+format-string walker at 0x7497e as a **per-character callback**
+(`ldr r2,[sp,#0xc0]; blx r2` in the walk loop) - with the static at its
+image-initial 0xffffffff, that is a `blx 0xffffffff`, whose HardFault
+the shared handler absorbs; the parse then abandons with an empty
+document and the assert fires. The lane's staged boot did not assert,
+so on the lane either the static held a real callback by that point
+(some earlier boot stage initialized the settings service before the
+cmgroup check), or the lane's fault-resume path skipped the assert
+block differently. Both are resolvable only from the lane's state at
+the check or an in-tree diagnostic that pre-sets the static; the
+retained lane logs cannot answer it.
+
+This closes what log-based census can decide. The next instance's two
+bounded options: (a) an in-tree diagnostic that pre-sets 0x1bc7ec
+with a plausible callback-table value and observes whether the parse
+then produces the records the check needs (volatile, like the lane's
+size diagnostics, requiring an evidence entry of its own); or (b) the
+offline-RE decode of the settings service's initialization (the writer
+of the static), which names the boot stage that must run first and
+therefore the staging element the tree lacks. The verified facts of
+this entry chain stand: the check is on the cmgroups document, the
+group id is the uninitialized static, the gate returns the ui.txt
+handle, and the static has no in-app writer in the boot window.
