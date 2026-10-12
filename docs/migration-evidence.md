@@ -12129,3 +12129,50 @@ flow. The prior entries' stop tuples and layer-state observations
 stand; the "idle timer loop" reading of the previous entry is
 superseded: the timer loop is the post-assert dump-era idle, and the
 boot's forward progress ends at this assert.
+
+### Follow-up decode: the parse runs BEFORE the ui.txt reads
+
+Single-step census around the window (probes `census20`/`census21`,
+volatile): the parse `0x908f8` is entered **once at vt 276,284,172**
+(`r0=0x10028ca4`, `lr=0x8bdcd`) and returns at vt 276,285,411 with
+`r0=0x1e` — while the ui.txt overlay reads happen later (276,286,259
+and on). The parse therefore does not consume the overlay reads that
+follow it. The caller decode (`0x0008bda0..0x0008be2c`, capstone):
+
+```
+0x0008bdb6: ldr.w r0,[pc,#0x9b8]     ; pool ptr A
+0x0008bdba: ldr.w r1,[pc,#0x9b8]     ; pool ptr B
+0x0008bdbe: ldr   r2,[r0]            ; r2 = *A (runtime value)
+0x0008bdc0: ldr   r1,[r1]            ; r1 = *B (runtime value)
+0x0008bdc6: add   r0,sp,#4           ; the document OUT param
+0x0008bdc8: bl    0x908f8            ; parse(&out, *B, *A)
+0x0008bdcc: movs  r1,#1 ; mov r0,fp
+0x0008bdd0: bl    0x90b80            ; second call (fp, 1)
+0x0008bdd4: movs  r4,r0 ; beq 0x8be32 ; 0 skips the whole check
+0x0008bdda: addw  r2,r5,#0x918       ; the record OUT field
+0x0008bde4: bl    0xac4f8            ; the "wfn" record lookup (E-SAP-0064's 2-hex reader)
+0x0008bde8: cbz   r0,0x8be00         ; wfn missing -> assert
+0x0008bdf4: bl    0xac0c2            ; the "fuwe" field lookup (char T/F)
+0x0008be1e: cbnz  r6,0x8be28         ; skip the assert when present
+0x0008be20: movs  r1,#0xe4 ; bl 0x70b20  ; THE 228 ASSERT
+```
+
+Both parse arguments are **runtime values loaded from pool pointers**
+(`r2 = *A`, `r1 = *B`) — a buffer and its length (or a stream object),
+not the overlay handle. The parse therefore consumes a copy of the
+content obtained outside the overlay handle reads, and in this boot
+that copy evidently does not contain the schema-valid seed: the wfn
+record lookup returns zero and the assert fires. The overlay handle
+reads (8+8+EOF) happen afterwards and are consistent with the guest
+re-reading or closing through a second path.
+
+The next instance's census is now precise: identify what `*A`/`*B`
+point to at the parse call (the buffer and its length), where that
+buffer was filled (which read path delivered the guest's ui.txt copy),
+and why it lacks the seed the overlay holds. The likely shape is a
+whole-file read cache filled by the native storage path (which answers
+zero for a file the overlay owns), making the parse see an empty or
+stale buffer. No compat intervention is authorized until that buffer's
+producer is named; if it is the native whole-file cache, the evidenced
+fix class is the E-SAP-0069 one (serve the retained bytes through the
+operation the cache actually uses).
