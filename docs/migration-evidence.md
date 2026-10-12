@@ -12290,3 +12290,34 @@ skipped another way (the `0x90b80` gate or the mode byte) - resolvable
 by decoding the caller chain of `0x8bd4c` against the lane's retained
 flow. No compat intervention is authorized by this entry; all probes
 remain volatile under `/tmp/semu-233-integ/`.
+
+
+### The group-id static has no in-app writer; it persists 0xffffffff through 2G instructions
+
+A follow-up census closed the writer question for this instance:
+
+1. **Verified load scan**: 14 pc-relative loads of the static exist; a
+   per-site decode shows every one is a *reader* (load value, compare
+   or copy out). No site stores to the static's address.
+2. **Boot-wide watch**: the static's value sampled at 10M, 20M, 27M,
+   275M, 500M, 1G and 2G instructions is `0xffffffff` throughout - no
+   boot code writes it in this window (probe `census23`, volatile).
+
+So the static is never written by a literal-addressed store: it is
+populated either through a computed-address store the scan cannot see,
+or (more likely) by the guest's settings record store - a table-driven
+loader that writes it as one provisioned record among many, the same
+mechanism that would carry the cmgroups documents themselves. In-tree
+that store load has not run by 2G instructions (the boot idles in the
+post-assert dump-era timer loop), and on the lane the staged flow's
+pacing differed.
+
+This bounds the next instance's census precisely: identify the settings
+record store's load path (which operation reads the provisioned records
+and writes the cached static), and whether the tree's boot reaches it
+before the 276 ms cmgroup check on any pacing. The evidenced fix class,
+if the store load simply runs later, is the E-SAP-0069 one - the
+check's gate or the store load must be ordered as the lane's flow
+orders them, via a staging element rather than a code change. No compat
+intervention is authorized by this entry; probes remain volatile under
+`/tmp/semu-233-integ/` (census23, writers2/3).
