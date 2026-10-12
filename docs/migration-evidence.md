@@ -12068,3 +12068,64 @@ core cadence-law disposition remains integrator-owned and separate.
 The first entry's "livelock in the ordered list insert" reading is
 superseded by this entry; the stop tuple and both layer-state
 observations stand.
+
+## E-SAP-0063-TREE-ASSERT — the staged 2.33 boot hits the line-228 settings assert despite the schema-valid seed (ticket 710)
+
+2026-10-12, continuation census of the staging stop, same working tree.
+The `sapporo-2.33-logical-files` layer now logs every overlay operation
+and every native-open passthrough (the observability the compatibility
+policy requires; the lane's layer logged the same shape as
+`S233_LOGICAL_FILE_*`/`S233_NATIVE_FILE_OPEN`). No behavior change:
+`make test TEST_FILTER=sapporo_233_files` 2/2, `make check-lines` clean.
+
+### The decisive sequence (tree, all four staged layers)
+
+```
+vt   38,732,108  native-open settings/sync.txt   (mode 1; native path)
+vt   38,878,997  create      settings/sync.txt   (overlay; closed empty)
+vt  276,214,140  native-open settings/time       (mode 1; native path)
+vt  276,285,680  open        settings/ui.txt     (overlay handle 0x1015f100)
+vt  276,286,259  read        settings/ui.txt     result=8  cursor=8
+vt  276,287,819  read        settings/ui.txt     result=8  cursor=16
+vt  276,288,403  read        settings/ui.txt     result=0  (EOF)
+vt  276,288,984  read        settings/ui.txt     result=0  (EOF)
+vt  276,289,255  ** assert helper 0x70b20: file 0x8da68 (SettingsProvider.cpp)
+                    line 0xe4 (228), caller 0x8be29 — the E-SAP-0063 site **
+vt  276,326,276  native-open wui_dump.bin         (mode 10; the dump begins)
+vt  276,582,669  close       settings/ui.txt
+```
+
+The settings/time native open precedes the ui.txt overlay open exactly
+as on the lane, the seed bytes are read identically (8+8 then EOF — the
+lane's `startup-1.log` shows the same 8/8/0/0 shape), and the handle
+value matches the lane's (`0x1015F100`, the second handle after
+sync.txt). Yet the **E-SAP-0063 line-228 assert fires** and the boot
+begins the `wui_dump.bin` dump — the E-SAP-0060 second display gate —
+while the lane's identical seed cleared it (E-SAP-0065).
+
+### What this names
+
+The tree's settings-provider schema check fails on input the lane
+accepted. The parse and the check run between the last ui.txt read and
+the dump: the parse input (the 16 seed bytes through the overlay
+handle) is byte-identical to the lane's, so the divergence is in the
+parse/check's *state outside the file bytes* — the parsed-document
+object the check walks (E-SAP-0064's "the lookups walk parsed fields of
+that object") is built by the guest's own parse (`0x908f8`), and
+something that object needs is absent in-tree. Candidate mechanisms for
+the next bounded census: (a) the parse path uses an unhooked size or
+metadata operation on the handle that the native path answers with a
+failure (no `0xbb204` call is logged for ui.txt, so if a size is taken
+it goes through a different function); (b) the check validates a
+record the seed lacks that the lane's staging supplied through another
+element; (c) the parse depends on settings/time's content, whose
+native open precedes ui.txt and whose bytes differ between the tree
+and the staged lane.
+
+No compat intervention and no assertion bypass is authorized: the next
+instance's census is the parse call `0x908f8` — its inputs, return
+value, and the document object it builds — against the lane's staged
+flow. The prior entries' stop tuples and layer-state observations
+stand; the "idle timer loop" reading of the previous entry is
+superseded: the timer loop is the post-assert dump-era idle, and the
+boot's forward progress ends at this assert.

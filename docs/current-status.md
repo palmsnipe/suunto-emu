@@ -7,6 +7,24 @@ its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
 
+## Ticket 710 — the staged 2.33 boot hits the line-228 settings assert despite the seed — 2026-10-12
+
+With operation logging added to the logical-files layer (observability
+only, no behavior change), the decisive sequence is captured: the guest
+opens `settings/sync.txt` (create+close), natively opens
+`settings/time`, then opens the ui.txt seed and reads it byte-identically
+to the lane (8+8 then EOF, handle `0x1015f100` matching the lane's) —
+and at vt 276,289,255 the **E-SAP-0063 line-228 assert fires**
+(`0x70b20` with `SettingsProvider.cpp`, line 228, caller `0x8be29`),
+followed by the `wui_dump.bin` dump open. The lane's identical seed
+cleared this assert (E-SAP-0065), so the divergence is in the parse/check's
+state outside the file bytes — the parsed-document object the check
+walks. The next census is the parse call `0x908f8`: its inputs, return
+value, and the document object it builds. The prior "idle timer loop"
+reading is superseded: that loop is the post-assert dump-era idle, and
+forward progress ends at this assert. No compat intervention is
+authorized.
+
 ## Ticket 710 — the staged 2.33 boot's stall is named: an idle timer loop before the resource stage — 2026-10-12
 
 The follow-up census corrects two provisional readings. The `0x000bb6b4`

@@ -46,6 +46,17 @@ static semu_status refuse(semu_sapporo_233_files_context *c,
     return local.code;
 }
 
+static void log_op(const semu_sapporo_233_files_context *c,
+                    const char *operation, const char *path, uint32_t result,
+                    uint32_t size, uint32_t cursor)
+{
+    if (c == NULL || c->logger == NULL) return;
+    semu_log_write(c->logger, SEMU_LOG_WARNING, "compat", "logical-file",
+                   "operation=%s path=%s result=%u size=%u cursor=%u",
+                   operation, path, (unsigned)result, (unsigned)size,
+                   (unsigned)cursor);
+}
+
 static int ready(const semu_sapporo_233_files_context *c)
 {
     return c != NULL && c->state != NULL && c->logger != NULL &&
@@ -185,6 +196,7 @@ static semu_status apply_size(semu_sapporo_233_files_context *c,
                            file->path);
     }
     file->size_hits += 1u;
+    log_op(c, "size", file->path, file->size, file->size, 0u);
     return_from_hook64(cpu, file->size, 0u);
     return SEMU_OK;
 }
@@ -201,7 +213,12 @@ static semu_status apply_open(semu_sapporo_233_files_context *c,
     int existing;
     if (!read_path(bus, cpu->r[0], path, error)) return SEMU_OK;
     existing = find_file(c, path) != NULL;
-    if (!((is_read || is_update) && existing) && !is_create) return SEMU_OK;
+    if (!((is_read || is_update) && existing) && !is_create) {
+        /* The native storage path (the lane logged the same opens as
+         * S233_NATIVE_FILE_OPEN). */
+        log_op(c, "native-open", path, mode, 0u, 0u);
+        return SEMU_OK;
+    }
     if (is_create && existing) {
         file = find_file(c, path);
         if (file->handle != 0u) {
@@ -229,6 +246,8 @@ static semu_status apply_open(semu_sapporo_233_files_context *c,
                    c->next_handle * SEMU_SAPPORO_233_FILES_HANDLE_STRIDE;
     file->cursor = 0u;
     c->next_handle += 1u;
+    log_op(c, is_create ? "create" : "open", path, file->handle, file->size,
+           file->cursor);
     return_from_hook(cpu, file->handle);
     return SEMU_OK;
 }
@@ -242,9 +261,11 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
     case SEMU_SAPPORO_233_FILES_CLOSE:
         file->handle = 0u;
         file->cursor = 0u;
+        log_op(c, "close", file->path, 1u, file->size, file->cursor);
         return_from_hook(cpu, 1u);
         return SEMU_OK;
     case SEMU_SAPPORO_233_FILES_TELL:
+        log_op(c, "tell", file->path, file->cursor, file->size, file->cursor);
         return_from_hook64(cpu, file->cursor, 0u);
         return SEMU_OK;
     case SEMU_SAPPORO_233_FILES_SEEK: {
@@ -266,6 +287,7 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
             return refuse(c, error, "2.33 logical-file seek cursor overflow");
         }
         file->cursor = (uint32_t)cursor;
+        log_op(c, "seek", file->path, file->cursor, file->size, file->cursor);
         return_from_hook64(cpu, file->cursor, 0u);
         return SEMU_OK;
     }
@@ -289,6 +311,7 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
         }
         if (required > file->size) file->size = required;
         file->cursor = required;
+        log_op(c, "write", file->path, count, file->size, file->cursor);
         return_from_hook(cpu, count);
         return SEMU_OK;
     }
@@ -302,10 +325,12 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
                                error) != SEMU_OK) return error->code;
         }
         file->cursor += chunk;
+        log_op(c, "read", file->path, chunk, file->size, file->cursor);
         return_from_hook(cpu, chunk);
         return SEMU_OK;
     }
     case SEMU_SAPPORO_233_FILES_FLUSH:
+        log_op(c, "flush", file->path, 0u, file->size, file->cursor);
         return_from_hook(cpu, 0u);
         return SEMU_OK;
     default:
