@@ -19,20 +19,21 @@ and at vt 276,289,255 the **E-SAP-0063 line-228 assert fires**
 followed by the `wui_dump.bin` dump open. The lane's identical seed
 cleared this assert (E-SAP-0065), so the divergence is in the parse/check's
 state outside the file bytes — the parsed-document object the check
-walks. The follow-up decode pins the mechanism: the parse `0x908f8` runs at
-vt 276,284,172 — **before** the ui.txt overlay reads — with both
-arguments loaded from pool pointers (a buffer and its length obtained
-outside the overlay handle), and the "wfn" record lookup on its
-document returns zero, firing the assert. The guest's ui.txt copy is
-filled by some read path other than the overlay handle reads (likely a
-whole-file cache served by the native storage path, which answers zero
-for a file the overlay owns). The next census: name what `*A`/`*B`
-point to and which path fills that buffer; if it is the native
-whole-file cache, the evidenced fix class is E-SAP-0069's (serve the
-retained bytes through the operation the cache actually uses). No
-compat intervention is authorized until the buffer's producer is
-named; the prior "idle timer loop" reading is superseded (that loop
-is the post-assert dump-era idle).
+walks. The follow-up decode pins the mechanism — and corrects the document:
+the parse entry was observed with `r1 = 'settings/cmgroups/%08x.txt'`
+and `r2 = 0xffffffff` — the line-228 schema check runs on the
+**cmgroups per-group settings document** (selected by a `%08x` group
+id), not on `settings/ui.txt`; the ui.txt string only participates as
+the gate call's subject (`0x90b80('settings/ui.txt', 1)`). The parse
+fails because the group id is the uninitialized `0xffffffff` — the
+provisioned settings that would supply it (the first-boot wave and its
+WbStoPreload translation) have not run yet in-tree at 276 ms. The next
+census is two-sided: the group id's producer, and what made the lane's
+staged boot pass or skip this check (E-SAP-0065's seed likely changed
+a gate or flow condition rather than the cmgroup document). No compat
+intervention is authorized until both are named; the "idle timer loop"
+reading remains superseded (that loop is the post-assert dump-era
+idle).
 
 ## Ticket 710 — the staged 2.33 boot's stall is named: an idle timer loop before the resource stage — 2026-10-12
 

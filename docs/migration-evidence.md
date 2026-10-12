@@ -12176,3 +12176,35 @@ stale buffer. No compat intervention is authorized until that buffer's
 producer is named; if it is the native whole-file cache, the evidenced
 fix class is the E-SAP-0069 one (serve the retained bytes through the
 operation the cache actually uses).
+
+### Correction by decode: the 228 schema check operates on `settings/cmgroups/%08x.txt`
+
+The parse-entry census (`census22`, volatile) observed the actual
+arguments at `0x908f8`: `r0=0x10028ca4` (the document out-param),
+`r1=0x000a95b0` — the app string **`settings/cmgroups/%08x.txt`** — and
+`r2=0xffffffff`. The schema check that asserts at line 228 therefore
+runs on the **cmgroups document** (a per-group settings file selected
+by a `%08x` id), not on `settings/ui.txt`: the caller loads the path
+format string from a literal pool (`0x8c774` → `0x1bc7dc` → `0xa95b0`)
+and the third argument is `0xffffffff` — an **uninitialized group id**.
+The pool also holds the `settings/ui.txt` pointer (`0x8c778` →
+`0x8fe90`), which is `fp` in the decode above — the argument of the
+`0x90b80` gate call, i.e. the ui.txt string participates only as the
+gate's subject, not as the parsed document.
+
+This refines E-SAP-0063's attribution (its decode named the ui.txt
+open in the same function; the parsed document is the cmgroups file).
+The asserted condition stands as decoded: the cmgroups document lacks
+the `wfn` record (or its `fuwe` field) because the parse of
+`settings/cmgroups/ffffffff.txt` — the uninitialized group id — fails.
+
+The next census is now two-sided: (a) where the group id comes from
+(the provisioned settings the first-boot wave supplies — in-tree the
+wave has not run, so the id is still `0xffffffff`), and (b) what the
+lane's staged boot had at this point that made the check pass or skip
+(the lane's `0x90b80('settings/ui.txt', 1)` gate result, or a valid
+group id from the wave's translations). The E-SAP-0065 seed cleared
+the assert on the lane; with this decode the mechanism is likely
+indirect — the seed changed a gate or flow condition, not the cmgroup
+document. No compat intervention is authorized until the group id's
+producer and the lane's skip/pass mechanism are named.
