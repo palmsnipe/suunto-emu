@@ -12419,3 +12419,30 @@ it validates a record format detail my seed does not satisfy. The next
 instance's probe is single-stepping the 0xac4f8 lookup with an
 access trace of its bus reads - which will name the exact operation
 that diverges. No compat intervention is authorized by this entry.
+
+
+### The failing operation named: the fuwe sub-lookup on the wfn record returns zero
+
+Single-step traces of the two lookups (census25/census26, volatile):
+
+- The wfn record lookup (0xac4f8) at the call site 0x8bde4
+  **returns 1** - the wfn record is found and the check proceeds.
+- The fuwe field lookup (0xac0c2) at 0x8bdf4 **returns 0** at vt
+  276,288,087 - and r6 = 0 sends the flow to the line-228 assert.
+
+So the seed's bytes reach the record layer and the wfn record is
+recognized, but the fuwe field is not found *within the wfn record's
+scope*: 0xac0c2 is a sub-lookup whose first argument is the wfn
+record handle (the out field of the wfn lookup, stored at
+r5+0x918). The seed lays fuwe:T out as a sibling line; the check
+expects fuwe to be a field *of* the wfn record - the ui.txt record
+grammar must place fuwe inside the wfn record's scope (a nested or
+continued-line form), which neither the E-SAP-0064 sibling-line
+reading nor the current seed provides.
+
+The next census is a clean offline-RE decode of the two readers -
+0xac4f8 (the record reader) and 0xac0c2 (the sub-field reader) -
+which names the exact on-disk grammar that places fuwe inside
+wfn, and therefore the seed content the lane's staged flow satisfied.
+No compat intervention is authorized by this entry; the trace
+harnesses remain volatile under /tmp/semu-233-integ/.
