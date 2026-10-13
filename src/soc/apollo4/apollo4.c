@@ -455,8 +455,11 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
     soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ||
                     strcmp(profile_id, "sapporo-2.33.16") == 0
                         ? 1 : 0;
+    /* E-SAP-0073: 2.33 issues the same two absent-LPS22 identity probes
+     * as E-SAP-0039's 2.35 lane. Keep the existing exact command/state law. */
     semu_apollo4_iom_set_pressure235(soc->iom2,
-        strcmp(profile_id, "sapporo-2.35.34") == 0 ? 1 : 0);
+        strcmp(profile_id, "sapporo-2.35.34") == 0 ||
+        strcmp(profile_id, "sapporo-2.33.16") == 0 ? 1 : 0);
     if (soc->rtc_live != 0 && soc->rtc == NULL) {
         soc->rtc = semu_sapporo_rtc_create(soc->scheduler,
                                           irq_sink_dispatch, soc, error);

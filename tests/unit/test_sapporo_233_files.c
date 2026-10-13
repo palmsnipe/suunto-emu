@@ -169,11 +169,77 @@ static void test_seed_and_refusals(semu_test_context *context)
     destroy(&f);
 }
 
+/* The native read/write wrappers share 0xbb1de's signed 64-bit return.
+ * A stale buffer address in r1 makes the guest's exact-length reader reject
+ * a successful read, including the fuwe lookup (E-SAP-0072). */
+static void test_read_write_return_high_word(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint32_t handle;
+    uint8_t bytes[16];
+    static const uint8_t path[] = "settings/ui.txt";
+    static const uint8_t seed[] = "wfn:00\r\nfuwe:T\r\n";
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_bus_load(f.bus, UINT32_C(0x10020000),
+        path, sizeof(path), &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_OPEN;
+    f.cpu.r[0] = UINT32_C(0x10020000);
+    f.cpu.r[1] = 1u;
+    f.cpu.r[14] = UINT32_C(0x00080001);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files,
+        f.bus, &f.cpu, &e) == SEMU_OK);
+    handle = f.cpu.r[0];
+
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_READ;
+    f.cpu.r[0] = handle;
+    f.cpu.r[1] = UINT32_C(0x10030000);
+    f.cpu.r[2] = sizeof(bytes);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files,
+        f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, sizeof(bytes), f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[1]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x00080000), f.cpu.r[15]);
+    SEMU_TEST_ASSERT(context, semu_bus_copy_out(f.bus,
+        UINT32_C(0x10030000), bytes, sizeof(bytes), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, memcmp(bytes, seed, sizeof(bytes)) == 0);
+
+    /* EOF and a zero-byte write also return both result words. */
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_READ;
+    f.cpu.r[0] = handle;
+    f.cpu.r[1] = UINT32_C(0x10030000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files,
+        f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[1]);
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_WRITE;
+    f.cpu.r[0] = handle;
+    f.cpu.r[1] = UINT32_C(0x10030000);
+    f.cpu.r[2] = 0u;
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files,
+        f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[1]);
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_WRITE;
+    f.cpu.r[0] = handle;
+    f.cpu.r[1] = UINT32_C(0x10030000);
+    f.cpu.r[2] = sizeof(bytes);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files,
+        f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, sizeof(bytes), f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[1]);
+    SEMU_TEST_EQ_U64(context, 32u, f.files.files[0].size);
+    SEMU_TEST_ASSERT(context, memcmp(f.files.files[0].data + sizeof(bytes),
+        seed, sizeof(bytes)) == 0);
+    destroy(&f);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_open_seed_create_and_lifecycle),
-        SEMU_TEST_CASE(test_seed_and_refusals)
+        SEMU_TEST_CASE(test_seed_and_refusals),
+        SEMU_TEST_CASE(test_read_write_return_high_word)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
 }

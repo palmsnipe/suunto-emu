@@ -312,7 +312,9 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
         if (required > file->size) file->size = required;
         file->cursor = required;
         log_op(c, "write", file->path, count, file->size, file->cursor);
-        return_from_hook(cpu, count);
+        /* E-SAP-0072: READ/WRITE share the native signed 64-bit return
+         * at 0xbb1de. Every admitted count fits its nonnegative low word. */
+        return_from_hook64(cpu, count, 0u);
         return SEMU_OK;
     }
     case SEMU_SAPPORO_233_FILES_READ: {
@@ -326,7 +328,7 @@ static semu_status apply_operation(semu_sapporo_233_files_context *c,
         }
         file->cursor += chunk;
         log_op(c, "read", file->path, chunk, file->size, file->cursor);
-        return_from_hook(cpu, chunk);
+        return_from_hook64(cpu, chunk, 0u);
         return SEMU_OK;
     }
     case SEMU_SAPPORO_233_FILES_FLUSH:

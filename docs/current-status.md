@@ -6,6 +6,115 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 negative-pressure probes integrated — 2026-10-13
+
+The owner authorized the E-SAP-0073 profile attachment and checkpoint
+retirement. The existing exact negative-pressure law is now enabled for
+2.33 IOM2 in apollo4.c. Both absent LPS22 identity probes complete with
+the lane-observed one-byte zero and controller status; every command,
+DMA/state and checked-RAM guard stays unchanged. E-SAP-0074 closes the
+integration request. Ticket 710 remains ready for the next independent gap.
+
+The permanent five-case 2.33 suite is red before attachment and green after;
+2.35 remains 5/5, with 2.22/2.39 isolation refusals retained. Snapshot
+round trip and atomic ROM/MMIO/shape refusal coverage pass. The file-ABI
+prerequisite is unchanged and its suite remains 3/3. No snapshot format,
+public interface, profile metadata, registry or fixture growth is added.
+
+Production control/settings logs preserve their previous hashes. Paired
+pressure-success runs stop at budget / dbc0a / 93149169 / 1000000000 ns
+without reset; paired longer runs match the diagnostic's OHR frontier.
+The private runner now pins all four configurations (eight captures),
+including success before the exact next refusal, and fails against a
+temporary pre-attachment control with the corrected file ABI.
+
+The next boundary is OHR address 0x10, 59-byte command 0x00003b01 at
+1800546265 ns, protocol command 0x0010 / sequence 0 / BSL. Reset follows
+80 ns later, then the retained-seed refusal: device-refused / c97f2 /
+525319888 / 1800546345 ns. This is a separate 710 instance; OHR responses,
+reset/seed lifecycle, GPS data, firstboot translations and usable 2.33 UI
+remain unverified. All raw evidence and binaries stay outside the repository.
+
+Verification: `make check` 1,063 PASS; `make sanitize` 1,058 with no findings;
+lines and task contracts pass. The affected 2.33 firmware runner passes,
+the 2.35 pressure firmware pins are unchanged, and the 2.39 profile contract
+passes. E-SAP-0074 records exact commands, checkpoint/log hashes and scope.
+
+## Ticket 710 — 2.33 IOM2 pressure census; profile attachment needed — 2026-10-13
+
+E-SAP-0073 identifies the next fault as an absent LPS22 identity probe at
+I2C address 0x5c: command 0x0f000112, count 1, target 0x100330b0,
+guest DMA config 0x101 and submodule 0xe30. The ordinary address mux
+refuses it. CFSR 0x8200 / BFAR 0x40052120 and the PSP frame pin the failing
+store at 0x1438b2; the later reset PC is its consequence.
+
+A fresh, explicitly staged 2.33 lane probe repeats twice with 594 identical
+census records. Both 0x5c/0x5d probes complete with exactly one zero byte,
+preserving adjacent canary bytes, and INTSTAT 0x442 / DMASTAT 2. This
+corroborates the existing E-SAP-0039 negative-pressure law. A temporary
+diagnostic attaching that law to 2.33 clears both probes, preserves the
+70M settings-prefix hash, and reaches magnetometer and GPS startup.
+The focused temporary 2.33 suite is red against production and 5/5 with
+the diagnostic; existing 2.35 pressure tests remain 5/5.
+
+The smallest required integration is the 2.33 condition at the pressure
+profile-selection call in src/soc/apollo4/apollo4.c. That file is outside
+710's allowed module scope, so production runtime behavior is unchanged.
+The integrator also owns the existing profile-isolation expectation and
+private runner suffix retirement/re-derivation; no snapshot format change
+is proposed. E-SAP-0073 records the reviewable temporary patch and tests.
+Ticket/index status remains unchanged; this instance has not passed
+production implementation acceptance.
+
+The diagnostic's next distinct boundary is OHR address 0x10, 59-byte
+command 0x00003b01 at 1800546265 ns (protocol command 0x0010, sequence 0,
+BSL state). Reset follows 80 ns later, then the unchanged retained-seed
+refusal. That OHR exchange needs a separate 710 instance; reset/seed
+lifecycle and usable 2.33 UI remain open. All firmware/lane inputs stay
+read-only, and raw logs, probes and diagnostic binaries stay in /tmp.
+
+Verification: `make check` 1,058 PASS; `make sanitize` 1,053 with no findings;
+lines and 171 task contracts pass. The existing paired 2.33 files gate and
+2.35 pressure firmware gate preserve their production pins. This instance
+changes only the status/evidence documents and preserves the earlier ABI fix.
+
+
+## Ticket 710 — 2.33 settings assertion cleared by the file return ABI — 2026-10-13
+
+E-SAP-0072 closes the staged boot's `SettingsProvider.cpp:228` assertion.
+The logical-file READ/WRITE hooks now return both words of the native
+64-bit byte count. Previously r1 retained the buffer address, so the
+`fuwe` reader rejected an otherwise correct eight-byte read. The existing
+16-byte ui.txt seed and cursor behavior are sufficient. The earlier cmgroups,
+nested-record and exhausted-cursor theories below are superseded; the
+separate cmgroups path formatter is unrelated to this read-result check.
+
+Red-first unit and authentic-firmware regressions now pass. Paired production
+and diagnostic logs are identical; the no-layer 2.33 control is unchanged.
+The guest writes its own uiv2.txt (256 bytes) and general settings (1,487
+bytes), reaching `budget / 000c892e / 70000000 / 405355276 ns` without an
+assert dump or reset. The next boundary is the IOM2 fault at `0x40052120`:
+the firmware requests reset at 515141020 ns, and the retained ui.txt seed
+then refuses reinstallation. The final bounded stop is
+`device-refused / 000c97f2 / 143446682 / 515141020 ns`, detail
+`2.33 ui.txt seed already populated`. No 2.33 frame or usable UI is claimed.
+
+Changed scope: `src/compat/sapporo_233_files.c`, its unit suite, new
+`tests/integration/test_firmware_sapporo_233_files.sh`, this status and the
+evidence ledger. No budget, seed, public interface, profile, registry,
+snapshot format or historical golden changes. Ticket 710 remains ready
+for integrator review and a new evidence instance for the IOM2 boundary;
+reset/seed lifecycle is also still unresolved. E-SAP-0072 retains the exact
+commands, paired hashes and verification results.
+
+Verification: focused files suite 3/3; `make check` 1,058 PASS records;
+`make sanitize` 1,053 with no findings; lines and 171 task contracts pass.
+The new 2.33 gate repeats its three configurations exactly, and all nine
+existing 2.35 firmware runners preserve their pins (the optional compressed
+pixel reference skips). The 2.39 profile contract also passes; its full era
+suite is not rerun for this profile-specific correction. Firmware components
+still validate after probing; all raw logs, probes and binaries stay in /tmp.
+
 
 ## Ticket 710 — the staged 2.33 boot hits the line-228 settings assert despite the seed — 2026-10-12
 

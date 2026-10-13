@@ -12506,3 +12506,654 @@ the handle it walks). The failing operation itself is named and
 verified: the fuwe sub-lookup returns zero, sending the flow to the
 line-228 assert, under a seed whose sibling-line layout the grammar
 apparently does not accept.
+
+## E-SAP-0072 — 2.33 logical READ/WRITE high-word ABI closes the settings assertion (ticket 710)
+
+2026-10-13, ticket 710 continuation at `26fcdef`. This supersedes the
+cmgroups, nested-record grammar and exhausted-cursor theories in
+E-SAP-0063-TREE-ASSERT's exploratory addenda. The unchanged synthetic
+`wfn:00\r\nfuwe:T\r\n` seed is sufficient; the tree's overlay returned the
+wrong high word. No assertion bypass, new seed, callback, group-id write or
+file-operation admission is justified.
+
+### Static derivation and lane contract
+
+The exact expanded application is SHA-256
+`ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`.
+The resident/resources remain the E-SAP-0069 three-component pins;
+`build/suunto-emu validate --profile sapporo-2.33.16 --firmware
+tests/private/sapporo-2.33.16/firmware.semu` succeeds before execution.
+Capstone 5.0.7 decodes the following bounded ranges twice identically:
+
+- READ at `0xbb1bc` and WRITE at `0xbb198` share the return tail
+  `0xbb1de..0xbb1e2`: the byte count is moved to r0 and sign-extended
+  into r1. The admitted overlay counts are nonnegative and at most
+  65,536, so their high word is always zero, including EOF/zero bytes.
+- The pinned lane overlay `../suunto-firmware/emulator/renode/
+  sapporo-2.33-logical-file-compat.resc` already returns both words for
+  READ and WRITE (SHA-256
+  `8623c414c561fcb949f1d8b9343dc54872b50ae24e8f3143ccb7b043a898003f`,
+  matching E-SAP-0069). The tree's hooks instead left r1 containing
+  the destination/source pointer.
+- `0xac4f8` reads the wfn line and only rejects a zero 64-bit read result;
+  the stale high word does not prevent this successful lookup. Its output
+  is a byte, not a record object; writing the seed's zero to an existing
+  zero explains the earlier unchanged 64-byte object dump.
+- `0xac0c2` reads the next line through the same file handle, not a nested
+  wfn handle. At `0xac0da..0xac0e0` it requires r1=0 and r0 equal to
+  key length plus four (eight for fuwe). A stale buffer address in r1
+  rejects the correctly read line before conversion.
+- Both calls receive r0=sp, whose word is the ui.txt file handle
+  (`0x8bdd8..0x8bdf4`). `0x908f8` formats the separate cmgroups path;
+  its sentinel argument is unrelated to this failed read-result check.
+
+The decoder is `/tmp/sap233-reader-20261013/decode.py` (SHA-256
+`15168b52e8b87cabc6b98450f48bca0484af90afa557f31e6dcecbbac269ddb4`).
+Both `decode-1.log` and `decode-2.log` hash to
+`c2a6566c6f0e0309e54abbedbcae5b2a48987258cc5e26b486ffdf45e982afca`;
+`cmp` exits 0. Python `/opt/homebrew/opt/python@3.14/bin/python3.14`
+hashes to `1b5cb11d163e5ba34e2a05fc533c0ed89574d4425f9749a9d89405f651980e0d`;
+Capstone's `libcapstone.dylib` hashes to
+`016084c6e70d929249a2abb22f1afda95095294e6cd70f509964ffc54006bf94`.
+These are static observations of the pinned application and existing lane
+contract, not a new physical-device observation.
+
+### Paired causal diagnostic
+
+The volatile probe `/tmp/semu-233-read-abi/census.c` hashes to
+`b8b0ec4a8a28cb207a7dca3dd94b9473655d6663f2568e09986243e0ef1ab596`.
+It uses the four explicitly selected 2.33 layers, starts with a 276-ms
+budget, searches at most 3M single steps, bounds the lookup to 20K steps,
+then continues at most 200M instructions / 8 s. Control links the unchanged
+`build/libsemu.a` (`7913e4c5714fbcef1dc534a64b7b50ac82aad374d9155eeb421086216c6be98c`).
+Diagnostic links a temporary files object before that archive, changing
+only the two READ/WRITE return calls to the existing 64-bit helper;
+temporary source SHA-256
+`7a838bc54093cc925e570ac6875c097f3eae0c00bfb555eaeaf66ceace56545b`.
+No source firmware or lane file is modified.
+
+| Paired observation | Control | Diagnostic |
+| --- | --- | --- |
+| fuwe return / virtual ns | 0 / 276288087 | 1 / 276288713 |
+| ui.txt reads | 8, 8, 0, 0; cursor 8,16,16,16 | identical counts/cursors |
+| dump open | `wui_dump.bin`, mode 10 | absent |
+| later native file writes | absent | uiv2.txt 256 bytes; general 1487 bytes |
+| final stop / PC / instructions / virtual ns | budget / bb6b6 / 263063476 / 476288087 | device-refused / c97f2 / 143446682 / 515141020 |
+| full log SHA-256, each of two runs | `12b5410f7eccdd90f556304141fdedf8a26c317598b5c308fd8e87db02e8bed2` | `7b117e69f95316730a83ed6489e339a51c421a3670644daab3c1c90e902a428d` |
+
+The two control logs and two diagnostic logs compare byte-identically
+without normalization. Diagnostic's next boundary is a firmware reset
+request at PC `0xc97f2`, virtual ns 515141020, fault address `0x40052120`
+(IOM2 command register); the existing retained seed then refuses reinstall
+with `2.33 ui.txt seed already populated`. The reset log reports 71,723,341
+pre-reset instructions; the final public cumulative count above includes
+the existing reset accounting. Neither this controller gap nor reset/seed
+lifecycle is admitted here. The full command/state causing IOM2 refusal
+needs a new bounded lane census; no usable 2.33 UI is claimed.
+
+The old lane probe cannot currently rerun because its volatile
+`/tmp/sap233rtc/rtcprobe.repl` is absent. Retained old logs also differ from
+their recorded raw hashes and are not reused as fresh evidence. The existing
+hash-matching lane overlay, pinned native wrapper decode, and new paired
+causal control are the authority for this ABI correction.
+
+### Implementation and verification
+
+The red-first `make test TEST_FILTER=read_write_return_high_word` selects
+the files suite and fails at the first READ r1 assertion on the unchanged
+implementation (two old cases pass). The bounded correction returns r0/r1
+for READ and WRITE only. Seed bytes, cursor/storage semantics, hashes,
+operation set, fixture budgets, interfaces and other profiles stay unchanged.
+The new private runner pins a no-layer control, the post-settings success
+prefix and the next refusal, each with two byte-identical CLI runs. It fails
+against a temporary baseline executable made from HEAD's unmodified files
+module and the unchanged frontend/core objects (exit 1), then passes against
+production (exit 0). Its instruction/time caps remain explicit; no previous
+golden or stop reason is weakened.
+
+### Production checkpoints and commands
+
+The production census is compiled with
+`cc -std=c99 -O2 -Iinclude -Isrc/devices -Isrc/compat
+/tmp/semu-233-read-abi/census.c build/libsemu.a
+-o /tmp/sap233-reader-20261013/production-census`.
+Its executable hashes to
+`d8a1c0fd20993d3a47460c11659fa1d0835cccf55286cb2944b128293552f9cf`;
+both production logs match the diagnostic log exactly (`7b117e69...` above).
+`cmp` succeeds for both pairs and between production and diagnostic.
+
+CLI runs use `build/suunto-emu run --profile sapporo-2.33.16 --firmware
+tests/private/sapporo-2.33.16/firmware.semu`. Staged runs additionally name
+each of `sapporo-2.33-production-data`, `sapporo-2.33-logical-files`,
+`sapporo-2.33-firstboot`, `sapporo-2.33-gps-startup` via `--layer`.
+Each row below repeats twice with exact full-log equality, expected exit 3
+and the stated `--max-instructions` / `--max-time` bounds:
+
+| Configuration / budgets | Stop / PC / instructions / virtual ns | Full log SHA-256 |
+| --- | --- | --- |
+| No layers, 200M / 200M ns, before and after correction | budget / dbc0a / 48412879 / 339421948 | `74c858187b0fcc1c4b33729b9df7194d57e851edf13c079391308c7169e67a33` |
+| Staged, 70M / 1B ns | budget / c892e / 70000000 / 405355276 | `54047d5d75d07c6a611294fd057c474ec0cab1327245c8f268b388718c667b30` |
+| Staged, 200M / 1B ns | device-refused / c97f2 / 143446682 / 515141020 | `8a5e06b0a4630fb606c82ce8f80fac69b7a753e6e8c43828833c939c27d1f632` |
+
+The staged success has no dump open/reset and includes successful closes of
+the guest-written uiv2/general files at the lengths above. The refusal keeps
+the exact IOM2 fault/reset and seed-conflict detail. No first-boot translation
+or GPS response fires before this new boundary; their later acceptance and
+2.33 UI coverage remain open.
+
+Commands run from the repository root; logs stay under
+`/tmp/sap233-reader-20261013/`:
+
+- `make test TEST_FILTER=read_write_return_high_word`: red first (make exit
+  2, one failed case); `make test TEST_FILTER=sapporo_233_files`: exit 0,
+  three cases including the existing overflow/unsupported-shape refusal.
+- `make -j4 all sdl`: exit 0. `make check-lines`: exit 0 with advisory
+  size warnings. `make check`: exit 0, 1,058 PASS records including five
+  quick SDL cases; optional 2.22 authentic SDL walks skip in this command.
+- `make sanitize`: exit 0, 1,053 PASS records, no ASan/UBSan findings.
+- `make check-task-contracts`: exit 0, 171 indexed tickets validate.
+  `sh -n tests/integration/test_firmware_sapporo_233_files.sh` and
+  `git diff --check`: exit 0.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.33.16/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.33.16
+  TEST_FILTER=sapporo_233_files`: exit 0, the new paired settings/refusal
+  runner. Running that same shell runner with `SEMU_EMULATOR` set to the
+  temporary baseline executable exits 1 as described above.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.39.20
+  TEST_FILTER=sapporo_239_profile`: exit 0, unchanged built-in contract.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235`: exit 0, all nine selected runners / ten PASS
+  records, including paired native setup and snapshot continuation. Existing
+  pins are unchanged. The optional private compressed-pixel reference is
+  absent and explicitly skips; synthetic and native compressed-window gates
+  run and pass. The new 2.33 runner covers the affected-profile era surface.
+  The full 2.39 era suite is not rerun for this 2.33-only hook correction;
+  no CPU/scheduler/bus/controller/renderer or 2.39 dispatch behavior changes.
+
+Verification log hashes:
+
+| File | SHA-256 |
+| --- | --- |
+| `red.log` | `62e31c840e125a148e51bb09f686a403486f53e4e82b6d8254aade34a69992e1` |
+| `green.log` | `12e5a41f2f6b481ebacd58b4d1e33deed4526b540a866a1fafb931663496bfd2` |
+| `check.log` | `ed26e87ee2f8b74fec566747f9e43c1d2006f12f21ed87e8c7b9d4cf9c88d78e` |
+| `sanitize.log` | `179d6f528fc16aecaf273c6647faf5869d221e8bdbc5622564fef8b28711cb7d` |
+| `firmware-233.log` | `e85dd741ef07af87e6b197d2cb48117d775258835ecf0c621343711412939ae5` |
+| `firmware-red.log` | `2778bd4a18cd45705dd3db8468b2b84386faed26930803d4f10b37b8d681c39c` |
+| `firmware-239-profile.log` | `4199ae8558e62e09a14a2ba461495753d6a9c36ebca56a2b19ba4654d522a58d` |
+| `firmware-235.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` |
+| `contracts.log` | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+| `lines.log` | `a1886183b08f53642f279228045d389598e6967428346972de0319394e2400e0` |
+
+Changed files are the files module, its unit suite, the new private runner,
+this ledger and current status. Ticket/index status stays unchanged; a
+new instance must census the IOM2 transaction before controller integration,
+and reset/seed lifecycle remains a separate gap. No public integration change
+is requested for this ABI correction.
+
+## E-SAP-0073 — 2.33 IOM2 absent-pressure identity census and integration request (ticket 710)
+
+2026-10-13, continuation at `26fcdef` with the E-SAP-0072 file-ABI correction
+in the working tree. This instance investigates the next IOM2 boundary;
+no production controller, profile, device response or checkpoint changes
+are made. The attachment is outside ticket 710's allowed module scope.
+The evidence supports reusing the existing E-SAP-0039 negative identity law,
+subject to the integrator-owned profile attachment described below.
+
+### Exact fault and native command
+
+The E-SAP-0069 three-component 2.33 manifest validates before execution.
+The application is `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`;
+resident/resources retain the E-SAP-0072 pins. A temporary observer replaces
+only the IOM object at link time and logs commands/configuration without
+changing effects. The four explicit layers are production-data,
+logical-files, firstboot and gps-startup, each with prefix `sapporo-2.33-`.
+
+Six IOM2 commands succeed before the fault: address 48 reads selectors
+00 and 1c (one byte each), then four two-byte writes from MRAM addresses
+172384, 172388, 17238a and 17238c. The seventh command is:
+
+| Field | Observed value |
+| --- | --- |
+| command register / actual store PC | 40052120 / 1438b2 |
+| observed next PC / LR | 1438b6 / a301b |
+| command / address / count | 0f000112 / 5c / 1 byte |
+| guest DMA configuration / stored shared-law configuration | 101 / 1 |
+| DMA target / SUBMODCTRL / INTEN | 100330b0 / e30 / 4e7d |
+| pre-command instructions / virtual ns | 71723261 / 515140940 |
+| controller result / DMASTAT / INTSTAT | refused / 4 / 800 |
+
+The guest writes DMA configuration 101, not 1; the generic controller masks
+bit 8. This is not the root refusal by itself: the address mux has no
+verified endpoint at 5c, so the ordinary DMA path returns refusal. The
+existing pressure235 gate preserves bit 8 and intercepts exactly this
+negative identity shape before endpoint dispatch.
+
+A separately bounded run stops immediately after fault entry at
+`budget / 1b8e92 / 71723262 / 515140941 ns`. The PSP frame at 10032f60
+contains r0=10, r1=0f000112, r2=0f, r3=1, r12=1e, LR=a301b,
+stacked PC=1438b6 and xPSR=01000000. CFSR=8200, HFSR=40000000,
+BFAR=40052120. The failing instruction is the store at 1438b2; the
+observer and stacked PC are its next instruction. The later reset at
+c97f2 is the fault handler's consequence, not the transaction origin.
+
+Capstone 5.0.7 decodes the pinned application twice: 143826..143868
+constructs 103 for writes and 101 for reads and stores at +218;
+143890..1438ba builds the selector/size/type command and stores at +120;
+c97e0..c97fa performs AIRCR reset. Tool identities are E-SAP-0072's
+Python/Capstone pins. No native instruction patch is proposed.
+
+### Lane corroboration
+
+Fresh native lane runs use `/tmp/semu-233-iom2-lane/native.resc`, which
+loads the pinned 2.33 lane, external resource map, production fixture,
+logical-file overlay/unchanged ui.txt seed and the recorded firstboot
+translations. The obsolete missing volatile RTC replacement is omitted;
+the bundled upstream RTC remains. This is a new declared staging probe,
+not a reproduction claim for E-SAP-0065's missing script. The read-only IOM
+wrapper is `../suunto-firmware/emulator/renode/iom4/SapporoApollo4Iom4.cs`,
+SHA-256 b1d1dc8ee41ed84a52d22e3dd510ffb88950619638c93fc57cb43facfe8f1be7
+(E-SAP-0039). IOM2 is mapped at 40052000, IRQ 8, isPressureBus=true;
+its model has HSPPAD143 at 48 and no LPS22 at 5c/5d.
+
+Both native runs are capped with `emulation RunFor "2.550"`, then paused.
+They end at PC dbc0a, executed instructions 84195350. Their native watch
+records have 26 IOM2 commands: 48:6, 5c:1, 5d:1, 35:3, 10:15. The first
+eleven shapes exactly match the tree diagnostic. Both native absent probes
+use command 0f000112, config 101, count 1, target 100330b0 and submodule e30;
+subsequent hook reads show DMACFG 100, DMASTAT 2, target zero. The observed
+INTSTAT read after native ISR service is zero. The additional OHR commands
+are context only; their bodies and law are outside this instance.
+
+With the CPU paused after native FIFO initialization (threshold 1010,
+FIFOCTRL 0), each absent address is tested with a target canary a5a5a5a5,
+interrupts disabled/cleared, submodule 10, config 101, count 1 and command
+0f000112. Both return the exact tuple:
+
+| Target word | INTSTAT | DMASTAT | DMACFG | DMATRIGSTAT | CMDSTAT |
+| --- | --- | --- | --- | --- | --- |
+| a5a5a500 | 442 | 2 | 100 | 4 | 20 |
+
+This proves a one-byte zero transfer preserves the neighboring three bytes,
+matching the existing helper. The printed `selector=00` in the paused probe
+is a monitor-label constant, not the selector; the command encodes selector
+0f. A preliminary cold halted probe omitted native FIFO initialization and
+was inconclusive; it is not authority for the law.
+
+The two raw native logs have distinct host timestamps, retained hashes
+9441f2bf2e1381fd5895f463fc29c203da44578964f8f461ce12dce100232b8d and
+788cb7488f663e18d01551c967643d2aeb48ca86f500e7e4f851b2c005a1ea92.
+`normalize.py` keeps all 594 SAP233_IOM2 records, removing only the host
+prefix/CR: 26 command, 563 native hook, 2 serviced-status, 2 paused-law and
+1 paused-controller record. The complete censuses compare byte-identically,
+SHA-256 86fb5e7ccf92e168f4d3cff3e07d2da2385d6c83dc3fd0b5393a97706d20deb6.
+Probe source SHA-256 is 2ae54d0f15e4e6e346c546360e309d6355064714ab9e5e51a98e549718ce8e3a;
+normalizer SHA-256 is 7f47e11528c8031ce7c12f7cc763f16b21287384b83361e1574df3ecc417aa49.
+The script and both raw logs/censuses stay outside the repository.
+
+Run twice from `../suunto-firmware` with
+`DOTNET_BUNDLE_EXTRACT_BASE_DIR=/tmp/semu-233-iom2-lane/dotnet
+ .tools/renode/Renode.app/Contents/MacOS/renode --console --disable-xwt
+ --plain -e 'include @/tmp/semu-233-iom2-lane/native.resc'`, redirecting each
+raw log separately; both exit 0. Runtime SHA-256 is
+8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab.
+`python3 /tmp/semu-233-iom2-lane/normalize.py`, then `cmp` of the two
+censuses, exits 0. The complete 33-file include/input manifest has SHA-256
+74b222683384d0d91d2cb1433e89f76d9cee8c2dc7201564bb1c042e37d0b994,
+no unresolved files. Its identities are retained below so they survive
+removal of volatile artifacts; sibling-relative paths have prefix
+`../suunto-firmware/`, except the explicit /tmp probe.
+
+| Lane input | SHA-256 |
+| --- | --- |
+| `/tmp/semu-233-iom2-lane/native.resc` | `2ae54d0f15e4e6e346c546360e309d6355064714ab9e5e51a98e549718ce8e3a` |
+| `emulator/renode/sapporo-2.33-logical-file-compat.resc` | `8623c414c561fcb949f1d8b9343dc54872b50ae24e8f3143ccb7b043a898003f` |
+| `emulator/renode/sapporo-2.33-empty-cache-compat.resc` | `9c47a46d4a5795a3a8c9775aa174e3412eff41a8f39568f94d218a9ee764720d` |
+| `emulator/storage/fixtures/sapporo-production-data.synthetic.bin` | `c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53` |
+| `artifacts/analysis/sapporo-2.33.16.17428/component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `emulator/storage/suunto-sapporo-storage.repl` | `d19e843548b28e8ddaa06433f6cb71d118f4a173bf0b5dc9d90e66e20c5fb267` |
+| `emulator/renode/sapporo-2.33.resc` | `dcbb32334518177f6e3dbe86ccfafeea683f67d3db20d9f972a41918d944b284` |
+| `emulator/renode/sapporo-2.33-thumb-compat.resc` | `f92074b20b2a2df7e2014b446a3b329409895e685e9bdc4bc273ef0b3793059b` |
+| `emulator/renode/gps/sapporo-gps-transport.repl` | `cbfdeb5bc17cff5f5c83ff93b3079585f87c569409ede7e623e81abc6ce30ab9` |
+| `emulator/renode/graphics/sapporo-nemap.repl` | `6ccc2d3711104c8543d8de3d314dfdc925e0fc0ba25da8f2efa93115d9ab5a28` |
+| `emulator/renode/ambient_light/sapporo-ambient-light.repl` | `bb75b25946ce85ded77a30ec6886e4704d8123bb3cc36fb4967c0ae7b0b84269` |
+| `emulator/renode/accelerometer/sapporo-accelerometer.repl` | `1ea287f6abff6490fa818b714199edf4bd8cbfd6d2e2266ef7fea8487c277aab` |
+| `emulator/renode/pressure/sapporo-pressure.repl` | `597c12ac9e126f7318b8736cda5bc00054bfe7547768d9af36f338416fda4c35` |
+| `emulator/renode/mspi2/sapporo-mspi2.repl` | `4b04fc624dd3c6cfa28c8f704dcf2d16d828d83bc2c283244eb5733300250912` |
+| `emulator/renode/iom4/sapporo-iom4.repl` | `3d7877fe0d2cb656da8c0eb9bffc4bb4f5ba92b46ed0085c63b1444cc4665c0e` |
+| `emulator/renode/peripherals/sapporo-extensions.repl` | `945540b7f017e644dd2e49a4746d8652228277ebae030e10e3df3c9dfd2cde81` |
+| `emulator/renode/suunto-sapporo.repl` | `e731cec46ae2fc43040f3e5108b51c36b505d9acae054f678913a3ab8d6ac732` |
+| `artifacts/analysis/sapporo-2.33.16.17428/component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| `artifacts/analysis/sapporo-2.33.12.15926/component-03-type-2-v2.raw` | `c81aa19dd99d75519566a4210f2ee0d74f1cd4ad721bb4d7efe5eab62bbf69c5` |
+| `emulator/renode/mspi1/SapporoApollo4Mspi1.cs` | `ec83a9f783c6b1f402e2243d27df7caed63c28b313ee08458d5be330b3b20be9` |
+| `emulator/renode/mspi2/SapporoApollo4Mspi2.cs` | `a782983bbc12a93078362a2e121d4e1d786944e16405e86c61b5c8ad0c029c2f` |
+| `emulator/renode/iom4/SapporoApollo4Iom4.cs` | `b1d1dc8ee41ed84a52d22e3dd510ffb88950619638c93fc57cb43facfe8f1be7` |
+| `emulator/renode/gps/SapporoCxd5610Transport.cs` | `3132d27471a88c72842d4b7059dcc03eb6ffff59ebd090262badb28154aef99a` |
+| `emulator/renode/graphics/SapporoNemaP.cs` | `a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165` |
+| `emulator/renode/ambient_light/SapporoOpt3007.cs` | `dbcfc8cc9908c0374c83177c5db39c7f48ec23a4502aeb962f34aaecd300c1a1` |
+| `emulator/renode/haptic/SapporoHapticPmic.cs` | `fc7533bbcca2d6cb15d22edf0b40bb884c7df702d58f9f2bac0bbd76b291e968` |
+| `emulator/renode/wrist_magnetometer/SapporoTli493dW2bw.cs` | `e10010c714f98325c2967b14988d903e0785c3701ca5346e2606ce9921a64667` |
+| `emulator/renode/accelerometer/SapporoLsm6Dsl.cs` | `5f88bd8bff921f9c9e7932b54ea310fcc65d5b9823a7f25b75d578df0749ec4d` |
+| `emulator/renode/ohr/SapporoOhr2Transport.cs` | `f35e6a69c86fba8142d94c835db4958d238b7cc042f58e67a0606d5a0d2b96f0` |
+| `emulator/renode/pressure/SapporoLps22.cs` | `d65ec2bc2978ee4a75c3b35c55a3853891f05257dfd05ea1bb8fc33675eac936` |
+| `emulator/renode/pressure/SapporoHsppad143.cs` | `89e605757163c8fa0fbd4312a0ae6ed24aef0a396fac06abb7bcaea322e9b80a` |
+| `emulator/renode/peripherals/SapporoApollo4Extensions.cs` | `a9561ac90c10d9b7b2ec859c11c3f9ba974aea4abf504e5d9454d6038bc90405` |
+| `.tools/renode/Renode.app/Contents/MacOS/platforms/cpus/ambiq-apollo4.repl` | `e1f8560bd32f82fb2aaf7e9a8877b1b1c4aff7bd0a35821f8761a76243b74376` |
+
+
+
+### Paired causal diagnostic and next distinct boundary
+
+The temporary diagnostic enables the existing pressure235 controller flag
+for the 2.33 machine before execution. It changes no endpoint, bytes,
+seed, fixture budget, CPU, scheduler or protocol provider. The two absent
+identity reads now complete with zero and INTSTAT 442 / DMASTAT 2:
+5c at 515140940 ns and 5d at 614390375 ns. Three subsequent magnetometer
+commands at address 35 succeed: two two-byte writes, then one 23-byte read.
+The one-second diagnostic ends `budget / dbc0a / 93149169 / 1000000000 ns`,
+with no reset. This is a diagnostic result, not a production checkpoint.
+
+A 300M-instruction / 30B-ns diagnostic reaches the first GPS startup
+status intervention at 1789560379 ns (hit 1, 10-ms synthetic delay,
+E-SAP-0071). The next distinct command is the twelfth IOM2 transaction:
+address 10, command 00003b01, count 59, target 1003301c, configuration 103,
+SUBMODCTRL e30, INTEN 4e7d; next PC=1438b6, LR=a301b, instructions
+262659864, virtual ns 1800546265. The uninstrumented diagnostic CLI names
+the refused OHR protocol request as command 0010, sequence 0, BSL state,
+ready 0. Reset follows at 1800546345 ns with pre-reset instructions
+262659944. Final public tuple is `device-refused / c97f2 / 525319888 /
+1800546345 ns`, detail `2.33 ui.txt seed already populated`. As in
+E-SAP-0072, the final instruction count reflects existing reset accounting.
+Neither this OHR exchange nor reset/seed lifecycle is admitted here.
+
+Every tree/fault/diagnostic/deep/CLI capture is repeated twice and compares
+byte-identically without normalization. The uninstrumented CLI uses a
+temporary Apollo4 object changing only the profile gate, and reaches the
+same next fault as the flag diagnostic. Its 70M/1B-ns prefix reproduces
+E-SAP-0072's full log hash 54047d5d75d07c6a611294fd057c474ec0cab1327245c8f268b388718c667b30.
+
+### Smallest integrator-owned change and acceptance still required
+
+In `src/soc/apollo4/apollo4.c`, the call to
+`semu_apollo4_iom_set_pressure235(soc->iom2, ...)` should select the existing
+negative identity law for exactly sapporo-2.33.16 as well as sapporo-2.35.34.
+The proposed one-condition patch is retained outside the repository; no
+private parallel interface or 2.39 LPS22 sensor is needed. The law still
+requires address 5c/5d, command 0f000112, count 1, configuration 101,
+I2C submodule 10, attached endpoint and writable RAM. Other absent-device shapes
+remain unsupported. The existing snapshot codec already distinguishes
+this immutable profile flag and preserves bit 8; no format change is proposed.
+
+Integrator scope must also cover the existing 2.35 pressure isolation test's
+old 2.33-refusal assertion, a permanent 2.33 positive/refusal/reset/snapshot
+suite, and the private files runner's now-retired pressure-fault suffix.
+The control and settings prefix pins must be preserved. The new suffix
+must be re-derived on the integrated production build rather than copied
+from a diagnostic. Ticket/index status is unchanged. A separate ticket 710
+instance is required for the OHR BSL exchange after this attachment.
+
+The temporary 2.33 suite is derived from the existing five-case 2.35 pressure
+suite, selecting 2.33 and retaining 2.22/2.39 refusal controls. It covers both
+addresses and reset/IRQ completion, seven atomic refusal variants, unknown
+address, RAM/ROM/MMIO admission, and snapshot round trip/wrong-profile refusal.
+Against production: exit 1 (red). Against the proposed attachment: exit 0,
+5/5. Existing `make test TEST_FILTER=sapporo_235_pressure`: exit 0, 5/5.
+No new failing test is installed in the repository.
+
+### Reproduction and volatile provenance
+
+All parent probes, binaries and logs live in `/tmp/sap233-iom2-20261013/`.
+IOM observer and diagnostic Apollo4 includes are relocated to the original
+absolute headers; source firmware and lane files are read-only. Compiler
+commands use `cc -std=c99 -O2 -Iinclude -Isrc/devices -Isrc/compat`:
+compile iom_observer.c to an object, then link driver.c/fault.c/diagnostic.c/
+deep.c with that object before build/libsemu.a. Driver/fault/deep limits are
+respectively 200M/1B ns, 71723262/1B ns, and 300M/30B ns; diagnostic uses
+200M/1B ns. The observer records no host addresses or nondeterministic time.
+Compile apollo4_diagnostic.c to an object and link the unchanged CLI objects
+plus that object before the archive for cli-diagnostic. CLI arguments are
+`run --profile sapporo-2.33.16 --firmware
+ tests/private/sapporo-2.33.16/firmware.semu`, the four explicit layers
+above, and `--max-instructions 300000000 --max-time 30000000000`.
+Both public diagnostic CLI runs exit 3, as do the paired 70M/1B-ns prefixes.
+
+Compile test_pressure233.c with tests/support/test.c and the archive for red;
+place the diagnostic Apollo4 object before the archive for green. Decode with
+`/opt/homebrew/opt/python@3.14/bin/python3.14 decode.py`. All pair comparisons
+use `cmp`; exit 0. The archive used throughout hashes to
+187eb90e17217304ebea064d061a57cd1c3b2ae993d8667c5a9958730840430e.
+
+| File (logs in each pair share the hash) | SHA-256 |
+| --- | --- |
+| `iom_observer.c` | `7fbe64d56c02a37690f2213793db5966deb32cf1e2f978410da191cffeee4f2c` |
+| `driver.c` | `15d4dc5ffd69f8dcb9a98b943d001fc3e1db03087e2212c8a7a6b7cdcd64b99a` |
+| `fault.c` | `256ff473143c5bab83ef896d2f92dee38ad7231b96201fd9d188bad6ea340a8e` |
+| `diagnostic.c` | `1f3980ecb558571ab730f83f8b2d151170887dd7a88209570a3e63adea5bc924` |
+| `deep.c` | `92fc2aafc48738ff8ff014763d2a7b37c880d1e8e856f48c5a334d5d091016bd` |
+| `decode.py` | `c08a717504b90b65ffba2b1e540f99684df4d9759ae348242d35432f77644a5a` |
+| `apollo4_diagnostic.c` | `09833baacfc53ac9ce1575b234415c7ab150594babd9728005a781b1bb083d1e` |
+| `proposed-integration.patch` | `66b7c090c34c65d8d883ce90d0ae5a9c425947d8355bc64ea715544cea5195b2` |
+| `test_pressure233.c` | `97478ed6e8bfed2c0ad4cbf97fb94b6bd53e50de181b8a02921e21c950ce09d7` |
+| `tree-1.log` | `cea1edafbf83b3fd239ecefa785fa4423ad8f686c3d2deb7b82a10bd7d343268` |
+| `fault-1.log` | `9ee68d6f46bdb6e743ca6a6bae370a781461ccb255e8bcb9adb2ed3a00b447e9` |
+| `diagnostic-1.log` | `7954a1cbcd710aa8df2180f06d19b5b572f11dec58064361a26ef2c25f46ee7c` |
+| `deep-1.log` | `501fb41662847fa39ce980e9a4e7e43e98f37d4e93e1a7716895300a6db7d413` |
+| `decode-1.log` | `71397c650972d3a0de74011e3913dfd0bdb3de9535b0b10b99a30bd3808649f2` |
+| `cli-1.log` | `b75699ac3f4bbcd0f536cbaae0a910bd6519cda06bea81312ac25eef0b73dcef` |
+| `red.log` | `4ce1cb8318aae730128e965817770ed8e4855aca9c11f65a01709250aadd324f` |
+| `green.log` | `c7cfb48360429987b3b62a74ed658b35a303826a5028a488dbdcdae009189ecb` |
+
+
+Repository verification after the census (all exit 0):
+
+- `make check-lines`: advisory size warnings only.
+- `make check`: 1,058 PASS records, including five quick SDL cases;
+  optional authentic SDL walks explicitly skip in this default gate.
+- `make sanitize`: 1,053 PASS records, no ASan/UBSan findings.
+- `make check-task-contracts`: 171 indexed tickets validate.
+- `make test TEST_FILTER=sapporo_235_pressure`: 5/5.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.33.16/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.33.16
+  TEST_FILTER=sapporo_233_files`: existing production runner passes,
+  all three paired control/settings/refusal checkpoints unchanged.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235_pressure`: existing no-reset pressure gate passes.
+- `sh -n tests/integration/test_firmware_sapporo_233_files.sh`, final
+  manifest validation and `git diff --check`: exit 0.
+
+The other 2.35 and 2.39 era runners are not repeated for this read-only
+census/documentation instance; no production CPU, scheduler, controller,
+profile or device behavior changes here. E-SAP-0072's full nine-runner
+2.35 verification remains the preceding working-tree runtime baseline.
+Only docs/current-status.md and this ledger are edited in this instance;
+all five E-SAP-0072 changes are preserved, with no plan/status update.
+
+| Verification/artifact file | SHA-256 |
+| --- | --- |
+| `check.log` | `737c08a5f88930da5a7dbb9cf948272986534515c83286ffa087e0477b6a1071` |
+| `sanitize.log` | `27107b1a1935107c571913206830f824ad0b9c7b20acda4b17bf72545de5c852` |
+| `lines.log` | `a1886183b08f53642f279228045d389598e6967428346972de0319394e2400e0` |
+| `contracts.log` | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+| `focused235.log` | `88a318e7778081a7e6ab32534a6aaadd87757136c93a3129a72bb7bb5cdcf841` |
+| `firmware233.log` | `e85dd741ef07af87e6b197d2cb48117d775258835ecf0c621343711412939ae5` |
+| `firmware235-pressure.log` | `0260ab022093f6b8a54f62ee8a48494b01bbe4f469cd2caf90422928a649a74f` |
+| `census` | `37154439076e5cbece3ae7440e01410fa70a855c9f828718c2abba9c79a8a9d3` |
+| `fault` | `cce816fedc90b0ef396777df17f8ee7d7a2679967024a31497c7593a81e34189` |
+| `diagnostic` | `4bdf5f4e62dcf3957db5def10ba4269a70ffd3a073e8e97ac92eb7575f0a0696` |
+| `deep` | `5d4804fad24c79e0ff3499fa64359b78c049322c6709338186da54a5aef218b2` |
+| `cli-diagnostic` | `f1b8463e192b208177907aaf9fd0e998039725711222f53ccdd05b2e83a7cce1` |
+| `prepare.py` | `e7258df5071b565f80dfef91c281eec92a01374a7aa2c020056bab0e68dec6d4` |
+| `integration_diagnostic.py` | `edb11214f58dad2d66156eceb1bcc29358dee6920c8710b0a16a1d14722ec3d7` |
+
+
+Limitations: the lane supplies synthetic/no-device responses and establishes
+no physical pressure fidelity. No usable 2.33 UI, OHR response, GPS data
+response, firstboot translation, reset-seed repair or unbounded continuation
+is claimed. The runtime attachment remains integrator-owned; ticket 710's
+implementation acceptance is not complete for this instance.
+
+## E-SAP-0074 — integrator attachment of the 2.33 negative-pressure probes (ticket 710)
+
+2026-10-13, explicit owner instruction: act as integrator, apply the
+E-SAP-0073 attachment in apollo4.c, update tests/checkpoint evidence, verify,
+commit and push. This authorizes the profile attachment and retirement of
+its pressure-fault suffix. Dependencies remain 705 done / 710 ready.
+This closes the E-SAP-0073 integration request for this pressure instance;
+710 remains ready for the next independent OHR gap, not a release claim.
+
+### Integrated scope and law
+
+The pressure selection call in `src/soc/apollo4/apollo4.c` now enables the
+existing E-SAP-0039 controller law for exactly sapporo-2.33.16 as well as
+sapporo-2.35.34, with E-SAP-0073's fresh two-run lane census as authority.
+The helper implementation, masks, command/state guards, zero-byte response,
+IRQ path and snapshot codec are unchanged. The existing internal name
+pressure235 is retained; no parallel API, public header, manifest, registry,
+profile file, Makefile, format or firmware patch is added.
+
+Only address 5c/5d, command 0f000112, count 1, config 101, I2C submodule
+10, attached endpoint and checked writable RAM qualify. Other absent-device
+shapes refuse. The 2.22/2.39 profile refusal controls remain in both
+pressure suites. The former 2.33-refusal assertion in the 2.35 suite is
+superseded by the dedicated five-case 2.33 suite, without weakening other
+profile or unknown-address refusals.
+
+The permanent 2.33 suite starts red on the pre-attachment production build:
+`make test TEST_FILTER=sapporo_233_pressure` exits 2, all five cases fail.
+After the one-condition attachment it exits 0, 5/5. It covers both absent
+addresses and reset/IRQ completion, seven atomic refusal variants, unknown
+address, ROM/RAM/MMIO admission and same-profile snapshot round trip with
+wrong-profile refusal. Existing 2.35 pressure suite stays 5/5. The existing
+E-SAP-0072 file-ABI correction is the previously verified prerequisite;
+its three-case suite remains 3/3 and its source is unchanged in this instance.
+
+### Production checkpoint re-derivation and retirement
+
+All runs use `build/suunto-emu run --profile sapporo-2.33.16 --firmware
+ tests/private/sapporo-2.33.16/firmware.semu`; the manifest's three components
+validate before and after execution. Staged runs explicitly enable each of
+sapporo-2.33-production-data, sapporo-2.33-logical-files,
+sapporo-2.33-firstboot and sapporo-2.33-gps-startup. Each configuration is
+captured twice on the integrated production binary, exits 3 and compares
+byte-identically by `cmp`, without normalization:
+
+| Configuration / instruction and ns caps | Stop / PC / instructions / virtual ns | Both full-log SHA-256 values |
+| --- | --- | --- |
+| No layers, 200M / 200M | budget / dbc0a / 48412879 / 339421948 | 74c858187b0fcc1c4b33729b9df7194d57e851edf13c079391308c7169e67a33 |
+| Settings prefix, 70M / 1B | budget / c892e / 70000000 / 405355276 | 54047d5d75d07c6a611294fd057c474ec0cab1327245c8f268b388718c667b30 |
+| Pressure success, 200M / 1B | budget / dbc0a / 93149169 / 1000000000 | 026ed246926095f3efa15ef8485dfdc83a5402c6d77460b6f6d5fa5d41ced71b |
+| Next OHR refusal, 300M / 30B | device-refused / c97f2 / 525319888 / 1800546345 | b75699ac3f4bbcd0f536cbaae0a910bd6519cda06bea81312ac25eef0b73dcef |
+
+E-SAP-0072's two earlier pins are preserved exactly. Its pressure-fault
+suffix 8a5e06b0a4630fb606c82ce8f80fac69b7a753e6e8c43828833c939c27d1f632
+(`device-refused / c97f2 / 143446682 / 515141020 ns`, 200M/1B caps)
+is explicitly retired: E-SAP-0073's observed negative identity completion
+replaces the former controller fault. The new runner adds a no-reset pressure
+success prefix before the next refusal rather than accepting a later failure
+alone. The longer caps expose that distinct boundary, not broader fixtures.
+
+The production observer is compiled from E-SAP-0073's driver.c and
+IOM observer object, now linked against the integrated archive without a
+manual flag override. Both fresh census logs hash to
+7954a1cbcd710aa8df2180f06d19b5b572f11dec58064361a26ef2c25f46ee7c,
+and compare exactly with that entry's one-second diagnostic. Both native
+absent probes and the subsequent magnetometer commands are reproduced.
+The uninstrumented production OHR suffix likewise matches the earlier
+b75699ac... diagnostic, independently re-derived above.
+
+The new boundary retains the OHR refusal: protocol command 0010, sequence
+0, BSL state, ready 0, IOM2 address 10, command 00003b01 / 59 bytes at
+1800546265 ns. Reset follows 80 ns later; the final detail remains
+`2.33 ui.txt seed already populated`. Existing cumulative reset accounting
+produces the 525319888 public count. GPS startup status has hit 1 at
+1789560379 ns; no GPS data response or firstboot translation is claimed.
+OHR and reset/seed lifecycle are separate gaps. No 2.33 frame/UI acceptance.
+
+### Checks, baseline refusal and provenance
+
+The existing private runner now tags both sapporo_233_files and
+sapporo_233_pressure. It validates firmware, repeats all four configurations
+(eight captures), checks full hashes and stop tuples, rejects resets/dumps
+in settings/pressure successes, and requires the exact OHR/reset refusal.
+It passes on production and exits 1 against a temporary baseline that
+links HEAD's pre-attachment Apollo4 object before the current archive;
+that baseline retains the corrected file ABI and unchanged CLI/core objects.
+No Git checkout, source firmware or lane file is modified by that control.
+
+Commands from the repository root:
+
+- `make test TEST_FILTER=sapporo_233_pressure`: red exit 2 before attachment,
+  then exit 0, 5/5. `make test TEST_FILTER=sapporo_235_pressure`: exit 0, 5/5.
+  `make test TEST_FILTER=sapporo_233_files`: exit 0, 3/3.
+- `make -j4 all sdl`, `make check-lines`, `make check`: exit 0; check has
+  1,063 PASS records including five quick SDL cases. Size warnings remain
+  advisory. Optional authentic SDL walks skip in this default command.
+- `make sanitize`: exit 0, 1,058 PASS records, no ASan/UBSan findings.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.33.16/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.33.16 TEST_FILTER=sapporo_233`:
+  exit 0, all eight captures and four byte-identical pairs.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235_pressure`: exit 0; old pressure pins unchanged.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.39.20
+  TEST_FILTER=sapporo_239_profile`: exit 0; built-in profile contract unchanged.
+- `make check-task-contracts`, shell syntax check of the 2.33 runner,
+  final manifest validation and `git diff --check`: exit 0.
+
+The affected 2.33 era runner runs explicitly. Other 2.35/2.39 era suites
+are not repeated here: only the exact 2.33 branch of profile selection
+changes, and their controller/CPU/scheduler/renderer behavior is unchanged.
+E-SAP-0072 records the preceding full nine-runner 2.35 working-tree baseline.
+
+All logs, probes and binaries stay under
+`/tmp/sap233-pressure-integration-20261013/`. Compile the production census
+with `cc -std=c99 -O2 -Iinclude -Isrc/devices -Isrc/compat
+ /tmp/sap233-iom2-20261013/driver.c
+ /tmp/sap233-iom2-20261013/iom_observer.o build/libsemu.a
+ -o /tmp/sap233-pressure-integration-20261013/production-census`.
+Baseline source relocates only HEAD's quoted includes to absolute originals;
+compile it with the same C99 flags, then link unchanged CLI objects plus
+that object before the archive. Run the private runner with TEST_PROFILE,
+SEMU_FIRMWARE_MANIFEST as above and SEMU_EMULATOR set to the baseline.
+
+| Artifact (paired capture hashes apply to both runs) | SHA-256 |
+| --- | --- |
+| `red.log` | `0c2be01b54d98448fb41e12b70bc6e1dc0a328535d03c12fb956e0ac09fbe297` |
+| `green233.log` | `6fd24ce0e92a783f4d1e6a00e4ac7295b8dbab1df7863412f4832906e7367a29` |
+| `green235.log` | `0d8785e30074e3f1d40155a4f9b40c5287cb36a67035181fb56a8e195260684b` |
+| `files.log` | `8be691cd4c168ad1e947315f1f24c50052dbf4b7b8cebfcf29d3a749ee17ca21` |
+| `build.log` | `5c36cea98053730184992708337abfa11affd866274b42063db668f1a216e2b4` |
+| `lines.log` | `e3e53b4425fdb3940393c5dec3b97752e5ece83f800118f5114b0b1ba90f99d7` |
+| `check.log` | `5567c76d3d14a893a128030a9cb36fb07499a0c05fee9c4fc9c2ff6c6e2206ab` |
+| `sanitize.log` | `4334104e3a521a61f652d4730397852ad268314d784d3a7104427f6e7f6712a4` |
+| `contracts.log` | `98a4f8099dada2da297c8871f1c4045d7a0c61cd5687bcd8c6bfc2cef75fcbfa` |
+| `firmware233.log` | `192c569e8229515464599407ca3e235e0894681eda46460bd0ef3e9f2af3fd2c` |
+| `firmware-red.log` | `2778bd4a18cd45705dd3db8468b2b84386faed26930803d4f10b37b8d681c39c` |
+| `firmware235-pressure.log` | `0260ab022093f6b8a54f62ee8a48494b01bbe4f469cd2caf90422928a649a74f` |
+| `firmware239-profile.log` | `4199ae8558e62e09a14a2ba461495753d6a9c36ebca56a2b19ba4654d522a58d` |
+| `control-1.log` | `74c858187b0fcc1c4b33729b9df7194d57e851edf13c079391308c7169e67a33` |
+| `settings-1.log` | `54047d5d75d07c6a611294fd057c474ec0cab1327245c8f268b388718c667b30` |
+| `pressure-1.log` | `026ed246926095f3efa15ef8485dfdc83a5402c6d77460b6f6d5fa5d41ced71b` |
+| `next-1.log` | `b75699ac3f4bbcd0f536cbaae0a910bd6519cda06bea81312ac25eef0b73dcef` |
+| `census-1.log` | `7954a1cbcd710aa8df2180f06d19b5b572f11dec58064361a26ef2c25f46ee7c` |
+| `production-census` | `1dba0b573765ca393d0fb5c1e03a9318a56181d7df0760e8d07961c2562223ef` |
+| `apollo4-before.c` | `35fd9df41c56ea4d904a52d9785b58dd7bf059e12b7d200dbb7124afcad6ad97` |
+| `before` | `d614982756437bd86ecfe0588234cf942938618c064038190306b91bbd089bc1` |
+| `build/suunto-emu` | `f7491933b163a281d8609bcc27620f37d1f785e736e22bd5b51140e2b1e3c357` |
+| `build/libsemu.a` | `f9480232ead036bead4331aa02752298995d2adc3a7d1cdae99e5e3cc9770e7d` |
+| `src/soc/apollo4/apollo4.c` | `74d6317263267efb8d501e2c2456684fe64ce3c84ed25364bc118fc24676a2cc` |
+| `tests/devices/test_sapporo_233_pressure.c` | `a2f71cc49c764a1a4da63880a4a23601cb8fe6b025236cd7ed4418aa7a43883e` |
+| `tests/devices/test_sapporo_235_pressure.c` | `c4aafd3168c514cdee9860a22b397bd532e1eaf57e87b5c9038eac614699caa0` |
+| `tests/integration/test_firmware_sapporo_233_files.sh` | `d929de1b0e3873cb64e83b4d2a5f903f51004076ee0b3cf218efc743c64f9a65` |
+
+
+Changed files for this integration: apollo4.c, the new 2.33 pressure suite,
+the existing 2.35 isolation expectation, the 2.33 private runner, current
+status and this ledger. The existing files module/unit ABI correction is
+preserved for commit as its prerequisite. No plan or index status change.
+The E-SAP-0073 integration request is closed; the next 710 instance must
+census the OHR BSL exchange before admitting any response.

@@ -131,7 +131,8 @@ static void test_sapporo_235_pressure_refusal_atomic(semu_test_context *c)
 
 static void test_sapporo_235_pressure_profile_isolation(semu_test_context *c)
 {
-    static const char *profiles[] = {"sapporo-2.22.60", "sapporo-2.33.16", "sapporo-2.39.20"};
+    /* E-SAP-0073 admits 2.33 through its own positive/refusal suite. */
+    static const char *profiles[] = {"sapporo-2.22.60", "sapporo-2.39.20"};
     fixture a, b;
     size_t i;
     SEMU_TEST_ASSERT(c, create(&a, "sapporo-2.35.34"));
