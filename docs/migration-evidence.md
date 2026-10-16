@@ -13571,3 +13571,32 @@ remains ready.
 | --- | --- |
 | `s300-1.log` = `s300-2.log` | `0ac20ffb001ddc4a9927ac234648c2df93cbf775c12f9340fbf4ca69646b5685` |
 | `fw235-all.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` |
+
+## E-SAP-0081 — the resumed 2.33 boot runs 65.8 s to 100.8 s with zero events; twice byte-identical (ticket 710)
+
+2026-10-16, ticket 710 instance-43 census (`sap233-resume`) continuing at
+695d49b. Resuming the E-SAP-0080 budget-stop snapshot
+(`sap233-65s.sems`, SHA-256
+`687b56da215bf68924a5b55c55789c27193597b3419fc4d05c8a82f829af287d`)
+with a 65B-instruction cap runs the guest from 65.8 s to **100.8 s
+virtual** with a completely eventless log — no refusals, no GPS arms,
+no file activity — and stops at
+`budget pc=0x000bb6b0 instructions=65000000000
+virtual_time_ns=100821539437`, twice byte-identical (logs
+`resume-65b.log` = `resume-65b-2.log`
+`c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994`).
+The earlier frozen-virtual-time reading was a mid-flight misread of the
+stop line; the accounting is exact (35 s virtual over 35B instructions
+in the busy regime).
+
+The staged 2.33 boot is now verified stable and refusal-free through
+**100.8 seconds of virtual time** with the guest alive. The next
+frontier is arbitrary; the practical next census is a much longer resume
+(the run costs ~20 wall-minutes per 30B instructions) or the first
+interactive input probe (the 2.33 UI has never been exercised). Ticket
+710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `sap233-65s.sems` | `687b56da215bf68924a5b55c55789c27193597b3419fc4d05c8a82f829af287d` |
+| `resume-65b.log` = `resume-65b-2.log` | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |

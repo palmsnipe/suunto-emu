@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 boot stable through 100.8 s via snapshot resume — 2026-10-16
+
+E-SAP-0081: resuming the 65.8 s snapshot with a 65B-instruction cap runs
+the guest to 100.8 s virtual with a completely eventless log (no
+refusals, no arms, no file activity), twice byte-identical. The staged
+2.33 boot is verified stable and refusal-free through 100.8 seconds
+with the guest alive. Next: a longer resume or the first interactive
+input probe (the 2.33 UI has never been exercised). Ticket 710 remains
+ready.
+
 ## Ticket 710 — 2.33 boot stable through 65.8 s; zero refusals — 2026-10-16
 
 E-SAP-0080 records the milestone census: the five-layer staged boot runs
