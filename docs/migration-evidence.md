@@ -13821,3 +13821,22 @@ and the settings/UI wave beyond the mapped screens.
 | `frame_count4.c` | `e44f05eb2d87c3e2d21498d3e47ff3356ec2fbd27dfe7ec80acff221b7a78235` |
 | `splashpress-86.png` | `8c479bf298137c569333c632458cb7cc173d84234a563498ab0fd8606ee53e49` |
 
+
+## E-SAP-0090 - the 2.33 display-off quiet regime is a CPU-bound spin at ~645M instructions per virtual second (ticket 710)
+
+2026-10-16, ticket 710 instance-52 census (sap233-rate) continuing at
+d2029bc. Cross-run instruction-rate analysis of the three recorded
+windows: the mixed storm+quiet window (45.8 s on 10B instructions,
+~218M inst/s), the 65.8 s window (30B, ~456M inst/s), and the pure
+quiet regime 4.2-100.8 s (65B instructions over 96.6 s of virtual time,
+~650M inst/s). The display-off quiet regime is a CPU-bound spin -
+the guest executes ~645M instructions per virtual second while producing
+zero compat-visible events, zero frames, and zero refusals.
+
+This matches the E-ULS-0047 class (the 2.33 analogue of the 1
+ns/instruction CPU-bound accounting): the guest is awake and spinning
+(not WFI-parked) with the display off. The spin content is unnamed -
+the next census is what the guest executes there (the tickless timekeeping
+loop, a UI-poll, or the E-SAP-0053-class 10-second tickless cycle).
+No production change is authorized. Ticket 710 remains ready.
+

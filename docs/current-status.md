@@ -17,6 +17,14 @@ at 5.5 s produces no further frames through 43.5 s. First interactive
 display-off state, not a UI defect. Next: lower-button behavior,
 double-tap pinning, the post-pinning flow. Ticket 710 remains ready.
 
+## Ticket 710 — the 2.33 display-off quiet regime is a ~645M inst/s CPU spin — 2026-10-16
+
+E-SAP-0090: cross-run rate analysis shows the display-off quiet regime
+(4.2–100.8 s) executes ~650M instructions per virtual second with zero
+events — the guest is awake and spinning, not WFI-parked (the 2.33
+analogue of the E-ULS-0047 class). The spin content is the next census.
+Ticket 710 remains ready.
+
 ## Ticket 710 — the middle button toggles the widget-pinning screen — 2026-10-16
 
 E-SAP-0089: a press-timeline census (presses at 3.97/5.0/6.0 s) decodes
