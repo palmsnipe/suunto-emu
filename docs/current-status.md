@@ -6,6 +6,17 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — THE 2.33 UI IS INTERACTIVE: a button opens the widget-pinning screen with a 37-frame animation — 2026-10-16
+
+E-SAP-0086: a middle-button press at 4.5 s (right after the splash)
+triggers a 37-frame UI transition (~4.5–5.1 s) ending in the settled
+widget-pinning screen — a large "+" icon and "Double tap the screen to
+pin a widget." — with fonts, icons and layout correct. The lower press
+at 5.5 s produces no further frames through 43.5 s. First interactive
+2.33 UI evidence in-tree; the E-SAP-0084 button-deafness is the
+display-off state, not a UI defect. Next: lower-button behavior,
+double-tap pinning, the post-pinning flow. Ticket 710 remains ready.
+
 ## Ticket 710 — the 2.33 display sequence decoded: splash 3.184–4.235 s, then dark — 2026-10-16
 
 E-SAP-0085: a frame-callback probe counts every published frame in the

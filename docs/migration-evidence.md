@@ -13720,3 +13720,34 @@ guest's display power-on trigger (what turns the panel back on - a
 button on a LIVE display, an RTC wake, or the settings wave), and the
 post-splash UI flow.
 
+
+## E-SAP-0086 - THE 2.33 UI IS INTERACTIVE: a middle-button press opens the widget-pinning screen with a 30-frame animation (ticket 710)
+
+2026-10-16, ticket 710 instance-48 census (sap233-ui) continuing at
+d4233e8. A chunk-wise frame-census probe with direct input delivery
+presses middle at 4.5-4.8 s and lower at 5.5-5.8 s (right after the
+splash ends). Result (frames-buttons-1.log): the middle press triggers a
+37-frame UI transition animation (frames 4-40, ~4.5-5.1 s virtual,
+~330k ns apart) ending in the settled widget-pinning screen; the lower
+press at 5.5 s produces no further frames through the 4B-instruction
+stop at 43.5 s.
+
+Captured frames: the animation opens at crc 56428b61 (frame 4) and the
+settled screen is crc 1f62867d (frame 5) through a324f329 (frame 8),
+then a ~30-frame scroll/settle of the same content. The rendered screen
+is the widget-pinning prompt: a large "+" icon and the text "Double tap
+the screen to pin a widget." - fonts, icons and layout all correct
+(anim-frame-15.png mid-animation, anim-frame-40.png settled; PNG
+conversions of the PPM dumps).
+
+This is the first interactive 2.33 UI evidence in-tree: the guest
+accepts semantic button input during its active window, transitions
+screens with a smooth animation, and renders text plus compressed
+icons. The earlier button-deafness (E-SAP-0084) is a display-off state,
+not a UI defect. The widgp-pinguid.xml and icon-l-plus.pxb reads
+(E-SAP-0082 observation) are this screen's resources.
+
+No production change is made. Ticket 710 remains ready. Next censuses:
+the lower-button behavior on the live screen, double-tap pinning, and
+the post-pinning flow.
+
