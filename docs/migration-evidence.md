@@ -13496,3 +13496,47 @@ Ticket 710 remains ready.
 | `native16.resc` (v3) | `743c232a21141ffaab19ab7c40795002a850b024f1fda323d2e273056c81d8b1` |
 | `lane16c-1.log` | `998b812d21642b411fdf4ca583d9efaeeaa437346dd783dd074017e95dd5f07a` |
 | `lane16c-2.log` | `4fdea7bbdc7443832c3af38d245da8142832564ec5f3c97c3fbc27b91de85633` |
+
+## E-SAP-0079 — 45 s lane corroboration: three GPS arms total, no new OHR exchanges, the boot idles after the settings storm (ticket 710)
+
+2026-10-16, ticket 710 instance-41 census (`sap233-45s`) continuing at
+4869d08. A 45 s lane probe (`native45.resc`, the E-SAP-0077 v3 staging
+with a 45 s `RunFor` and file-backed logging, SHA-256
+`db896f724946c40dec539888f32877bc81c21337cbfeb0fe97809463df4d993f`)
+runs twice; the timestamp-stripped GPS_ARM/OHR2 streams are byte-identical
+(raw logs `lane45-1b.log` `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd`,
+`lane45-2.log` `72976562cec1be899e973cc418c4e0e7e7675c65a63876ab18722bda6341801b`;
+the first pass of the pair was overwritten in place by a staging mistake
+and re-derived as `lane45-1b`; the redo uses the same hook law):
+
+- Exactly **three GPS arms in 45 s** (the same shapes as E-SAP-0077) — no
+  fourth arm. The fixture's budget of six hits (three arm/status +
+  three @VER rounds) covers the full observed cycle; no further growth
+  is authorized or needed.
+- Exactly **15 OHR2 IOM commands / 8 TX / 7 RX** — the same set as the
+  2.55 s window; no new OHR exchanges. The fixture's budget of seven
+  responses is exactly right.
+- The IOM2 command census grows only with device-0x48 one-byte reads
+  (commands 03000112 x8, 04000312 x9, 09000212 x9 — HSPPAD143 shapes the
+  tree's mux already serves); 52 IOM2 commands total vs 26 in the short
+  window, and 1,858 MSPI2 DMA records (the guest's own log/frame stream)
+  reaching virtual tick 11.77 s of the guest's time base.
+- The lane corroborates the tree's long-run behavior: the guest's
+  settings/UI storm (≈76k logical-file operations in-tree, concentrated
+  at 2.7–2.8 s) completes, the three GPS arms interleave, and the boot
+  then idles. The tree's matching run (five-layer staging, 10B
+  instructions / 300 s caps) shows the same shape: 76,649 logical-file
+  operations, zero refusals, budget stop at 45.8 s virtual with the
+  guest alive.
+
+No production change is authorized or made by this census. The next
+frontier is the boot's behavior past 45.8 s: a 300 s in-tree run is in
+progress at recording time, and the next lane probe should extend the
+window once the tree names a boundary. Ticket 710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `native45.resc` | `db896f724946c40dec539888f32877bc81c21337cbfeb0fe97809463df4d993f` |
+| `native45b.resc` | `5e9a2d1ce0d4865979b73adf5f0c848928a5d585c34bd498dc5cb16c0c709383` |
+| `lane45-1b.log` | `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd` |
+| `lane45-2.log` | `72976562cec1be899e973cc418c4e0e7e7675c65a63876ab18722bda6341801b` |
