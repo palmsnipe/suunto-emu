@@ -13374,3 +13374,55 @@ lane census — the 2.33 analogue of the 2.35 gps-reopen class
 | `gps-1.log` = `gps-2.log` | `5b041562457d75103f423f98f3396ffcfd7b9edff9d8f02b8b78116797354860` |
 | `check2.log` | `c7411df306f41fcd22027c90ea87df4ecd0c1ae2b3fafb1085796ccce34aac2a` |
 | `sanitize2.log` | `b4d45fd2e533bf454bbd8893bd750c93419951ac3af7e85f2313d8a08106cd4e` |
+
+## E-SAP-0077 — 2.33 GPS re-arm census: the lane arms three times in 16 s with a constant allocation; admission is the next instance (ticket 710)
+
+2026-10-16, ticket 710 instance-39 census (`sap233-gps-rearm`) continuing
+at 9224828 with E-SAP-0076 in production. The staged boot stops at the
+GPS startup fixture's exhausted 2-hit budget on the guest's third
+0x11d990 arm. This entry records the lane's re-arm law; no production
+change is made and the fixture budget stays 2.
+
+### Lane census (twice byte-identical)
+
+A 16 s lane probe (`/tmp/semu-233-iom2-lane/native16.resc`, the E-SAP-0073
+staging plus a logging hook at 0x0011d990, SHA-256
+`73918aded672eaa961308da2ae636ef5f7464e9f10fd9c4132659f218868386f`) runs
+twice; the timestamp-stripped GPS_ARM streams are byte-identical
+(SHA-256 `bcedc9df572f407a079f09e1c73bf29fa98ed70d5717d7000f9f66ae9e1d6f4b`;
+raw logs `lane16b-1.log` `d0f00369…`, `lane16b-2.log` `9fd02923…`):
+
+| Arm | r0 | r1 | r3 | r4 | r5 | r6 | driver state | retry | [0x10048d44] |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 2 | 1 | 2803 | 10039d40 | 10039fb0 | 1003a078 | 4/2 | 0 | 01168787 |
+| 2 | 2 | 1 | 0 | 1002d278→(same alloc) | 10039fb0 | 1003a078 | 4/2 | 1 | 01168787 |
+| 3 | 2 | 1 | 0 | 1002d278 | 10039d40 | 10039fb0 | 1003a078 | 4/2 | 2 | 01168787 |
+
+(Columns list r3..r6 as observed; r4 holds the driver allocation
+0x10039d40 in every arm. Each arm is followed by one uart1 +0x44 init
+write; no $PSS/@VER UART payload occurs without injected lines.)
+
+Facts: the guest re-arms at the same PC with the same driver/UART
+allocation; the driver state stays 4/2; the retry byte at 0x1005b8f8
+counts un-answered arms (0/1/2 — no synthetic lines are staged in this
+probe); and the UART callback slot holds 0x1168787 at the arm instant,
+i.e. the arm site precedes the callback install that E-SAP-0071 pinned
+at the first exchange. The tree's refused third arm (API probe with the
+production backend, twice: allocation 0x10039d40/0x10039fb0/0x1003a078,
+driver 4/2, retry 1, post-close UART slot 0x006f0000) is consistent with
+the lane's arm-3 shape given the fixture's own two synthetic exchanges.
+
+### Next instance
+
+The 2.33 analogue of the E-SAP-0047 reopen class: extend the fixture to
+admit the re-arm shape (constant allocation, driver 4/2, the observed
+UART-slot law at the arm instant) with a bounded reopen budget, red-first
+tests, and the lane-verified exchange sequence. The retry byte is guest
+history, not an admission key. Ticket 710 remains ready; no production
+change is authorized by this census.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `native16.resc` | `73918aded672eaa961308da2ae636ef5f7464e9f10fd9c4132659f218868386f` |
+| `lane16b-1.log` | `d0f00369d2c359b568dd0565be5ecd89914fc600b892cc5928c5f4f5875e19d9` |
+| `lane16b-2.log` | `9fd02923f7ca26fe62d5f1e0f5390b1f0bada5ea92fbb77733e77dab08b17de9` |

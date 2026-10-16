@@ -6,6 +6,16 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 GPS re-arm census complete; admission is the next instance — 2026-10-16
+
+E-SAP-0077 records the twice-identical 16 s lane census: the guest arms
+GPS at 0x11d990 three times with a constant allocation (0x10039d40/
+0x10039fb0/0x1003a078), driver state 4/2 throughout, and a per-arm retry
+byte (0/1/2) that counts un-answered arms; each arm re-initializes UART1.
+The tree's refused third arm matches that shape. No production change;
+the reopen admission (the 2.33 analogue of the E-SAP-0047 class) is the
+next instance's work with red-first tests. Ticket 710 remains ready.
+
 ## Ticket 710 — 2.33 session-file capacity corrected; boot reaches the GPS third-arm refusal — 2026-10-16
 
 E-SAP-0076 raises the tree's session-overlay safety bounds (65,536 ->
