@@ -13768,3 +13768,22 @@ double-tap). No production change. Ticket 710 remains ready.
 | --- | --- |
 | `frames-lower-1.log` | `80b55f9c6de28962abe20514c9c83bbfc22f6d21390fc114b7b7b0c2e8f3d634` |
 
+
+## E-SAP-0088 - a second middle press re-animates the pinning screen and the display goes dark; no exit via buttons observed (ticket 710)
+
+2026-10-16, ticket 710 instance-50 census (sap233-midexit) continuing at
+c89f388. The parameterized census with a second middle press at
+12.0/12.3 s (on the settled pinning screen) produces 48 more frames
+(41-88, ~12.37-12.55 s virtual): a re-render/animation of the SAME
+widget-pinning content (frame 41, crc 7f84f6f6, is the plus icon and the
+Double-tap prompt again), ending in crc 2a01c517 - the display goes dark
+again. No watchface, no other screen, and no further frames through the
+10B-instruction stop at 45.1 s (frames-midexit-1.log).
+
+The button-visible behavior of the 2.33 pinning prompt: middle opens it,
+middle again re-animates it and darkens the display; lower is a no-op
+(E-SAP-0087). The prompt own instruction - double tap the screen -
+requires touch, which the 2.33 profile does not wire (a listed 730 gap
+candidate), so the post-prompt flow is out of reach until touch
+evidence exists. No production change. Ticket 710 remains ready.
+

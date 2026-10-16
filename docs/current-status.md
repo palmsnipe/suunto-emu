@@ -17,6 +17,15 @@ at 5.5 s produces no further frames through 43.5 s. First interactive
 display-off state, not a UI defect. Next: lower-button behavior,
 double-tap pinning, the post-pinning flow. Ticket 710 remains ready.
 
+## Ticket 710 — a second middle press re-animates the pinning screen, then dark — 2026-10-16
+
+E-SAP-0088: on the settled pinning screen, a second middle press at
+12.0/12.3 s produces 48 re-render frames of the same content (12.37–
+12.55 s) and then the display goes dark; no watchface or other screen
+through 45.1 s. The prompt exits via double-tap touch only (unwired for
+2.33). Button-visible behavior is now fully mapped: middle opens and
+re-animates, lower is a no-op. Ticket 710 remains ready.
+
 ## Ticket 710 — the 2.33 display sequence decoded: splash 3.184–4.235 s, then dark — 2026-10-16
 
 E-SAP-0085: a frame-callback probe counts every published frame in the
