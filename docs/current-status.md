@@ -6,6 +6,17 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the 2.33 display sequence decoded: splash 3.184–4.235 s, then dark — 2026-10-16
+
+E-SAP-0085: a frame-callback probe counts every published frame in the
+cold five-layer boot (twice byte-identical): black at 3.1837 s (display
+enable), the Suunto splash at 3.1842 s (crc 4979f432, matching the SDL
+capture), black again at 4.2348 s, and nothing through 37.8 s. The
+display-on window is ~1.05 s; the E-SAP-0084 button-deafness is the
+guest's own display-off, not a missing tree law. Next censuses: the
+display power-on trigger and the post-splash UI flow. Ticket 710
+remains ready.
+
 ## Ticket 710 — buttons do not wake the 2.33 display after the splash — 2026-10-16
 
 E-SAP-0084: six middle-button press/release pairs (66–76 s, resumed

@@ -13689,3 +13689,34 @@ keeps the display on.
 | `wake.replay` | `b07a41cf33678ea99765004e8003e5ba67b3c9eb0a9d5dd3789ac739c5b4dda1` |
 | `wake-1.log` | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |
 
+
+## E-SAP-0085 - the 2.33 display sequence decoded: black at 3.184s, the Suunto splash 3.184-4.235s, then black; no further frames through 37.8s (ticket 710)
+
+2026-10-16, ticket 710 instance-47 census (sap233-frameseq) continuing at
+the E-SAP-0084 wake census. A frame-callback probe (frame_count.c, linked
+against the tree; PPM dumps per distinct frame) runs the cold five-layer
+boot to 2B instructions / 37.8 s and counts every published frame. Twice
+byte-identical (frames-cold-2.log = frames-cold-3.log):
+
+| Frame | Virtual time | Generation | CRC32 | Content |
+| --- | --- | --- | --- | --- |
+| 1 | 3.183719126 s | 1 | 2a01c517 | all black (display enable) |
+| 2 | 3.184207089 s | 2 | 4979f432 | the Suunto splash (white wordmark + arrow) |
+| 3 | 4.234819932 s | 5 | 2a01c517 | all black (splash ends) |
+
+PPM captures: seq-frame-1-2a01c517.ppm, seq-frame-2-4979f432.ppm (the
+splash), seq-frame-3-2a01c517.ppm; frames 1 and 3 are byte-identical
+black. The display-on window is 3.184-4.235 s (about 1.05 s of splash);
+after frame 3 nothing publishes through 37.8 s. This explains the
+E-SAP-0084 result directly: the 5 s snapshot holds no published frame
+(the display went dark at 4.235 s) and buttons at 66-76 s cannot wake
+what the guest itself turned off. The wake path is the guest's own
+display power-on sequence, not a missing tree device law.
+
+The splash content matches the SDL capture (crc 4979f432, the same
+frame the SDL frontend presented from the gate-stop snapshot). No
+production change is made. Ticket 710 remains ready. Next censuses: the
+guest's display power-on trigger (what turns the panel back on - a
+button on a LIVE display, an RTC wake, or the settings wave), and the
+post-splash UI flow.
+
