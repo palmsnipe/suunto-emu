@@ -13600,3 +13600,34 @@ interactive input probe (the 2.33 UI has never been exercised). Ticket
 | --- | --- |
 | `sap233-65s.sems` | `687b56da215bf68924a5b55c55789c27193597b3419fc4d05c8a82f829af287d` |
 | `resume-65b.log` = `resume-65b-2.log` | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |
+
+## E-SAP-0082 — the first 2.33 input probe: buttons deliver on GPIO57/58/59, no compat-visible reaction, and no frame publishes through 95.8 s (ticket 710)
+
+2026-10-16, ticket 710 instance-44 census (`sap233-input`) continuing at
+69c2dcf. A deterministic button replay (six events: middle press/release
+at 70/70.3 s, lower at 75/75.3 s, upper at 80/80.3 s virtual) resumed
+from the E-SAP-0080 budget-stop snapshot and ran to a 60B-instruction
+budget: the run completes at `budget pc=0x000bb6b0
+instructions=60000000000 virtual_time_ns=95821539437` with the log
+identical to the eventless resume census — no refusal, no fixture event,
+no crash (`buttons-1.log`). The semantic input path accepts the 2.33
+board (the GPIO57/58/57 mapping is profile-universal per
+E-SAP-BUTTONS-001) and the events deliver through
+`semu_machine_input` → `semu_apollo4_set_gpio_input`; the guest's UI
+response is not compat-visible (the compat layers log only their own
+hits), so button-to-UI causality needs frame evidence.
+
+A `--until normal-frame` probe from the same snapshot publishes no frame
+through 66.8 s (10 s virtual past the resume point), and a cold-boot
+frame probe is in progress at recording time. The 2.33 frame path
+(panel publication through the Nema backend) has never produced a frame
+in-tree; the UI resource stage it used to fail at now completes
+(ui/view/c-0.xml was read at 4.2 s in the E-SAP-0080 window), so the
+remaining display gate is unnamed — the next instance's census.
+
+No production change is made. Ticket 710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `buttons.replay` | `88c138a384b8c69d499cb135504407aabaf913a47f61b5c6fff31d064ed4f839` |
+| `buttons-1.log` | `4018a0e8ed16dcd78ba8c6aba8d7fc4244f997e8c59378d391571a4eddf1fb78` |
