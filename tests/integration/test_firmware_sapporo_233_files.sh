@@ -54,7 +54,7 @@ for pass in 1 2; do
     staged_once "$run_dir/settings-$pass.log" 70000000 1000000000
     staged_once "$run_dir/pressure-$pass.log" 200000000 1000000000
     staged_once "$run_dir/next-$pass.log" 300000000 30000000000
-    staged_ohr_once "$run_dir/ohr-$pass.log" 330738174 2735250080
+    staged_ohr_once "$run_dir/ohr-$pass.log" 901589712 14884782418
 done
 for stage in control settings pressure next ohr; do
     cmp "$run_dir/$stage-1.log" "$run_dir/$stage-2.log"
@@ -83,13 +83,18 @@ done
 grep -Fq 'kind=request command=0x0010 sequence=0 state=BSL status=refuse ready=0' "$run_dir/next-1.log"
 grep -Fq 'fault_address=0x40052120' "$run_dir/next-1.log"
 grep -Fqx 'stop=device-refused pc=0x000c97f2 instructions=525319888 virtual_time_ns=1800546345 detail=2.33 ui.txt seed already populated' "$run_dir/next-1.log"
-# E-SAP-0075: the OHR layer admits all seven staged exchanges in the lane
-# order, then the boot stops at the pois/poi.bin logical-file capacity
-# boundary instead of the former OHR refusal.
+# E-SAP-0076: the OHR layer admits all seven staged exchanges in the lane
+# order (hit 7 pinned); the former OHR refusal stays retired. With the
+# E-SAP-0075 capacity correction the boot continues past the pois write
+# stream to the GPS fixture's third-arm refusal.
 grep -Fq 'layer-hit layer=sapporo-2.33-ohr-startup hit=7 maximum=7 effect=trigger=ohr-startup ordinal=7 command=0006 sequence=6 synthetic-body evidence=E-SAP-0075' "$run_dir/ohr-1.log"
 if grep -q 'ui.txt seed already populated' "$run_dir/ohr-1.log"; then
     echo "error: 2.33 OHR round regressed to the seed refusal" >&2
     exit 1
 fi
-grep -Fqx 'stop=compat-refused pc=0x000bb198 instructions=330738172 virtual_time_ns=2735250078 detail=2.33 logical-file size overflow: pois/poi.bin' "$run_dir/ohr-1.log"
+if grep -q 'logical-file size overflow: pois/poi.bin' "$run_dir/ohr-1.log"; then
+    echo "error: 2.33 capacity regression" >&2
+    exit 1
+fi
+grep -Fqx 'stop=compat-refused pc=0x0011d990 instructions=901589710 virtual_time_ns=14884782416 detail=2.33 GPS startup fixture disabled, exhausted or unexpected state/request' "$run_dir/ohr-1.log"
 echo 'PASS sapporo-2.33.16 native settings, negative pressure and OHR startup probes; bounded logical-file refusal'

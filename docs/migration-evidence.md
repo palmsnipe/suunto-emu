@@ -13296,3 +13296,81 @@ continuation is claimed.
 | `sanitize.log` | `5e8c1201bf32762bf2a7bffd14eb0197ec23b346d1041013e0ffc1e356445dc1` |
 | `iom_observer.c` | `8694e66f2e30c0212a46fda02c7b7b29565773393b6e98fc2fb5a84bc5f9e360` |
 | `driver.c` | `7b5aee30449e6ac9adb7a107d4908d19874f6394db2490181e74fd19414f8733` |
+
+## E-SAP-0076 — 2.33 session-file capacity correction: poi.bin closes at 68,272 bytes, eleven files are created, the boot reaches the GPS third-arm refusal (ticket 710)
+
+2026-10-16, ticket 710 instance-38 (`sap233-files-capacity`) continuing at
+d8f646c with E-SAP-0075 in production. The E-SAP-0075 next stop was the
+tree's own 65,536-byte / 8-slot session overlay bounds refusing the
+guest's deterministic poi write stream — a tree-side safety bound, not a
+lane law: the lane's logical-file overlay (read-only
+`emulator/renode/sapporo-2.33-logical-file-compat.resc`, hash-pinned in
+E-SAP-0073's input list) extends its retained bytearray without a size
+or count limit. This instance corrects the bound to cover the observed
+window and records the new stop twice byte-identically. No controller,
+protocol, CPU, scheduler or snapshot change is made.
+
+### Observed guest behavior (diagnostic, twice byte-identical)
+
+With a temporarily raised diagnostic cap the staged window shows:
+`pois/poi.bin` is written in 257 x 256-byte chunks and **closes at
+exactly 68,272 bytes** (close at 2735256081 ns); the boot then creates
+further files (zapp/storage.sbm, storage/bff517c6/data.jsn,
+storage/7ab0dd65/data.jsn, plus the eight already-observed creations)
+and reaches the GPS fixture's third arm at PC 0x11d990 / 14.88 s. The
+temporary cap is reverted; the production constants below are the only
+change.
+
+### Implementation
+
+`src/compat/sapporo_233_files.h` raises the two tree-side bounds with an
+in-file citation: `SEMU_SAPPORO_233_FILES_MAX_BYTES` 65,536 -> 262,144
+and `SEMU_SAPPORO_233_FILES_MAX` 8 -> 16. Both are finite, deterministic
+and host-independent; the lane overlay stays unbounded, so these remain
+tree-side safety bounds sized to the observed window (max file 68,272
+bytes; eleven distinct creations) with headroom. The retained-file
+context is session-only and is not serialized, so no snapshot format or
+codec changes; every earlier pinned run (all files under the old caps,
+five distinct creations) is byte-identical. The red-first assertions in
+`tests/unit/test_sapporo_233_files.c` (capacity above 68,272; table at
+least 11) failed against production and pass with the correction; the
+existing overflow/refusal coverage is unchanged (a write beyond the new
+bound still refuses, and the table-full refusal is unchanged law).
+
+### Verification and new stop
+
+- `make test TEST_FILTER=sapporo_233_files` — 3/3 (red first: the
+  capacity assertions failed against production).
+- `make check` — exit 0, 1,068 PASS (log `check2.log`
+  `c7411df306f41fcd22027c90ea87df4ecd0c1ae2b3fafb1085796ccce34aac2a`).
+- `make sanitize` — exit 0, 1,063 PASS, no findings (log `sanitize2.log`
+  `b4d45fd2e533bf454bbd8893bd750c93419951ac3af7e85f2313d8a08106cd4e`).
+- check-lines, check-task-contracts (171), `git diff --check` — exit 0.
+- Cross-profile: the 2.35 pressure runner and the 2.39 profile contract
+  pass unchanged.
+- The extended private runner re-pins the OHR configuration's stop
+  (dated supersession of E-SAP-0075's pois refusal, which was the old
+  caps' own artifact): with caps 901589712 / 14884782418 the staged boot
+  stops twice byte-identically at
+  `compat-refused pc=0x0011d990 instructions=901589710
+  virtual_time_ns=14884782416 detail=2.33 GPS startup fixture disabled,
+  exhausted or unexpected state/request` (log `gps-1.log` = `gps-2.log`
+  `5b041562457d75103f423f98f3396ffcfd7b9edff9d8f02b8b78116797354860`),
+  with the OHR hit-7 anchor and both regression guards retained.
+
+### Next census
+
+The GPS startup fixture's 2-hit budget exhausts on the guest's third
+0x11d990 arm. No lane observation of the 2.33 GPS re-arm exists (the
+lane window was 2.55 s), so admission of the third arm needs its own
+lane census — the 2.33 analogue of the 2.35 gps-reopen class
+(E-SAP-0047) — before any fixture growth. Ticket 710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `src/compat/sapporo_233_files.h` | `df40b25754ec67941ae85943dc3a9b6ec1b023a80c2b28df8770ff8ef7deea9a` |
+| `tests/unit/test_sapporo_233_files.c` | `d14096c67b84bbee0d3f24db01f6ba40ffef6576c122b47e97da52dd826820c0` |
+| `tests/integration/test_firmware_sapporo_233_files.sh` | `3a6ee7c2f498e90dc0a5e19904501dcd4f53cf1336a30dc5bcc33821b8a07cc7` |
+| `gps-1.log` = `gps-2.log` | `5b041562457d75103f423f98f3396ffcfd7b9edff9d8f02b8b78116797354860` |
+| `check2.log` | `c7411df306f41fcd22027c90ea87df4ecd0c1ae2b3fafb1085796ccce34aac2a` |
+| `sanitize2.log` | `b4d45fd2e533bf454bbd8893bd750c93419951ac3af7e85f2313d8a08106cd4e` |

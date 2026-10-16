@@ -160,6 +160,13 @@ static void test_seed_and_refusals(semu_test_context *context)
     f.cpu.r[2] = SEMU_SAPPORO_233_FILES_MAX_BYTES + 1u;
     SEMU_TEST_ASSERT(context, semu_sapporo_233_files_apply(&f.files, f.bus,
         &f.cpu, &e) != SEMU_OK);
+    /* E-SAP-0075: the retained-capacity bound covers the staged window's
+     * largest observed file (pois/poi.bin closes at 68,272 bytes) and the
+     * table covers its observed creation set (eleven distinct files), so
+     * the production constants must stay above both. */
+    SEMU_TEST_ASSERT(context,
+        SEMU_SAPPORO_233_FILES_MAX_BYTES > UINT32_C(68272));
+    SEMU_TEST_ASSERT(context, SEMU_SAPPORO_233_FILES_MAX >= 11u);
     /* Exhausted layer refuses the next hook. */
     f.state.hits = semu_sapporo_233_files_layer.maximum_hits;
     f.cpu.r[15] = SEMU_SAPPORO_233_FILES_OPEN;

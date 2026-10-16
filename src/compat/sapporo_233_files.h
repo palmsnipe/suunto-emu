@@ -25,8 +25,13 @@
 
 #define SEMU_SAPPORO_233_FILES_HANDLE_BASE UINT32_C(0x1015f000)
 #define SEMU_SAPPORO_233_FILES_HANDLE_STRIDE UINT32_C(0x100)
-#define SEMU_SAPPORO_233_FILES_MAX 8u
-#define SEMU_SAPPORO_233_FILES_MAX_BYTES 65536u
+/* E-SAP-0075: tree-side bounds sized to the staged window's observed
+ * behavior — pois/poi.bin closes at 68,272 bytes and eleven distinct
+ * files are created — with headroom, while every earlier pinned run
+ * (all files under the old 65,536/8 caps) stays byte-identical. The lane
+ * overlay is unbounded; these bounds keep the session allocation finite. */
+#define SEMU_SAPPORO_233_FILES_MAX 16u
+#define SEMU_SAPPORO_233_FILES_MAX_BYTES 262144u
 #define SEMU_SAPPORO_233_FILES_MAX_PATH 96u
 
 typedef struct {

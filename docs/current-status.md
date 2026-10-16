@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 session-file capacity corrected; boot reaches the GPS third-arm refusal — 2026-10-16
+
+E-SAP-0076 raises the tree's session-overlay safety bounds (65,536 ->
+262,144 bytes; 8 -> 16 slots) after the diagnostic showed pois/poi.bin
+closing at exactly 68,272 bytes and eleven distinct creations; the lane
+overlay is unbounded, so these remain finite tree-side bounds, cited
+in-file, with every earlier pinned run byte-identical and no snapshot
+change. Red-first capacity assertions pass. The staged boot now stops
+twice byte-identically at the GPS fixture's third-arm refusal
+(`compat-refused pc=0x0011d990 instructions=901589710 vt=14884782416`),
+superseding E-SAP-0075's pois stop with a dated note. Verification:
+`make check` 1,068 PASS; `make sanitize` 1,063 with no findings; lines/
+contracts; the extended private runner, 2.35 pressure pins and the 2.39
+profile contract green. Next census: the 2.33 GPS re-arm (lane census
+required before any fixture growth). Ticket 710 remains ready.
+
 ## Ticket 710 — 2.33 OHR startup fixture admitted; boot reaches the pois capacity boundary — 2026-10-16
 
 E-SAP-0075 implements the `sapporo-2.33-ohr-startup` fixture as a body
