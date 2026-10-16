@@ -6,6 +6,18 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 boot stable through 65.8 s; zero refusals — 2026-10-16
+
+E-SAP-0080 records the milestone census: the five-layer staged boot runs
+to a 30B-instruction/300 s budget with zero refusals, zero resets and no
+fixture growth — `budget pc=0x000bb6b0 instructions=30000000000
+vt=65821539437`, twice byte-identical. The GPS cycle is complete (three
+arms, three @VER exchanges, budget closed), the settings storm is
+unchanged, and the 16-slot file table held. The 2.35 full firmware gate
+passes 10/10 with the fixture changes. Next frontier: past 65.8 s (a
+snapshot resume from the budget stop is the efficient probe). Ticket 710
+remains ready.
+
 ## Ticket 710 — 2.33 GPS re-arm admitted; the staged boot runs past 37 s — 2026-10-16
 
 E-SAP-0078 implements the per-arm GPS cycle: each arm reads its UART

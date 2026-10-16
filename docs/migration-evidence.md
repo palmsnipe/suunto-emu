@@ -13540,3 +13540,34 @@ window once the tree names a boundary. Ticket 710 remains ready.
 | `native45b.resc` | `5e9a2d1ce0d4865979b73adf5f0c848928a5d585c34bd498dc5cb16c0c709383` |
 | `lane45-1b.log` | `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd` |
 | `lane45-2.log` | `72976562cec1be899e973cc418c4e0e7e7675c65a63876ab18722bda6341801b` |
+
+## E-SAP-0080 — the staged 2.33 boot is stable through 65.8 s: zero refusals, the GPS cycle complete, twice byte-identical (ticket 710)
+
+2026-10-16, ticket 710 instance-42 census (`sap233-65s`) continuing at
+109f4df. With the E-SAP-0078 per-arm cycle in production, the five-layer
+staged boot runs to a 30-billion-instruction / 300 s budget **with zero
+refusals, zero resets and zero fixture growth**: the stop is
+`budget pc=0x000bb6b0 instructions=30000000000
+virtual_time_ns=65821539437`, twice byte-identical (logs
+`s300-1.log` = `s300-2.log`
+`0ac20ffb001ddc4a9927ac234648c2df93cbf775c12f9340fbf4ca69646b5685`).
+The log census: the same 76,649 logical-file operations (the 2.7–2.8 s
+settings/UI storm, then quiet), all six GPS hits (three arms, three
+@VER exchanges — the E-SAP-0077/0078 cycle complete and closed), and no
+logical-file overflow or table-full events; the 16-slot table held
+(exactly 16 distinct creations observed in the earlier 45.8 s window,
+none beyond). The lane's 45 s census (E-SAP-0079) corroborates the same
+shape on the reference side. The 2.35 full firmware gate passes 10/10
+with the GPS fixture changes in the tree
+(`/tmp/sap233-ohr-20261016/fw235-all.log`).
+
+No production change is made by this census. The next frontier is the
+boot's behavior past 65.8 s; the run cost ~20 wall-minutes per 30B
+instructions in the busy regime, so the next instance should budget
+accordingly (or use a snapshot resume from the budget stop). Ticket 710
+remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `s300-1.log` = `s300-2.log` | `0ac20ffb001ddc4a9927ac234648c2df93cbf775c12f9340fbf4ca69646b5685` |
+| `fw235-all.log` | `e6bb0120e2db8242c8741f66990c2e7fe8b6c5a9ebc94ce874995c0d67373817` |
