@@ -13663,3 +13663,29 @@ are the next censuses. No production change is made by this census;
 the snapshot and frames stay outside the repository (private pixels
 never enter Git). Ticket 710 remains ready.
 
+
+## E-SAP-0084 - buttons do not wake the 2.33 display after the splash: six press pairs produce no frame (ticket 710)
+
+2026-10-16, ticket 710 instance-46 census (sap233-wake) continuing at
+fbd0df9. Resuming the E-SAP-0080 snapshot with six middle-button
+press/release pairs (66/68/70/72/74/76 s virtual, 300 ms holds) and a
+normal-frame gate produces NO frame: the run reaches the 65B-instruction
+budget at 100.8 s with the log identical to the eventless resume census
+(wake-1.log, 3 lines: two layer installs and the stop line). The
+display-off state after the splash (the E-SAP-0083 5s snapshot also held
+no published frame) is therefore not cleared by semantic button input
+alone - the wake path needs its own census (the display power-on
+sequence, the panel transport state, or an IRQ the guest requires).
+
+Corroboration: the E-SAP-0082 probe (buttons at 70-80s, no gate) and
+this probe agree that the quiet regime is eventless and button-deaf at
+the frame level. No production change is made. Ticket 710 remains
+ready. Next censuses: the display power-on path at the device level
+(MSPI2/panel transport), and whether the splash-era snapshot (3.18s)
+keeps the display on.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `wake.replay` | `b07a41cf33678ea99765004e8003e5ba67b3c9eb0a9d5dd3789ac739c5b4dda1` |
+| `wake-1.log` | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |
+

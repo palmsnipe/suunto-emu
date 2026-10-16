@@ -6,6 +6,15 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — buttons do not wake the 2.33 display after the splash — 2026-10-16
+
+E-SAP-0084: six middle-button press/release pairs (66–76 s, resumed
+from the 65.8 s snapshot) produce no frame — the run reaches 100.8 s
+with the eventless log unchanged. The display-off state after the
+splash is not cleared by semantic button input; the wake path (display
+power-on, panel transport, or an IRQ) is the next census. Ticket 710
+remains ready.
+
 ## Ticket 710 — THE 2.33 UI PUBLISHES ITS FIRST FRAME: the Suunto splash — 2026-10-16
 
 E-SAP-0083: a cold-boot --until normal-frame probe stops twice
