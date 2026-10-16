@@ -13426,3 +13426,73 @@ change is authorized by this census.
 | `native16.resc` | `73918aded672eaa961308da2ae636ef5f7464e9f10fd9c4132659f218868386f` |
 | `lane16b-1.log` | `d0f00369d2c359b568dd0565be5ecd89914fc600b892cc5928c5f4f5875e19d9` |
 | `lane16b-2.log` | `9fd02923f7ca26fe62d5f1e0f5390b1f0bada5ea92fbb77733e77dab08b17de9` |
+
+## E-SAP-0078 — 2.33 GPS re-arm admission: the per-arm cycle is implemented, the boot runs past 37 s (ticket 710)
+
+2026-10-16, ticket 710 instance-40 (`sap233-gps-rearm-impl`) continuing at
+33347f1 with E-SAP-0077's census. The fixture now admits the observed
+per-arm cycle: each arm (hits 0/2/4) carries the same allocation and
+driver 4/2 law, reads its UART struct from the driver's own +0x220 word
+(0x10048d40 initially, the guest's post-exchange re-allocation
+0x10049400 at the re-arms — the tree census), and each arm is followed by
+the same exact @VER exchange (hits 1/3/5). The budget is six hits, the
+lane's three observed arms. The retry byte is an admission key only in
+the initial window (zero there); at re-arms it counts un-answered arms.
+
+### Verification
+
+- `tests/unit/test_sapporo_233_gps.c` — 5/5 including the new
+  re-arm-admission case (third arm with retry 1 and the re-allocated
+  UART struct; the fourth arm refuses) and the mode-16 skip in the
+  atomic-refusal matrix (now an admission, covered by the new case).
+- `make check` — exit 0, 1,069 PASS (log `check4.log`
+  `14d08fd0f2041dc39e2f8b7e6fadf266d65469d06b6a3f33ac1e23d414412017`).
+- `make sanitize` — exit 0, 1,064 PASS, no findings (log `sanitize3.log`
+  `862082e302049f7573d3c96406cc0a063394454b3c5689e9a5b447eb462bd52c`).
+- check-lines, check-task-contracts (171), `git diff --check` — exit 0.
+- Cross-profile: the 2.35 pressure runner and the 2.39 profile contract
+  pass unchanged.
+- The staged five-layer boot now runs to the 2G-instruction budget at
+  37.8 s virtual with all three lane-observed arms admitted (twice
+  byte-identical, log `full-1.log` = `full-2.log`
+  `58ecd0dc7a9c3942830f3dfc6030289b60704541c8e8b38f386760eeb9e6fd26`,
+  stop `budget pc=0x000bb6b0 instructions=2000000000
+  virtual_time_ns=37821539437`).
+- The private runner re-pins: the OHR configuration's stop becomes that
+  budget stop with the hit-6 anchor; the `next` configuration's stop
+  tuple is unchanged (device-refused 525319888/1800546345) but its log
+  hash moves because the fixture's diagnostic budget text changed —
+  re-derived twice (`next2-1.log` = `next2-2.log`
+  `39e9e7c7d10d17a28c6e2ffe162addcc8f04d733b2e60f85de1c43d6b04e05ec`)
+  with a dated note. The settings/pressure pins hold exactly (their
+  windows end before the first GPS arm).
+
+### Scope and next census
+
+Changed: `src/compat/sapporo_233_gps.c`, its unit suite, the private
+runner, this ledger and current status. No public API, manifest format,
+registry, snapshot codec, CPU, scheduler or controller change. The
+lane's v3 probe (drv220 + callback at each arm, twice byte-identical:
+`lane16c-1.log`/`lane16c-2.log` with hook SHA-256
+`743c232a21141ffaab19ab7c40795002a850b024f1fda323d2e273056c81d8b1`)
+confirms the lane's constant 0x10048d40 UART at all three arms — the
+tree's post-exchange re-allocation to 0x10049400 is tree-side history
+the lane cannot observe (no staged lines), and the fixture keys on the
+driver's own +0x220 word rather than a fixed address, so both shapes
+admit under the same law. The next census is the boot's behavior beyond
+the 37.8 s budget stop (the fourth GPS arm and the post-cycle settings
+wave are unobserved; a longer lane probe is the next instance's input).
+Ticket 710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `src/compat/sapporo_233_gps.c` | `f8eb0c2208c6010bd98ebbbf99723864f060c3f6830c652f146d06e840fd44e7` |
+| `tests/unit/test_sapporo_233_gps.c` | `d3cf802b654f8745664470b7312dcfc160632920d0116bce311080b18f87a620` |
+| `tests/integration/test_firmware_sapporo_233_files.sh` | `d57fb0b7c6eba9bbbff40ec3afee3506f53bd564273f945c3d66e29285381b2d` |
+| `full-1.log` = `full-2.log` | `58ecd0dc7a9c3942830f3dfc6030289b60704541c8e8b38f386760eeb9e6fd26` |
+| `next2-1.log` = `next2-2.log` | `39e9e7c7d10d17a28c6e2ffe162addcc8f04d733b2e60f85de1c43d6b04e05ec` |
+| `check4.log` | `14d08fd0f2041dc39e2f8b7e6fadf266d65469d06b6a3f33ac1e23d414412017` |
+| `sanitize3.log` | `862082e302049f7573d3c96406cc0a063394454b3c5689e9a5b447eb462bd52c` |
+| `native16.resc` (v3) | `743c232a21141ffaab19ab7c40795002a850b024f1fda323d2e273056c81d8b1` |
+| `lane16c-1.log` | `998b812d21642b411fdf4ca583d9efaeeaa437346dd783dd074017e95dd5f07a` |
+| `lane16c-2.log` | `4fdea7bbdc7443832c3af38d245da8142832564ec5f3c97c3fbc27b91de85633` |

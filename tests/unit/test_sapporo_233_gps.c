@@ -81,7 +81,7 @@ static void test_sapporo_233_gps_activation(semu_test_context *context)
     semu_layer_state state;
     semu_error e;
     unsigned i;
-    SEMU_TEST_EQ_U64(context, 2u, d->maximum_hits);
+    SEMU_TEST_EQ_U64(context, 6u, d->maximum_hits);
     SEMU_TEST_EQ_U64(context, 3u, d->component_hash_count);
     SEMU_TEST_ASSERT(context, strcmp(d->evidence, "E-SAP-0071") == 0);
     for (i = 0u; i < 3u; ++i) hashes[i] = d->component_hashes[i];
@@ -142,11 +142,66 @@ static void test_sapporo_233_gps_delayed_and_isolated(semu_test_context *context
     destroy(&a); destroy(&b);
 }
 
+/* E-SAP-0077: the third arm re-arms with the same allocation and driver
+ * 4/2; the retry byte counts un-answered arms (guest history) and the
+ * UART callback slot is not yet installed, so neither is checked there. */
+static void test_sapporo_233_gps_rearm_admission(semu_test_context *context)
+{
+    fixture f;
+    semu_cpu_state cpu;
+    semu_error e;
+    char log[1024];
+    size_t count;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    cpu = f.cpu;
+    /* First window unchanged: status, then the exact @VER exchange. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, startup(&f, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(f.scheduler, 10000000u, &e));
+    SEMU_TEST_EQ_U64(context, 10u, f.rx);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK, send(&f, "@VER\r\n", &e));
+    SEMU_TEST_EQ_U64(context, 2u, f.state.hits);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(f.scheduler, 10000000u, &e));
+    SEMU_TEST_EQ_U64(context, 20u, f.rx);
+    /* Third arm: same allocation, driver 4/2, retry 1, and the guest's
+     * post-exchange UART re-allocation at 0x10049400 carrying the same
+     * callback (the tree census; the lane arm keeps 0x10048d40 because no
+     * exchange completes there). */
+    f.cpu = cpu;
+    f.cpu.r[3] = UINT32_C(0x1002d278);
+    f.cpu.r[7] = 0u;
+    semu_error_clear(&e);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus,
+        UINT32_C(0x1005b8f8), 1u, 1u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus,
+        UINT32_C(0x10039d40) + 0x220u, 4u, UINT32_C(0x10049400), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus,
+        UINT32_C(0x10049400) + 4u, 4u, UINT32_C(0x0011d593), &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(f.bus,
+        UINT32_C(0x10049400) + 12u, 4u, 0u, &e));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, startup(&f, &e));
+    SEMU_TEST_EQ_U64(context, 3u, f.state.hits);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(f.scheduler, 10000000u, &e));
+    SEMU_TEST_EQ_U64(context, 30u, f.rx);
+    SEMU_TEST_ASSERT(context, memcmp(f.received,
+        "$PSS0000\r\n$PSS0000\r\n$PSS0000", 20u) == 0);
+    rewind(f.log);
+    count = fread(log, 1u, sizeof(log)-1u, f.log); log[count] = '\0';
+    SEMU_TEST_ASSERT(context, strstr(log, "trigger=gps-rearm-status ordinal=3"));
+    /* A fourth arm exhausts the round: sticky refusal. */
+    f.cpu.r[3] = UINT32_C(0x1002d278);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, startup(&f, &e));
+    destroy(&f);
+}
+
 static void test_sapporo_233_gps_atomic_refusals(semu_test_context *context)
 {
     unsigned mode;
     for (mode = 0u; mode < 37u; ++mode) {
         fixture f;
+        if (mode == 16u) continue; /* now an admitted re-arm (E-SAP-0077) */
         semu_error e;
         semu_snapshot_writer before, after;
         semu_cpu_state cpu;
@@ -270,6 +325,7 @@ int main(void)
         SEMU_TEST_CASE(test_sapporo_233_gps_activation),
         SEMU_TEST_CASE(test_sapporo_233_gps_delayed_and_isolated),
         SEMU_TEST_CASE(test_sapporo_233_gps_atomic_refusals),
+        SEMU_TEST_CASE(test_sapporo_233_gps_rearm_admission),
         SEMU_TEST_CASE(test_sapporo_233_gps_reset_and_nontrigger)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

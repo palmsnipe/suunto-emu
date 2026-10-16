@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 GPS re-arm admitted; the staged boot runs past 37 s — 2026-10-16
+
+E-SAP-0078 implements the per-arm GPS cycle: each arm reads its UART
+struct from the driver's own +0x220 word (0x10048d40 initially,
+0x10049400 after the guest's post-exchange re-allocation) with the same
+0x0011d593 callback, and every arm is followed by the exact @VER
+exchange; budget 6 = the lane's three observed arms. Red-first GPS suite
+5/5; `make check` 1,069 PASS; `make sanitize` 1,064 with no findings;
+the 2.35 pressure pins and 2.39 profile contract unchanged. The staged
+boot now reaches the 2G-instruction budget at 37.8 s virtual with all
+three arms admitted (twice byte-identical); the `next` pin's log hash
+re-derived (stop tuple unchanged, budget text moved). Next census: the
+boot beyond 37.8 s (a longer lane probe). Ticket 710 remains ready.
+
 ## Ticket 710 — 2.33 GPS re-arm census complete; admission is the next instance — 2026-10-16
 
 E-SAP-0077 records the twice-identical 16 s lane census: the guest arms

@@ -54,7 +54,7 @@ for pass in 1 2; do
     staged_once "$run_dir/settings-$pass.log" 70000000 1000000000
     staged_once "$run_dir/pressure-$pass.log" 200000000 1000000000
     staged_once "$run_dir/next-$pass.log" 300000000 30000000000
-    staged_ohr_once "$run_dir/ohr-$pass.log" 901589712 14884782418
+    staged_ohr_once "$run_dir/ohr-$pass.log" 2000000000 60000000000
 done
 for stage in control settings pressure next ohr; do
     cmp "$run_dir/$stage-1.log" "$run_dir/$stage-2.log"
@@ -67,8 +67,10 @@ done
 # Preserve both earlier prefix pins and pin success before the new OHR limit.
 [ "$(shasum -a 256 "$run_dir/pressure-1.log" | awk '{print $1}')" = \
     026ed246926095f3efa15ef8485dfdc83a5402c6d77460b6f6d5fa5d41ced71b ]
+# E-SAP-0078 re-pin: the stop tuple is unchanged; only the fixture's
+# diagnostic budget text moved (maximum=6 with the re-arm admissions).
 [ "$(shasum -a 256 "$run_dir/next-1.log" | awk '{print $1}')" = \
-    b75699ac3f4bbcd0f536cbaae0a910bd6519cda06bea81312ac25eef0b73dcef ]
+    39e9e7c7d10d17a28c6e2ffe162addcc8f04d733b2e60f85de1c43d6b04e05ec ]
 grep -Fqx 'stop=budget pc=0x000dbc0a instructions=48412879 virtual_time_ns=339421948' "$run_dir/control-1.log"
 grep -Fqx 'stop=budget pc=0x000c892e instructions=70000000 virtual_time_ns=405355276' "$run_dir/settings-1.log"
 grep -Fq 'operation=close path=settings/uiv2.txt result=1 size=256 cursor=0' "$run_dir/settings-1.log"
@@ -96,5 +98,6 @@ if grep -q 'logical-file size overflow: pois/poi.bin' "$run_dir/ohr-1.log"; then
     echo "error: 2.33 capacity regression" >&2
     exit 1
 fi
-grep -Fqx 'stop=compat-refused pc=0x0011d990 instructions=901589710 virtual_time_ns=14884782416 detail=2.33 GPS startup fixture disabled, exhausted or unexpected state/request' "$run_dir/ohr-1.log"
+grep -Fq 'layer-hit layer=sapporo-2.33-gps-startup hit=6 maximum=6 effect=trigger=gps-rearm-status ordinal=3 synthetic-status delay-ns=10000000 evidence=E-SAP-0071' "$run_dir/ohr-1.log"
+grep -Fqx 'stop=budget pc=0x000bb6b0 instructions=2000000000 virtual_time_ns=37821539437' "$run_dir/ohr-1.log"
 echo 'PASS sapporo-2.33.16 native settings, negative pressure and OHR startup probes; bounded logical-file refusal'
