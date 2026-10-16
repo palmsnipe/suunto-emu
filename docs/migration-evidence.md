@@ -13157,3 +13157,142 @@ status and this ledger. The existing files module/unit ABI correction is
 preserved for commit as its prerequisite. No plan or index status change.
 The E-SAP-0073 integration request is closed; the next 710 instance must
 census the OHR BSL exchange before admitting any response.
+
+## E-SAP-0075 — 2.33 OHR startup fixture: the staged exchange admitted, the boot advances to the pois capacity boundary (ticket 710)
+
+2026-10-16, ticket 710 instance-37 (`sap233-ohr-startup`) at 0be26bf with the
+E-SAP-0074 pressure attachment in production. This instance names the next
+boundary, derives the tree-side request and the lane responses, implements
+the fixture as a body provider behind the existing sapporo OHR2 transport,
+and records the new stop twice byte-identically. No CPU, scheduler, bus,
+device-protocol or controller change is made.
+
+### The exact boundary and the tree-side request
+
+The E-SAP-0074 next-refusal is the guest's first IOM2 address-0x10 (OHR2)
+exchange: protocol command 0010, sequence 0, BSL state, 59 bytes at
+1800546265 ns. The IOM2 wrapper observes the command at the 0x1438b2 store
+(next PC 0x1438b6, LR 0xa301b). A temporary observer replaces only the IOM
+object at link time (the E-SAP-0073 mechanism) and dumps the staged DMA
+body. Tree census (twice byte-identical, from the repository root):
+
+- Request 1 body (59 bytes, SHA-256 of the capture log
+  `obs-1.log` = `obs-2.log`
+  `90a78b7bfa74dae3c17c3198846d16ca8464a1c419c62121c36367de230ace7a`):
+  `00 10 00 00 00 01 ff*49 5d 08 d0 67` — byte-identical to the lane TX
+  frame of the same instant (`/tmp/semu-233-iom2-lane/native-1.log` line
+  559), including the reflected-IEEE CRC32 `5d08d067` over payload bytes
+  1..54. Capstone 5.0.7 re-derivation of the pinned application
+  (`ba286a7b…`) confirms the builder: `0x143826..0x1438b0` construct the
+  selector/size/type word and store at `+0x120`; `0x1438b6` is the next
+  instruction; the literal pool holds `0x40050000` (IOM base) at
+  `0x14394c`. No native instruction patch is proposed or made.
+
+The lane continuation (`/tmp/semu-233-iom2-lane/native-1.log`, twice
+byte-identical across `native-1`/`native-2`, 30 OHR2 records) supplies the
+full staged-window exchange order and the shared transport law: 59-byte
+requests with CRC32 at 55..58, 58-byte responses with the header echoed and
+CRC32 at 54..57, ready GPIO62 rising per queued reply and falling when
+consumed, the reboot command 0x0003 fire-and-forget advancing BSL -> MAIN
+with no reply, and identity/zero/echo body laws. The eight native IOM2
+commands are: boot-mode seq 0 (payload byte 5 = 1), identity seq 1
+(`BSL` at body offset 9), reboot seq 2, boot-mode seq 2, identity seq 3
+(`MAIN`), result 0x000d seq 4, result 0x000e seq 5, echo seq 6 (ten caller
+bytes at 4..13 echoed). All CRCs verify under the existing
+`semu_sapporo_ohr2_crc32`.
+
+### Implementation: a body provider behind the existing transport
+
+`src/compat/sapporo_233_ohr.c`/`.h` add the opt-in layer
+`sapporo-2.33-ohr-startup` (device-fixture, pinned to the three manifest
+component hashes, budget 7 = the staged-window response count) whose
+provider supplies response bodies to the existing
+`semu_sapporo_ohr2` device. Framing, CRC, ready GPIO62 and sequence
+handling stay the device's own law; the layer only admits the staged
+request order (each once, in order, with the lane payload shape: both
+boot-mode requests pin payload 4 = 0x01 with ff padding, the echo admits
+ten caller bytes at 4..13 with ff from 14, everything else ff from 4).
+Wrong order, wrong state, wrong payload or an exhausted round refuses
+atomically before any state changes, and the refusal is sticky until the
+machine reset re-enables the layer. The 2.22/2.35/2.39 providers and all
+other devices are untouched; `no_device_ohr_provider` gains one
+profile-gated dispatch line, the machine registry/binding one layer id,
+and the 2.33 profile one layer stanza (max_hits 7).
+
+### Red-first tests and verification
+
+`tests/unit/test_sapporo_233_ohr.c` (five cases) failed against
+production (2 failures: ordered responses and reset renewal) and passes
+5/5 with the fixture. It covers the ordered seven-response round with the
+body laws, wrong-sequence refusal and stickiness, budget exhaustion plus
+reset renewal, and both wrong-profile and wrong-component-hash enable
+refusals. `tests/unit/test_sapporo_233_gps_integration.c` and
+`tests/unit/test_sapporo_profile_233.c` now expect the five-layer staged
+set. `make test TEST_FILTER=sapporo_233_ohr` exits 0 (5/5).
+
+Commands from the repository root (logs under
+`/tmp/sap233-ohr-20261016/`):
+
+- `make check` — exit 0, 1,068 PASS records (log `check.log`
+  `59d7bc7d57f3d6bf1429bcbc02631d72a229e49596625ca299d85d072d22fb60`).
+- `make sanitize` — exit 0, 1,063 PASS records, no ASan/UBSan findings
+  (log `sanitize.log`
+  `5e8c1201bf32762bf2a7bffd14eb0197ec23b346d1041013e0ffc1e356445dc1`).
+- `make check-lines`, `make check-task-contracts` — exit 0; 171 tickets
+  validated; the new files are 148/39/214 lines.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.33.16/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.33.16 TEST_FILTER=sapporo_233`
+  — exit 0; all five configurations twice byte-identical (the extended
+  `test_firmware_sapporo_233_files.sh`, SHA-256
+  `453a44cff266d723aceba00d1b6afe4dcca7c32e692901d974d9e68109bdbb70`).
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.35.34.18929/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.35.34
+  TEST_FILTER=sapporo_235_pressure` — exit 0; pressure pins unchanged.
+- `SEMU_FIRMWARE_MANIFEST=tests/private/sapporo-2.39.20.22297/firmware.semu
+  make test-firmware TEST_PROFILE=sapporo-2.39.20
+  TEST_FILTER=sapporo_239_profile` — exit 0.
+
+### Production checkpoint re-derivation
+
+The four E-SAP-0074 pins are preserved byte-for-byte (control
+`74c85818…`, settings `54047d5d…`, pressure `026ed246…`, next
+`b75699ac…`; the runner asserts each). The new fifth configuration
+enables all five staged layers with caps 330738174 / 2735250080:
+
+- Stop: `compat-refused pc=0x000bb198 instructions=330738172
+  virtual_time_ns=2735250078 detail=2.33 logical-file size overflow:
+  pois/poi.bin` — twice byte-identical, log SHA-256
+  `e7210c6152dd35aab36a813b6eb704ced2336a60d96be4ff524d1b92a8095e55`.
+- All seven OHR exchanges are admitted in the lane order (hits 1..7 at
+  1800546265, 1800557977, 2406966289, 2406978097, 2406984816,
+  2407018308, 2407046915 ns), including the transport-level reboot at
+  1800564713 ns. The former OHR/reset refusal is gone.
+- The new stop is the 2.33 logical-file capacity law: the guest's own
+  `pois/poi.bin` writes grow the retained overlay past the 65,536-byte
+  session cap (writes at 65,200 and 65,456 bytes immediately before the
+  stop) and the layer refuses the overflowing write. That boundary is a
+  separate, already-implemented refusal — the next census is the poi
+  container size in the staged lane (or the layer's own budget law), not
+  this fixture.
+
+Changed files: the new fixture module and unit suite, the 2.33 profile
+stanza, the machine registry/binding and `no_device_ohr_provider` dispatch
+line, the extended private runner, the two updated layer-count unit tests,
+this ledger and current status. No public API, manifest format, registry
+metadata, snapshot codec, budget or golden changes. Ticket 710 remains
+ready; implementation acceptance is not claimed for the instance until
+integrator review, and no usable 2.33 UI, GPS data, or unbounded
+continuation is claimed.
+
+| Artifact (paired where noted) | SHA-256 |
+| --- | --- |
+| `src/compat/sapporo_233_ohr.c` | `3f588a68a103c19cb44943ad8bcf4352022db5418f0587b1af94cc6c4751ae5d` |
+| `src/compat/sapporo_233_ohr.h` | `efdf86a4f96b11ca65a822a66954e7f318ba339b42cc2a6a0e842d62fd2b8867` |
+| `tests/unit/test_sapporo_233_ohr.c` | `709b8c13cf3abf1b774dc191057b2959cd3538882f7fdd703cba4d2f32a366d0` |
+| `tests/integration/test_firmware_sapporo_233_files.sh` | `453a44cff266d723aceba00d1b6afe4dcca7c32e692901d974d9e68109bdbb70` |
+| `obs-1.log` = `obs-2.log` | `90a78b7bfa74dae3c17c3198846d16ca8464a1c419c62121c36367de230ace7a` |
+| `next-1.log` = `next-2.log` = `ohr2-1.log` = `ohr2-2.log` | `e7210c6152dd35aab36a813b6eb704ced2336a60d96be4ff524d1b92a8095e55` |
+| `check.log` | `59d7bc7d57f3d6bf1429bcbc02631d72a229e49596625ca299d85d072d22fb60` |
+| `sanitize.log` | `5e8c1201bf32762bf2a7bffd14eb0197ec23b346d1041013e0ffc1e356445dc1` |
+| `iom_observer.c` | `8694e66f2e30c0212a46fda02c7b7b29565773393b6e98fc2fb5a84bc5f9e360` |
+| `driver.c` | `7b5aee30449e6ac9adb7a107d4908d19874f6394db2490181e74fd19414f8733` |

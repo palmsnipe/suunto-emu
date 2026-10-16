@@ -26,17 +26,19 @@ static void test_sapporo_233_gps_registration(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_profile_load("profiles/sapporo/2.33.16/profile.semu", &profile,
                           &error));
-    /* Four staged-boot layers: production data, logical files, the
-     * first-boot translations and the GPS startup fixture (instances
-     * 33-36). */
-    SEMU_TEST_EQ_U64(context, 4u, profile.layer_count);
+    /* Five staged-boot layers: production data, logical files, the
+     * first-boot translations, the GPS startup fixture and the OHR
+     * startup fixture (instances 33-37). */
+    SEMU_TEST_EQ_U64(context, 5u, profile.layer_count);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[0],
         "sapporo-2.33-gps-startup") == 0);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[1],
-        "sapporo-2.33-production-data") == 0);
+        "sapporo-2.33-ohr-startup") == 0);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[2],
-        "sapporo-2.33-logical-files") == 0);
+        "sapporo-2.33-production-data") == 0);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[3],
+        "sapporo-2.33-logical-files") == 0);
+    SEMU_TEST_ASSERT(context, strcmp(profile.layers[4],
         "sapporo-2.33-firstboot") == 0);
 }
 

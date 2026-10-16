@@ -237,6 +237,23 @@ semu_status semu_sapporo_devices_bind_235_ohr(
     return SEMU_OK;
 }
 
+semu_status semu_sapporo_devices_bind_233_ohr(
+    semu_sapporo_devices *devices, semu_layer_state *state,
+    semu_logger *logger, semu_error *error)
+{
+    if (devices == NULL || !devices->ohr2_profile_233 || state == NULL ||
+        logger == NULL || !state->enabled || state->hits != 0u ||
+        state->descriptor != &semu_sapporo_233_ohr_layer ||
+        devices->ohr_233_context.state != NULL) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "invalid 2.33 OHR fixture binding");
+        return SEMU_ERR_CONFLICT;
+    }
+    devices->ohr_233_context.state = state;
+    devices->ohr_233_context.logger = logger;
+    semu_error_clear(error);
+    return SEMU_OK;
+}
+
 semu_status semu_sapporo_devices_apply_compat_hook(
     semu_sapporo_devices *devices, semu_bus *bus, semu_cpu_state *cpu_state,
     semu_layer_state *state, semu_logger *logger, semu_error *error)

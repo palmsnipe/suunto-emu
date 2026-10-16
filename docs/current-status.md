@@ -6,6 +6,23 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — 2.33 OHR startup fixture admitted; boot reaches the pois capacity boundary — 2026-10-16
+
+E-SAP-0075 implements the `sapporo-2.33-ohr-startup` fixture as a body
+provider behind the existing OHR2 device transport. The tree-side first
+request is byte-identical to the lane TX (twice), and all seven staged
+exchanges now complete in the lane order with the shared framing law; the
+former OHR/reset refusal is gone. Red-first unit suite 5/5 (wrong order,
+sticky refusal, budget, reset renewal, wrong profile/hash). The four
+E-SAP-0074 checkpoint pins are preserved; the new fifth configuration
+stops twice byte-identically at the guest's own `pois/poi.bin` logical
+-file capacity refusal (`compat-refused pc=0x000bb198
+instructions=330738172 vt=2735250078`). Verification: `make check`
+1,068 PASS; `make sanitize` 1,063 with no findings; lines/contracts pass;
+the extended five-configuration private runner, the 2.35 pressure pins
+and the 2.39 profile contract are green. Ticket 710 remains ready; no
+usable 2.33 UI or unbounded continuation is claimed.
+
 ## Ticket 710 — 2.33 negative-pressure probes integrated — 2026-10-13
 
 The owner authorized the E-SAP-0073 profile attachment and checkpoint

@@ -14,6 +14,7 @@
 #include "sapporo_tli493d.h"
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_233_gps.h"
+#include "../compat/sapporo_233_ohr.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
 #include "../compat/sapporo_235_gps_reopen.h"
@@ -66,8 +67,10 @@ struct semu_sapporo_devices {
     int profile_selected;
     int ohr2_profile_239;
     int ohr2_profile_235;
+    int ohr2_profile_233;
     int gps_233_profile;
     semu_sapporo_235_ohr_context ohr_235_context;
+    semu_sapporo_233_ohr_context ohr_233_context;
     semu_sapporo_233_gps_context gps_233_context;
     semu_sapporo_235_gps_context gps_235_context;
     semu_sapporo_235_gps_reopen_context gps_235_reopen_context;

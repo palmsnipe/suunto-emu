@@ -10,6 +10,7 @@
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_233_files.h"
 #include "../compat/sapporo_233_firstboot.h"
+#include "../compat/sapporo_233_ohr.h"
 #include "../compat/sapporo_233_gps.h"
 #include "../compat/sapporo_233_production.h"
 #include "../compat/sapporo_235_production.h"
@@ -246,6 +247,8 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         descriptor = &semu_sapporo_233_files_layer;
     } else if (strcmp(id, semu_sapporo_233_firstboot_layer.id) == 0) {
         descriptor = &semu_sapporo_233_firstboot_layer;
+    } else if (strcmp(id, semu_sapporo_233_ohr_layer.id) == 0) {
+        descriptor = &semu_sapporo_233_ohr_layer;
     } else if (strcmp(id, semu_sapporo_233_gps_layer.id) == 0) {
         descriptor = &semu_sapporo_233_gps_layer;
     } else if (strcmp(id, semu_sapporo_233_production_layer.id) == 0) {
@@ -450,6 +453,12 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
             }
             if (machine->layers[i].descriptor == &semu_sapporo_233_gps_layer &&
                 semu_sapporo_devices_bind_233_gps(machine->devices,
+                    &machine->layers[i], machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_233_ohr_layer &&
+                semu_sapporo_devices_bind_233_ohr(machine->devices,
                     &machine->layers[i], machine->logger, error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;

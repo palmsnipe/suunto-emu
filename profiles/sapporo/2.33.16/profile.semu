@@ -31,6 +31,11 @@ kind=device-fixture
 evidence=E-SAP-0071
 max_hits=2
 
+[layer sapporo-2.33-ohr-startup]
+kind=device-fixture
+evidence=E-SAP-0075
+max_hits=7
+
 [layer sapporo-2.33-production-data]
 kind=synthetic-state
 evidence=E-SAP-0057
