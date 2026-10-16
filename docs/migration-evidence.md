@@ -13787,3 +13787,37 @@ requires touch, which the 2.33 profile does not wire (a listed 730 gap
 candidate), so the post-prompt flow is out of reach until touch
 evidence exists. No production change. Ticket 710 remains ready.
 
+
+## E-SAP-0089 - the middle button toggles the widget-pinning screen: the 6.0s press slides it back out (ticket 710)
+
+2026-10-16, ticket 710 instance-51 census (sap233-toggle) continuing at
+07d6ecc. A press-timeline census with middle presses at 3.97/4.11,
+5.0/5.2 and 6.0/6.2 s (frames-splashpress-1.log, 88 distinct frames
+through the 10B-instruction stop at 45.1 s) decodes the toggle:
+
+- The 3.97 s press (during the splash) changes nothing: the sequence
+  stays black/splash/black.
+- The 5.0 s press opens the widget-pinning animation (37 frames,
+  5.0-5.5 s, the same opening as E-SAP-0086).
+- The 6.0 s press slides the screen back OUT: a 45-frame transition
+  (6.257-6.435 s) whose later frames show the widget screen sliding
+  left off-screen (frame 86, crc 1f62867d: the plus icon and the
+  Double-tap prompt partially off the right edge; frame 87,
+  crc 6321c80b: the transition tail), ending in the black display-off
+  frame (crc 2a01c517).
+
+The middle button is a toggle for the widget-pinning screen: press to
+open (animated), press again to dismiss (animated slide-out), with the
+display returning to off. This explains the E-SAP-0088 result (the
+12 s press re-animated and darkened: it dismissed the open screen).
+The 2.33 UI is now mapped to: splash toggle, widget-pinning open/close
+animations, correct fonts/icons throughout. No production change.
+Ticket 710 remains ready. Next: the double-tap pin gesture (touch),
+and the settings/UI wave beyond the mapped screens.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `frames-splashpress-1.log` | `8094ad67f67c2b6743ae3e793d91995e89aa3be2114a2c991ae5c281afecc59b` |
+| `frame_count4.c` | `e44f05eb2d87c3e2d21498d3e47ff3356ec2fbd27dfe7ec80acff221b7a78235` |
+| `splashpress-86.png` | `8c479bf298137c569333c632458cb7cc173d84234a563498ab0fd8606ee53e49` |
+

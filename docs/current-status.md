@@ -17,6 +17,16 @@ at 5.5 s produces no further frames through 43.5 s. First interactive
 display-off state, not a UI defect. Next: lower-button behavior,
 double-tap pinning, the post-pinning flow. Ticket 710 remains ready.
 
+## Ticket 710 — the middle button toggles the widget-pinning screen — 2026-10-16
+
+E-SAP-0089: a press-timeline census (presses at 3.97/5.0/6.0 s) decodes
+the toggle — the splash-era press changes nothing; the 5.0 s press opens
+the 37-frame pinning animation; the 6.0 s press slides the screen back
+out (45 frames, the prompt sliding left off-screen) ending in the
+display-off black. The E-SAP-0088 re-animation is the dismissal of an
+open screen. The 2.33 UI is mapped to splash + pinning open/close
+animations with correct fonts/icons. Ticket 710 remains ready.
+
 ## Ticket 710 — a second middle press re-animates the pinning screen, then dark — 2026-10-16
 
 E-SAP-0088: on the settled pinning screen, a second middle press at
