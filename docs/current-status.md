@@ -6,6 +6,18 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — THE 2.33 UI PUBLISHES ITS FIRST FRAME: the Suunto splash — 2026-10-16
+
+E-SAP-0083: a cold-boot --until normal-frame probe stops twice
+byte-identically at 3.184 s with the first-frame gate fired; the SDL
+frontend presents the held frame and the PPM dump captures a correct
+240x240 Suunto splash (black, white wordmark + arrow) rendered through
+the full display chain. The first 2.33.16 frame ever published in-tree;
+the historical display gate (E-SAP-0054/0056/0059) is closed by the
+staged layers. Frames/snapshots stay outside Git. Next censuses:
+button-to-UI causality and the post-splash flow. Ticket 710 remains
+ready.
+
 ## Ticket 710 — 2.33 boot stable through 100.8 s via snapshot resume — 2026-10-16
 
 E-SAP-0081: resuming the 65.8 s snapshot with a 65B-instruction cap runs

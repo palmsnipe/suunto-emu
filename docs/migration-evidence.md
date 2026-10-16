@@ -13631,3 +13631,35 @@ No production change is made. Ticket 710 remains ready.
 | --- | --- |
 | `buttons.replay` | `88c138a384b8c69d499cb135504407aabaf913a47f61b5c6fff31d064ed4f839` |
 | `buttons-1.log` | `4018a0e8ed16dcd78ba8c6aba8d7fc4244f997e8c59378d391571a4eddf1fb78` |
+
+## E-SAP-0083 - THE 2.33 UI PUBLISHES ITS FIRST FRAME: the Suunto splash renders end-to-end, twice byte-identical (ticket 710)
+
+2026-10-16, ticket 710 instance-45 census (sap233-frame) continuing at
+the E-SAP-0082 input census. A cold-boot --until normal-frame probe on
+the five-layer staging stops at
+stop=user pc=0x000bb5a6 instructions=636000000
+virtual_time_ns=3184218186 - the first-frame gate FIRED - twice
+byte-identically (logs frame-probe-1.log = frame-probe-2.log). The
+gate log shows the guest reading ui/view/startup.xml and
+ui/img/p/suunto.pxb immediately before the frame: the UI resource
+stage that historically failed (E-SAP-0056/0059) now completes and the
+Nema GPU renders the startup splash.
+
+The frame is captured and presented: the SDL frontend restores the
+gate-stop snapshot (sap233-frame.sems) and presents a held 240x240
+frame - SDL first-frame width=240 height=240 generation=2
+crc32=4979f432 (sdl-frame.log) - and the PPM dump writes
+suunto-frame-4979f432.ppm (172,815 bytes = 240x240 RGB). The frame is
+the Suunto splash: black background, the white SUUNTO wordmark with
+the arrow logo, correctly rendered through the full display chain
+(UI resource stage - Nema GPU - panel publication - SDL present). PNG
+conversion: sap233-first-frame.png
+(sha256 b1f217afeedd32557e7f798457920a8ce73955d3d5677b6d535765d50e648ef9).
+
+This is the first 2.33.16 frame ever published in-tree. The display
+gate that E-SAP-0054/0056/0059 named is closed by the staged layers;
+the remaining unknowns (button-to-UI causality, the post-splash flow)
+are the next censuses. No production change is made by this census;
+the snapshot and frames stay outside the repository (private pixels
+never enter Git). Ticket 710 remains ready.
+
