@@ -13751,3 +13751,20 @@ No production change is made. Ticket 710 remains ready. Next censuses:
 the lower-button behavior on the live screen, double-tap pinning, and
 the post-pinning flow.
 
+
+## E-SAP-0087 - the lower button produces no frame on the widget-pinning screen (ticket 710)
+
+2026-10-16, ticket 710 instance-49 census (sap233-lower) continuing at
+165fcba. The parameterized census (middle at 4.5/4.8 s opening the
+widget-pinning screen, lower at 7.0/7.3 s and 9.0/9.3 s) shows the
+40-frame animation and then NO further frames through the 6B-instruction
+stop at 41.4 s: the lower button is a no-op on the widget-pinning screen
+(frames-lower-1.log; the frame count stays at the pre-lower 40). The
+widget screen is the top-level pinning prompt; lower-button navigation
+from it needs its own evidence (or the prompt ignores navigation until
+double-tap). No production change. Ticket 710 remains ready.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `frames-lower-1.log` | `80b55f9c6de28962abe20514c9c83bbfc22f6d21390fc114b7b7b0c2e8f3d634` |
+
