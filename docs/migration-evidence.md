@@ -14349,3 +14349,63 @@ No repository file changed. Documentation-only instance:
 | --- | --- |
 | `/tmp/sap233-spin/alloc-trace-3.log` (third identical pass) | `19cd0dc5c9aa4846685c1fb0d5b31cdd0187c8782d5f85a948315c2fa7855333` |
 
+
+## E-SAP-0097 - buttons do not exit the 2.33 spin: twelve semantic events across two full waves publish zero frames (ticket 710)
+
+2026-10-17, ticket 710 instance-59 census (sap233-wake) continuing at
+337b4f8. The wake-during-spin probe resumes the pinned 65.8 s snapshot
+(inside the corrupted-list spin) and delivers all three buttons as six
+press/release pairs in two waves — 70/75/80 s and 90/95/98 s (the
+E-SAP-0082 timeline extended) — through the public
+`semu_machine_input` path, with the proven frame-callback harness
+watching for any publication. **Result: all twelve events deliver
+(`INPUT` lines, no refusals), zero frames publish, and the guest never
+leaves the corrupted walk** — every periodic sample lands inside the
+5-instruction loop (`pc=0x000bb6b0`/`0x000bb6b6`) through the final
+`done inst=80078460563 vt=115900000000 frames=0` (80B instructions,
+115.9 s virtual). The button wake drives GPIO edges for other tasks;
+the stuck sensor-poll task never reaches its exit, so the display
+power-on trigger is not reachable via buttons during the spin. Both
+passes byte-identical (raw, including warnings). No production change.
+
+Probe: `/tmp/sap233-spin/wake_probe.c` `dbfa3ba66e3acfc04ee0408a46f9f14154d718fec0b3a95b2a78259e21644e6f`,
+binary `af8b448481f573cab8168e78dc350d721562c264b07e7cf2fda34a85a5ab6279`,
+logs `wake-probe-1.log` = `wake-probe-2.log` sha256
+`506d7514b8aed8ebf27012d0bef308ca63ac018258907e189fb7c15ad3a536ad`.
+
+## E-SAP-0098 - the corruption is chunk-schedule-independent: the ring forms under five instruction-quantization schedules in the same virtual-time window (ticket 710, closes the chunking-artifact question)
+
+2026-10-17, ticket 710 instance-60 census (sap233-sched) continuing at
+337b4f8. This closes the question the E-SAP-0093 methodology note left
+open (does the corruption depend on the probe's chunk schedule?). Five
+cold-boot schedules — 100, 1M, 10M, 100k, and 200M instruction chunks —
+all form the self-ring **in the same ~37.1–37.2 s virtual-time window**:
+
+| chunk size | ring forms at inst | virtual time |
+| --- | --- | --- |
+| 100 | 1,286,879,700 | 37.108419137 s |
+| 1,000,000 | 1,287,000,000 | 37.108539437 s |
+| 100,000 | 1,286,900,000 | 37.108439437 s |
+| 10,000,000 | 1,290,000,000 | 37.111539437 s |
+| 200,000,000 | 1,400,000,000 | 37.221539437 s |
+
+The instruction-count drift across a 2,000,000x chunk-size range is
+0.9% (the E-SAP-0037 quantization class, bounded and recorded), while
+the virtual-time window is stable to 0.3%. **The corruption is the
+guest's own poll-pass behavior, not a probe artifact** — the E-SAP-0092
+spin is robust and the sensor-poll defect fires on every schedule. No
+production change.
+
+Probe: `/tmp/sap233-spin/chunk_census.c` `e67f1f959d6474b962f202fe0f3ea8a9cb7d9ae15547a8a22cdee995c9d02116`
+(two schedule passes byte-identical; the five schedule logs with their
+sha256 — 100: `3321fefc3b143548b659ffab790b223de7c3c63691ed264ad050730207168050`,
+1M: `ffa3ab5c94ccfdc40237e14c5407b252d9e6f5122dbd182bd148f8f76a89d7f7`,
+100k: `6ee9be5deb550b75b7d4f6cd71ab339e3a0136e9838b7e9544bfd95a5ef2db5f`,
+10M: `2bbad8ef5b53257c686d4c7b5b73b8a6251912c332a101290367d332e1a63538`,
+200M: `e50a057c611a3a4a6c0ed517c085219d573f5286d90471aabcea5d0c6b57330a`;
+every pass shows the same mechanism `w1 <- 0x100331c0` via the pinned
+sentinel-insert path).
+
+Both instances: no repository file changed; documentation-only.
+`make check-task-contracts` green, `make check` green.
+

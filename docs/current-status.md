@@ -6,6 +6,26 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — buttons do not exit the 2.33 spin; the corruption is chunk-schedule-independent — 2026-10-17
+
+E-SAP-0097 (instance-59, sap233-wake): twelve button events (three
+buttons × press/release × two waves, 70–98.3 s) deliver through the
+public input path during the corrupted-list spin — zero frames publish
+and every periodic sample stays inside the 5-instruction walk through
+80B instructions / 115.9 s virtual. Button wakes drive other tasks; the
+stuck sensor-poll task never exits, so the display power-on trigger is
+not reachable via buttons during the spin. Twice byte-identical.
+
+E-SAP-0098 (instance-60, sap233-sched): the corruption forms under all
+five tested instruction-quantization schedules (100/100k/1M/10M/200M
+chunks) in the same ~37.1–37.2 s virtual-time window — instruction
+drift 0.9% (the E-SAP-0037 class), virtual-time drift 0.3%. The spin is
+the guest's own poll-pass behavior, not a probe-chunking artifact; the
+E-SAP-0093 methodology concern is closed. No production change in
+either instance. Remaining frontier: what the guest waits for beyond
+the spin (the display power-on trigger needs a wake that changes the
+sensor-poll path itself, not just GPIO edges).
+
 ## Ticket 710 — the entry path named: the sensor-poll loop tail-branches a stub that inserts the global sentinel into the object's own list — 2026-10-17
 
 E-SAP-0096 (instance-58, sap233-entry) closes the E-SAP-0095 entry-path
