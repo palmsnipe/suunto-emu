@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the spin is permanent: the ring word is never rewritten in 28.7B post-corruption instructions — 2026-10-17
+
+E-SAP-0099 (instance-61, sap233-perm): a 30B-instruction (65.8 s
+virtual) cold-boot watch on `0x100331c4` shows the ring word's last
+change is the corrupting store itself; zero rewrites follow. The
+sensor-poll task stays wedged in the insert's walk for the entire
+recorded epoch; no other code path touches the word. With E-SAP-0097
+(buttons) and E-SAP-0098 (schedule independence), the 2.33 display
+power-on trigger is now fully attributed as unreachable in every
+modeled window due to this guest-side defect. Twice byte-identical. The
+2.33 UI gate story is complete: any further progress needs either a
+window where the list is healed or an owner decision on a compatibility
+intervention — neither authorized today.
+
 ## Ticket 710 — buttons do not exit the 2.33 spin; the corruption is chunk-schedule-independent — 2026-10-17
 
 E-SAP-0097 (instance-59, sap233-wake): twelve button events (three

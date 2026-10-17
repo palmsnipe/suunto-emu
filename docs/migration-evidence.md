@@ -14409,3 +14409,38 @@ sentinel-insert path).
 Both instances: no repository file changed; documentation-only.
 `make check-task-contracts` green, `make check` green.
 
+
+## E-SAP-0099 - the spin is permanent: the ring word is never rewritten in the 28.7B instructions after the corruption (ticket 710)
+
+2026-10-17, ticket 710 instance-61 census (sap233-perm) continuing at
+5a9b29e. This closes the "does the guest ever escape?" question for
+every recorded window. The permanence census runs the cold boot under
+10M-instruction chunks to **30B instructions (65.8 s virtual — the
+exact endpoint of the E-SAP-0080/0090 snapshot epoch)** and watches
+`0x100331c4` (the ring word). Result: **the word's last change is the
+corrupting store at instruction 1,290,000,000; zero changes in the
+28.7B instructions that follow.** No task ever rewrites the corrupted
+`prev` pointer: the spin is permanent within this window, and the
+sensor-poll task stays wedged inside the insert's walk for the whole
+recorded epoch. Both passes byte-identical. No production change.
+
+Supporting decode (pristine application): the poll function at
+`0x00092524` pushes/asserts its object, performs its sensor work, and
+calls the stub at `0x000925d6`; after the corrupting insert the guest
+never returns past it, so no later poll pass — and no other code path
+observed in any window — touches the ring word. Combined with
+E-SAP-0097 (buttons don't perturb it) and E-SAP-0098 (schedule
+independence), the display power-on trigger is unreachable in every
+modeled window: the 2.33 UI gate is now fully attributed to this
+guest-side defect, and closing it would require either new guest-side
+evidence (a window where the list is healed) or an owner decision on a
+compatibility intervention, which no current entry authorizes.
+
+Probe: `/tmp/sap233-spin/permanence.c` `81fd909c5704e71a9d7114d573ed4e96564b3237915cf78adbc54af9bc4d1735`,
+binary `4de89ccab76a3ce7aa28ccd57874944fff8a497bb62e4e8968484b1e492a6a42`,
+logs `permanence-1.log` = `permanence-2.log` sha256
+`25721b1a2847d6e00afb39b7744299a28441df5e0302e4b5e21c0704d4101d05`.
+
+No repository file changed; documentation-only. `make check-task-contracts`
+green, `make check` green.
+
