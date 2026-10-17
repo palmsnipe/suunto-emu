@@ -6,6 +6,27 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the self-ring's provenance: the guest re-used a freed list node and the insert self-linked it — 2026-10-17
+
+E-SAP-0093 (instance-55, sap233-ring) closes the E-SAP-0092 follow-up.
+The port.c container is a doubly-linked list with a key-`-1` sentinel at
+`this+8`; the insert at `0x000bb69c` walks the `prev` chain and links
+`cursor->prev = new` at `0x000bb6c2`. The census pins the corrupting
+store to **instruction 1,286,879,619, chunk-end PC `0x000bb6c4`**, with
+the walk cursor equal to the new node's own address — because the
+allocator handed out `0x100331c0`, memory that a previously **freed**
+node still occupied in the sentinel's `prev` chain (a guest
+use-after-free). The stale node's key (3) satisfied the walk and the
+insert self-linked it, producing the E-SAP-0092 infinite loop.
+Methodology note pinned: `semu_machine_run` chunk boundaries are part of
+deterministic machine state — a 1-insn-chunk probe diverges from the
+100-insn timeline (E-SAP-0037 quantization class), so the writer was
+pinned two-phase (100-insn replay to the boundary, boundary snapshot,
+then 1-insn steps). All passes byte-identical twice; no engine seam, no
+fixture involvement, no source change. Next census: which call freed
+`0x100331c0` and whether the free is a guest bug or an allocator-contract
+divergence.
+
 ## Ticket 710 — the 2.33 display-off spin is named: an infinite 5-instruction list walk over a self-referential ring node — 2026-10-17
 
 E-SAP-0092 (instance-54, sap233-spin) closes the E-SAP-0090 question:

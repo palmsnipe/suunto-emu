@@ -14051,3 +14051,104 @@ green, `make check` green.
 | `/tmp/sap233-spin/cycle-probe-2.log` | `fc3430146e7755a79c90063998b3ae529e3562b70b35d92fe2c1f55bce1ab099` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 
+
+## E-SAP-0093 - the self-ring's provenance: the guest re-used a freed list node, and the insert self-linked it (ticket 710)
+
+2026-10-17, ticket 710 instance-55 census (sap233-ring) continuing at
+ddb4e28. This closes the E-SAP-0092 follow-up ("how did the list reach
+the self-ring state?"). Answer: **the node memory at `0x100331c0` was a
+previously freed list node still linked into the sentinel's `prev`
+chain; the allocator handed it out again for a new insert, the walk
+landed on the stale node, and the insert's `cursor->prev = new` store
+wrote the new node's own address into its own `prev`** — a guest
+use-after-free of list-node memory, not a fixture seed and not an engine
+defect. No production change.
+
+List structure (pristine decode, same pinned application): the port.c
+container at `r0` is `+0` count, `+4` first, `+8` last, `+16` saved
+cursor; the **sentinel** lives at `this+8` with key `0xffffffff` and
+self-pointing `prev`/`next` (init at `0x000bb668`). Nodes are `+0` key,
+`+4` prev, `+8` next, `+16` owner. The insert at `0x000bb69c` walks the
+`prev` chain from the sentinel while `new_key >= node_key`, then links:
+`new->prev = cursor->prev` (`0x000bb6bc`), `cursor->prev->next = new`
+(`0x000bb6be`), `new->next = cursor` (`0x000bb6c0`),
+**`cursor->prev = new` (`0x000bb6c2`)**.
+
+Provenance census (all probes under `/tmp/sap233-spin/`, volatile,
+hashes below; every pass byte-identical twice):
+
+1. **Coarse watch** (`ring_probe.c` `37120775cdcdcb50b1028447c6a00d35a2fee8fbae11605acbc631d11b77dc87`,
+   `ring-probe-1.log`): 10M-instruction chunks from reset. The node words
+   at `0x100331c0` change 13 times; `w1` (the `prev` word) is written
+   repeatedly with ordinary node addresses (`0x10029bac`, `0x10025558`,
+   `0x10048d94`, `0x10029bfc`, `0x10049454`…), and **`w1` becomes the
+   node's own address `0x100331c0` at instruction 1.29B / vt 37.11 s**
+   (chunk-end PC `0x000bb6b0`).
+2. **Bisection** (`ring_bisect.c` same hash as the probe file,
+   `ring-bisect-1.log` = `ring-bisect-2.log` sha256
+   `7b9f0d295cb8440b5f37dcaac94960b694643681206bba7391b395bbede336b8`):
+   100-instruction chunks narrow the transition to
+   `w1: 0x10029c4c -> 0x100331c0` at **instruction 1,286,879,700**
+   (vt 37,108,419,137 ns), chunk-end PC `0x00092764` — a `BL 0x000bb5a0`
+   (the port.c insert) called from `0x00092764` inside the sensor-driver
+   frame (`lr` lineage `0x000a4e8b`).
+3. **Chunk-quantization caveat (methodology).** A 1-instruction-chunk
+   watch from instruction 1.28B (`ring_watch.c`
+   `8bcfd7358f0dfd5a394eb122fd4a5121ec71af7e2a8a4f7d0cbab0b6fcf21553`)
+   follows a **divergent timeline** (no transition within 3M
+   instructions): `semu_machine_run` chunk boundaries are part of the
+   deterministic machine state (the E-SAP-0037 pump-quantization class),
+   so the probe keeps the bisect's exact 100-instruction chunking and
+   pins the writer two-phase instead.
+4. **Writer pin** (`ring_pin.c` `66826347453f17ad4bb6ca12c1304f341ab5c5ba11e7769631f74ad6dca36ace`,
+   phase A `ring-pin-a.log` `12ee2cfd508a9b0f1fe9170bd485d6beb5f66dffa7c2109743513078f23a4d65`):
+   phase A replays the identical 100-insn chunk timeline to the
+   formation chunk **K=12,868,796** and confirms the ring at instruction
+   1,286,879,700. Phase B (`ring-pin-b.log` = `ring-pin-b3.log` sha256
+   `72914dd3ae64dcb16179d9ccfbf78b81bb0bc859c2f66f63da3a7091788711a2`,
+   twice identical) re-runs `(K-1)*100` instructions under the same
+   chunking, saves the boundary snapshot (`pre-ring.sems` `f5f75472c69cd067d93624cfa5f3787ef61680c926e6df010b5e9a87a2ce71d2`),
+   then single-steps the final window:
+   **the self-ring store is `cursor->prev = new` at `0x000bb6c2`,
+   visible at chunk-end PC `0x000bb6c4`, instruction 1,286,879,619**,
+   with `r1 = 0x100331c0` (the new node), `r3 = 0x100331c0` (the walk
+   cursor — **the cursor equals the new node's own address**),
+   `r2 = r4 = 0x10029c4c`, `r5 = 0xffffffff` (the sentinel key), `lr =
+   0x000a4e8b`. The insert therefore linked the new node through a
+   cursor that pointed at itself because the allocator's memory
+   (`0x100331c0`) was already linked as the sentinel's `prev` — the
+   stale, freed node was still in the chain when its memory was reused.
+
+Attribution: the corrupting state is **guest-owned** — the 2.33
+application freed a list node, left it linked in the sentinel's `prev`
+chain, re-allocated the same address for a new node, and the insert
+completed against the stale link. This is the mechanism that produced
+the E-SAP-0092 infinite walk (node key 3, `prev` = self). The emulator
+executes every store exactly as the pinned bytes dictate; there is no
+engine seam, no fixture involvement (all five layers' hit counts match
+their pinned budgets in every probe log), and no compatibility
+intervention is authorized. Next census: which call freed the node at
+`0x100331c0` and whether the free is a guest bug or an E-SAP-0053-class
+allocator-contract divergence — the display power-on trigger remains
+behind this thread either way.
+
+Verification: phases A and B byte-identical twice each; the probes use
+the public machine API plus `src/boards/machine_internal.h` member
+access (read-only), the phase-B boundary snapshot round-trips through
+the public snapshot API, and no repository file changed.
+Documentation-only instance: `make check-task-contracts` green,
+`make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/ring_probe.c` | `c6eed5103dd41e8c29ac35c6cfe4dab2b6a5b1747436510a0bb73786ee1f0f8c` |
+| `/tmp/sap233-spin/ring-probe-1.log` | (single pass; superseded by the pinned bisect pair) |
+| `/tmp/sap233-spin/ring_bisect.c` | `37120775cdcdcb50b1028447c6a00d35a2fee8fbae11605acbc631d11b77dc87` |
+| `/tmp/sap233-spin/ring-bisect-1.log` = `ring-bisect-2.log` | `7b9f0d295cb8440b5f37dcaac94960b694643681206bba7391b395bbede336b8` |
+| `/tmp/sap233-spin/ring_watch.c` | `8bcfd7358f0dfd5a394eb122fd4a5121ec71af7e2a8a4f7d0cbab0b6fcf21553` |
+| `/tmp/sap233-spin/ring_watch` (divergent-timeline evidence) | `9028cf232f89b962ba2825d99afe09294f721ed73162f040b7efd7cbcccd9064` |
+| `/tmp/sap233-spin/ring_pin.c` | `66826347453f17ad4bb6ca12c1304f341ab5c5ba11e7769631f74ad6dca36ace` |
+| `/tmp/sap233-spin/ring-pin-a.log` | `12ee2cfd508a9b0f1fe9170bd485d6beb5f66dffa7c2109743513078f23a4d65` |
+| `/tmp/sap233-spin/ring-pin-b.log` = `ring-pin-b3.log` | `72914dd3ae64dcb16179d9ccfbf78b81bb0bc859c2f66f63da3a7091788711a2` |
+| `/tmp/sap233-spin/pre-ring.sems` | `f5f75472c69cd067d93624cfa5f3787ef61680c926e6df010b5e9a87a2ce71d2` |
+
