@@ -13950,3 +13950,104 @@ ready; the next census is the E-SAP-0090 spin content.
 | `../suunto-firmware/emulator/renode/iom/Apollo4IomDma.cs` | `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd` |
 | `/tmp/sap233-ohr-20261016/lane45-1b.log` (volatile) | `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd` |
 
+
+## E-SAP-0092 - the 2.33 display-off spin is named: an infinite 5-instruction ordered-list walk over a self-referential ring node (ticket 710)
+
+2026-10-17, ticket 710 instance-54 census (sap233-spin) continuing at
+dfe8c3c. This closes the E-SAP-0090 question ("what does the guest
+execute in the display-off quiet regime?"). Answer: the guest is
+livelocked in a five-instruction Thumb loop that walks an ordered list
+whose node points to itself. No production change; no engine-seam gap;
+the emulator executes the pinned bytes exactly.
+
+Method (all probes under the private work directory `/tmp/sap233-spin/`,
+volatile, hashes below; both passes byte-identical): the pinned 65.8 s
+snapshot (`sap233-65s.sems`, the same artifact the E-SAP-0090 rate
+census used) is resumed through the public snapshot API with the
+five-layer staged boot, then executed in fixed instruction chunks.
+
+1. **Chunked-PC census** (`spin_census.c` `6298324382c53cc5e01b36510c8ef9978518c3e2f9bf279d115f1253384b7a94`,
+   binary `87b54743e05eb920c30129385e16ac96af71645a9ad8a5dda8f4febcb297a5c7`,
+   logs `spin-census-1.log` = `spin-census-2.log` sha256
+   `8997727caac58833821eeef5a6d00673bad4a949b9dca226aeb74233aa3ed79a`):
+   5000 x 1,000,000-instruction chunks (5B instructions, 50 ms of
+   virtual time, the same window as the pc_census attempt) — **all 5000
+   end-of-chunk PCs are exactly `0x000bb6b0`** and the sampled register
+   plane is frozen (`r2=00000003 r3=r4=100331c0 r5=00000003
+   r10=00003702 xpsr=69000000 msp=1005ff58 psp=10032df4 lr=000a4e8b
+   wfi=0`). One distinct state in the whole window: the regime is a
+   single tight loop, not a cadence.
+2. **Pristine-bytes decode** (`component-04-type-4-v2.raw` sha256
+   `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`,
+   the profile-pinned application, load `0x00040000`; arm-none-eabi-objdump
+   2.47.20260726 force-thumb plus manual halfword decode):
+   ```
+   0x000bb69c: b530       push  {r4, r5, lr}          ; entry
+   0x000bb69e: 680a       ldr   r2, [r1, #0]          ; key = *arg1
+   0x000bb6a0: f112 0f01  cmn.w r2, #1
+   0x000bb6a4: bf08       it    eq
+   0x000bb6a6: 6903       ldr   r3, [r0, #16]
+   0x000bb6a8: d007       beq   0x000bb6ba            ; key==-1 -> skip walk
+   0x000bb6aa: f100 0308  add.w r3, r0, #8
+   0x000bb6ae: e000       b     0x000bb6b0
+   0x000bb6b0: 4623       mov   r3, r4                ; node <- cursor
+   0x000bb6b2: 685c       ldr   r4, [r3, #4]          ; cursor = node->next
+   0x000bb6b4: 6825       ldr   r5, [r4, #0]          ; node_key = cursor->key
+   0x000bb6b6: 42aa       cmp   r2, r5                ; key <= node_key ?
+   0x000bb6b8: d2fa       bhs   0x000bb6b0            ; while (key >= node_key) walk
+   ```
+   The literal `port.c` sits at `0x000bb664` immediately before the
+   function: the walk is inside a port.c-tagged ordered-list routine
+   (insert/lookup, node layout `+0` key / `+4` next, list anchored at
+   `this+8`). The earlier "cmp r5, r10" reading is corrected here — the
+   halfword `0x42aa` decodes as `cmp r2, r5`.
+3. **Memory probe** (`walk_probe.c` `28fd9af9ae65c0518032490945bceb5deb2f2961f0d8059f50cb3c0654cd78a7`,
+   logs `walk-probe-1.log` = `walk-probe-2.log` sha256
+   `fcbb3db0e33d6a341a8b2253b5096f856b4955937560faaebec09a6be67bbac6`):
+   guest SRAM at the frozen state reads
+   `0x100331c0: 00000003 100331c0 100331c0 100331a8 10029c44 ...` —
+   the node's **next-pointer at `+4` is the node itself**
+   (`*(0x100331c4) = 0x100331c0`), and its key is `3`, equal to the
+   searched key `r2=3`. `cmp r2, r5` is equal every iteration
+   (`xPSR=0x69000000`: Z=1, C=1, Q=1 sticky), so `bhs` is always taken
+   and the walk never advances past the self-ring. 10,000/10,000 sampled
+   10k-chunk boundaries land in the loop window (all at `0x000bb6b0`).
+4. **Cycle-length proof** (`cycle_probe.c` `bdce3dda139934ae92c65d8ce1e6aa182a1d2849e59d7dc54ae545e9de041643`,
+   log `cycle-probe-2.log` sha256
+   `fc3430146e7755a79c90063998b3ae529e3562b70b35d92fe2c1f55bce1ab099`):
+   landing on a 1M-chunk boundary and single-stepping the public CPU API
+   returns to `0x000bb6b0` after **exactly 5 instructions**
+   (`b0 -> b2 -> b4 -> b6 -> b8 -> b0`), registers unchanged. This is
+   why both the 1M and 10k chunkings always end at the loop head.
+
+Attribution: the spin is **guest data-structure state** — the 2.33
+application's own ordered list contains a self-referential node at
+`0x100331c0` (key 3, next self), so the port.c-tagged insert/lookup for
+key 3 never terminates. It is not the E-SAP-0053-class 10-second
+tickless cycle (that was the earlier 2.33 cadence at a different site),
+not a UI poll, and not an engine seam: the emulator executes the pinned
+bytes faithfully and every observation matches the ARMv7-M semantics.
+~129M loop iterations per virtual second at the E-SAP-0090 645M inst/s
+rate. The E-ULS-0047-class accounting analogy stands, but the content is
+now named and is guest-owned. Whether the guest would escape the loop
+with different list contents (a proper terminator node), and how the
+list reached this state, are the next instance's census — the display
+power-on trigger remains behind it.
+
+Verification: both census passes byte-identical twice; the probes use
+the public machine API plus `src/boards/machine_internal.h` member
+access only (read-only), no repository file changed, snapshot load
+validated. Documentation-only instance: `make check-task-contracts`
+green, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/spin_census.c` | `6298324382c53cc5e01b36510c8ef9978518c3e2f9bf279d115f1253384b7a94` |
+| `/tmp/sap233-spin/spin_census` (binary) | `87b54743e05eb920c30129385e16ac96af71645a9ad8a5dda8f4febcb297a5c7` |
+| `/tmp/sap233-spin/spin-census-1.log` = `spin-census-2.log` | `8997727caac58833821eeef5a6d00673bad4a949b9dca226aeb74233aa3ed79a` |
+| `/tmp/sap233-spin/walk_probe.c` | `28fd9af9ae65c0518032490945bceb5deb2f2961f0d8059f50cb3c0654cd78a7` |
+| `/tmp/sap233-spin/walk-probe-1.log` = `walk-probe-2.log` | `fcbb3db0e33d6a341a8b2253b5096f856b4955937560faaebec09a6be67bbac6` |
+| `/tmp/sap233-spin/cycle_probe.c` | `bdce3dda139934ae92c65d8ce1e6aa182a1d2849e59d7dc54ae545e9de041643` |
+| `/tmp/sap233-spin/cycle-probe-2.log` | `fc3430146e7755a79c90063998b3ae529e3562b70b35d92fe2c1f55bce1ab099` |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+

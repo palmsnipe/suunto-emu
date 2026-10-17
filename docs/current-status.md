@@ -6,6 +6,24 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the 2.33 display-off spin is named: an infinite 5-instruction list walk over a self-referential ring node — 2026-10-17
+
+E-SAP-0092 (instance-54, sap233-spin) closes the E-SAP-0090 question:
+the ~645M inst/s display-off regime is a guest data-structure livelock,
+not a cadence. From the pinned 65.8 s snapshot, all 5000 sampled
+1M-instruction chunk boundaries land at exactly `0x000bb6b0` with a
+frozen register plane; the pristine application decodes the site as a
+five-instruction ordered-list walk (`mov r3,r4; ldr r4,[r3,#4];
+ldr r5,[r4]; cmp r2,r5; bhs back`) entered from a port.c-tagged
+insert/lookup; guest SRAM shows the node at `0x100331c0` holds key 3
+with a next-pointer to itself, so `cmp r2(3), r5(3)` is equal forever
+(xPSR Z=1 C=1) and the branch is always taken; single-stepping proves
+the cycle is exactly 5 instructions. The emulator executes the pinned
+bytes faithfully — no engine-seam gap. Next census: how the list reached
+the self-ring state and whether a proper terminator would let the guest
+escape (the display power-on trigger sits behind it). Both probe passes
+byte-identical; no source change.
+
 ## Ticket 710 — the 2.33 double-tap has no evidence path: no Sapporo touch controller observed, wiring stays fail-closed — 2026-10-17
 
 E-SAP-0091 (instance-53, sap233-touch): the attempted 2.33 touch wiring
