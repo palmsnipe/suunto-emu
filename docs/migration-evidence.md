@@ -13840,3 +13840,113 @@ the next census is what the guest executes there (the tickless timekeeping
 loop, a UI-poll, or the E-SAP-0053-class 10-second tickless cycle).
 No production change is authorized. Ticket 710 remains ready.
 
+
+## E-SAP-0091 - the 2.33 double-tap gesture has no evidence path: no Sapporo touch controller is observed anywhere, and the wiring stays fail-closed (ticket 710)
+
+2026-10-17, ticket 710 instance-53 census (sap233-touch) continuing at
+088903e. The instance set out to wire the semantic touch input for the
+2.33 widget-pinning screen (the E-SAP-0088 exit path: the prompt's own
+instruction is "Double tap the screen to pin a widget."). The census
+instead closes the question the other way: **no evidence authorizes any
+Sapporo touch behavior, so the refusal stands and the post-prompt flow
+stays out of reach.** No source, profile, wiring, or device change was
+made.
+
+What was checked, all read-only:
+
+- **The component inventory assigns nothing.**
+  `docs/hardware-specs/watch-components.tsv` (sha256
+  `fc6a65889457b3399cdf73e6a4c2b384da15bb6f7d7f9708e46c827eb73c4d1e`)
+  records the Sapporo Touch controller row as identity `Identity
+  unresolved`, bus `unknown`, address `unknown`, status `unresolved`,
+  evidence `../suunto-firmware/docs/research/native-panel-transport.md`
+  (sha256 `5c145fc330543d0fb0739dcfd9cf4ad3980507d95d6960bc343013d117ad9abc`)
+  with the note "The current evidence does not assign a touch IC."
+- **The Sapporo startup map names an unmapped provider.** The 2.22
+  startup-peripheral map (sha256
+  `52b3305d846a0b493acdf98533d57668eec3dadbd2c3834fcbdd83b2c4ba8281`)
+  lists a "touch provider" only as an asynchronous startup listener
+  whose provider reports status 200 in the bounded fixture, with
+  "controller/bus identity and touch samples are not yet mapped" as the
+  remaining gap. A status-200 provider registration is not a bus
+  contract; it names no address, IRQ, or report format.
+- **The 2.33 reference lane models no touch endpoint.** The lane
+  `sapporo-2.33.resc` (sha256
+  `dcbb32334518177f6e3dbe86ccfafeea683f67d3db20d9f972a41918d944b284`)
+  unregisters the upstream `iom3` and loads
+  `ambient_light/sapporo-ambient-light.repl` (sha256
+  `bb75b25946ce85ded77a30ec6886e4704d8123bb3cc36fb4967c0ae7b0b84269`),
+  which registers IOM3 (`0x40053000`, IRQ9) solely as the OPT3007 ALS
+  bus at 7-bit address `0x45`. No touch endpoint, no touch IRQ line,
+  and no touch device class exists anywhere in the Sapporo lane tree;
+  the shared `Apollo4IomDma.cs` touch support is Race S-scoped (below).
+- **No retained 2.33 probe shows a touch transaction.** The retained
+  2.33 lane log `/tmp/sap233-ohr-20261016/lane45-1b.log` (sha256
+  `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd`)
+  contains eleven `sapporo_iom3` lines, all ALS-shaped (one 3-byte TX
+  load and ten 2-byte RX stores into the settings buffers
+  `0x10032E76`/`0x10033016`); no address-`0x24` transaction, no
+  length-prefixed report read, and no GPIO100 activity appears. The
+  E-SAP-0082..0090 input/UI censuses likewise show the 2.33 guest
+  waiting on touch without ever probing for a controller - the guest's
+  own prompt text is the only touch mention in the recorded window.
+- **The only observed touch contract is a different product.** The
+  Race S 2.44 lane (`race-s-244-full-ui-checkpoint.md`, sha256
+  `68c07d742f09dda66052f7e750e39d307532c1a5f28202d680a2626722b8ed5e`)
+  documents touch on physical IOM3 at address `0x24` with a two-byte
+  length header, a 13-byte single-contact report, and active-low
+  GPIO100, implemented as the opt-in `RaceSTouch` endpoint gated by
+  `UlsanTouchI2c` (`emulator/renode/iom/Apollo4IomDma.cs`, sha256
+  `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd`,
+  `RaceSTouchI2cAddress` at line 1247, report constants at lines
+  1034-1041). The class's own comments scope it: "Race S routes its
+  native touch controller over physical IOM3 ... Keep the endpoint
+  opt-in." No Sapporo `.resc` sets `UlsanTouchI2c`. Attaching that
+  endpoint to Sapporo would be a cross-product family default,
+  forbidden by the ticket's own scope rules and by the watch-components
+  BOM boundary (Sapporo's touch IC is unresolved and must not be
+  inferred from Race S).
+- **The in-tree seam is deliberately fail-closed and stays so.**
+  `src/boards/machine.c` `semu_machine_input` accepts only
+  `SEMU_INPUT_BUTTON` and refuses every other kind
+  (`SEMU_ERR_UNSUPPORTED`, "unsupported board input"); the wiring table
+  `src/boards/sapporo_wiring.c` has no touch row because there is no
+  evidence ID to cite. `SEMU_INPUT_TOUCH` exists in the replay format
+  (`src/core/replay.c` parses `touch <value> <x> <y>`) and is
+  round-tripped by `src/core/replay_format.c`, so a future wiring needs
+  no format change - but delivering one to a Sapporo guest remains
+  unauthorized.
+
+Unblock paths (either suffices, both are future instances):
+
+1. **Lane observation.** A twice-byte-identical 2.33 lane probe showing
+   the guest probing a touch controller (bus, 7-bit address, IRQ, and
+   at least one observed transaction plus one refused shape), per the
+   standard lane-probe conventions. No retained log contains one today.
+2. **Offline RE.** The owner-authorized 2026-09-23 offline class
+   applied to the hash-pinned 2.33 application/resources
+   (`ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`
+   / `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5`,
+   profile `profiles/sapporo/2.33.16/profile.semu`): derive the touch
+   driver's probe shape from the pristine disassembly, record the
+   derivation census in the entry, and satisfy the same
+   twice-reproduced requirement. It would authorize only values the
+   pinned firmware itself exhibits.
+
+Until one of those lands, the semantic `touch` event for Sapporo 2.33
+refuses fail-closed at the board boundary, the widget-pinning prompt
+remains dismissible only by the E-SAP-0089 middle-press slide-out, and
+the post-prompt flow (pin a widget) is unreachable. Ticket 710 remains
+ready; the next census is the E-SAP-0090 spin content.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `docs/hardware-specs/watch-components.tsv` | `fc6a65889457b3399cdf73e6a4c2b384da15bb6f7d7f9708e46c827eb73c4d1e` |
+| `../suunto-firmware/docs/research/native-panel-transport.md` | `5c145fc330543d0fb0739dcfd9cf4ad3980507d95d6960bc343013d117ad9abc` |
+| `../suunto-firmware/docs/research/sapporo-2.22-startup-peripheral-map.md` | `52b3305d846a0b493acdf98533d57668eec3dadbd2c3834fcbdd83b2c4ba8281` |
+| `../suunto-firmware/docs/research/race-s-244-full-ui-checkpoint.md` | `68c07d742f09dda66052f7e750e39d307532c1a5f28202d680a2626722b8ed5e` |
+| `../suunto-firmware/emulator/renode/sapporo-2.33.resc` | `dcbb32334518177f6e3dbe86ccfafeea683f67d3db20d9f972a41918d944b284` |
+| `../suunto-firmware/emulator/renode/ambient_light/sapporo-ambient-light.repl` | `bb75b25946ce85ded77a30ec6886e4704d8123bb3cc36fb4967c0ae7b0b84269` |
+| `../suunto-firmware/emulator/renode/iom/Apollo4IomDma.cs` | `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd` |
+| `/tmp/sap233-ohr-20261016/lane45-1b.log` (volatile) | `7276600202927751dc5d47261d810ce325abb8a766886cfcc2748517421958bd` |
+

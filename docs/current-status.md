@@ -6,6 +6,23 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the 2.33 double-tap has no evidence path: no Sapporo touch controller observed, wiring stays fail-closed — 2026-10-17
+
+E-SAP-0091 (instance-53, sap233-touch): the attempted 2.33 touch wiring
+closed as evidence-blocked. The component inventory records the Sapporo
+touch IC as unresolved (bus unknown, address unknown); the 2.33 lane
+registers IOM3 solely as the OPT3007 ALS bus at 0x45 and contains no
+touch endpoint; the retained 2.33 lane log shows only ALS-shaped IOM3
+traffic and no touch transaction; the only observed touch contract
+(Race S IOM3/0x24, GPIO100, 13-byte report) is product-scoped and
+opt-in, never enabled for Sapporo; and the board boundary
+(`semu_machine_input`) correctly refuses non-button input. The entry
+records both unblock paths — a twice-reproduced lane probe of a touch
+transaction, or an owner-authorized offline-RE derivation on the
+hash-pinned 2.33 components — and keeps the semantic `touch` refusal
+standing. No source, profile, wiring, or device change. Ticket 710
+remains ready; next census is the E-SAP-0090 spin content.
+
 ## Ticket 710 — THE 2.33 UI IS INTERACTIVE: a button opens the widget-pinning screen with a 37-frame animation — 2026-10-16
 
 E-SAP-0086: a middle-button press at 4.5 s (right after the splash)
