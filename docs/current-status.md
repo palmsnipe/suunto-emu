@@ -6,6 +6,25 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the corruption fully named: the guest inserts a foreign list's sentinel into the sensor list, twice — 2026-10-17
+
+E-SAP-0095 (instance-57, sap233-alloc-trace) supersedes both prior
+attributions. The wrapper `0x000a4e70` calls the four-instruction
+helper `0x000a4eca`, which returns `(container = global->[+40],
+sentinel = container+24)` — and the wrapper inserts that **sentinel of
+a foreign container** (`0x100331c0`, container `0x100331a8`) into the
+sensor list at `0x10029c44`. The single-step trace shows the same
+sentinel inserted **twice** (instructions 1,286,879,158 and 596, same
+`lr = 0x000925db` lineage): the first insert links it (key field 3
+satisfies the walk), the second walks onto the already-linked
+self-referential sentinel, exits with the cursor equal to its own
+address, and `cursor->prev = new` self-links it — the E-SAP-0092 ring.
+No allocator defect, no fixture involvement; the emulator is exact.
+E-SAP-0093/0094 allocator readings are superseded; all machine pins
+stand. Next census: the guest entry path at the `lr = 0x000925db`
+lineage and whether the guest ever unwinds the list. Trace
+byte-identical twice; no source change.
+
 ## Ticket 710 — corruption mechanism refined: the guest double-allocated a live list node — 2026-10-17
 
 E-SAP-0094 (instance-56, sap233-alloc) corrects E-SAP-0093's

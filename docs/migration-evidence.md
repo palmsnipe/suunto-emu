@@ -14217,3 +14217,80 @@ Documentation-only instance: `make check-task-contracts` green,
 | `/tmp/sap233-spin/free_census` (binary) | `c4db06aadb65efa801b1b42757370af607a2fcc23c63a29141ed4bce1fe0e062` |
 | `/tmp/sap233-spin/free-census-1.log` = `free-census-2.log` | `63c774e104f3747aef408ac8757d485eec0d32cf35fec1acdec6aab9e9d3873b` |
 
+
+## E-SAP-0095 - the corruption fully named: the guest inserts a foreign list's sentinel node into the sensor list, twice (ticket 710, corrects E-SAP-0094's allocator reading)
+
+2026-10-17, ticket 710 instance-57 census (sap233-alloc-trace)
+continuing at 893c47e. This closes the "which allocation" question and
+corrects E-SAP-0094's allocator framing: **there is no allocator defect
+at all. The guest code path itself inserts a foreign container's
+sentinel node into the sensor list — twice — and the sentinel's own
+self-pointing `prev` makes the second insert self-link the first.** No
+production change.
+
+Decoded guest structure (pristine application, same pinned hash):
+
+- The wrapper at `0x000a4e70` (asserting `r0 != 0` with line `0xbd3` /
+  3027, the port.c tag) calls `0x000a4eca`, which is four instructions:
+  `r1 = *(0xa5580)` (a global), `r0 = global->[+40]` (a **container
+  pointer**, observed `0x100331a8`), `r1 = r0 + 24` (that container's
+  **sentinel**), return. The wrapper then calls the insert at
+  `0x000bb69c` with `(r0 = the sensor container `0x10029c44`, r1 = the
+  foreign sentinel)`. **The node being inserted is another list's
+  sentinel**, not a heap allocation.
+- The sensor list at container `0x10029c44` (sentinel `0x10029c4c`, key
+  `0xffffffff`) is the E-SAP-0093/0094 list.
+
+Runtime census (`alloc_trace.c` `6bce67c9f8a221d4c3987c7a8702d0cce7f9a16e7ed4454e9c5d67871a6ece8b`,
+binary `f51fefb2707e21093d6c3b8d970e9f57d35d9a3cc1bbc387772ca9da4692abb9`,
+logs `alloc-trace-1.log` = `alloc-trace-2.log` sha256
+`19cd0dc5c9aa4846685c1fb0d5b31cdd0187c8782d5f85a948315c2fa7855333`,
+twice identical): replaying the pinned 100-instruction chunk timeline to
+1,286,879,100 and single-stepping 700 instructions records four inserts:
+
+| insert | entry inst | node (`r1`) | container (`r0`) | wrapper lr |
+| --- | --- | --- | --- | --- |
+| 1 | 1,286,879,158 | `0x100331c0` (foreign sentinel) | `0x10029c44` | `0x000925db` |
+| 2 | 1,286,879,231 | `0x100331ac` | `0x100255c8` | `0x000a5575` |
+| 3 (the corrupting one) | 1,286,879,596 | `0x100331c0` (the same foreign sentinel) | `0x10029c44` | `0x000925db` |
+| 4 | 1,286,879,667 | `0x100331ac` | `0x100255c8` | `0x000a5575` |
+
+Inserts 1 and 3 insert **the same sentinel** (`0x100331c0`, returned by
+`0x000a4eca` both times) into the **same sensor list**, from the same
+caller lineage (`lr = 0x000925db`). Insert 1 completes "normally": the
+sentinel's stored key field (`+0`, leftover value `3`) satisfies the
+walk, the sentinel is linked with `prev = 0x10029c4c`, and the list
+count increments — the guest now believes its list contains the foreign
+sentinel. Insert 3 walks again, finds the already-linked sentinel (key
+`3`, `cmp` equal, `bcs` taken), exits with the cursor equal to the
+sentinel's own address, and `cursor->prev = new` at `0x000bb6c2`
+writes the sentinel's `+4` to itself — the E-SAP-0092 self-ring,
+exactly as pinned (registers `r1 = r3 = 0x100331c0`,
+`r2 = r4 = 0x10029c4c`, `r5 = 0xffffffff`).
+
+Corrected mechanism chain: the guest's periodic work inserts a foreign
+container's sentinel into the sensor list on every pass (or at least
+twice in this window) with no already-inserted guard. The second insert
+of a self-referential node produces the infinite walk. The emulator is
+exact throughout; no allocator seam, no fixture involvement. E-SAP-0093's
+"freed node re-used" and E-SAP-0094's "double-allocation" readings are
+both superseded by this entry; all machine-level pins (instruction
+counts, PCs, register planes, snapshot hashes) stand unchanged.
+
+Next census: identify the guest call site at `lr = 0x000925db` lineage
+(the insert is reached with a stale/indirect return address — no static
+branch pairs it, so the entry path is itself a census item) and whether
+the guest ever unwinds this list; the display power-on trigger remains
+behind it.
+
+Verification: the trace is byte-identical twice; the probe uses the
+public machine API plus `src/boards/machine_internal.h` member access
+(read-only); no repository file changed. Documentation-only instance:
+`make check-task-contracts` green, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/alloc_trace.c` | `6bce67c9f8a221d4c3987c7a8702d0cce7f9a16e7ed4454e9c5d67871a6ece8b` |
+| `/tmp/sap233-spin/alloc_trace` (binary) | `f51fefb2707e21093d6c3b8d970e9f57d35d9a3cc1bbc387772ca9da4692abb9` |
+| `/tmp/sap233-spin/alloc-trace-1.log` = `alloc-trace-2.log` | `19cd0dc5c9aa4846685c1fb0d5b31cdd0187c8782d5f85a948315c2fa7855333` |
+
