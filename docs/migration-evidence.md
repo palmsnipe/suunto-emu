@@ -14441,6 +14441,68 @@ binary `4de89ccab76a3ce7aa28ccd57874944fff8a497bb62e4e8968484b1e492a6a42`,
 logs `permanence-1.log` = `permanence-2.log` sha256
 `25721b1a2847d6e00afb39b7744299a28441df5e0302e4b5e21c0704d4101d05`.
 
+
+## E-SAP-0100 - the owner-authorized sentinel-insert guard implemented, verified, and rejected by its own experiment: the guest keeps cycling the poll loop with no new UI (ticket 710)
+
+2026-10-17, ticket 710 instance-62 (sap233-guard), owner-authorized on
+2026-10-17 ("do it" replying to the blocked-state report). This is the
+compatibility intervention the blocked state asked for, **implemented,
+red-first tested, run to completion — and honestly rejected by its own
+result.** The guard prevented the corruption exactly as designed, but
+the guest still never reaches new UI: the poll loop is a worker spin
+independent of the sentinel insert. **No layer ships; all source
+changes are reverted; the tree is clean and green.**
+
+What was built (all volatile under `/tmp/sap233-spin/`, plus the
+reverted sources — the full diff is recoverable from this session's
+history): a new opt-in layer `sapporo-2.33-sentinel-guard`
+(`SEMU_LAYER_DEVICE_FIXTURE`, profile `sapporo-2.33.16`, evidence
+`E-SAP-0092..0099`, the three pinned component hashes) hooking the
+insert entry `0x000bb69c`: when the node argument is the foreign
+sentinel `0x100331c0`, the sensor sentinel's `prev` (`0x10029c50`)
+already points at it, the sentinel's own `prev` is not yet
+self-referencing, and `lr` is the wrapper continuation, the insert is
+skipped by advancing `pc` to `0x000a4e8a`. Every other shape stays
+native; a self-ring present or a wrong return address refuses
+fail-closed. Red-first unit tests (`test_sapporo_233_sentinel_guard.c`)
+covered the skip, the budget exhaustion, every native shape, and every
+refusal — 2/2 green.
+
+Experimental result (guarded cold boot, six layers, 120 s / 60B
+instruction window):
+
+- The guard fires exactly at the witnessed corrupting insert and
+  prevents the self-ring — the E-SAP-0092 spin does not form.
+- **But the guest then re-attempts the sentinel insert every ~409
+  instructions** (the poll loop is a tight worker cycle), and no new
+  frame ever publishes after the pre-corruption sequence (88 frames,
+  gen 164 at vt 6.43 s; nothing beyond, at any budget tested).
+- With a probe-only budget of 1,000,000 skips, the guest consumed them
+  all in **0.41 s of virtual time** (37.0427 s → 37.4516 s) and stopped
+  fail-closed at the next insert — still 88 frames, still no new UI.
+  Extrapolated, an unbounded skip would cycle ~2.4M inserts per virtual
+  second forever: the insert is not the display gate. The poll loop's
+  own wait condition is.
+- The unguarded firmware reaches the same state by hanging inside the
+  insert's walk instead — the spin and the post-guard cycle are the
+  same loop with different instruction mixes.
+
+Per the compatibility policy (an intervention with no observable
+effect must not ship; the honest outcome is recorded), the layer, its
+wiring, and its tests were **removed**; the repository is byte-clean
+(`make check` 208 passing markers, exit 0; `make check-task-contracts`
+171 tickets; `git status` clean). The negative result is the evidence:
+the 2.33 display gate is **the sensor-poll loop's own wait condition**,
+not the list corruption, and not anything the sentinel intervention can
+reach. The next instance is offline RE of that loop's exit condition
+(what flag or event the ~409-insn cycle waits for) — machine-level
+censuses are exhausted for this thread.
+
+Probes: `/tmp/sap233-spin/guarded_boot.c` `7d816b094ac4ae9bca0c081b0aef442ad8ed465cb574bea709b54a2b8ea25544`
+(budget-128 run `guarded-boot-3.log` `346d63f722e22c61dc2719ebeeeca3c5feba78a72210cbe32f6a6fcbe09e6bbc`;
+probe-only 1M-budget run `guarded-boot-count3.log`
+`bc71efbafdf138ddd20d0754c90cf6270945b0ce108a039851179d9e5509e2a5`).
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 

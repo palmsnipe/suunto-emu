@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the owner-authorized sentinel guard implemented and honestly rejected: the poll loop is a worker spin independent of the insert — 2026-10-17
+
+E-SAP-0100 (instance-62, sap233-guard), owner-authorized ("do it"):
+the `sapporo-2.33-sentinel-guard` layer (skip the second+ sentinel
+insert at `0x000bb69c`, fail-closed elsewhere, red-first tested 2/2)
+prevents the corruption exactly as designed — but the guest then
+re-attempts the insert every ~409 instructions (a tight worker cycle),
+consumed 1,000,000 skips in 0.41 s of virtual time, and never published
+a frame beyond the pre-corruption sequence (88 frames, gen 164). The
+sentinel insert is not the display gate; the poll loop's own wait
+condition is. Per policy the no-effect layer was removed and the tree
+is clean and green; the negative result is recorded as the evidence.
+Next instance: offline RE of the poll loop's exit condition.
+
 ## Ticket 710 — the spin is permanent: the ring word is never rewritten in 28.7B post-corruption instructions — 2026-10-17
 
 E-SAP-0099 (instance-61, sap233-perm): a 30B-instruction (65.8 s
