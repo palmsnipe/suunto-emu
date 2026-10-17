@@ -6,6 +6,24 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the entry path named: the sensor-poll loop tail-branches a stub that inserts the global sentinel into the object's own list — 2026-10-17
+
+E-SAP-0096 (instance-58, sap233-entry) closes the E-SAP-0095 entry-path
+item. The sensor-poll function calls the stub `0x00092656`
+(`ldr r1,[sp,#8]; add.w r0,r6,#36; b.w 0x000a4e70`) — a **tail branch**,
+which is why the wrapper's `lr` is the caller's `0x000925db`. The stub
+overwrites the node argument with the **global container's sentinel**
+(`0x100331c0`) and inserts it into the object's own sensor list
+(`0x10029c44`, embedded at frame object `0x10029c20` +36). The trace
+shows both lineages in one poll pass: the sentinel insert
+(`lr=0x000925db`) and the ordinary node insert via the thunk
+(`lr=0x000925df`, steps 161/597). The spin's persistence is already
+pinned (frozen state across 5B instructions; the regime to 100.8 s) —
+the guest never unwinds the list. Next instance: a wake-during-spin
+probe (does any wake event change the code path and reach the display
+power-on trigger?). Trace byte-identical across three passes; no source
+change.
+
 ## Ticket 710 — the corruption fully named: the guest inserts a foreign list's sentinel into the sensor list, twice — 2026-10-17
 
 E-SAP-0095 (instance-57, sap233-alloc-trace) supersedes both prior

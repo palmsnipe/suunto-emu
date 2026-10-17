@@ -14294,3 +14294,58 @@ public machine API plus `src/boards/machine_internal.h` member access
 | `/tmp/sap233-spin/alloc_trace` (binary) | `f51fefb2707e21093d6c3b8d970e9f57d35d9a3cc1bbc387772ca9da4692abb9` |
 | `/tmp/sap233-spin/alloc-trace-1.log` = `alloc-trace-2.log` | `19cd0dc5c9aa4846685c1fb0d5b31cdd0187c8782d5f85a948315c2fa7855333` |
 
+
+## E-SAP-0096 - the entry path named: the sensor-poll loop tail-branches a stub that inserts the global sentinel into the object's own list (ticket 710, completes the E-SAP-0095 entry-path item)
+
+2026-10-17, ticket 710 instance-58 census (sap233-entry) continuing at
+769f9db. This closes the E-SAP-0095 "entry path" item. **The sentinel
+insert is reached by a tail branch, not a direct call — the stub's
+`lr` survives it — and the calling object is the sensor-poll loop
+itself, whose structure embeds the sensor list at `+36`.** No
+production change.
+
+Static decode (pristine application, same pinned hash):
+
+```
+0x000925d6: bl   0x00092656        ; in the sensor-poll function (frame r6)
+0x00092656: ldr  r1, [sp, #8]      ; stub: node arg from the caller stack
+0x00092658: add.w r0, r6, #36      ; container = the object's own list (+36)
+0x0009265c: b.w  0x000a4e70        ; TAIL BRANCH — lr (0x000925db) survives
+0x000a4e70: push {r3,r4,r5,lr}; r4=r0; r5=r1; assert r0!=0 else line 3027
+0x000a4e80: bl   0x000a4eca        ; returns (global->[+40], +24 sentinel)
+0x000a4e86: bl   0x000bb69c        ; insert(r4, foreign sentinel)
+```
+
+The stub overwrites the caller's `r1` node argument with the **global
+container's sentinel** and inserts it into the object's own list. The
+runtime trace confirms both lineages in the same `r6` frame:
+`lr = 0x000925db` at the wrapper (steps 47/485) and
+`lr = 0x000925df` at the separate thunk `0x00092760`
+(steps 161/597, `r0 = 0x10029c20 = the same object`, whose `+36` is the
+sensor list `0x10029c44`) — one sensor-poll pass performs both the
+sentinel insert and the ordinary node insert.
+
+Persistence (already pinned): the E-SAP-0092 chunked census shows the
+frozen spin state across 5B instructions / 50 ms with no remove-path
+execution, and the E-SAP-0090 window extends the same regime to
+100.8 s — **the guest never unwinds the corrupted list in the recorded
+windows**. The display power-on trigger therefore remains unreachable
+behind the spin unless a wake event changes the code path; that probe
+(wake-during-spin) is the next instance.
+
+Cross-checks: the trace is byte-identical across three passes
+(`19cd0dc5…`); the stub's container arithmetic matches every pinned
+register plane (`r6 + 36 = 0x10029c44` → `r6 = 0x10029c20`, seen in the
+thunk steps); the global container `0x100331a8` plus 24 is exactly the
+`0x100331c0` sentinel; and the assert line `0xbd3` (3027) sits in the
+port.c-tagged region. The emulator is exact throughout; the defect is
+entirely guest-owned (a shared global sentinel inserted into a
+per-object list on every poll pass, with no already-inserted guard).
+
+No repository file changed. Documentation-only instance:
+`make check-task-contracts` green, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/alloc-trace-3.log` (third identical pass) | `19cd0dc5c9aa4846685c1fb0d5b31cdd0187c8782d5f85a948315c2fa7855333` |
+
