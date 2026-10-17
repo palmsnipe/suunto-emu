@@ -14503,6 +14503,47 @@ Probes: `/tmp/sap233-spin/guarded_boot.c` `7d816b094ac4ae9bca0c081b0aef442ad8ed4
 probe-only 1M-budget run `guarded-boot-count3.log`
 `bc71efbafdf138ddd20d0754c90cf6270945b0ce108a039851179d9e5509e2a5`).
 
+
+## E-SAP-0101 - the poll loop is healthy: the display works, and the post-pinning gate is the touch gap (ticket 710, converges E-SAP-0091 and E-SAP-0100)
+
+2026-10-17, ticket 710 instance-63 census (sap233-countdown) continuing
+at 0dca929. This decodes the poll loop's wait condition and **converges
+the whole 2.33 chain onto the touch gap**:
+
+- The loop-exit check at `0x00092576` reads the object's `+56` word
+  (`0x10029c58`): a hold/pause flag, not an iteration counter. Under
+  the guarded boot it reads **0 at 44 of 47 samples** (briefly 1 during
+  the 15–30 s settings storm) — the loop body legitimately runs.
+- The sampled PCs across the guarded run cover the full poll pass
+  (`0x000a4e76` wrapper, `0x000bb5ec/bb5a2/bb5ba/bb6da/bb6ec` insert
+  internals, `0x00092576` the check, `0x000a552a` the result path):
+  the sensor task is **doing its job**, not wedged, once the corruption
+  is prevented.
+- The 88 frames (splash → widget-pinning open/close, gens 1–164) are
+  the pre-corruption display sequence and are unchanged by the guard.
+  The display power-on trigger was never broken — the display works.
+
+Corrected picture for the 2.33 UI: the guest reaches the widget-pinning
+screen (E-SAP-0086/0088/0089); its only exit paths are the middle-press
+slide-out and the double-tap pin action. The double-tap requires touch,
+and **no Sapporo touch evidence exists (E-SAP-0091)** — so the
+post-pinning flow is out of reach for evidence reasons, not because of
+the sentinel defect or the poll loop. E-SAP-0100's negative result and
+this entry together close the "what blocks the display" question:
+nothing blocks the display; what blocks new UI is the touch gap.
+
+The countdown word is a hold flag (`0x10029c58`): 0 = run, 1 = paused;
+its brief 1-values coincide with the settings storm, matching the
+E-SAP-0053-class cadence. No further machine-level census is indicated
+for this thread: the remaining gap is E-SAP-0091's touch evidence.
+
+Probe: `/tmp/sap233-spin/countdown.c` `1e856023cc517a5bd94abb89f677c76e48adeef0d51282ae2cb81a28d0dcc24e`,
+log `countdown-1.log` `7a988d4bb90578ff50c5c25010062897d53deb96f9d48fa9dde006853cfab809`
+(the probe used the temporary probe-only guard build; the layer does
+not ship — see E-SAP-0100). No repository file changed;
+documentation-only. `make check-task-contracts` green, `make check`
+green (208 markers, exit 0).
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 

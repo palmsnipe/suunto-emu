@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the poll loop is healthy; the display works; the post-pinning gate is the touch gap — 2026-10-17
+
+E-SAP-0101 (instance-63, sap233-countdown) decodes the poll loop's wait
+condition: the object's `+56` word (`0x10029c58`) is a hold flag (0 =
+run, 1 = paused), 0 at 44 of 47 guarded-boot samples — the loop body
+legitimately runs, covering the full poll pass (wrapper, insert
+internals, result path). The 88 frames are the pre-corruption display
+sequence, unchanged by the guard: **the display power-on trigger was
+never broken.** The 2.33 chain converges on E-SAP-0091: after the
+widget-pinning screen, the only new-UI exit is the double-tap pin
+action, which requires touch — and no Sapporo touch evidence exists.
+The "what blocks the display" question is closed; the remaining 2.33
+frontier is the touch evidence gap. Countdown census with the
+temporary probe-only guard build; layer still does not ship; twice
+verified against the reverted tree.
+
 ## Ticket 710 — the owner-authorized sentinel guard implemented and honestly rejected: the poll loop is a worker spin independent of the insert — 2026-10-17
 
 E-SAP-0100 (instance-62, sap233-guard), owner-authorized ("do it"):
