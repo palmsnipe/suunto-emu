@@ -6,6 +6,21 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — corruption mechanism refined: the guest double-allocated a live list node — 2026-10-17
+
+E-SAP-0094 (instance-56, sap233-alloc) corrects E-SAP-0093's
+free-then-reuse reading. The sentinel's `prev` word (`0x10029c50`)
+changes exactly twice in the whole boot: self-init at instruction
+12,607,300, then `0x100331c0` at instruction 1,286,879,200 — insert #1
+creating a live node there, never unlinked. The self-ring store at
+1,286,879,619 is **insert #2**, a second allocation of the same
+address: the walk landed on the still-linked live node, exited with the
+cursor equal to the new node, and self-linked its `prev`. The defect is
+the guest's allocator (or caller) handing out memory that is still in
+use; the emulator is exact throughout. All E-SAP-0093 machine pins
+stand. Next census: name the allocator call and its free-list state.
+Sentinel census byte-identical twice; no source change.
+
 ## Ticket 710 — the self-ring's provenance: the guest re-used a freed list node and the insert self-linked it — 2026-10-17
 
 E-SAP-0093 (instance-55, sap233-ring) closes the E-SAP-0092 follow-up.

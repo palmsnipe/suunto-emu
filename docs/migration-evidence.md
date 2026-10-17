@@ -14119,11 +14119,10 @@ hashes below; every pass byte-identical twice):
    (`0x100331c0`) was already linked as the sentinel's `prev` — the
    stale, freed node was still in the chain when its memory was reused.
 
-Attribution: the corrupting state is **guest-owned** — the 2.33
-application freed a list node, left it linked in the sentinel's `prev`
-chain, re-allocated the same address for a new node, and the insert
-completed against the stale link. This is the mechanism that produced
-the E-SAP-0092 infinite walk (node key 3, `prev` = self). The emulator
+Attribution: the corrupting state is **guest-owned**. The sentinel
+census (below) refines the mechanism: the node address was **never
+unlinked and re-used while live** — this is a guest double-allocation,
+recorded precisely in E-SAP-0094. The emulator
 executes every store exactly as the pinned bytes dictate; there is no
 engine seam, no fixture involvement (all five layers' hit counts match
 their pinned budgets in every probe log), and no compatibility
@@ -14151,4 +14150,70 @@ Documentation-only instance: `make check-task-contracts` green,
 | `/tmp/sap233-spin/ring-pin-a.log` | `12ee2cfd508a9b0f1fe9170bd485d6beb5f66dffa7c2109743513078f23a4d65` |
 | `/tmp/sap233-spin/ring-pin-b.log` = `ring-pin-b3.log` | `72914dd3ae64dcb16179d9ccfbf78b81bb0bc859c2f66f63da3a7091788711a2` |
 | `/tmp/sap233-spin/pre-ring.sems` | `f5f75472c69cd067d93624cfa5f3787ef61680c926e6df010b5e9a87a2ce71d2` |
+
+
+## E-SAP-0094 - the corruption mechanism refined: the guest double-allocated a live list node's address (ticket 710, corrects E-SAP-0093's free-then-reuse reading)
+
+2026-10-17, ticket 710 instance-56 census (sap233-alloc) continuing at
+4c74ae8. This corrects E-SAP-0093's attribution and names the exact
+mechanism. **The node address `0x100331c0` was never freed or unlinked:
+the guest allocated it twice, 419 instructions apart, for two live list
+nodes.** No production change.
+
+Evidence (all under `/tmp/sap233-spin/`, volatile; every pass
+byte-identical twice):
+
+1. **Sentinel-prev census** (`free_census.c` `26ef19774fa87d6eec2fd0c5c9bf9f05aa88466e456d64c1f2f9487168cf329f`,
+   binary `c4db06aadb65efa801b1b42757370af607a2fcc23c63a29141ed4bce1fe0e062`,
+   logs `free-census-1.log` = `free-census-2.log` sha256
+   `63c774e104f3747aef408ac8757d485eec0d32cf35fec1acdec6aab9e9d3873b`):
+   under the pinned 100-instruction chunk timeline the sentinel's
+   `prev` word at `0x10029c50` (sentinel `0x10029c4c`, from the phase-B
+   register plane) changes **exactly twice** in the whole 2G-instruction
+   walk: boot init `0x10029c4c` (self, at instruction 12,607,300 —
+   the container's creation) and **`0x100331c0` at instruction
+   1,286,879,200** — and then never again through the corruption. The
+   node at `0x100331c0` was a **live, linked list node from
+   1,286,879,200 onward**; no unlink and no free separate the two
+   inserts.
+2. **Cross-check against E-SAP-0093's records.** The bisect saw
+   `0x100331c4` become `0x10029c4c` (node->prev = sentinel) at exactly
+   instruction 1,286,879,200 — insert #1's own tail. Phase B began at
+   instruction 1,286,879,500 with `w1 = 0x10029c4c`, the value insert #1
+   wrote. The self-ring store at 1,286,879,619 is **insert #2**, a
+   second allocation of the same address: its walk loaded the live
+   node's key 3 (`cmp` equal, `bcs` taken once), exited with the cursor
+   equal to the live node, and `cursor->prev = new` self-linked the new
+   node's `prev` to itself (phase-B registers: `r1 = r3 = 0x100331c0`,
+   `r2 = r4 = 0x10029c4c`, `r5 = 0xffffffff`).
+
+Corrected mechanism chain: the guest's allocator returned `0x100331c0`
+for a second node while the first node at that address was still linked
+(the sentinel's `prev` still pointed at it). Insert #2 then walked onto
+the live node, exited with the cursor equal to the new node, and the
+tail store `cursor->prev = new` wrote `0x100331c0` into `0x100331c4` —
+the E-SAP-0092 infinite-walk state. The emulator is exact throughout;
+the defect is the guest's allocator handing out memory that is still in
+use (or its caller double-inserting), which machine-level facts alone
+cannot separate — naming the allocator call and its free-list state is
+the next census. The display power-on trigger remains behind this
+thread.
+
+E-SAP-0093's "freed list node still linked … use-after-free" sentence
+is hereby corrected by this entry: the address was never unlinked; it
+was allocated twice while live. All machine-level pins of E-SAP-0093
+(instruction counts, PCs, register planes, snapshot hash) stand
+unchanged.
+
+Verification: the sentinel census is byte-identical twice; the probe
+uses the public machine API plus `src/boards/machine_internal.h` member
+access (read-only), and no repository file changed.
+Documentation-only instance: `make check-task-contracts` green,
+`make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/free_census.c` | `26ef19774fa87d6eec2fd0c5c9bf9f05aa88466e456d64c1f2f9487168cf329f` |
+| `/tmp/sap233-spin/free_census` (binary) | `c4db06aadb65efa801b1b42757370af607a2fcc23c63a29141ed4bce1fe0e062` |
+| `/tmp/sap233-spin/free-census-1.log` = `free-census-2.log` | `63c774e104f3747aef408ac8757d485eec0d32cf35fec1acdec6aab9e9d3873b` |
 
