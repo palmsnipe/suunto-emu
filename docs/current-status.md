@@ -6,6 +6,35 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the guard-budget decision framework: three options, the rate cap recommended — 2026-10-18
+
+E-SAP-0116's fixture design leaves one owner decision: the sentinel
+guard's budget policy. The measured poll-cycle rate is
+**2.26–2.44M skips per virtual second** (E-SAP-0110/0113 probes), and
+the pinning flow needs the screen alive from ~5 s onward — any fixed
+per-run cap either starves the flow or is a magic number. The three
+options:
+
+1. **Per-run cap** (e.g. the probes' 2M): simplest, but starves the
+   flow after ~0.9 s of cycling and is a magic number.
+2. **Per-virtual-time rate cap (recommended)**: the layer refuses
+   once `hits > rate × (vt/1e9)` — bounded to the observed
+   2.26–2.44M/s plus headroom (e.g. 3M/s), scaling with the window,
+   and exhausting fail-closed if the guest ever cycles *faster* than
+   observed (an anomaly indicator, which is exactly what a budget
+   is for). Implementation: a small vt source added to the layer
+   context (the contexts currently carry no time source — a field +
+   the machine/scheduler pointer at bind time).
+3. **Owner-approved large fixed bound** (e.g. 250M for the
+   E-SAP-0090 100 s epoch): covers the known windows but does not
+   scale and hides an anomalous faster cycle.
+
+The decision changes only the layer's budget check and a context
+field; the goldens, the seed path, and the intervention body are
+unaffected. The remaining ship sequence after the decision: the
+layer source + red-first tests + the E-SAP-0107 goldens + the
+integrator review.
+
 ## Ticket 710 — the complete localStorage law: name → folded-FNV → registry node → `node.name + "/data.jsn"` — 2026-10-18
 
 E-SAP-0116 (instance-78, sap233-keylaw): the saveFile body
