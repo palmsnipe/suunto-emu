@@ -141,6 +141,21 @@ truncated both probes before the pin flow's deferred persistence —
 the budget policy is the gate for any longer window. No source
 change; tree clean and green.
 
+## Ticket 710 — the pin-outcome tie-breaker is budget-gated: the decisive probe needs a longer window — 2026-10-18
+
+The E-SAP-0109 caveat (down-bound-silent vs unbound) has a decisive
+instrument: the **pin outcome**. If the lower press moves the menu
+selection, a subsequent pin writes a *different* widget id to the
+`storage/<key>/data.jsn` JSON — observable content. But probe D
+(88 frames, no new storage writes) stopped at the 2M-skip guard
+budget before the pin flow's `setTimeout(…,500)` persistence could
+run, and the pin only fires when the selection reaches
+`targetData==2`. The tie-breaker therefore requires a longer window
+— which requires the **budget-policy decision first**. The same
+gate covers the shipped layer. Until the decision, the E-SAP-0109
+law stands as recorded (table order + probe consistency) and no
+further machine-level census can separate the two readings.
+
 ## Ticket 710 — the engine's button-name table is ordered up/next/down (ids 0/1/2), consistent with all three isolation probes — 2026-10-18
 
 E-SAP-0109 (instance-71, sap233-btnbind): the uiEngine's button-name
