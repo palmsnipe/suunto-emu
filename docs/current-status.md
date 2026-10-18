@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the folded FNV is the uiEngine's general string hash; the widget write goes through the file ABI but no read ever does — 2026-10-18
+
+E-SAP-0112 (instance-74, sap233-wstore): the folded FNV has six call
+sites (name routing; the `0x9db7c` site compares against `numbers`/
+`monospace` hashes — engine tables). The write/read asymmetry is
+pinned: the guest **writes** `storage/7ab0dd65/data.jsn` through the
+logical-file ABI in every window, but **no `storage/*` read or open
+ever appears** — including the 37.8 s guarded window covering the
+pinning view's activation. The `$.get('/Storage/Widgets')` read is
+served by the WbStorage manager or the engine's variable store, not
+the file ABI. A widget-settings fixture needs both halves: the
+retained write (already captured) and the WbStorage-class read path
+(the next instance's probe). No source change; tree clean and green.
+
 ## Ticket 710 — the storage-key hash law confirmed: case-insensitive FNV-1; `/Storage/Widgets` → `7ab0dd65` exactly — 2026-10-18
 
 E-SAP-0111 (instance-73, sap233-hash): the application carries two

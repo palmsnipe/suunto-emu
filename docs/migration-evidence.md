@@ -15024,3 +15024,47 @@ instance: `make check-task-contracts` green (171), `make check` green
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 
+
+
+## E-SAP-0112 - the folded FNV is the uiEngine's general string hash; the widget-settings write goes through the logical-file ABI but no read ever does — the asymmetry is recorded (ticket 710, instance-74, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-74 (sap233-wstore) continuing at
+4c4f050. Offline RE continues on the pinned application (same hash):
+
+1. **The folded FNV at `0x0007dcb4` is the uiEngine's general string
+   hash, not a storage-specific one.** Six call sites
+   (`0x82016`, `0x9b744`, `0x9db7c`, `0x9dbbc`, `0xd5462`,
+   `0x1acee0`) use it for name routing; the site at `0x9db7c`
+   compares the computed hash against two baked-in values
+   (`0x6664086d` and `0xb6077092`) that decode to the font/CSS names
+   `numbers` and `monospace` — engine-internal tables, not storage
+   keys. The E-SAP-0111 law (the storage layer hashes paths with
+   this same function) stands; the function's use is wider than the
+   storage path.
+2. **The write/read asymmetry is now pinned.** In every recorded
+   window the guest **writes** `storage/7ab0dd65/data.jsn` through
+   the logical-file ABI (create/write/close logged by the 2.33 files
+   layer), but **no read or open of any `storage/*` path ever
+   appears** — including the 37.8 s guarded run whose window covers
+   the pinning view's activation (5.07 s) and its `$.get`
+   (asynchronous). The `$.get('/Storage/Widgets')` read therefore
+   does **not** traverse the logical-file ABI; it is served by the
+   WbStorage manager (the `WbStoPreload` family the 2.39 layer
+   models) or the engine's variable store. The 2.33 files layer's
+   retained write is the persistence side; the read side is a
+   different layer.
+3. Consequence for the fixture: a widget-settings fixture needs
+   **both** halves — the retained `storage/7ab0dd65/data.jsn` write
+   (already captured) and the read-side path (WbStorage manager or
+   variable store), which is the 2.39 `WbStoPreload`-class mechanism
+   the firstboot layer's `WbStoPreload` rule already interacts with.
+   The read-side probe (WbStorage hook attached, guarded run to the
+   pinning view) is the next instance.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
