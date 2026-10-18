@@ -14711,6 +14711,59 @@ instance: `make check-task-contracts` green (171), `make check` green
 | resource `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
 | `filesystem-inventory/vsf-inventory.csv` | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
 
+
+## E-SAP-0105 - the widget-settings persistence is the `localStorage` → `%s/data.jsn` path, already captured in-session by the 2.33 files layer; the `$.get('/Storage/Widgets')` mapping is the remaining boundary (ticket 710, instance-67, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-67 (sap233-wstorage) continuing at
+9b56da8. Offline RE on the pinned application plus a re-analysis of
+the retained 2.33 run logs:
+
+1. **The JS `localStorage` maps keys to native `%s/data.jsn` files.**
+   The application contains the format string `%s/data.jsn` (VA
+   `0x780d4`) immediately before `localStorage: reading %s failed`
+   (`0x780f0`-ish) — the ScriptingContext persists JS storage keys as
+   `<key>/data.jsn` native files. The 2.39 shape law
+   (`storage/<hex>/data.jsn`, ticket 796) is the same family.
+2. **The retained 2.33 logs show the guest actively creating and
+   writing these files.** In `frames-buttons-1.log` (sha256
+   `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713`),
+   eleven distinct `storage/<hex>/data.jsn` keys are created/written —
+   `7ab0dd65` (772 bytes, written once at vt 3.19 s), `38d123` (34 B),
+   `bff517c6` (96 B), `ac100d90` (7 B), and seven single-open keys —
+   all captured by the 2.33 files layer's create/retain path (the
+   layer's `is_create` admission already covers them; the earlier
+   capacity raise, E-SAP-0076, sized for this). `splash-resume-1.log`
+   (sha256 `e849068946e2dc4e0304f3f1af35fba567505a7ff41b721a38256c401a91d150`)
+   shows `bff517c6` rewritten (94+2 B) on the resumed boot.
+3. **No `storage/*` READ appears anywhere in the recorded windows** —
+   the pinning view's `$.get('/Storage/Widgets')` does not surface as
+   a logical-file read in the 45 s button window (the pinning screen
+   is open from ~5 s). Two possible mappings remain: the request is
+   served from the layer's retained cache without a logged read, or
+   it routes through the **WbStorage manager** (`WbStorageManagerProvider.cpp`
+   tag at VA `0x113a62`, the `WbStoPreload` family the 2.39 layer
+   already models) rather than the logical-file ABI. Distinguishing
+   them is a machine-level probe on a guarded run that reaches the
+   pinning view with the WbStorage hook attached.
+4. The hash inputs for the observed keys (`7ab0dd65`, `55edeeba`,
+   `38d123`, `bff517c6`, …) are not derivable from the candidate
+   names (`Widgets`, `/Storage/Widgets`, `settings/widgets`, …) under
+   FNV-1/FNV-1a — the key derivation lives in the ScriptingContext
+   code near the `%s/data.jsn` format and is the next RE item.
+
+Consequence: the widget-pinning fixture is a **storage-layer fixture**
+(shape: seed/retain `storage/<key>/data.jsn` with the observed
+contents), and the mechanism already exists in-tree for 2.33 creates;
+the open item is tying the `/Storage/Widgets` request to its key and
+confirming the read path. No repository file changed;
+documentation-only. `make check-task-contracts` green (171),
+`make check` green (208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `frames-buttons-1.log` (volatile) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
+| `splash-resume-1.log` (volatile) | `e849068946e2dc4e0304f3f1af35fba567505a7ff41b721a38256c401a91d150` |
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 

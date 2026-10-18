@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — widget settings persist as `localStorage` → `%s/data.jsn`; the keys are already captured in-session by the 2.33 files layer — 2026-10-18
+
+E-SAP-0105 (instance-67, sap233-wstorage): the application's
+ScriptingContext maps JS storage keys to native `%s/data.jsn` files
+(VA `0x780d4`), and the retained 2.33 logs show **eleven distinct
+`storage/<hex>/data.jsn` keys** created/written in the button window
+(`7ab0dd65` 772 B at vt 3.19 s, `38d123` 34 B, `bff517c6` 96 B, …) —
+all already retained by the 2.33 files layer's create path. No
+`storage/*` read appears in any recorded window; whether
+`$.get('/Storage/Widgets')` is served from the retained cache or
+routes through the WbStorage manager (the `WbStoPreload` family) is
+the remaining boundary, decidable with one guarded probe reaching the
+pinning view. The hash inputs for the observed keys are not guessable
+(FNV-1/1a over the obvious names miss) and live in the
+ScriptingContext code. No source change.
+
 ## Ticket 710 — the 2.33 UI is XML views with inline JS; the pinning flow is button-driven and hinges on a `/Storage/Widgets` logical-file response — 2026-10-18
 
 E-SAP-0104 (instance-66, sap233-ui-re): the resource partition stores
