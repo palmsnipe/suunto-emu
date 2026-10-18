@@ -14872,6 +14872,44 @@ build was removed after the probes; the tree is clean and green
 | `/tmp/sap233-spin/probeC-1.log` | `4d4cc29c1322df5dea14fd2c4f65bf3cef4b212f5020e0e62b85a8d86b38dd72` |
 
 
+## E-SAP-0109 - the engine's button-name table is ordered up/next/down (ids 0/1/2), consistent with the probe results; the name→id law is recorded with its caveat (ticket 710, instance-71, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-71 (sap233-btnbind) continuing at
+cc82e44. Offline RE on the pinned application (same hash) resolves
+the E-SAP-0108 button-name question to the evidence the image
+carries:
+
+1. **The engine's button-name pointer table is ordered `up`, `next`,
+   `down`** at VA `0x1b5c20/0x1b5c24/0x1b5c28` (consecutive literal
+   words pointing at the interned strings `0x1bc8ec`, `0x1bba78`,
+   `0x1bba80`), followed by `upleft`/`downleft` — the uiEngine's
+   button-position enum order.
+2. **If the enum order is the button-id order** (0/1/2 = the
+   E-SAP-BUTTONS-001 firmware ids), the binding is: **UPPER(0) → `up`,
+   MIDDLE(1) → `next`, LOWER(2) → `down`.** This is consistent with
+   all three isolation probes: probe A's middle presses drove the
+   `next` handler (`select('#menu')` — the observed toggle/selection
+   flow), probe B's lower presses drove `down`
+   (`first('#vs-h')`/`returnToWf()` — an internal selection change
+   with no rendered frame, matching the inert record), and probe C's
+   upper presses drove `up` — absent from the `s-cu-widgpin` view,
+   hence inert.
+3. **Caveat recorded honestly:** the table order proves the enum
+   sequence, not the id assignment; the id→enum mapping lives in the
+   dispatcher code (not yet located). The probes' behaviors are
+   *consistent with* 0/1/2 but a middle+lower sequence probe (press
+   both, watch which handler's effect lands first) is the empirical
+   tie-breaker if the law ever needs to be pinned for a fixture.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
+
 ## E-SAP-0107 - the pinning-flow probe reproduced byte-identically: the 203-frame record and all four settled CRCs are pinned twice (ticket 710, instance-69)
 
 2026-10-18, ticket 710 instance-69 (sap233-pinflow2) continuing at

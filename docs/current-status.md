@@ -6,6 +6,19 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the engine's button-name table is ordered up/next/down (ids 0/1/2), consistent with all three isolation probes — 2026-10-18
+
+E-SAP-0109 (instance-71, sap233-btnbind): the uiEngine's button-name
+pointer table at `0x1b5c20/24/28` is ordered `up`, `next`, `down` —
+if the enum order is the button-id order, UPPER→`up`,
+MIDDLE→`next`, LOWER→`down`, which is consistent with all three
+E-SAP-0108 probes (middle drove the `next` select flow, lower drove
+`down`'s silent internal selection, upper drove the view-absent
+`up`). The caveat is recorded: the table proves the enum sequence,
+not the id assignment; the dispatcher code is the remaining piece,
+and a middle+lower sequence probe is the empirical tie-breaker.
+No source change; tree clean and green.
+
 ## Ticket 710 — the middle button toggles the pinning screen; lower and upper are inert; the E-SAP-0106 sequences were toggles — 2026-10-18
 
 E-SAP-0108 (instance-70, sap233-buttons): three isolation probes on
