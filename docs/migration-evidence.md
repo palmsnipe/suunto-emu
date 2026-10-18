@@ -14608,6 +14608,60 @@ instance: `make check-task-contracts` green (171), `make check` green
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 
+
+## E-SAP-0103 - the TMA5xx driver's gesture thresholds are native code, its I/O is vtable-bus-agnostic, and no touch-controller probe runs in any recorded window (ticket 710, instance-65, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-65 (sap233-touch-io) continuing at
+ef72950. Offline RE continues on the pristine application (same pinned
+hash) plus a machine-level census. Three findings:
+
+1. **The gesture classification is native code with pinned thresholds**
+   (VA `0x00128412..0x00128486`): a squared-distance helper
+   (`dx²+dy²`), a tap gate at distance ≤ 145, a hold gate at ≥ 901
+   (`movw r1,#901`), a flick gate at ≥ 180, and a second gate at ≥ 100
+   — the native layer classifies tap/hold/flick before the duktape
+   `_onDoubleTap`/`_onFlick*` callbacks (E-SAP-0102) are invoked.
+2. **The driver's I/O is bus-agnostic by construction**: the
+   register-access path dispatches through function pointers
+   (`blx r2`/`blx r4` via loaded vtables at `0x0012828a..0x001282ae`),
+   and the file tag `TMA5xxDriver.cpp` (`0x1283e4`) plus the
+   `BUG25644-Touch: Read failure` diagnostic (`0x128324`) have **no
+   absolute literal references anywhere in the application** — all
+   reaches are pc-relative or table-indexed. The driver's bus/address
+   are therefore runtime configuration, not constants in the image.
+3. **No touch-controller probe runs in any recorded window.** A
+   30B-instruction device-config census over all eight IOM instances
+   (`iom_census.c` `f6854b06ec6f68f8941f13aaf9e5ca60266342b0700d5de6e0042ac254a64899`,
+   log `iom-census-1.log` `9d0ab0b85e971a4c8c56a2983dbf212e4bd0d2dcbe794fe9110e358475444400`,
+   six layers with the temporary 2M-budget guard build) sampled
+   `0x40050000+n*0x1000+0x2c4` every 10M instructions: **zero changes
+   from reset values in 2.1B instructions** (the run stopped at the
+   guard budget, vt 37.9 s; the sampler is transient-insensitive, but
+   combined with the E-SAP-0091 command-hook census — 410 requests,
+   addresses 0x28/0x36/0x48/0x45/0x10/0x35 only, no touch address —
+   and E-SAP-0099's hung-task finding, any touch probe after 1.29B
+   instructions cannot execute). The TMA5xx controller's init and
+   probe schedule are unreachable in every recorded window.
+
+Consequence: a TMA5xx device-level fixture (shape (a) in E-SAP-0102)
+has no reachable transcript to copy — the controller is never probed.
+The only evidence-compatible touch intervention remains shape (b): an
+input-level `TouchEvent` delivery into `touchBuffer` at the uiEngine
+boundary, whose queue layout is the next RE item. The gesture
+thresholds (this entry) additionally pin what the native layer expects:
+a double-tap is two contacts within 145 squared-distance units and a
+hold beyond 901, measured on the event coordinates.
+
+No repository file changed (the temporary guard build was removed;
+the tree is clean, `make check` 208 markers/exit 0,
+`make check-task-contracts` 171 green).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/iom_census.c` | `f6854b06ec6f68f8941f13aaf9e5ca60266342b0700d5de6e0042ac254a64899` |
+| `/tmp/sap233-spin/iom-census-1.log` | `9d0ab0b85e971a4c8c56a2983dbf212e4bd0d2dcbe794fe9110e358475444400` |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 

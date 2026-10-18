@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the TMA5xx gesture thresholds are native, the driver's I/O is vtable-bus-agnostic, and no touch probe runs in any recorded window — 2026-10-18
+
+E-SAP-0103 (instance-65, sap233-touch-io): the native layer classifies
+gestures before the duktape callbacks — squared-distance gates at ≤145
+(tap), ≥901 (hold), ≥180/≥100 (flicks) at `0x00128412..0x00128486`;
+the driver's register path dispatches through vtables (bus-agnostic),
+and the `TMA5xxDriver.cpp`/`BUG25644-Touch` strings have zero absolute
+references (pc-relative/table-indexed reaches). A 30B-instruction
+device-config census over all eight IOM instances shows zero changes
+from reset — combined with E-SAP-0091 (no touch address in the 410
+requests) and E-SAP-0099 (hung task), the touch probe never runs.
+A device-level TMA5xx fixture therefore has no transcript to copy;
+the only evidence-compatible intervention is an input-level
+`TouchEvent` delivery into `touchBuffer`, whose queue layout is the
+next RE item. No source change; tree clean and green.
+
 ## Ticket 710 — the touch path decoded: a TMA5xx-class driver with a self-test, a `touchBuffer` queue, and duktape JS callbacks — 2026-10-18
 
 E-SAP-0102 (instance-64, sap233-touch-re), owner-authorized offline RE
