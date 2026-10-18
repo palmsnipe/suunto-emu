@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the sequence probe: the lower press is frame- and storage-silent; frames cannot separate down-bound-silent from unbound — 2026-10-18
+
+E-SAP-0110 (instance-72, sap233-seq): the E-SAP-0109 tie-breaker —
+guarded boot with lower 6.5 s between the opener and a middle press —
+yields 88 frames (open at 5.07 s, closed at 9.06 s) and a storage
+census identical to probe A's: the lower press has no frame-visible
+or storage-visible effect. The readings "down-bound-but-silent" and
+"unbound" remain inseparable without a guest-RAM menu-index read or
+the pin-outcome JSON (neither written in-window); E-SAP-0109's law
+stands as recorded with the ambiguity named. The guard budget also
+truncated both probes before the pin flow's deferred persistence —
+the budget policy is the gate for any longer window. No source
+change; tree clean and green.
+
 ## Ticket 710 — the engine's button-name table is ordered up/next/down (ids 0/1/2), consistent with all three isolation probes — 2026-10-18
 
 E-SAP-0109 (instance-71, sap233-btnbind): the uiEngine's button-name

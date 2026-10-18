@@ -14942,3 +14942,42 @@ No repository file changed; documentation-only instance.
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 
+
+## E-SAP-0110 - the sequence probe: the lower press is frame-silent and storage-silent on the pinning screen; the frames cannot separate down-bound-but-silent from unbound (ticket 710, instance-72)
+
+2026-10-18, ticket 710 instance-72 (sap233-seq) continuing at
+807fe00. The E-SAP-0109 tie-breaker probe (`probeD.c`
+`8997e3d39ccb9719889b0697cc9114efa42d1210d453f01e77f2182c97ae90b5`,
+log `probeD-1.log` `0df42abee482fe3c2ad0c0b8c55907cd50b7629d9c6419ca24ceecc811806a5f`,
+single pass): guarded boot, middle 4.5 s (opens the pinning screen),
+**lower 6.5 s**, middle 8.5 s, to the guard-budget stop.
+
+Result: **88 frames** — open at 5.07 s (`8c1a1613`), closed at
+9.06 s (`2a01c517`), nothing else. The 6.5 s lower press produced no
+frame-visible effect, and the 8.5 s middle press behaved exactly like
+probe A's plain toggle-close. The storage-write census is identical
+to probe A's (16 boot-time ops, nothing after 3.2 s): neither the
+lower press nor the middle select produced a persistence write in
+the window.
+
+Two readings remain, and the frames plus the storage layer cannot
+separate them: **(a)** lower is bound to `down`
+(`first('#vs-h')`/`returnToWf()`) whose effect is an internal
+selection change with no render, or **(b)** lower is unbound in this
+view. The decisive instruments are a guest-RAM read of the menu
+selection index (deep heap RE) or the pin-outcome JSON (not written
+in either window). E-SAP-0109's law therefore stands as recorded —
+table order plus probe consistency — with this entry naming the
+frames-level ambiguity. The guard-budget stop (vt 37.86 s) also
+means the pin flow's deferred persistence (`setTimeout(…,500)` then
+the storage write) was never reached in either timeline; a longer
+window requires the budget policy first.
+
+The temporary guard build was removed; the tree is clean and green
+(`make check` 208 markers/exit 0, `make check-task-contracts` 171).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/probeD.c` | `8997e3d39ccb9719889b0697cc9114efa42d1210d453f01e77f2182c97ae90b5` |
+| `/tmp/sap233-spin/probeD-1.log` | `0df42abee482fe3c2ad0c0b8c55907cd50b7629d9c6419ca24ceecc811806a5f` |
+
