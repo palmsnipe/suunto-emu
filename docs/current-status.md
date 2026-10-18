@@ -6,6 +6,23 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the touch path decoded: a TMA5xx-class driver with a self-test, a `touchBuffer` queue, and duktape JS callbacks — 2026-10-18
+
+E-SAP-0102 (instance-64, sap233-touch-re), owner-authorized offline RE
+on the pinned 2.33 application: the touch controller is a
+**TMA5xx-class part** (`TMA5xxDriver.cpp` + a POST diagnostic block:
+`touch self state`, `scanEN`, `TtCfgCRC`, …) — not a simple I2C
+sensor; the event queue is named **`touchBuffer`**; the UI consumes
+events through **uiEngine.cpp's** name registry (`_onTouchEvent`,
+`_onTap`, `_onDoubleTap`, flick/long-tap variants) into **duktape JS
+callbacks** — the double-tap recognition is JS, not native code. No
+touch-controller probe appears in any recorded boot window, consistent
+with E-SAP-0091. Fixture consequences: a touch intervention is either a
+full TMA5xx device bring-up (needs the driver's init entry, bus,
+address — not yet located) or an input-level `TouchEvent` delivery
+into `touchBuffer` (weaker class). Next instance: the driver's init
+entry/bus/address and the queue layout. No source change.
+
 ## Ticket 710 — the poll loop is healthy; the display works; the post-pinning gate is the touch gap — 2026-10-17
 
 E-SAP-0101 (instance-63, sap233-countdown) decodes the poll loop's wait

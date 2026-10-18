@@ -14537,12 +14537,76 @@ its brief 1-values coincide with the settings storm, matching the
 E-SAP-0053-class cadence. No further machine-level census is indicated
 for this thread: the remaining gap is E-SAP-0091's touch evidence.
 
-Probe: `/tmp/sap233-spin/countdown.c` `1e856023cc517a5bd94abb89f677c76e48adeef0d51282ae2cb81a28d0dcc24e`,
+Probes: `/tmp/sap233-spin/countdown.c` `1e856023cc517a5bd94abb89f677c76e48adeef0d51282ae2cb81a28d0dcc24e`,
 log `countdown-1.log` `7a988d4bb90578ff50c5c25010062897d53deb96f9d48fa9dde006853cfab809`
 (the probe used the temporary probe-only guard build; the layer does
 not ship — see E-SAP-0100). No repository file changed;
 documentation-only. `make check-task-contracts` green, `make check`
 green (208 markers, exit 0).
+
+
+## E-SAP-0102 - the 2.33 touch path is a software event system over a TMA5xx-class driver, not a simple sensor probe: the offline-RE census of the pinned application (ticket 710, instance-64, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-64 (sap233-touch-re) continuing at
+aa607c0. Owner-authorized offline RE ("do it" selecting the
+evidence-first option) on the pristine application
+(`component-04-type-4-v2.raw` sha256
+`ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5`,
+the profile-pinned 2.33 component, static string/table analysis with
+arm-none-eabi-objdump 2.47.20260726). Four load-bearing facts:
+
+1. **The touch controller is a TMA5xx-class part with a self-test.**
+   The application contains `TMA5xxDriver.cpp` (file tag at VA
+   `0x1283e4`) and a POST diagnostic block: `touch self state: %u %u`
+   followed by `postlVddaCheck:`, `scanEN:`, `postlAutoShort:`,
+   `postlTtCfgCRC:`, `postWdtRest:`, `posthSGMT:`, `psothAutoShort:`
+   (VA `0x128340..0x1283e4`) — a Synaptics TMA5xx-class touch
+   controller with a power-on self-test, not a simple I2C sensor.
+2. **The UI consumes touch through a software event registry.**
+   `uiEngine.cpp` (VA `0x739d0`) owns the JS callback-name table
+   `_onTouchEvent`, `_onButtonEventUp`, `_onTap`, `_onTwoFingerTap`,
+   `_onDoubleTap`, `_onLongTapStart`, `_onLongTapFull`, `_onLongTap`
+   (VA `0x739dc..0x73a50`), and a duplicate 16-byte-slot name table at
+   VA `0x1b9b84..0x1b9c24` (`_onClickNext`, `_onDoubleTap`,
+   `_onFlickDown/Right/Left`, `_onTwoFingerTap`, `_onLongTapStart`,
+   `_onLongTapFull`, `_onTouchEvent`, `_onValueChanged`,
+   `setTransform`) followed by an event-type bit-flag table
+   (1, 2, 4, 8, 16, … at `0x199b1c`). The handler names route through
+   duktape (`duktapePointerCompression.c`, `duktapeMemoryPool.cpp`
+   tags): **the double-tap recognition is a JS `_onDoubleTap`
+   callback, not native gesture code.**
+3. **The event queue is named `touchBuffer`** (global name at VA
+   `0x48b5b`), and the driver's resource/capability name is
+   `hw_touch_1` (VA `0x13dbd3`, `0x1ba463`). Delivery is
+   driver → `touchBuffer` → uiEngine → JS callbacks; there is no
+   direct register-poll consumer.
+4. **No touch-controller probe appears in any recorded boot window.**
+   No absolute or pool literal references to the TMA5xx/uiEngine
+   strings were found outside their regions (the code reaches them
+   pc-relatively), the E-SAP-0091 IOM census saw no touch-address
+   transaction, and the peripheral map's "touch provider … status
+   200" listener is consistent with a driver that initializes but
+   whose controller probe is absent or gated behind a later stage
+   (the probe schedule is not yet located).
+
+Consequence for the fixture question: a touch intervention is **not**
+a device probe fixture on an IOM bus — the honest shapes are either
+(a) modeling the TMA5xx controller (its I2C interface, address, and
+init transcript — a full device bring-up needing the probe schedule
+the RE has not yet located), or (b) an input-level fixture that
+delivers a `TouchEvent` into `touchBuffer` at the uiEngine boundary
+(weaker class, but matching how the guest actually consumes touch).
+Deciding between (a) and (b) requires the next RE instance: the
+driver's init entry, bus, and I2C address, and the `touchBuffer`
+queue layout.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
