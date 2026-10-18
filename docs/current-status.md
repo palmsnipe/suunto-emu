@@ -6,6 +6,21 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the post-pinning UI is ALIVE under the guard: buttons drive three new UI sequences — 2026-10-18
+
+E-SAP-0106 (instance-68, sap233-pinflow): the decisive experiment —
+guarded cold boot + a button timeline on the widget-pinning screen —
+shows **203 frames** (vs 88 unguarded) with three new UI sequences
+(settled CRCs `be2e42b7` at 8.98 s, `f733f76e` at 10.13 s) that the
+unguarded firmware never reaches. The corruption WAS blocking the
+post-pinning UI; E-SAP-0100's negative result came from a timeline
+that ended before the screen opened. The widget-settings writes are
+unchanged (no storage reads — the `$.get` data is served from the
+retained cache or the variable store). The layer still does not ship;
+before any fixture: a second byte-identical pass, settled-CRC goldens,
+the guard-budget policy, and the view's `next`/`down` button-name
+mapping. Probe retained under `/tmp/sap233-spin/`; tree clean.
+
 ## Ticket 710 — widget settings persist as `localStorage` → `%s/data.jsn`; the keys are already captured in-session by the 2.33 files layer — 2026-10-18
 
 E-SAP-0105 (instance-67, sap233-wstorage): the application's

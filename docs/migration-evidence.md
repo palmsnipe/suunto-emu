@@ -14764,6 +14764,65 @@ documentation-only. `make check-task-contracts` green (171),
 | `frames-buttons-1.log` (volatile) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
 | `splash-resume-1.log` (volatile) | `e849068946e2dc4e0304f3f1af35fba567505a7ff41b721a38256c401a91d150` |
 
+
+## E-SAP-0106 - the post-pinning UI is ALIVE under the guard: buttons drive three new UI sequences the unguarded firmware never reaches (ticket 710, instance-68)
+
+2026-10-18, ticket 710 instance-68 (sap233-pinflow) continuing at
+10a3161. The decisive experiment the previous instances set up:
+**guarded cold boot + a button timeline on the widget-pinning screen.**
+Result: **the post-pinning UI works with buttons.** The probe
+(`pinning_probe.c` `9abfb0374a7dcf9a9ca748188ffe06740d28ccf8c29e21c13e2a341938116375`,
+log `pinning-probe-1.log` `958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692`,
+single pass so far) runs the six-layer guarded boot and presses:
+middle 4.5/4.8 s (opens the pinning screen), lower 6.0/6.3 s (`next`),
+middle 7.0/7.3 s (`select`), lower 8.5/8.8 s, middle 9.5/9.8 s, upper
+11.0/11.3 s.
+
+- **203 frames publish** (vs 88 in every unguarded run) — three new
+  UI sequences the unguarded firmware never reached: an animation at
+  7.37–7.55 s, another at 8.85–8.98 s, a third at 9.84–10.13 s, each
+  settling to a distinct state (CRCs `be2e42b7` at 8.982 s,
+  `f733f76e` at 10.130 s — new settled states).
+- The unguarded-corruption frame at 7.551 s (`2a01c517`, black) is a
+  transition, not a hang: frames resume immediately after.
+- The widget-settings writes are unchanged (the four `storage/<key>/data.jsn`
+  creates at 2.75–3.19 s, identical to E-SAP-0105's census) — **no
+  storage read appears even with the flow alive**, consistent with
+  the `$.get('/Storage/Widgets')` data being served from the files
+  layer's retained cache (created at 3.19 s, read back silently) or
+  the UI-engine variable store; no new native I/O is required.
+- The run ends at the guard budget (`stop=8` at inst 3,285,885,019,
+  vt 37.8 s — 2M skips consumed by the ~2.3M/s poll cycle), which is
+  the probe's own bound, not a guest stop.
+- The upper press at 11 s produces no frames: either the view ignores
+  it or it exited to the display-off state; the mapping of the view's
+  `next`/`down` pushButton names to the semantic buttons is the next
+  census item.
+
+This reverses the E-SAP-0100 conclusion's practical weight: the
+sentinel corruption was blocking the post-pinning UI after all — the
+E-SAP-0100 probe never pressed buttons *on the pinning screen* (its
+timeline ended before the screen opened), so the flow appeared dead.
+With the guard active and buttons pressed, the UI is interactive
+end-to-end: **the display works, the pinning screen opens, and the
+buttons navigate it.** The layer still does not ship (the tree is
+reverted clean; this entry documents the probe build).
+
+Remaining before any fixture ships: (1) a second byte-identical pass
+of this probe, (2) the settled-frame CRCs pinned as goldens with the
+guard's own budget question resolved (the poll cycle consumes skips
+at ~2.3M/s, so a session bound must come from the owner), and (3) the
+`next`/`down` button-name mapping census. The probe binary and source
+are retained under `/tmp/sap233-spin/`.
+
+No repository file changed; documentation-only. `make check-task-contracts`
+green (171), `make check` green (208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/pinning_probe.c` | `9abfb0374a7dcf9a9ca748188ffe06740d28ccf8c29e21c13e2a341938116375` |
+| `/tmp/sap233-spin/pinning-probe-1.log` | `958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692` |
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 
