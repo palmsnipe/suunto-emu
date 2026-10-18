@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the 2.33 UI is XML views with inline JS; the pinning flow is button-driven and hinges on a `/Storage/Widgets` logical-file response — 2026-10-18
+
+E-SAP-0104 (instance-66, sap233-ui-re): the resource partition stores
+the 2.33 UI as plaintext XML views with inline JS — 28
+`<onDoubleTap>` handlers open `s-cu-widgpin` when `{PIN_WIDG}==1`.
+The `s-cu-widgpin` view (offset `0x3c7f00`) issues
+**`$.get('/Storage/Widgets')`** (a logical-file request the native
+storage must answer with `{arrayData:[{id,pin},…]}`) and its pin flow
+is **button-driven** (`next`/`down` pushButtons; `pinNewWidg()` in an
+onIdle/setTimeout path). `touchBuffer` is an interned duktape string,
+not a C global. The fixture question narrows to the `/Storage/Widgets`
+response: its native backing (file name, schema, and the `PIN_WIDG`
+default) is the remaining RE. No source change.
+
 ## Ticket 710 — the TMA5xx gesture thresholds are native, the driver's I/O is vtable-bus-agnostic, and no touch probe runs in any recorded window — 2026-10-18
 
 E-SAP-0103 (instance-65, sap233-touch-io): the native layer classifies

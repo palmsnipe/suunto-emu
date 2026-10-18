@@ -14662,6 +14662,55 @@ the tree is clean, `make check` 208 markers/exit 0,
 | `/tmp/sap233-spin/iom-census-1.log` | `9d0ab0b85e971a4c8c56a2983dbf212e4bd0d2dcbe794fe9110e358475444400` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 
+
+## E-SAP-0104 - the 2.33 UI is XML views with inline JS in the resource partition; the widget-pinning flow is button-driven and depends on a `/Storage/Widgets` logical-file response (ticket 710, instance-66, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-66 (sap233-ui-re) continuing at
+6c7c7d3. Offline RE on the resource partition
+(`component-05-type-1-v3.raw` sha256
+`b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5`,
+plaintext-capable; the VSF inventory CSV sha256
+`7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291`):
+
+1. **`touchBuffer` is an interned duktape-heap string** (VA `0x48b5b`
+   in the identifier pool next to `totalenergy`/`trainingLoadPeak`),
+   not a C global: no absolute literal or pc-relative reference exists
+   in the application. The C producer is the TMA5xx driver; the
+   consumer is the uiEngine.
+2. **The entire 2.33 UI logic is XML view files with inline JS,
+   stored plaintext in the resource partition.** 28 `<onDoubleTap>`
+   handlers are present; the pattern is
+   `if({PIN_WIDG}==1){open('s-cu-widgpin');}` — a double-tap opens the
+   widget-pinning view **only when the `PIN_WIDG` variable is set**.
+3. **The widget-pinning view is `s-cu-widgpin`** (definition at
+   resource offset `0x3c7f00..0x3c8600`): its `<onActivate>` issues
+   **`$.get('/Storage/Widgets', …)`** — a logical-file request the
+   native storage layer must answer with the JSON
+   `{arrayData:[{id,pin},…]}` — and its pin flow is **button-driven**
+   (`<userInput>` pushButton `next` → `select('#menu')`, `down` →
+   `first('#vs-h')`/`returnToWf()`), with `pinNewWidg()` persisting in
+   an `<onIdle>`/`setTimeout(…,500)` path. The prompt text
+   (`Double tap the screen to pin a widget.`, hash key `945ee51b`)
+   sits in a translation table at `0xef0ef4`.
+4. Consequently the machine-level fixture question narrows to **the
+   `/Storage/Widgets` logical-file response**: the 2.33 files layer
+   (E-SAP-0069) seeds `settings/ui.txt` and models the
+   `settings/*` ABI, but `Storage/Widgets` is a new path whose native
+   backing (file name, schema, and whether the pre-pinning `PIN_WIDG`
+   variable defaults to 1) is the remaining RE. The native
+   `TouchEvent`→`touchBuffer`→uiEngine dispatch is upstream of the JS
+   and not needed for a *button-driven* fixture if `PIN_WIDG` is
+   provisioned by the same storage.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| resource `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `filesystem-inventory/vsf-inventory.csv` | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.
 
