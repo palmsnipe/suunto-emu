@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the checker census: 206 boot-time WbStoPreload hits, zero after 2.82 s; the widget-settings read is neither the file ABI nor the checker — 2026-10-18
+
+E-SAP-0113 (instance-75, sap233-checker): an instrumented guarded run
+(probe-only firstboot logging every `0x119734` hit) shows the shared
+startup-client checker fires 206 times, all status 200, all within
+vt 0.039–2.816 s — the startup wave only. The pinning view's
+`$.get('/Storage/Widgets')` (active from 5.07 s) never touches it.
+With E-SAP-0112 (no logical-file read), the widget-settings read is
+served by the WbStorage manager's own command path or the engine's
+variable store — a deeper RE. The write side stays the logical-file
+ABI (already captured). Instrument observation-neutral (203 frames,
+16 storage ops, matching E-SAP-0106/0107); tree reverted clean and
+green.
+
 ## Ticket 710 — the folded FNV is the uiEngine's general string hash; the widget write goes through the file ABI but no read ever does — 2026-10-18
 
 E-SAP-0112 (instance-74, sap233-wstore): the folded FNV has six call

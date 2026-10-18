@@ -15068,3 +15068,34 @@ instance: `make check-task-contracts` green (171), `make check` green
 | Artifact | SHA-256 |
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
+
+## E-SAP-0113 - the WbStoPreload checker census: 206 boot-time hits (all status 200), zero after 2.82 s — the widget-settings read is neither the logical-file ABI nor the startup-client checker (ticket 710, instance-75)
+
+2026-10-18, ticket 710 instance-75 (sap233-checker) continuing at
+65132aa. The instrumented guarded run — the E-SAP-0106/0107 pinning
+timeline with a probe-only `sapporo_233_firstboot.c` that logs every
+hit of the shared startup-client checker (`0x119734`, name/command/
+status) — produces:
+
+1. **206 checker hits, all inside vt 0.039–2.816 s**, all status
+   **200**, 48 distinct name pointers, commands 200 — the startup
+   wave only. **Zero hits after 2.82 s**, including the entire
+   pinning-view window (5.07 s onward).
+2. The 203-frame record and the 16 storage operations reproduce
+   E-SAP-0106/0107 exactly — the instrument is observation-neutral.
+3. **Consequence**: the pinning view's `$.get('/Storage/Widgets')`
+   neither traverses the logical-file ABI (E-SAP-0112) nor the
+   shared startup-client checker (this entry). The widget-settings
+   read is served by the WbStorage manager's own command path (the
+   `WbStorageManagerProvider.cpp` region — a deeper RE) or the
+   engine's variable store. The write side remains the
+   logical-file ABI (already captured).
+
+The instrumented firstboot source and the temporary guard were
+removed after the run; the tree is clean and green (`make check`
+208 markers/exit 0, `make check-task-contracts` 171).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/instr-1.log` (volatile) | `1e02d8c184b57da0edf708a8329c6c38b7cf2451846539b84d706b882b910e7d` |
