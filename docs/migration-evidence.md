@@ -14822,6 +14822,37 @@ green (171), `make check` green (208 markers, exit 0).
 | --- | --- |
 | `/tmp/sap233-spin/pinning_probe.c` | `9abfb0374a7dcf9a9ca748188ffe06740d28ccf8c29e21c13e2a341938116375` |
 | `/tmp/sap233-spin/pinning-probe-1.log` | `958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692` |
+| `/tmp/sap233-spin/pinning-probe-2.log` | `958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692` (byte-identical to pass 1 — E-SAP-0107) |
+
+
+## E-SAP-0107 - the pinning-flow probe reproduced byte-identically: the 203-frame record and all four settled CRCs are pinned twice (ticket 710, instance-69)
+
+2026-10-18, ticket 710 instance-69 (sap233-pinflow2) continuing at
+852c336. The second pass of the E-SAP-0106 pinning-flow probe —
+rebuilt from the same temporary guard source and the same six-layer
+boot — reproduces **byte-identically**: `pinning-probe-2.log` sha256
+`958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692`
+equals pass 1, covering all 203 frames, all twelve input deliveries,
+the 16 storage operations, the 2,000,000 guard hits, and the final
+stop line. The pinned settled-state CRCs for the guarded pinning flow
+are therefore twice-established:
+
+| state | settled frame | vt | CRC32 |
+| --- | --- | --- | --- |
+| Suunto splash | 2 | 3.184 s | `4979f432` |
+| display-off (post-splash) | 3 | 4.235 s | `2a01c517` |
+| widget-pinning screen settled | 40 | 5.071 s | `8c1a1613` |
+| post-`next`+`select` transition | 88 | 7.551 s | `2a01c517` |
+| post-second-navigation settled | 132 | 8.982 s | `be2e42b7` |
+| post-second-`select` settled | 203 | 10.130 s | `f733f76e` |
+
+These are the candidate goldens for a shipped guard, pending the
+owner's budget policy and the `next`/`down` button-name mapping
+census (both named in E-SAP-0106). The temporary guard build was
+removed after the pass; the tree is clean and green (`make check`
+208 markers/exit 0, `make check-task-contracts` 171).
+
+No repository file changed; documentation-only instance.
 
 No repository file changed; documentation-only. `make check-task-contracts`
 green, `make check` green.

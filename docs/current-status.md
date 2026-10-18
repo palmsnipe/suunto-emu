@@ -6,6 +6,19 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the pinning-flow probe reproduced byte-identically: 203 frames and six settled CRCs pinned twice — 2026-10-18
+
+E-SAP-0107 (instance-69, sap233-pinflow2): pass 2 of the pinning-flow
+probe is byte-identical to pass 1 (`958888d4…` both) — all 203 frames,
+12 inputs, 16 storage ops, 2M guard hits, and the stop line. The
+guarded pinning flow's settled CRCs are twice-established: splash
+`4979f432`, display-off `2a01c517`, pinning screen settled `8c1a1613`
+(5.071 s), transition `2a01c517` (7.551 s), post-navigation
+`be2e42b7` (8.982 s), post-second-select `f733f76e` (10.130 s).
+These are the candidate goldens for a shipped guard, pending the
+owner's budget policy and the `next`/`down` button-mapping census.
+Tree reverted clean and green.
+
 ## Ticket 710 — the post-pinning UI is ALIVE under the guard: buttons drive three new UI sequences — 2026-10-18
 
 E-SAP-0106 (instance-68, sap233-pinflow): the decisive experiment —
