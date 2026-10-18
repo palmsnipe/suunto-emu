@@ -6,6 +6,23 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the localStorage implementation decoded: saveFile builds the `%s/data.jsn` path through the file ABI; the fixture design is complete — 2026-10-18
+
+E-SAP-0115 (instance-77, sap233-savefile): `0x00077d5c` is
+**saveFile** — it parses, fetches the IOM device-config block
+(`[r0,#0x2c4]`, 200 bytes), builds the target path with
+`"%s/data.jsn"` (`adr r2,0x780d4`, snprintf size 39), and logs
+`saveFile: opening/failed`. The function at `0x00077f1a` is the
+**loadFile** read path, which reaches saveFile on its
+miss/write-through branch — a cache-write-through design. The
+storage/7ab0dd65/data.jsn trio in every window is saveFile's file-ABI
+traffic. **The fixture design is complete**: seed
+`storage/7ab0dd65/data.jsn` (observed 772 bytes or empty) in the 2.33
+files layer; both paths route through the ABI the layer hooks. The
+key derivation from the IOM config block is the last RE item and
+only matters for predicting unused keys. No source change; tree
+clean and green.
+
 ## Ticket 710 — the `$.get` read resolves through the ScriptingContext's local-resource path, not the file ABI — 2026-10-18
 
 E-SAP-0114 (instance-76, sap233-sctx): the app carries

@@ -15140,3 +15140,56 @@ instance: `make check-task-contracts` green (171), `make check` green
 | Artifact | SHA-256 |
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
+
+## E-SAP-0115 - the localStorage implementation decoded: `saveFile` at `0x00077d5c` builds the `%s/data.jsn` path and routes through the file ABI; the fixture design is complete (ticket 710, instance-77, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-77 (sap233-savefile) continuing at
+cf40e41. Offline RE on the pinned application (same hash) completes
+the read/write picture:
+
+1. **`0x00077d5c` is `saveFile`** — the localStorage write path. It
+   parses its arguments (`0x9343a`/`0x93436`, logging
+   `saveFile: opening %s failed` at `0x78004` on failure), fetches
+   the IOM device-config block (`0x77460` getter, `[r0,#0x2c4]`),
+   and builds the target path with
+   **`adr r2, 0x780d4` = `"%s/data.jsn"`** via `snprintf`
+   (`0x826a8`, size 39) at `0x77e4c` — logging
+   `saveFile: failed to save %s` (`0x78020`) on failure. The
+   storage/7ab0dd65/data.jsn create/write/close trio in every
+   recorded window is this function's file-ABI traffic.
+2. **The function at `0x00077f1a` is the read path** (`loadFile`):
+   its failure diagnostic is `ScriptingContext: opening %s failed`
+   (E-SAP-0114), and it reaches `0x77d5c` (saveFile) on its
+   miss/write-through branch — a cache-write-through design. The
+   load-side open of an existing `storage/<key>/data.jsn` would be
+   logged by the 2.33 files layer as `operation=open`; none appears
+   in the recorded windows, so the pinning view's load either
+   happened outside every recorded window or the engine serves it
+   from its own cache first. The fixture covers both: a seed makes
+   the content available whenever the load occurs, and the load is
+   observable when it does.
+3. **The key source involves the IOM device-config block**: the
+   saveFile path copies 200 bytes from `[IOM+0x2c4]` (`0x77e0e`
+   region) — the storage namespace is scoped by the controller
+   configuration, which is why the keys are not plain names. The
+   exact key derivation from that block is the last RE item, and it
+   only matters for predicting keys the guest has not yet used; the
+   observed keys (including `7ab0dd65` for `/Storage/Widgets`) are
+   pinned empirically.
+
+**Fixture design (complete)**: seed `storage/7ab0dd65/data.jsn` with
+the observed 772-byte content (or empty for the pre-first-boot
+window) in the 2.33 files layer; both the write path (saveFile) and
+the load path (loadFile) route through the same logical-file ABI the
+layer hooks, so no new ABI is required. The guard intervention
+(E-SAP-0106/0107) remains the second half: it keeps the sensor-poll
+task alive long enough for the pinning view to issue its load.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
