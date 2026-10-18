@@ -6,6 +6,20 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the middle button toggles the pinning screen; lower and upper are inert; the E-SAP-0106 sequences were toggles — 2026-10-18
+
+E-SAP-0108 (instance-70, sap233-buttons): three isolation probes on
+the guarded boot — middle-only, lower-only, upper-only after the
+4.5 s opener. Middle: 173 frames, the screen toggling
+`8c1a1613` (open) ↔ `2a01c517` (closed) at every press (the
+E-SAP-0089 law under the guard). Lower/upper: 40 frames each, inert.
+The E-SAP-0106 "three new UI sequences" were toggle transitions; the
+stable states are exactly open/closed, and `be2e42b7`/`f733f76e` were
+animation tails. The XML `next`/`down` pushButton names do not bind
+to the semantic buttons here, so the pin action stays reachable only
+via touch (E-SAP-0091); the engine's name→GPIO binding is the
+remaining RE. No source change; tree clean and green.
+
 ## Ticket 710 — the pinning-flow probe reproduced byte-identically: 203 frames and six settled CRCs pinned twice — 2026-10-18
 
 E-SAP-0107 (instance-69, sap233-pinflow2): pass 2 of the pinning-flow

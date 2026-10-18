@@ -14825,6 +14825,53 @@ green (171), `make check` green (208 markers, exit 0).
 | `/tmp/sap233-spin/pinning-probe-2.log` | `958888d4c11f39c754c053f5f57dc8c966a655dad99d53af7df9e36e613d4692` (byte-identical to pass 1 — E-SAP-0107) |
 
 
+## E-SAP-0108 - the per-button isolation census: the middle button toggles the pinning screen; lower and upper are inert; the E-SAP-0106 "sequences" were toggles (ticket 710, instance-70)
+
+2026-10-18, ticket 710 instance-70 (sap233-buttons) continuing at
+e38b297. Three isolation probes on the guarded boot — identical
+timelines except the button code after the 4.5 s opener: **middle
+only** (probe A), **lower only** (probe B), **upper only** (probe C),
+each pressing at 6.5/8.5/10.5 s on the settled pinning screen:
+
+| probe | button | frames | settled states |
+| --- | --- | --- | --- |
+| A | middle | **173** | 5.07 s `8c1a1613` (open) → 7.04 s `2a01c517` (closed) → 9.08 s `8c1a1613` (open) → 11.06 s `2a01c517` (closed) |
+| B | lower | 40 | 5.07 s `8c1a1613` then nothing |
+| C | upper | 40 | 5.07 s `8c1a1613` then nothing |
+
+(B/C stop at inst 2,446,361,314/244,636,1247 — no guard budget spent
+on the inert path; A stops at 3,355,109,470 with the budget consumed
+by the toggling poll cycle.)
+
+Decode: **the middle button toggles the pinning screen** (open/close
+per press, matching the E-SAP-0089 toggle law now under the guard),
+and **the lower and upper buttons are inert on this screen** — the
+XML `next`/`down` pushButton names do not bind to the semantic
+lower/upper buttons in the recorded window. Consequently the
+E-SAP-0106 "three new UI sequences" were the middle button toggling
+(open/close/open), not menu navigation; the settled-state table there
+is corrected by this entry (`be2e42b7`/`f733f76e` were animation
+tails of the toggle transitions, not stable states — the stable
+states are exactly `8c1a1613` open and `2a01c517` closed).
+
+Consequence for the fixture: the button-driven pin action is **not
+reachable** — the view's pin path requires the menu selection that
+neither semantic button drives, and the touch delivery (E-SAP-0091)
+remains the only evidenced route to it. The `next`/`down` name→GPIO
+binding in the engine is the remaining RE item. The temporary guard
+build was removed after the probes; the tree is clean and green
+(`make check` 208 markers/exit 0, `make check-task-contracts` 171).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/probeA.c` | `f3d6007ad3b165323892824bca29a38ca6cfb25f001980574f778d0a15ce2261` |
+| `/tmp/sap233-spin/probeA-1.log` | `8f9a0843c3ed900a49f1f79013f632993ac4e7acfe8a76465fd4d7afdb74832b` |
+| `/tmp/sap233-spin/probeB.c` | `fbbf80f889c3e3ffcc89798d190e5dd13ec53c3715114f7ec5f8a941d1a0c42a` |
+| `/tmp/sap233-spin/probeB-1.log` | `0444ca7aaa8b7e09c54358ca28920a6a778ab57f4f7b45d67158e0405ec65be6` |
+| `/tmp/sap233-spin/probeC.c` | `6bbfe7972ce439353eb43db1d96e01eaf3a541ef981f74c03d1d3565d3167140` |
+| `/tmp/sap233-spin/probeC-1.log` | `4d4cc29c1322df5dea14fd2c4f65bf3cef4b212f5020e0e62b85a8d86b38dd72` |
+
+
 ## E-SAP-0107 - the pinning-flow probe reproduced byte-identically: the 203-frame record and all four settled CRCs are pinned twice (ticket 710, instance-69)
 
 2026-10-18, ticket 710 instance-69 (sap233-pinflow2) continuing at
