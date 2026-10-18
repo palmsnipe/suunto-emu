@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the complete localStorage law: name → folded-FNV → registry node → `node.name + "/data.jsn"` — 2026-10-18
+
+E-SAP-0116 (instance-78, sap233-keylaw): the saveFile body
+(`0x77d5c`) and the path-builder (`0x77e00`) are separate functions;
+the builder fetches the IOM device-config block, calls the registry
+getter `0x5d214` (a node lookup returning the node's `+12` name),
+and formats `"%s/data.jsn"`. The registry node is found by the
+folded-FNV of the requested name — the complete law. The observed
+`storage/7ab0dd65/data.jsn` pins the node name for `/Storage/Widgets`.
+**The 2.33 widget-settings fixture is fully specified**: the guard
+intervention keeps the poll task alive; the files layer seeds or
+retains `storage/7ab0dd65/data.jsn`; both directions route through
+the hooked ABI. Remaining work is implementation (layer source,
+tests, goldens, the budget policy) — no further RE required. No
+source change; tree clean and green.
+
 ## Ticket 710 — the localStorage implementation decoded: saveFile builds the `%s/data.jsn` path through the file ABI; the fixture design is complete — 2026-10-18
 
 E-SAP-0115 (instance-77, sap233-savefile): `0x00077d5c` is

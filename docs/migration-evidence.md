@@ -15193,3 +15193,49 @@ instance: `make check-task-contracts` green (171), `make check` green
 | Artifact | SHA-256 |
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
+
+## E-SAP-0116 - the complete localStorage law: name → folded-FNV → registry node → `node.name + "/data.jsn"`; the saveFile/loadFile pair routes both directions through the file ABI (ticket 710, instance-78, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-78 (sap233-keylaw) continuing at
+081f8c6. Offline RE on the pinned application (same hash) completes
+the key law:
+
+1. **The saveFile body (0x77d5c) and the path-builder (0x77e00) are
+   separate functions.** The builder fetches the IOM device-config
+   block (200 bytes at `[IOM+0x2c4]`), calls the registry getter
+   `0x5d214` (a linked-list node lookup returning the node's `+12`
+   pointer — the storage subdirectory name), and formats
+   `"%s/data.jsn"` (snprintf, size 39) at `0x77e52`. The registry
+   node for a key is found by the folded-FNV hash
+   (`0x0007dcb4`) of the requested name — the complete law is:
+   **name → folded-FNV → registry node → `node.name + "/data.jsn"`.**
+2. The strings island confirms the family: `LocalStorage failed`,
+   `ScriptingContext.cpp`, `Compiling js failed: %s`, `sc:`,
+   `Running js failed: %s`, `ScriptingContext: too big %s`,
+   `%s/data.jsn`, `localStorage: reading %s failed` — the
+   ScriptingContext's whole localStorage surface in one pool.
+3. The observed path `storage/7ab0dd65/data.jsn` pins the node name
+   for `/Storage/Widgets` as `7ab0dd65` (with the `storage/` prefix
+   added by the caller or the node itself — either way the file path
+   is pinned). The fixture seeds exactly that path; no further
+   derivation is needed.
+4. The registry nodes' `+12` names for the eight unobserved keys
+   remain runtime data; they only matter if their contents are ever
+   needed, and the guest creates them on first write (the layer's
+   create/retain path captures them).
+
+**The 2.33 widget-settings fixture is fully specified**: the guard
+intervention (E-SAP-0106/0107) keeps the poll task alive; the files
+layer seeds `storage/7ab0dd65/data.jsn` (or retains the guest's own
+write); both saveFile and loadFile route through the hooked ABI. The
+remaining work is implementation (the layer source, tests, goldens,
+the budget policy) — no further RE is required for the pinning flow.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
