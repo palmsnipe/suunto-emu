@@ -6,6 +6,22 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the storage-key hash law confirmed: case-insensitive FNV-1; `/Storage/Widgets` → `7ab0dd65` exactly — 2026-10-18
+
+E-SAP-0111 (instance-73, sap233-hash): the application carries two
+NUL-string FNV-1 hash functions (`0x0007dc94` plain, `0x0007dcb4`
+ASCII-lowercase-folded) with prime `0x01000193`. The folded variant
+over **`/Storage/Widgets`** produces **exactly `7ab0dd65`** — the
+772-byte `storage/7ab0dd65/data.jsn` written at vt 3.19 s is the
+widget-settings JSON the pinning view reads. The same law decodes
+`ac100d90` (`/Settings/SleepDnd/CopiesEnabled`) and `51df4799`
+(`/Settings/Sedentary/ReminderEnabled`); the other eight observed
+keys have runtime-constructed inputs. Fixture consequence: the
+`/Storage/Widgets` response is a logical-file fixture on
+`storage/7ab0dd65/data.jsn` — the existing create/retain path
+already captures the guest's writes, and no new ABI is required.
+No source change; tree clean and green.
+
 ## Ticket 710 — the sequence probe: the lower press is frame- and storage-silent; frames cannot separate down-bound-silent from unbound — 2026-10-18
 
 E-SAP-0110 (instance-72, sap233-seq): the E-SAP-0109 tie-breaker —

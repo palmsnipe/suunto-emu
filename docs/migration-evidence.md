@@ -14981,3 +14981,46 @@ The temporary guard build was removed; the tree is clean and green
 | `/tmp/sap233-spin/probeD.c` | `8997e3d39ccb9719889b0697cc9114efa42d1210d453f01e77f2182c97ae90b5` |
 | `/tmp/sap233-spin/probeD-1.log` | `0df42abee482fe3c2ad0c0b8c55907cd50b7629d9c6419ca24ceecc811806a5f` |
 
+
+## E-SAP-0111 - the storage-key hash law confirmed: case-insensitive FNV-1 at `0x0007dcb4`; `/Storage/Widgets` → `7ab0dd65` exactly (ticket 710, instance-73, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-73 (sap233-hash) continuing at
+52f1767. Offline RE on the pinned application (same hash) resolves
+the E-SAP-0105 key-derivation question:
+
+1. **Two hash functions sit at VA `0x0007dc94` and `0x0007dcb4`**,
+   both NUL-terminated-string FNV-1 with the prime `0x01000193`
+   loaded from the literal at `0x7dce0`: the first is the plain form
+   (`hash = hash*prime ^ byte`), the second inserts the ASCII
+   lowercase fold (`if (0x41 <= b <= 0x5a) b |= 0x20`) — a
+   case-insensitive variant for path keys.
+2. **The law is confirmed empirically**: case-insensitive FNV-1 with
+   seed `0x811c9dc5` over the string `/Storage/Widgets` produces
+   **exactly `7ab0dd65`** — the 772-byte `storage/7ab0dd65/data.jsn`
+   written at vt 3.19 s in every recorded window **is** the widget
+   settings JSON that the pinning view's `$.get('/Storage/Widgets')`
+   reads. The same law decodes `ac100d90` =
+   `/Settings/SleepDnd/CopiesEnabled` and `51df4799` =
+   `/Settings/Sedentary/ReminderEnabled`.
+3. **The remaining eight observed keys** (`55edeeba`, `38d123`,
+   `bff517c6`, `1139dbf6`, `a23922c`, `baefdbd`, `cc8e41b`,
+   `e63ecc52`) do not match any static string in either image under
+   this law — their inputs are runtime-constructed (per-device or
+   per-view dynamic names), and locating those construction sites is
+   the next RE item if their contents are ever needed.
+4. **Fixture consequence**: the `/Storage/Widgets` response is a
+   logical-file fixture on the path
+   `storage/7ab0dd65/data.jsn` — the 2.33 files layer's create/
+   retain path already captures the guest's own writes to it, and a
+   seed of the observed 772-byte content (or an empty initial state,
+   per the pre-first-boot recorded window) is now evidence-named.
+   No new ABI is required.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
