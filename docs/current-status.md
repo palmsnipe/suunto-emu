@@ -6,6 +6,21 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the `$.get` read resolves through the ScriptingContext's local-resource path, not the file ABI — 2026-10-18
+
+E-SAP-0114 (instance-76, sap233-sctx): the app carries
+`ScriptingContext: opening %s failed` (VA `0x1b0674`, referenced at
+`0x77fc0`) and `Failed to get local resource for %s` (`0x1b0624`,
+referenced at `0x9ef3c`) — the ScriptingContext resolves JS paths to
+**local resources**. The referencing routine (`0x77a00..0x77f18`)
+calls the inner resolver at `0x00077d5c` and serves all 519
+`$.get('/…')` sites in the resource XML views. So the pinning view's
+read is a **ScriptingContext resource resolution** — neither the
+logical-file ABI (E-SAP-0112) nor the checker (E-SAP-0113). The
+resolver's backing store for `/Storage/*` is the next RE layer. The
+`0x77f66` block also holds a full IOM init sequence (noted for the
+touch thread). No source change; tree clean and green.
+
 ## Ticket 710 — the checker census: 206 boot-time WbStoPreload hits, zero after 2.82 s; the widget-settings read is neither the file ABI nor the checker — 2026-10-18
 
 E-SAP-0113 (instance-75, sap233-checker): an instrumented guarded run

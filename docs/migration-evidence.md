@@ -15099,3 +15099,44 @@ removed after the run; the tree is clean and green (`make check`
 | Artifact | SHA-256 |
 | --- | --- |
 | `/tmp/sap233-spin/instr-1.log` (volatile) | `1e02d8c184b57da0edf708a8329c6c38b7cf2451846539b84d706b882b910e7d` |
+
+
+## E-SAP-0114 - the `$.get` read resolves through the ScriptingContext's local-resource path (`0x77d5c` chain), not the logical-file ABI — the read-side layer is named (ticket 710, instance-76, owner-authorized 2026-09-23 class)
+
+2026-10-18, ticket 710 instance-76 (sap233-sctx) continuing at
+064f5c0. Offline RE on the pinned application (same hash) names the
+read side:
+
+1. The application carries **`ScriptingContext: opening %s failed`**
+   (VA `0x1b0674`, literal-referenced exactly once at `0x77fc0`) and
+   **`Failed to get local resource for %s`** (VA `0x1b0624`,
+   literal-referenced at `0x9ef3c`) — the ScriptingContext resolves
+   JS-side paths to **local resources**, and failure is a logged,
+   handled path.
+2. The referencing code (region `0x00077a00..0x00077f18`) is the
+   open/resolve routine: it calls an inner resolver at `0x00077d5c`
+   and prints the opening-failed diagnostic on its failure — the
+   same function chain that serves the 519 `$.get('/…')` sites in
+   the resource XML views (`/Dive/DiveGases/{index}`,
+   `/Settings/Ui/SportTheme`, `/Device/Measurement/…`, and
+   `/Storage/Widgets` among them).
+3. **Consequence**: the pinning view's `$.get('/Storage/Widgets')`
+   read is served by the **ScriptingContext local-resource resolver**
+   (`0x00077d5c` chain) — not the logical-file ABI (E-SAP-0112) and
+   not the startup-client checker (E-SAP-0113). The resolver's
+   backing store for `/Storage/*` paths (the resource partition, the
+   WbStorage manager, or the variable store) is the next RE layer;
+   the write side remains the logical-file ABI (already captured).
+4. The `0x00077f66` block also contains a complete IOM-register
+   sequence (`0x40050000`-family via `0x77402`/`0x77460`/`0x7741a`
+   and the `0x2c4` device-config offset at `0x77f82`) — the touch
+   or sensor init path adjacent to the resolver; noted for the
+   touch thread.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green
+(208 markers, exit 0).
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
