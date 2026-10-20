@@ -15582,3 +15582,74 @@ and the status note. `make check-task-contracts` 171,
 | `settings.sbm` slice (offset `0x5f27a0`, 14721 bytes) | `8817d4721d1f69461edb10978a5b3c94a8e5dffee0bb8c4c8cf9559006eca251` |
 | `routelst.sbm` slice (offset `0x9cf060`, 148 bytes) | `d8784e0c01117f58620f7cdd968564b26b9a208ddc7b9794267e39ffc820120f` |
 | `/tmp/sap233-ohr-20261016/frames-buttons-1.log` | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
+
+
+## E-SAP-0122 - the 2.33 hw route config is a personalized device-settings value absent from the OTA: the settings.sbm carries only general/navigation settings and settings/device is empty (ticket 710, instance-82)
+
+2026-10-20, ticket 710 instance-82 (sap233-route-defaults) continuing
+at ac5de76. This instance set out to derive the settings-provider
+binary-to-text conversion and the `hw_touch_1` device-settings entry
+from the pinned firmware, to decide whether a hash-pinned touch route
+fixture can be seeded from firmware-exhibited values. The answer is
+**no: the hardware route enablement is a personalized device-settings
+value, and the OTA carries only the general/navigation settings, so
+the post-pinning touch gap stays refused fail-closed.**
+
+**The settings.sbm is a container of embedded SBEM text records.**
+The resource-partition blob at inventory offset `0x5f27a0` (14721
+bytes, slice sha256 `8817d472...`) starts with the `SETTINGSSBM `
+container header and then embeds the text settings records
+`SBEM0103` (magic at `0xba50c`/`0xf878c`/`0x1bac40`). The records are
+`<PTH>Settings.*`, `<PTH>BLE.*` and the navigation fields
+`RouteID`/`RoutePointsCount`/`RoutePointsURI` (offsets `0x114f`,
+`0x116c`, `0x1193`); a scan of the whole blob finds **no** `hw_*`,
+`touch`, `routeE`, `nameID` or `touchE` setting. So the general
+settings source carries no hardware-route configuration.
+
+**The device settings are empty.** The retained 2.33 log
+`/tmp/sap233-ohr-20261016/frames-buttons-1.log` (sha256
+`1d0e521b...`) shows `settings/device` size=0,
+`settings/devicesettings` size=0 and `settings/ble/device` size=0
+native-opens. The app's settings provider reads the binary
+SBEM/import records (the item reader at `0xba378`, the merge path at
+`0xba40c` with "Reading SBEM hdr err"/"Added %u items"), but the
+converted device settings are empty in every recorded window.
+
+**The hw capability list is not the route config.** The 29-entry
+capability table at `0x1a6a34` lists the `feat_*`/`hw_*`/`plugin_*`/
+`ui_*` names (entry 16 is `hw_touch_1` at `0x1ba460`); the discovery
+handler `0x1129ac` walks it and maps each name through `0x13db00`
+(touch -> route type 12). That is a capability query, not the route
+enablement. The hardware route manager constructor
+`0x13dc02`/`0x13dc1a` (vtable `0x13e020`, config passed in) is built
+from the settings service; with empty device settings it never
+receives a `hw_touch_1` route entry, so the touch manager (E-SAP-0120)
+is never started and no IOM3 `0x24` transaction appears.
+
+**Blocker.** The touch route enablement (the `hw_touch_1` entry with
+`nameID`/`routeID`/`routeE`/`touchE`) is personalized device-settings
+data that is not present in the OTA: the general settings blob has no
+`hw_*` entry, the device settings files are empty, and the
+production-data container is a synthetic no-device fixture
+(E-SAP-0038 class), not recovered personalized data. The pinned
+application exhibits the probe shape (E-SAP-0120) but not the route
+enablement, so a touch fixture cannot be seeded from
+firmware-exhibited values. The post-pinning touch gap remains
+refused fail-closed. The only unblock paths are a twice-byte-identical
+lane observation from a device with provisioned settings (no physical
+device and no provisioned lane image exist) or an explicit owner
+decision to authorize a synthetic route config (a human decision, not
+an agent decision). No production change; no fixture, wiring, profile
+or golden change.
+
+Documentation-only: `make check-lines` clean,
+`make check-task-contracts` 171, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `settings.sbm` slice (offset `0x5f27a0`, 14721 bytes) | `8817d4721d1f69461edb10978a5b3c94a8e5dffee0bb8c4c8cf9559006eca251` |
+| `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+| `/tmp/sap233-ohr-20261016/frames-buttons-1.log` | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
+| `/tmp/sap233-touch/app.asm` | `f4ec3a8d0c62fafbb241968f6f29f9d56274b28b1993874a278af7f8a217531d` |

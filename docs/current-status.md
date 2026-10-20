@@ -6,6 +6,34 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the hw route config is a personalized device-settings value absent from the OTA; the touch gap stays refused — 2026-10-20
+
+E-SAP-0122 (instance-82, sap233-route-defaults): the settings
+provider's binary-to-text source is mapped. The resource blob at
+inventory offset `0x5f27a0` (14721 bytes, slice sha256 `8817d472...`)
+is a `SETTINGSSBM ` container of embedded `SBEM0103` text records;
+the records cover `Settings.*`, `BLE.*` and the navigation fields
+`RouteID`/`RoutePointsCount`/`RoutePointsURI`, and the whole blob has
+**no** `hw_*`/`touch`/`routeE`/`nameID`/`touchE` entry. The device
+settings (`settings/device`, `settings/devicesettings`,
+`settings/ble/device`) are empty (native-open size=0) in the retained
+2.33 log (`frames-buttons-1.log`, sha256 `1d0e521b...`). The 29-entry
+capability table at `0x1a6a34` (entry 16 `hw_touch_1`) feeds the
+route-type mapping `0x13db00` (touch -> 12) through the discovery
+handler `0x1129ac`, but that is a capability query, not route
+enablement; the hw route manager constructor `0x13dc02`/`0x13dc1a`
+builds from the settings service and never receives a `hw_touch_1`
+route entry. The touch route enablement is therefore personalized
+device-settings data absent from the OTA; the pinned application
+exhibits the probe shape (E-SAP-0120) but not the enablement, so a
+touch fixture cannot be seeded from firmware-exhibited values. The
+post-pinning touch gap stays refused fail-closed; the only unblock
+paths are a lane observation from a provisioned device (no physical
+device or provisioned lane image exists) or an explicit owner decision
+to authorize a synthetic route config. No production change;
+documentation-only; check-lines and contracts green, `make check`
+green.
+
 ## Ticket 710 — the touch route is a device-settings entry, not the navigation route list; the device settings and route list are empty — 2026-10-20
 
 E-SAP-0121 (instance-81, sap233-route-provision): corrects the
