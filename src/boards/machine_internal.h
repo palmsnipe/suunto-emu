@@ -12,6 +12,7 @@
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_233_files.h"
 #include "../compat/sapporo_233_firstboot.h"
+#include "../compat/sapporo_233_sentinel_guard.h"
 #include "../compat/sapporo_239_files.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_nema_gpu.h"
@@ -27,6 +28,7 @@ struct semu_machine {
     semu_sapporo_239_files *sapporo_239_files;
     semu_sapporo_233_files_context sapporo_233_files;
     semu_sapporo_233_firstboot_context sapporo_233_firstboot;
+    semu_sapporo_233_sentinel_guard_context sapporo_233_sentinel_guard;
     const semu_display_backend_ops *display_backend;
     void *display_backend_context;
     semu_display_snapshot_ops display_snapshot;

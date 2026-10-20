@@ -10,6 +10,7 @@
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_233_files.h"
 #include "../compat/sapporo_233_firstboot.h"
+#include "../compat/sapporo_233_sentinel_guard.h"
 #include "../compat/sapporo_233_ohr.h"
 #include "../compat/sapporo_233_gps.h"
 #include "../compat/sapporo_233_production.h"
@@ -247,6 +248,8 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         descriptor = &semu_sapporo_233_files_layer;
     } else if (strcmp(id, semu_sapporo_233_firstboot_layer.id) == 0) {
         descriptor = &semu_sapporo_233_firstboot_layer;
+    } else if (strcmp(id, semu_sapporo_233_sentinel_guard_layer.id) == 0) {
+        descriptor = &semu_sapporo_233_sentinel_guard_layer;
     } else if (strcmp(id, semu_sapporo_233_ohr_layer.id) == 0) {
         descriptor = &semu_sapporo_233_ohr_layer;
     } else if (strcmp(id, semu_sapporo_233_gps_layer.id) == 0) {
@@ -403,6 +406,8 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
                sizeof(machine->sapporo_233_files));
         memset(&machine->sapporo_233_firstboot, 0,
                sizeof(machine->sapporo_233_firstboot));
+        memset(&machine->sapporo_233_sentinel_guard, 0,
+               sizeof(machine->sapporo_233_sentinel_guard));
     }
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
@@ -450,6 +455,14 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
             if (machine->layers[i].descriptor == &semu_sapporo_233_firstboot_layer) {
                 machine->sapporo_233_firstboot.state = &machine->layers[i];
                 machine->sapporo_233_firstboot.logger = machine->logger;
+            }
+            if (machine->layers[i].descriptor == &semu_sapporo_233_sentinel_guard_layer &&
+                semu_sapporo_233_sentinel_guard_install(
+                    &machine->sapporo_233_sentinel_guard,
+                    &machine->layers[i], machine->logger, machine->scheduler,
+                    error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
             }
             if (machine->layers[i].descriptor == &semu_sapporo_233_gps_layer &&
                 semu_sapporo_devices_bind_233_gps(machine->devices,

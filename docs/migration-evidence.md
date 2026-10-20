@@ -15239,3 +15239,152 @@ instance: `make check-task-contracts` green (171), `make check` green
 | Artifact | SHA-256 |
 | --- | --- |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+
+
+## E-SAP-0119 - the sentinel-insert guard ships: the rate-capped budget policy, the opt-in layer, the 203-frame record reproduced, and the E-SAP-0110/0118 tie-breaker closed by the view's crown conditional (ticket 710, instance-79, owner-delegated budget decision)
+
+2026-10-20, ticket 710 instance-79 (sap233-guard-ship) continuing at
+87c4fb5. This closes the E-SAP-0116 ship sequence (layer source,
+red-first tests, E-SAP-0107 goldens) and resolves the E-SAP-0117 budget
+gate and the E-SAP-0118 tie-breaker.
+
+**Budget policy (E-SAP-0117 option 2, the recommended per-virtual-time
+rate cap).** The observed poll cycle consumes 2.26-2.44M skips per
+virtual second (E-SAP-0100/0106/0107/0110). The layer admits at most
+3,000,000 skips per virtual second (headroom over the measured
+maximum), computed from `semu_scheduler_now` since the last machine
+reset - the same epoch over which the layer hit counter resets - and
+refuses fail-closed if the guest ever cycles faster than observed
+(anomaly detection). The absolute ceiling is `rate x 120 s =
+360,000,000` hits, the supported census window; a longer run refuses
+rather than growing without bound. Logging is the first hit and every
+1,000,000th hit (per-hit logging is unbounded for a high-frequency
+guard; the milestone lines carry the layer/hit/maximum/effect/evidence
+fields). This is the owner-delegated decision under the 2026-10-19 goal
+objective ("advance ... until the ticket's acceptance conditions for the
+current instance chain are met, without violating the evidence and
+fail-closed contracts"); the evidence-derived rate and the fail-closed
+overrun path are unchanged by any later owner revision.
+
+**Implementation.** New version-specific module
+`src/compat/sapporo_233_sentinel_guard.{c,h}` (142 + 73 lines) and the
+opt-in layer `sapporo-2.33-sentinel-guard` (`SEMU_LAYER_DEVICE_FIXTURE`,
+profile `sapporo-2.33.16`, evidence `E-SAP-0092..E-SAP-0107`, the three
+pinned component hashes, maximum 360,000,000). The trigger/state/effect
+is exactly the witnessed corrupting shape: PC is the insert entry
+`0x000bb69c`, `r1` is the foreign sentinel `0x100331c0`, the sensor
+head-anchor next word `0x10029c50` already points at that sentinel (the
+first insert completed), the sentinel's own `+4` field is not yet
+self-referencing, and `lr & ~1` is the wrapper continuation
+`0x000a4e8a` (the Thumb link-register form `0x000a4e8b`). The skip
+advances PC to `0x000a4e8a`; every other shape stays native. A
+self-ring already present, a wrong return address, a disabled/exhausted
+layer, a bus-read failure, or a virtual-time rate overrun refuses
+fail-closed (sticky). The layer is declared disabled-by-default in
+`profiles/sapporo/2.33.16/profile.semu` (now six declared layers),
+registered in `machine.c`, gated by the insert PC in `machine_run.c`,
+and installed on every reset (state/logger/scheduler binding, refusal
+cleared); snapshot accounting is the generic layer-hits path (hits
+restored and bounded by the 360M maximum). A save/load smoke test -
+snapshot saved at the 2B/37.82 s guarded stop, resumed with a
+2.3B/40 s bound - restores the guard hit count and continues skipping
+(`hit=2,000,000` at `vt 37,926,418,625`, then
+`stop=budget pc=0x000bb69c instructions=2300000000
+virtual_time_ns=38121539437`; log `350d274a...`, snapshot `8af8a5eb...`).
+
+**Tests.** New red-first `tests/unit/test_sapporo_233_sentinel_guard.c`
+(4 cases, 256 lines): descriptor/enable with wrong-profile, wrong-hash
+and short-hash refusals; the skip plus every native shape; the sticky
+self-ring, wrong-return, disabled, rate-at-zero and rate-at-ceiling,
+and bus-read-failure refusals; the 1,000,000th-hit milestone and the
+install argument refusal. The two profile-enumerating tests
+(`test_sapporo_profile_233.c`, `test_sapporo_233_gps_integration.c`)
+were updated 5 -> 6 layers with the guard last. Focused runs:
+`make test TEST_FILTER=sapporo_233_sentinel_guard` 4/4 green,
+`TEST_FILTER=sapporo_profile_233` 6/6 green, `TEST_FILTER=sapporo_233`
+all green.
+
+**Machine verification (twice byte-identical).** The six-layer guarded
+cold boot (production data, logical files, firstboot, GPS startup, OHR
+startup, sentinel guard), 2B instructions / 60 s, is twice
+byte-identical (`guarded-run-1.log` = `guarded-run-2.log` sha256
+`f373de6f3488ed50514a1eea65dad5e6a6dabaaf60d0f5be1516a4901d1d951f`):
+the first skip lands on the witnessed corrupting insert at
+`vt 37,108,419,034` (`hit=1`), the 1,000,000th at
+`vt 37,517,418,625` (~2.44M skips/s, inside the 3M/s cap), and the run
+advances past the former 37.82 s spin stop (`pc=0x000bb6b0`) to
+`stop=budget pc=0x0009259e instructions=2000000000
+virtual_time_ns=37821539437` - a healthy poll-loop PC. The 2.33
+firmware runner (`tests/integration/test_firmware_sapporo_233_files.sh`)
+gains the `sapporo_233_guard` tag and a guarded stage pinning that log
+hash, the two layer-hit lines, the stop tuple and the absence of the
+former spin PC; `make test-firmware TEST_PROFILE=sapporo-2.33.16
+TEST_FILTER=sapporo_233_guard` is green twice identically (both passes
+compare byte-identically before the hash assertions).
+
+**The 203-frame record reproduced.** The E-SAP-0106/0107 pinning probe
+(`/tmp/sap233-spin/pinning_probe.c` `9abfb037...`, rebuilt against the
+shipped layer as `/tmp/sap233-spin/pinning_probe_new` `41cbfec6...`)
+reproduces the pinned frame/input record byte-identically: 203 `FRAME`
+lines and 12 `INPUT` lines match `pinning-probe-1.log` exactly (the
+only difference is the old probe-only 2M-budget stop line, now
+retired). The census continued past the former stop: 89,000,000 skips
+by `vt 73,382,165,075` (~2.44M/s), 203 frames, zero new frames after
+10.130 s, zero refusals/resets/layer refusals, before the run was
+stopped at the observation point (the 60B-instruction probe bound would
+need ~40 more minutes; the record above is already byte-identical to
+the twice-pinned E-SAP-0107 log, and the shipped layer's twice-identical
+checkpoint is the firmware-runner stage above).
+
+**The E-SAP-0110/0118 tie-breaker is closed from the pinned view.** The
+resource partition's `s-cu-widgpin` view (offset `0x3c7c00` in
+`component-05-type-1-v3.raw` sha256 `b06492a9...`) binds the `down`
+pushButton only inside
+`<:if><test>{DEVICE_HAS_CROWN}</test><pushButton><name>down</name>
+<onClick>first('#vs-h');</onClick><onLongPressStart>returnToWf();
+</onLongPressStart></pushButton></:if>`, while the `next` pushButton is
+unconditional (`select('#menu')`). The 2.33 Sapporo is the Suunto 9
+Peak Pro, whose board controls are "Three active-low buttons and
+backlight PWM" with no crown row
+(`docs/hardware-specs/watch-components.tsv` sha256 `fc6a6588...`,
+E-SAP-BUTTONS-001); so `DEVICE_HAS_CROWN` is false, the `down` binding
+is absent, and the lower press is **unbound** (E-SAP-0110 reading b).
+E-SAP-0109's `up`/`next`/`down` name-table law stands, but its inferred
+lower -> `down` binding is superseded on this device: the observed
+lower frame/storage silence is the absent binding, not a silent
+selection. The pin gate is the `vs-h` viewset's `targetData==2`, whose
+widget id comes from `getValue('#menu')` (the menu selection) and whose
+`pinNewWidg()` issues `$.modify('/Storage/Widgets')` before the 500 ms
+close/open; the menu selection is crown-rotated or touch-driven, and
+neither is available on this profile (no crown; E-SAP-0091 no touch
+controller), so the pin-outcome JSON tie-breaker cannot be produced.
+The widget-settings fixture remains the boot-time
+`storage/7ab0dd65/data.jsn` write (E-SAP-0105/0111/0116); no new
+fixture is required by this instance.
+
+**Next gap.** The post-pinning flow's only evidenced route is touch
+(E-SAP-0091), whose unblock path is the owner-authorized offline RE of
+the TMA5xx driver's probe schedule (E-SAP-0102/0103's remaining item)
+or a lane observation of the touch controller; that is the next
+instance's census. No other machine-level gap is named in the 120 s
+guarded window.
+
+Verification for this instance: `make check-lines` exit 0,
+`make check-task-contracts` 171, `make check` green (including the full
+test suite and SDL quick gate), `make sanitize` green, and the 2.33
+firmware runner green twice identically. No existing 2.22/2.35/2.39
+behavior moved: the guard is opt-in and disabled by default, the
+profile's declared layer set grew by one, and the 2.33 firmware
+runner's pre-existing stages keep their pinned hashes and stop tuples.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `docs/hardware-specs/watch-components.tsv` | `fc6a65889457b3399cdf73e6a4c2b384da15bb6f7d7f9708e46c827eb73c4d1e` |
+| `/tmp/sap233-spin/pinning_probe.c` | `9abfb0374a7dcf9a9ca748188ffe06740d28ccf8c29e21c13e2a341938116375` |
+| `/tmp/sap233-spin/pinning_probe_new` (binary) | `41cbfec6da4c31094fc9f54f9b11b98f1bcd5a404045c7cecc500c112c7803f9` |
+| `/tmp/sap233-spin/pinning-new-1.log` (partial census) | `74a33f81174e24146a3c96756d6e2e1c9e2583bf67d1af9107afb5b2d0a91a5f` |
+| `/tmp/sap233-spin/guarded-run-1.log` = `guarded-run-2.log` | `f373de6f3488ed50514a1eea65dad5e6a6dabaaf60d0f5be1516a4901d1d951f` |
+| `/tmp/sap233-spin/guard-38s.sems` (snapshot) | `8af8a5eb231dcc6767310a2e2f64efcbe944f382a9478ef4f4cae619aa9bee76` |
+| `/tmp/sap233-spin/guard-load2.log` (snapshot resume) | `350d274aac7f56c60b5a5a810b96e156ed7a2548c5912302e8f55e1f1d65c759` |

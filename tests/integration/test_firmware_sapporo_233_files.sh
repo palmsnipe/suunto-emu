@@ -1,9 +1,12 @@
 #!/bin/sh
-# TEST_TAGS: sapporo_233_files sapporo_233_pressure sapporo_233_ohr
+# TEST_TAGS: sapporo_233_files sapporo_233_pressure sapporo_233_ohr sapporo_233_guard
 # E-SAP-0072: the logical-file READ/WRITE ABI clears the settings assertion.
 # E-SAP-0074: negative pressure probes complete; the later OHR/reset refuses.
 # E-SAP-0075: the OHR startup fixture admits the staged exchange; the next
 # stop is the pois/poi.bin logical-file capacity boundary.
+# E-SAP-0119: the opt-in sentinel-insert guard prevents the E-SAP-0092
+# self-ring; the guarded boot advances past the former 37.82 s spin stop
+# (pc=0x000bb6b0) to a healthy poll-loop stop at the 2B-instruction bound.
 set -eu
 if [ "${TEST_PROFILE-}" != sapporo-2.33.16 ]; then
     echo "SKIP Sapporo 2.33 files runner for TEST_PROFILE=${TEST_PROFILE-}"
@@ -49,14 +52,25 @@ staged_ohr_once()
         --layer sapporo-2.33-gps-startup \
         --layer sapporo-2.33-ohr-startup
 }
+guarded_once()
+{
+    run_once "$1" "$2" "$3" \
+        --layer sapporo-2.33-production-data \
+        --layer sapporo-2.33-logical-files \
+        --layer sapporo-2.33-firstboot \
+        --layer sapporo-2.33-gps-startup \
+        --layer sapporo-2.33-ohr-startup \
+        --layer sapporo-2.33-sentinel-guard
+}
 for pass in 1 2; do
     run_once "$run_dir/control-$pass.log" 200000000 200000000
     staged_once "$run_dir/settings-$pass.log" 70000000 1000000000
     staged_once "$run_dir/pressure-$pass.log" 200000000 1000000000
     staged_once "$run_dir/next-$pass.log" 300000000 30000000000
     staged_ohr_once "$run_dir/ohr-$pass.log" 2000000000 60000000000
+    guarded_once "$run_dir/guarded-$pass.log" 2000000000 60000000000
 done
-for stage in control settings pressure next ohr; do
+for stage in control settings pressure next ohr guarded; do
     cmp "$run_dir/$stage-1.log" "$run_dir/$stage-2.log"
 done
 [ "$(shasum -a 256 "$run_dir/control-1.log" | awk '{print $1}')" = \
@@ -100,4 +114,17 @@ if grep -q 'logical-file size overflow: pois/poi.bin' "$run_dir/ohr-1.log"; then
 fi
 grep -Fq 'layer-hit layer=sapporo-2.33-gps-startup hit=6 maximum=6 effect=trigger=gps-rearm-status ordinal=3 synthetic-status delay-ns=10000000 evidence=E-SAP-0071' "$run_dir/ohr-1.log"
 grep -Fqx 'stop=budget pc=0x000bb6b0 instructions=2000000000 virtual_time_ns=37821539437' "$run_dir/ohr-1.log"
-echo 'PASS sapporo-2.33.16 native settings, negative pressure and OHR startup probes; bounded logical-file refusal'
+# E-SAP-0119: the guard's first skip lands on the witnessed corrupting
+# insert at 37.108419034 s; the 1,000,000th milestone follows at
+# 37.517418625 s (~2.44M skips/s, inside the 3M/s rate cap). The former
+# spin stop (pc=0x000bb6b0) is retired and the poll loop stays healthy.
+[ "$(shasum -a 256 "$run_dir/guarded-1.log" | awk '{print $1}')" = \
+    f373de6f3488ed50514a1eea65dad5e6a6dabaaf60d0f5be1516a4901d1d951f ]
+grep -Fq 'layer-hit layer=sapporo-2.33-sentinel-guard hit=1 maximum=360000000 effect=trigger=sentinel-insert ordinal=1 skip pc=0x000a4e8a virtual_time_ns=37108419034 evidence=E-SAP-0092..E-SAP-0107' "$run_dir/guarded-1.log"
+grep -Fq 'layer-hit layer=sapporo-2.33-sentinel-guard hit=1000000 maximum=360000000 effect=trigger=sentinel-insert ordinal=1000000 skip pc=0x000a4e8a virtual_time_ns=37517418625 evidence=E-SAP-0092..E-SAP-0107' "$run_dir/guarded-1.log"
+grep -Fqx 'stop=budget pc=0x0009259e instructions=2000000000 virtual_time_ns=37821539437' "$run_dir/guarded-1.log"
+if grep -q 'pc=0x000bb6b0' "$run_dir/guarded-1.log"; then
+    echo "error: 2.33 guarded boot regressed to the E-SAP-0092 spin" >&2
+    exit 1
+fi
+echo 'PASS sapporo-2.33.16 native settings, negative pressure and OHR startup probes; bounded logical-file refusal; sentinel-insert guard advances past the spin'

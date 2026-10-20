@@ -50,3 +50,8 @@ max_hits=4096
 kind=device-fixture
 evidence=E-SAP-0068
 max_hits=7
+
+[layer sapporo-2.33-sentinel-guard]
+kind=device-fixture
+evidence=E-SAP-0092..E-SAP-0107
+max_hits=360000000

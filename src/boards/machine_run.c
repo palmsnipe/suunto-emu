@@ -3,6 +3,7 @@
 #include "../compat/sapporo_239.h"
 #include "../compat/sapporo_233_files.h"
 #include "../compat/sapporo_233_firstboot.h"
+#include "../compat/sapporo_233_sentinel_guard.h"
 #include "../compat/sapporo_233_gps.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
@@ -131,6 +132,13 @@ static int apply_compat_hook(semu_machine *machine,
                     error) != SEMU_OK) {
                 return 0;
             }
+        } else if (layer->descriptor == &semu_sapporo_233_sentinel_guard_layer) {
+            if (semu_sapporo_233_sentinel_guard_apply(
+                    &machine->sapporo_233_sentinel_guard, machine->bus,
+                    semu_cpu_get_state_mutable(machine->cpu),
+                    error) != SEMU_OK) {
+                return 0;
+            }
         } else if (layer->descriptor == &semu_sapporo_239_wbsto_layer &&
                    semu_sapporo_239_compat_hook_pc(state->r[15])) {
             if (semu_sapporo_239_apply_wbsto_hook(
@@ -163,6 +171,7 @@ typedef struct compat_gates {
     int bindings_ok;    /* their contexts are bound as the dispatch requires */
     int files_233;      /* sapporo-2.33-logical-files layer present */
     int firstboot_233;  /* sapporo-2.33-firstboot layer present */
+    int guard_233;      /* sapporo-2.33-sentinel-guard layer present */
     int pred_222;       /* sapporo-2.22-no-device layer present */
     int pred_wbsto;     /* sapporo-2.39-wbsto layer present */
     uint32_t pcs_239[3u];
@@ -185,6 +194,8 @@ static void summarize_compat_gates(semu_machine *machine, compat_gates *gates)
             gates->files_233 = 1;
         } else if (d == &semu_sapporo_233_firstboot_layer) {
             gates->firstboot_233 = 1;
+        } else if (d == &semu_sapporo_233_sentinel_guard_layer) {
+            gates->guard_233 = 1;
         } else if (d == &semu_sapporo_222_no_device_layer) {
             gates->pred_222 = 1;
         } else if (d == &semu_sapporo_239_wbsto_layer) {
@@ -209,8 +220,9 @@ static void summarize_compat_gates(semu_machine *machine, compat_gates *gates)
         semu_sapporo_devices_235_bindings_valid(machine->devices,
             machine->layers, machine->layer_count, machine->logger);
     gates->any = gates->device_235 || gates->files_233 ||
-                 gates->firstboot_233 || gates->pred_222 ||
-                 gates->pred_wbsto || gates->pcs_239_count != 0u;
+                 gates->firstboot_233 || gates->guard_233 ||
+                 gates->pred_222 || gates->pred_wbsto ||
+                 gates->pcs_239_count != 0u;
 }
 
 static int compat_gates_fire(const compat_gates *gates, uint32_t pc)
@@ -218,6 +230,8 @@ static int compat_gates_fire(const compat_gates *gates, uint32_t pc)
     unsigned i;
     if (gates->files_233) return 1;
     if (gates->firstboot_233) return 1;
+    if (gates->guard_233 &&
+        pc == SEMU_SAPPORO_233_SENTINEL_INSERT_PC) return 1;
     if (gates->pred_222 && semu_sapporo_devices_compat_hook_pc(pc)) return 1;
     if (gates->pred_wbsto && (semu_sapporo_239_compat_hook_pc(pc) ||
                               semu_sapporo_239_file_hook_pc(pc))) return 1;

@@ -6,6 +6,44 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the sentinel-insert guard ships: rate-capped budget, opt-in layer, and the crown-conditional tie-breaker — 2026-10-20
+
+E-SAP-0119 (instance-79, sap233-guard-ship): the E-SAP-0117 budget
+policy is decided (per-virtual-time rate cap: 3,000,000 skips/s over
+the measured 2.26–2.44M/s, absolute ceiling 360M = rate x the 120 s
+supported window, first-hit + every 1,000,000th-hit logging) and the
+2.33 sentinel-insert guard ships as the opt-in
+`sapporo-2.33-sentinel-guard` device-fixture layer (three component
+hashes pinned, declared disabled-by-default in the profile, registered
+and dispatched through the machine, generic snapshot hit accounting).
+The witnessed corrupting shape (insert entry 0x000bb69c, foreign
+sentinel 0x100331c0 in r1, sensor head-anchor next 0x10029c50 already
+pointing at it, sentinel +4 not self, lr = 0x000a4e8b) is skipped to
+the wrapper continuation 0x000a4e8a; a self-ring, a wrong return
+address, a disabled/exhausted layer, a bus-read failure or a rate
+overrun refuses fail-closed. New red-first unit suite 4/4; profile
+layer counts updated 5 -> 6 in the two enumerating tests. The guarded
+boot is twice byte-identical (`f373de6f…`): first skip at vt
+37.108419034 s, the 1,000,000th at 37.517418625 s (~2.44M/s), and the
+run advances past the former 37.82 s spin stop (pc 0x000bb6b0) to
+`stop=budget pc=0x0009259e instructions=2000000000
+virtual_time_ns=37821539437`; the 2.33 firmware runner gains that
+guarded stage and pins it. The rebuilt pinning probe reproduces the
+E-SAP-0107 record byte-identically (203 frames, 12 inputs) and the
+guard holds past the former 2M-skip budget. The E-SAP-0110/0118
+tie-breaker is closed from the pinned view: `s-cu-widgpin` binds the
+`down` pushButton only under `<:if>{DEVICE_HAS_CROWN}</:if>`, and the
+2.33 Sapporo (Suunto 9 Peak Pro) has three active-low buttons and no
+crown (E-SAP-BUTTONS-001), so the lower press is unbound (reading b);
+the pin gate (`targetData==2`) needs the crown-rotated/touch menu
+selection, so the pin-outcome JSON cannot be produced on this profile
+and the widget-settings fixture remains the boot-time
+`storage/7ab0dd65/data.jsn` write. The next gap is the E-SAP-0091
+touch evidence (offline-RE unblock path) for the post-pinning flow.
+Verification: guard tests 4/4, profile 6/6, all 2.33 filters green,
+check-lines/contracts green, `make check` green, `make sanitize`
+green, and the 2.33 firmware guard gate green twice identically.
+
 ## Ticket 710 — the guard-budget decision framework: three options, the rate cap recommended — 2026-10-18
 
 E-SAP-0116's fixture design leaves one owner decision: the sentinel
