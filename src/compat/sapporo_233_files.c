@@ -147,9 +147,9 @@ semu_status semu_sapporo_233_files_install(semu_sapporo_233_files_context *c,
                        "incomplete 2.33 logical-file target");
         return SEMU_ERR_ARGUMENT;
     }
-    if (!ready(c) || c->state->hits != 0u) {
+    if (!ready(c)) {
         semu_error_set(error, SEMU_ERR_STATE,
-                       "2.33 logical-file layer disabled or exhausted");
+                       "2.33 logical-file layer disabled");
         return SEMU_ERR_STATE;
     }
     file = find_file(c, "settings/ui.txt");
@@ -162,9 +162,14 @@ semu_status semu_sapporo_233_files_install(semu_sapporo_233_files_context *c,
         }
         strcpy(file->path, "settings/ui.txt");
     } else if (file->size != 0u) {
-        semu_error_set(error, SEMU_ERR_CONFLICT,
-                       "2.33 ui.txt seed already populated");
-        return SEMU_ERR_CONFLICT;
+        /* Idempotent re-install: the firmware already consumed the seed
+         * (the guest deletes it after its own parse); leave its content
+         * untouched. */
+        file->cursor = 0u;
+        return semu_layer_hit(c->state, c->logger,
+            "trigger=logical-file-seed-reinstall seed settings/ui.txt "
+            "already-populated idempotent E-SAP-0123",
+            error);
     }
     memcpy(file->data, ui_seed, sizeof(ui_seed));
     file->size = (uint32_t)sizeof(ui_seed);
@@ -182,9 +187,13 @@ semu_status semu_sapporo_233_files_install(semu_sapporo_233_files_context *c,
         }
         strcpy(file->path, "storage/7ab0dd65/data.jsn");
     } else if (file->size != 0u) {
-        semu_error_set(error, SEMU_ERR_CONFLICT,
-                       "2.33 widget-settings seed already populated");
-        return SEMU_ERR_CONFLICT;
+        /* Idempotent re-install: leave the guest's content untouched. */
+        file->cursor = 0u;
+        return semu_layer_hit(c->state, c->logger,
+            "trigger=logical-file-seed-reinstall seed "
+            "storage/7ab0dd65/data.jsn already-populated idempotent "
+            "E-SAP-0123",
+            error);
     }
     memcpy(file->data, semu_sapporo_233_widget_seed,
            SEMU_SAPPORO_233_WIDGET_SEED_SIZE);

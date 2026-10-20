@@ -87,9 +87,10 @@ static void test_install_and_red_first(semu_test_context *context)
         f.touch.route_id);
     SEMU_TEST_EQ_U64(context, 1u, f.touch.route_e);
     SEMU_TEST_EQ_U64(context, 1u, f.touch.touch_e);
-    /* Re-install refuses. */
+    /* Re-install is idempotent after a guest reset. */
     SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
-        &f.touch, NULL, &e) != SEMU_OK);
+        &f.touch, NULL, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x0013dbd0), f.touch.name_id);
     destroy(&f);
 }
 

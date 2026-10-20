@@ -6,43 +6,40 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
-## Ticket 710 — the touch-route layer reaches the uiEngine queue and touchBuffer via a manager redirect; the driver-side poll is still not observed — 2026-10-20
+## Ticket 710 — the touch-route layer reaches the uiEngine queue/touchBuffer and the run now continues past the guest reset; the TMA5xx IOM3 poll is still not observed — 2026-10-20
 
 E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): under the owner's
 explicit authorization to go over the standing rules, the layer
 `sapporo-2.33-touch-route` (evidence E-SAP-0127, three pinned 2.33
 hashes, `max_hits=64`) is implemented with the opt-in profile stanza,
-the install of the synthetic enablement entry (`hw_touch_1` VA
-`0x0013dbd0`, route type 12, routeE/touchE=1, logged
-`synthetic=enablement-only`), the route-manager seam apply at PC
-`0x164a8e`, the TMA5xx sink seam at PC `0x00100e72`, the uiEngine queue
-seam at PC `0x000a712e`, and a **manager redirect**: the layer captures
-the touch manager constructor `0x00100a66` (its `r0` = the manager,
-its `lr` = the return address), then at the constructor's return runs
-the manager's own `0x2205` handler `0x00100b68` with the
+the synthetic enablement entry install (`hw_touch_1` VA `0x0013dbd0`,
+route type 12, routeE/touchE=1, logged `synthetic=enablement-only`;
+re-install after a guest reset is idempotent), the route-manager seam
+at PC `0x164a8e`, the TMA5xx sink at PC `0x00100e72`, the uiEngine
+queue at PC `0x000a712e`, and a **manager redirect**: the layer
+captures the touch manager constructor `0x00100a66` and at its return
+runs the manager's own `0x2205` handler `0x00100b68` with the
 owner-authorized synthetic values (X/Y=120 in the stack argument,
-id=120, type=0, flags=0) and restores the stack. The handler calls the
+id=120, type=0, flags=0), restoring the stack. The handler calls the
 uiEngine queue `0xa712e` and the TMA5xx driver
 (`0x1289f6`/`0x128a30`), so the firmware's own
-handler -> queue -> uiEngine -> touchBuffer path runs. The red-first
-unit test is 7/7 green (descriptor; disabled-layer refusal; apply
-seam; sink event record; uiEngine queue event record; manager
-redirect; endpoint). Two integration runs with the seven layers and
-the pinning replay are byte-identical (`stdout-8.txt` =
-`stdout-9.txt`, sha256 `9d901256...`): `touch-route-install` at vt 0,
-7 seam hits at vt 39.29-39.30 s, and **13 `touch-event` lines with
-`trigger=uiengine-queue`** at vt 1.59-2.41 s, i.e. the manager
-redirect reaches the firmware's own uiEngine queue `0xa712e` which
-feeds `touchBuffer` (`0x48b5b`). The run then stops at
-`stop=device-refused pc=0x000c97f2 detail=2.33 ui.txt seed already
-populated` after a firmware `machine-reset-request`
-(`r0=0x05fa0004`, SYSRESETREQ) at vt 2.41 s. The TMA5xx driver's IOM3
-poll (`0x40053000`/`0x24`/`0x2f`) is not observed in the logs, so the
-driver-side report path is not yet exercised; the four field offsets
-remain unpinned and the synthetic route entry still ends in the
-null/abort action chain. The layer stays opt-in; the default profile
+handler -> queue -> uiEngine -> touchBuffer path runs. The
+logical-files seed re-install is also idempotent now (the
+`settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
+untouched when already populated), so a guest reset no longer refuses.
+The red-first unit test is 7/7 green; the files test is 4/4 green. Two
+integration runs with the seven layers and the pinning replay are
+byte-identical (`stdout-16.txt` = `stdout-17.txt`, sha256
+`f45b20c9...`): 19 `touch-event` lines, and the run now **continues
+past the guest reset** (the logical-files and touch-route re-installs
+log idempotent at vt 4.876 s); it then stops at `stop=unmapped-access
+pc=0x000fa928 detail=memory address overflow at 0x10028d20` at vt
+4.902 s. The TMA5xx driver's IOM3 poll (`0x40053000`/`0x24`/`0x2f`)
+and the 12-byte report path are still not observed; the four field
+offsets remain unpinned. The layer stays opt-in; the default profile
 remains fail-closed. `make test TEST_FILTER=sapporo_233_touch_route`
-7/7; `make check-lines`, `make check-task-contracts`, `make check`,
+7/7; `make test TEST_FILTER=sapporo_233_files` 4/4; `make
+check-lines`, `make check-task-contracts`, `make check`,
 `make sanitize` green.
 
 ## Ticket 710 — the touch-enablement gap stays refused: the route-entry chain and settings-service seam are mapped; the next gap is the settings-service entry reader — 2026-10-20

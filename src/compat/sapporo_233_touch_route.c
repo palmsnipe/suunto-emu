@@ -59,7 +59,12 @@ semu_status semu_sapporo_233_touch_route_install(
         return SEMU_ERR_ARGUMENT;
     }
     if (c->installed) {
-        return refuse(c, error, "2.33 touch route already installed");
+        /* Idempotent re-install after a guest reset: the layer is
+         * already seeded, keep the same synthetic values. */
+        return semu_layer_hit(c->state, c->logger,
+            "trigger=route-seed-reinstall name=hw_touch_1 routeType=12 "
+            "routeE=1 touchE=1 already-installed idempotent E-SAP-0127",
+            error);
     }
     if (!ready(c)) {
         return refuse(c, error, "2.33 touch-route layer is not enabled");
