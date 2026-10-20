@@ -6,6 +6,34 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the widget-settings localStorage seed lands: the observed 772-byte storage/7ab0dd65/data.jsn content is replayed and the pre-write load is admitted — 2026-10-20
+
+E-SAP-0123 (instance-83, sap233-widget-seed): the E-SAP-0115/0116
+fixture design is implemented. A guarded six-layer pinning-screen
+probe (nema backend, 6 s/2B instructions) captured the guest's own
+`storage/7ab0dd65/data.jsn` content twice byte-identically: 772
+bytes, sha256 `0aabc260...`, the 18-widget JSON
+(`{"arraySize":18,...}`), written by the guest at vt 3.193 s. The new
+fixture header `src/compat/sapporo_233_widget_seed.h` carries the
+array with provenance; the 2.33 files layer seeds both
+`settings/ui.txt` and `storage/7ab0dd65/data.jsn` in its install hit
+(opt-in, three hash pins, 4096-hit bound; descriptor/profile evidence
+`E-SAP-0069..E-SAP-0123`). Red-first unit coverage
+`test_local_storage_seed` checks the seed slot, size, first bytes,
+sha256, and the admitted mode-1 read (`make test
+TEST_FILTER=sapporo_233_files` 4/4). The files-layer integration
+re-pins the seed-visible behavior: settings `6736ff1a...`, pressure
+`6c3e71a8...`, next `5408ccff...`, guarded `27c1fec5...`, the stage
+stops shifted by 1-2 instructions / the guarded stop pc-vt, and the
+guard's hit lines unchanged; both passes byte-identical. The visible
+change is exactly the pre-write load at vt 278 ms being admitted
+(`size=772`) and read (`result=772`) instead of the native size-0
+open, with no fallback widening. No touch behavior is authorized; the
+post-pinning touch gap remains refused (E-SAP-0120/0121/0122). Next
+evidence-backed gap: the widget-pinning persistence read path beyond
+this seed. `make check-lines`, `make check`, `make sanitize` green;
+the integration stages twice identical.
+
 ## Ticket 710 — the hw route config is a personalized device-settings value absent from the OTA; the touch gap stays refused — 2026-10-20
 
 E-SAP-0122 (instance-82, sap233-route-defaults): the settings

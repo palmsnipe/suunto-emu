@@ -1,4 +1,5 @@
 #include "sapporo_233_files.h"
+#include "sapporo_233_widget_seed.h"
 
 #include <limits.h>
 #include <string.h>
@@ -13,7 +14,7 @@ const semu_layer_descriptor semu_sapporo_233_files_layer = {
     .id = "sapporo-2.33-logical-files",
     .kind = SEMU_LAYER_DEVICE_FIXTURE,
     .profile_id = "sapporo-2.33.16",
-    .evidence = "E-SAP-0069",
+    .evidence = "E-SAP-0069..E-SAP-0123",
     .component_hashes = hashes,
     .component_hash_count = 3u,
     .maximum_hits = 4096u
@@ -169,8 +170,30 @@ semu_status semu_sapporo_233_files_install(semu_sapporo_233_files_context *c,
     file->size = (uint32_t)sizeof(ui_seed);
     file->cursor = 0u;
     file->seeded = 1;
+    /* E-SAP-0123: replay the guest's own 772-byte localStorage content for
+     * storage/7ab0dd65/data.jsn so the pre-write load sees it. */
+    file = find_file(c, "storage/7ab0dd65/data.jsn");
+    if (file == NULL) {
+        file = free_slot(c);
+        if (file == NULL) {
+            semu_error_set(error, SEMU_ERR_RANGE,
+                           "2.33 logical-file table is full");
+            return SEMU_ERR_RANGE;
+        }
+        strcpy(file->path, "storage/7ab0dd65/data.jsn");
+    } else if (file->size != 0u) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "2.33 widget-settings seed already populated");
+        return SEMU_ERR_CONFLICT;
+    }
+    memcpy(file->data, semu_sapporo_233_widget_seed,
+           SEMU_SAPPORO_233_WIDGET_SEED_SIZE);
+    file->size = SEMU_SAPPORO_233_WIDGET_SEED_SIZE;
+    file->cursor = 0u;
+    file->seeded = 1;
     return semu_layer_hit(c->state, c->logger,
-        "trigger=logical-file-seed ordinal=1 seed settings/ui.txt wfn:00 fuwe:T",
+        "trigger=logical-file-seed ordinal=1 seed settings/ui.txt wfn:00 fuwe:T "
+        "seed storage/7ab0dd65/data.jsn E-SAP-0123",
         error);
 }
 

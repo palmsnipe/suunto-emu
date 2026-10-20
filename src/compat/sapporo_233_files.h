@@ -5,14 +5,16 @@
 #include "semu/compat.h"
 #include "semu/cpu.h"
 
-/* E-SAP-0059/0064/0065/0069 class: the session-only writable logical-file
- * overlay for the 2.33.16 OTA staging. Existing readable files stay on the
- * native storage path; missing files opened for creation are retained in
- * memory using bytes the firmware itself writes. The layer seeds the
- * schema-valid settings/ui.txt (wfn:00 + fuwe:T) that E-SAP-0059 proved
- * clears the SettingsProvider.cpp:228 assert, and implements the native
- * 0xbb204 file-size operation (E-SAP-0069) so the guest's own
- * activity-store length check observes the retained bytes. */
+/* E-SAP-0059/0064/0065/0069/0123 class: the session-only writable
+ * logical-file overlay for the 2.33.16 OTA staging. Existing readable files
+ * stay on the native storage path; missing files opened for creation are
+ * retained in memory using bytes the firmware itself writes. The layer seeds
+ * the schema-valid settings/ui.txt (wfn:00 + fuwe:T) that E-SAP-0059 proved
+ * clears the SettingsProvider.cpp:228 assert, replays the observed 772-byte
+ * storage/7ab0dd65/data.jsn localStorage content (E-SAP-0123) for the
+ * pre-write load, and implements the native 0xbb204 file-size operation
+ * (E-SAP-0069) so the guest's own activity-store length check observes the
+ * retained bytes. */
 #define SEMU_SAPPORO_233_FILES_OPEN UINT32_C(0x000bb094)
 #define SEMU_SAPPORO_233_FILES_EXISTS UINT32_C(0x000bb2b2)
 #define SEMU_SAPPORO_233_FILES_CLOSE UINT32_C(0x000bb12c)

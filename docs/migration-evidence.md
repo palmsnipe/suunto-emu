@@ -15653,3 +15653,98 @@ Documentation-only: `make check-lines` clean,
 | `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
 | `/tmp/sap233-ohr-20261016/frames-buttons-1.log` | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
 | `/tmp/sap233-touch/app.asm` | `f4ec3a8d0c62fafbb241968f6f29f9d56274b28b1993874a278af7f8a217531d` |
+
+
+## E-SAP-0123 - the widget-settings localStorage seed lands: the observed 772-byte storage/7ab0dd65/data.jsn content is replayed and the pre-write load at 278 ms is admitted and read (ticket 710, instance-83)
+
+2026-10-20, ticket 710 instance-83 (sap233-widget-seed) continuing at
+f68c1a6. This implements the E-SAP-0115/0116 fixture design: the 2.33
+files layer now seeds the observed widget-settings localStorage content
+so the pinning view's pre-write load sees it, instead of the native
+size-0 file.
+
+**Content capture (twice byte-identical).** The volatile probe
+`/tmp/sap233-spin/wstorage_probe.c` (sha256 `8f1700af...`, binary
+`f29ac6df...`) runs the guarded six-layer pinning-screen boot (the
+E-SAP-0106/0107 flow) with the nema display backend to 6 s / 2B
+instructions and dumps the files-layer table. Two passes are
+byte-identical: `wstorage-3.log` = `wstorage-4.log` (sha256
+`89c77926...`). The captured file `storage/7ab0dd65/data.jsn` is
+**772 bytes, sha256
+`0aabc260e9ab098e59093ed675ec7f5fd0726ba6fb6b3eee3345d922f67a9a84`**,
+the JSON `{"arraySize":18,"arrayData":[{"id":"widg-ctrlp",...},...]}`
+(18 widget entries, all enabled/pin 0, CRLF-terminated). The probe log
+shows the guest's own lifecycle: a native size-0 open at vt 278 ms,
+then create + 770-byte and 2-byte writes at vt 3.193 s and a close -
+the write is the guest's own localStorage save; the seed replays that
+content for the earlier load. No firmware bytes are involved (the
+content is guest-generated settings data; provenance is the probe log
+hash above).
+
+**Implementation.** New fixture header
+`src/compat/sapporo_233_widget_seed.h` (sha256 `5470e07b...`) carries
+the 772-byte array with the provenance comment;
+`src/compat/sapporo_233_files.c` (sha256 `418854f9...`) seeds both
+`settings/ui.txt` and `storage/7ab0dd65/data.jsn` in the same
+install hit, and its descriptor/profile evidence moves to
+`E-SAP-0069..E-SAP-0123` (`profiles/sapporo/2.33.16/profile.semu`
+sha256 `6f3302ec...`). The install hit line now reads
+`trigger=logical-file-seed ordinal=1 seed settings/ui.txt wfn:00
+fuwe:T seed storage/7ab0dd65/data.jsn E-SAP-0123`. The layer stays
+opt-in, hash-pinned (three component hashes), and hit-bounded
+(4096 hits; the seed is one install hit).
+
+**Red-first unit coverage.** `tests/unit/test_sapporo_233_files.c`
+adds `test_local_storage_seed`: the second seed slot is
+`storage/7ab0dd65/data.jsn`, size 772, seeded, first bytes
+`{"arraySize":18`, sha256 equal to the captured value; a mode-1
+read-open is admitted by the overlay and the read returns the seeded
+bytes. Without the seed the slot is empty and the open stays native,
+so the test fails red-first. `make test TEST_FILTER=sapporo_233_files`
+is 4/4 green.
+
+**Integration re-pin (both passes byte-identical).** The files-layer
+firmware script (`tests/integration/test_firmware_sapporo_233_files.sh`,
+sha256 `379aabde...`) re-pins the seed-visible behavior:
+- settings hash `54047d5d...` -> `6736ff1a...`, stop
+  `stop=budget pc=0x000c892c instructions=70000000
+  virtual_time_ns=405355276`;
+- pressure hash `026ed246...` -> `6c3e71a8...`, stop
+  `instructions=93149170`;
+- next hash `39e9e7c7...` -> `5408ccff...`, stop
+  `instructions=525319890 detail=2.33 ui.txt seed already populated`;
+- ohr stop `virtual_time_ns=37821258942`;
+- guarded hash `f373de6f...` -> `27c1fec5...`, stop
+  `stop=budget pc=0x000925b4 instructions=2000000000
+  virtual_time_ns=37821258942`;
+- the guard's hit lines stay byte-identical (first skip at
+  `virtual_time_ns=37108419034`, 1,000,000th at `37517418625`).
+The visible change is exactly the E-SAP-0123 seed: the load at vt
+278 ms is admitted (`operation=open ... size=772`) and read
+(`operation=read ... result=772`) instead of the native size-0 open;
+the stops shift by 1-2 instructions and the guarded stop pc/vt, with
+no fallback widening and no new refusal class. The control stage (no
+layers) is unchanged (`74c85818...`).
+
+Verification: `make test TEST_FILTER=sapporo_233_files` 4/4 twice;
+the integration stages twice byte-identical; `make check-lines`,
+`make check`, `make sanitize` (recorded in the instance handoff).
+No touch behavior is authorized; the post-pinning touch gap remains
+refused fail-closed (E-SAP-0120/0121/0122). The next evidence-backed
+gap is the widget-pinning persistence read path beyond this seed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-spin/wstorage_probe.c` | `8f1700af6560e0b9a17e91e510de40e5077d43f88faed6937698338d3152f7e2` |
+| `/tmp/sap233-spin/wstorage_probe` (binary) | `f29ac6dfdad2c3069e11ca4e942ceac14ce3424160eb75684e942bf8d6f64e59` |
+| `/tmp/sap233-spin/wstorage-3.log` = `wstorage-4.log` | `89c77926b858da76efacdf11318e792dd9f8fba27ab4a24c1b0d4e940708fc23` |
+| `src/compat/sapporo_233_widget_seed.h` | `5470e07bb1963b92ea458f174218684ed51cb5bc21bb59564eddb405a1fd76ab` |
+| `src/compat/sapporo_233_files.c` | `418854f9c06f36b8f4026fb83a9fd45c66188c62780b2dbfe6a8a192233d22bf` |
+| `src/compat/sapporo_233_files.h` | `97d337f7c6fe216bc6e9351ad7539b7f45e067562fd90a4ed9f825ac85908bf8` |
+| `tests/integration/test_firmware_sapporo_233_files.sh` | `379aabde5d2b86adc75300e3252f68ab7d9ad9dc0769a1c45b1de91ee90f2f73` |
+| `profiles/sapporo/2.33.16/profile.semu` | `6f3302ecfce77379be98fda4b6ac8cccb50201a9e53b9c72b5dc3ee805065f6c` |
+| `/tmp/sap233-wstorage/settings-1.log` = `-2.log` | `6736ff1a1c8999d8f7b9e634c899754e460a076854f11ac8074aab9e70af3296` |
+| `/tmp/sap233-wstorage/pressure-1.log` = `-2.log` | `6c3e71a8f6706f9e7a6e5f7e4543f6e21ea810fb9449bb6d2749765b112f63b6` |
+| `/tmp/sap233-wstorage/next-1.log` = `-2.log` | `5408ccff23457661e6825a93d5a050514ba79812439a07e6f71226695809d6e1` |
+| `/tmp/sap233-wstorage/ohr-1.log` = `-2.log` | `66423c8818ebfc4bc56f3a82471d542c513e7bcddf59239ca160c0b5b13ddef8` |
+| `/tmp/sap233-wstorage/guarded-1.log` = `-2.log` | `27c1fec53024a3cc3b13554ba2e246724ace0b2a446dfec2abb667fae3b71530` |

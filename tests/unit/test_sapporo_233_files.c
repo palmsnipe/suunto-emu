@@ -4,6 +4,7 @@
  * unsupported shape refuses without touching transport or layer state. */
 #include "sapporo_233_files.h"
 #include "../../src/boards/machine_internal.h"
+#include "semu/hash.h"
 #include "test.h"
 #include <string.h>
 
@@ -176,6 +177,60 @@ static void test_seed_and_refusals(semu_test_context *context)
     destroy(&f);
 }
 
+/* E-SAP-0123: the widget-settings seed replays the observed 772-byte
+ * storage/7ab0dd65/data.jsn localStorage content so the pre-write load
+ * (the native-open at vt 278 ms in the guarded run) sees it instead of the
+ * empty native file. The red-first property: without the seed the slot is
+ * empty and the open stays native. */
+static void test_local_storage_seed(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint8_t digest[SEMU_SHA256_SIZE];
+    char hex[65];
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, f.files.files[1].seeded == 1);
+    SEMU_TEST_ASSERT(context, strcmp(f.files.files[1].path,
+        "storage/7ab0dd65/data.jsn") == 0);
+    SEMU_TEST_EQ_U64(context, 772u, f.files.files[1].size);
+    SEMU_TEST_ASSERT(context, memcmp(f.files.files[1].data,
+        "{\"arraySize\":18", 14u) == 0);
+    semu_sha256(f.files.files[1].data, f.files.files[1].size, digest);
+    semu_sha256_format(digest, hex);
+    SEMU_TEST_ASSERT(context, strcmp(hex,
+        "0aabc260e9ab098e59093ed675ec7f5fd0726ba6fb6b3eee3345d922f67a9a84") == 0);
+    { static const uint8_t path[] = "storage/7ab0dd65/data.jsn";
+      SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_load(f.bus,
+          UINT32_C(0x10020000), path, sizeof(path) - 1u, &e)); }
+    f.cpu.r[15] = SEMU_SAPPORO_233_FILES_OPEN;
+    f.cpu.r[0] = UINT32_C(0x10020000);
+    f.cpu.r[1] = 1u;
+    f.cpu.r[14] = UINT32_C(0x00080001);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_233_files_apply(
+        &f.files, f.bus, &f.cpu, &e));
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x1015f000), f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x00080000), f.cpu.r[15]);
+    { uint32_t handle = f.cpu.r[0];
+      uint8_t bytes[16];
+      f.cpu.r[15] = SEMU_SAPPORO_233_FILES_READ;
+      f.cpu.r[0] = handle;
+      f.cpu.r[1] = UINT32_C(0x10030000);
+      f.cpu.r[2] = sizeof(bytes);
+      SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_233_files_apply(
+          &f.files, f.bus, &f.cpu, &e));
+      SEMU_TEST_EQ_U64(context, sizeof(bytes), f.cpu.r[0]);
+      SEMU_TEST_ASSERT(context, semu_bus_copy_out(f.bus,
+          UINT32_C(0x10030000), bytes, sizeof(bytes), &e) == SEMU_OK);
+      SEMU_TEST_ASSERT(context, memcmp(bytes, f.files.files[1].data,
+          sizeof(bytes)) == 0);
+      f.cpu.r[15] = SEMU_SAPPORO_233_FILES_CLOSE;
+      f.cpu.r[0] = handle;
+      SEMU_TEST_EQ_U64(context, SEMU_OK, semu_sapporo_233_files_apply(
+          &f.files, f.bus, &f.cpu, &e));
+    }
+    destroy(&f);
+}
+
 /* The native read/write wrappers share 0xbb1de's signed 64-bit return.
  * A stale buffer address in r1 makes the guest's exact-length reader reject
  * a successful read, including the fuwe lookup (E-SAP-0072). */
@@ -246,6 +301,7 @@ int main(void)
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_open_seed_create_and_lifecycle),
         SEMU_TEST_CASE(test_seed_and_refusals),
+        SEMU_TEST_CASE(test_local_storage_seed),
         SEMU_TEST_CASE(test_read_write_return_high_word)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
