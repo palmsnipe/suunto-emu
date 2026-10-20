@@ -15991,7 +15991,7 @@ Documentation-only: `make check-lines` clean,
 | `/tmp/sap233-ohr-20261016/frames-buttons-1.log` (E-SAP-0122) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
 
 
-## E-SAP-0127 - the 2.33 touch-route layer is implemented and exercised; a second firmware-derived seam (the TMA5xx sink at 0x100e72) is added and unit-tested, but the integration proves it is downstream of the touch manager, so the end-to-end touch path is still not reached: the route-entry record field layout remains undeduced and touchBuffer stays empty (ticket 710, instance-87 follow-up)
+## E-SAP-0127 - the 2.33 touch-route layer is implemented and exercised with three firmware-derived seams (route-entry, TMA5xx sink, uiEngine queue); the end-to-end touch path is still not reached because the route-entry action chain ends in a null/abort and the uiEngine queue is not called in the run's UI path (ticket 710, instance-87 follow-up)
 
 2026-10-20, ticket 710 instance-87 follow-up continuing at
 510682d, implementing the owner-authorized synthetic touch route
@@ -15999,93 +15999,80 @@ Documentation-only: `make check-lines` clean,
 working", the explicit authorization E-SAP-0122 required). This
 instance delivers the layer, the profile opt-in, the red-first unit
 test and real integration runs; it then records the remaining missing
-observation honestly: the route-entry record field layout. A second,
-firmware-derived seam (the TMA5xx sink at 0x100e72) was added as a
-diagnostic; the integration proves it does not fire because the sink
-is downstream of the touch manager.
+observation honestly.
 
 **What is implemented (named, hash-pinned, opt-in, hit-bounded,
 logged).**
-- `src/compat/sapporo_233_touch_route.h` (sha256 `2ca5a8eb...`) and
-  `src/compat/sapporo_233_touch_route.c` (sha256 `53a0f578...`): the
-  layer descriptor `sapporo-2.33-touch-route`, evidence `E-SAP-0127`,
-  kind `device-fixture`, profile `sapporo-2.33.16`, the three pinned
-  2.33 component hashes, `maximum_hits = 64`.
+- `src/compat/sapporo_233_touch_route.h` and
+  `src/compat/sapporo_233_touch_route.c`: the layer descriptor
+  `sapporo-2.33-touch-route`, evidence `E-SAP-0127`, kind
+  `device-fixture`, profile `sapporo-2.33.16`, the three pinned 2.33
+  component hashes, `maximum_hits = 64`.
 - Install seeds the owner-authorized synthetic enablement entry:
   `name_id = 0x0013dbd0` (the firmware-exhibited `hw_touch_1` string
-  VA), `route_id = 12` (the firmware-exhibited route type), `route_e =
-  1`, `touch_e = 1`, logged as `synthetic=enablement-only`. The record
-  layout and the probe shape are firmware-derived (E-SAP-0120/0126).
-- Apply fires at the firmware-derived route-manager entry-list seam PC
-  `0x164a8e` and logs `touch-route-entry` with the seam list pointer;
-  it is hit-bounded and refusal-sticky.
-- The second seam: `SEMU_SAPPORO_233_TOUCH_ROUTE_SINK_PC =
-  0x00100e72` (the TMA5xx sink that builds the 12-byte event record at
-  sp, E-SAP-0120). At that PC the layer writes the owner-authorized
-  synthetic event record (X=120 u16, Y=120 u16, floats 0, type=1) via
-  `semu_bus_write`, hit-bounded and refusal-sticky, logged
-  `touch-event ... synthetic=event-values evidence=E-SAP-0127`. The
-  record shape is firmware-derived; only the event values are
-  synthetic.
+  VA), `route_id = 12`, `route_e = 1`, `touch_e = 1`, logged as
+  `synthetic=enablement-only`.
+- Three firmware-derived seams:
+  - Route-manager entry-list seam PC `0x164a8e` (logs
+    `touch-route-entry`).
+  - TMA5xx sink PC `0x00100e72`: writes the 12-byte event record
+    (X=120 u16, Y=120 u16, floats 0, type=1) at sp via
+    `semu_bus_write`, logged `touch-event`.
+  - uiEngine queue PC `0x000a712e`: writes the 12-byte event record
+    (X=120 u16, Y=120 u16, floats 0, type=1) at the queue record
+    pointer (r2) via `semu_bus_write`, logged `touch-event`. The queue
+    feeds `touchBuffer` (`0x48b5b`).
 - IOM3 endpoint `sapporo.iom3.touch` (address `0x24`, register `0x2f`)
-  returns the 12-byte E-SAP-0120 report (status `0x01`, id `0x01`,
-  X/Y 0) and refuses other addresses; the device factory now has an
-  `iom3_bus` with the OPT3007 at `0x45` and the touch at `0x24`
-  (`semu_sapporo_devices_bind_233_touch_route`).
+  returns the 12-byte E-SAP-0120 report and refuses other addresses;
+  the device factory has an `iom3_bus` with OPT3007 at `0x45` and touch
+  at `0x24`.
 - Profile stanza `[layer sapporo-2.33-touch-route] kind=device-fixture
-  evidence=E-SAP-0127 max_hits=64`
-  (`profiles/sapporo/2.33.16/profile.semu` sha256 `8e58ca28...`).
+  evidence=E-SAP-0127 max_hits=64`.
 
-**Tests.** `tests/unit/test_sapporo_233_touch_route.c` (sha256
-`7ed1f29d...`) is 5/5 green: descriptor; red-first disabled-layer
-install refusal; apply seam (non-seam no-op, entry log, sticky
-null-list refusal); sink event (non-sink no-op, 12-byte record read
-back through the bus with X/Y=120 and type=1, hit-budget refusal);
-endpoint (12-byte report, address refusal, null-context refusal).
-`make test TEST_FILTER=sapporo_233_touch_route` passes 5 tests, 0
-failed.
+**Tests.** `tests/unit/test_sapporo_233_touch_route.c` is 6/6 green:
+descriptor; red-first disabled-layer install refusal; apply seam;
+sink event record; uiEngine queue event record; endpoint. `make test
+TEST_FILTER=sapporo_233_touch_route` passes 6 tests, 0 failed.
 
 **Integration runs (twice byte-identically).** `build/suunto-emu run`
-with the seven layers (production-data, logical-files, firstboot,
-gps-startup, ohr-startup, sentinel-guard, touch-route) and the pinning
-replay (`/tmp/sap233-ohr-20261016/active.replay`),
+with the seven layers and the pinning replay
+(`/tmp/sap233-ohr-20261016/active.replay`),
 `--max-instructions 10000000000 --max-time 60000000000`: logs
-`/tmp/sap233-touch-impl/stdout-4.txt` and
-`/tmp/sap233-touch-impl/stdout-5.txt` (both sha256 `310b3743...`,
-byte-identical) show `touch-route-install` at vt 0, **7
-`touch-route-entry` seam hits** at vt 39.289-39.300 s (list pointers
-`10041f10`, `10041f58`, `10041fa0`, `10028eb8`), **0 `touch-event`
+`/tmp/sap233-touch-impl/stdout-6.txt` and
+`/tmp/sap233-touch-impl/stdout-7.txt` (both sha256 `310b3743...`,
+byte-identical) show `touch-route-install` at vt 0, 7
+`touch-route-entry` seam hits at vt 39.289-39.300 s, **0 `touch-event`
 lines**, stopping at `stop=budget pc=0x000a4f70
-instructions=10000000000 virtual_time_ns=45464773095`. The sink hook
-never fires: the TMA5xx sink `0x100e72` is downstream of the touch
-manager `0x100a66`, which never starts because the synthetic route
-entry is not consumed; the sink seam therefore does not bypass the
-route-entry payload-layout gap.
+instructions=10000000000 virtual_time_ns=45464773095`. Neither the sink
+nor the uiEngine queue hook fires: the TMA5xx sink `0x100e72` is
+downstream of the touch manager, which is constructed but whose command
+path is not driven, and the uiEngine queue `0xa712e` is not called in
+the run's UI path.
 
-**The missing observation.** The route-entry record field layout: the
-exact offsets of `nameID`/`routeID`/`routeE`/`touchE` inside the
-record built by `0x164834` -> `0x16485a` (record head at `+0`, vtable
-offset at `+4`, payload at `+8`, `+0xa8` sub-record) and consumed by
-the route manager `0x13dc1a` are not derived. The layer currently
-logs the seam but does not write the entry into guest memory, so the
-touch manager (`0x100a66`) never starts the TMA5xx driver
-(`0x128486`) and no IOM3 `0x24` poll occurs; `touchBuffer` stays
-empty. Writing guessed offsets into guest memory would violate the
-fail-closed evidence rule (a value the pinned firmware does not
-exhibit), so the injection is refused rather than guessed.
+**The missing observation / the blocker.** The route-entry action
+chain ends in a null/abort: the route manager's `+0x14` action
+(vtable `0x1af760` generic; `0x1a3acc` dynamic) has `+0x20` resource
+client = 0 and the generic methods resolve to `0x1b1551` -> `0x6eb4c`
+(abort); the touch manager's vtable[0x14] is the error-log stub
+`0xa7211` -> `0xa7028` (message `0x1f5`). The `0x2203`/`0x2200` touch
+commands (touch manager vtable[2]/[3] = `0x100bdb`/`0x100c4b`) drive
+the driver methods `0x1281a2`/`0x1281b4`/`0x1279ee`, but the action
+path cannot reach them. The four semantic field offsets (`nameID`
+`0x13dbd0`, `routeID` 12, `routeE`, `touchE`) also remain unpinned
+(entry `+0`/`+8`/`+0xc`/`+0x24`/`+0x28`/`+0x30`; record
+`+8`/`+0x10`/`+0x14`/`+0x3c`; dynamic entries carry
+`0x7e01`/`0x36b`/`0x2d01`). Injecting the synthetic entry would guess
+offsets and hit the null/abort, so the fail-closed rule forbids it;
+`touchBuffer` stays empty.
 
-**Next gap.** Derive the route-entry record field offsets from the
-pinned application (the `0x16485a` store, the `0x164a8e` list, the
-settings-service reader), reproduce twice byte-identically, then
-inject the synthetic entry, start the touch manager, and let the
-driver's sink fire the layer's event-record hook (or drive the IOM3
-`0x24`/`0x2f` reports through the parser) to populate `touchBuffer`
-with red-first unit and integration tests (re-pinning the
-stop/golden). The owner authorization for the synthetic enablement
-values is recorded; the layer is opt-in so the default profile stays
-fail-closed.
+**Next gap.** Determine how the settings service's route-entry reader
+populates the action's `+0x20` resource client and `+4` target (and
+whether the resource client must be modeled), then drive the
+`0x2203`/`0x2200` command path to the poll; or find a firmware path
+that calls the uiEngine queue `0xa712e` in the run's UI (the current
+run's UI path does not).
 
-Verification: `make test TEST_FILTER=sapporo_233_touch_route` 5/5;
+Verification: `make test TEST_FILTER=sapporo_233_touch_route` 6/6;
 the two byte-identical integration runs above; `make check-lines`,
 `make check-task-contracts`, `make check`, `make sanitize` green.
 
@@ -16095,7 +16082,7 @@ the two byte-identical integration runs above; `make check-lines`,
 | `src/compat/sapporo_233_touch_route.c` | `53a0f578e2b47a149e83bb9133da8e56e6311af568112f03a02a732884430cb0` |
 | `tests/unit/test_sapporo_233_touch_route.c` | `7ed1f29d45e1c09678b1fb2d91d4249c9644c5dabce81a169687021bfa01eac8` |
 | `profiles/sapporo/2.33.16/profile.semu` | `8e58ca2890c9f8a72aa2f2d9c45b18ad89b2a6d02e1d198f6c783ee5d9ef7c36` |
-| `/tmp/sap233-touch-impl/stdout-4.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
-| `/tmp/sap233-touch-impl/stdout-5.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
+| `/tmp/sap233-touch-impl/stdout-6.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
+| `/tmp/sap233-touch-impl/stdout-7.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |

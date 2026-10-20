@@ -121,6 +121,28 @@ semu_status semu_sapporo_233_touch_route_apply(
                  "synthetic=event-values evidence=E-SAP-0127");
         return SEMU_OK;
     }
+    /* The uiEngine queue seam: the touch manager's event handler calls
+     * the queue 0xa712e with the E-SAP-0120 12-byte record. The layer
+     * injects the owner-authorized synthetic event values so the
+     * firmware's own queue -> uiEngine -> touchBuffer path runs. */
+    if (cpu->r[15] == SEMU_SAPPORO_233_TOUCH_ROUTE_QUEUE_PC) {
+        uint32_t record = cpu->r[2];
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        if (semu_bus_write(bus, record + 0u, 2u, 120u, error) != SEMU_OK ||
+            semu_bus_write(bus, record + 2u, 2u, 120u, error) != SEMU_OK ||
+            semu_bus_write(bus, record + 4u, 4u, 0u, error) != SEMU_OK ||
+            semu_bus_write(bus, record + 8u, 4u, 0u, error) != SEMU_OK ||
+            semu_bus_write(bus, record + 12u, 1u, 1u, error) != SEMU_OK) {
+            return refuse(c, error, "2.33 touch-route queue write failed");
+        }
+        ++c->hits;
+        log_line(c, "touch-event",
+                 "trigger=uiengine-queue x=120 y=120 type=1 bytes=12 "
+                 "synthetic=event-values evidence=E-SAP-0127");
+        return SEMU_OK;
+    }
     if (cpu->r[15] != SEMU_SAPPORO_233_TOUCH_ROUTE_PC) return SEMU_OK;
     if (!c->installed) {
         return refuse(c, error, "2.33 touch route is not installed");

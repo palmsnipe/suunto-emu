@@ -153,6 +153,31 @@ static void test_sink_event(semu_test_context *context)
     destroy(&f);
 }
 
+static void test_queue_event(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint32_t v = 0u;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_QUEUE_PC;
+    f.cpu.r[2] = UINT32_C(0x10030000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, f.touch.hits);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10030000),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 120u, v & 0xffffu);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10030002),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 120u, v & 0xffffu);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x1003000c),
+        1u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, v & 0xffu);
+    destroy(&f);
+}
+
 static void test_endpoint(semu_test_context *context)
 {
     fixture f;
@@ -189,6 +214,7 @@ int main(void)
         SEMU_TEST_CASE(test_install_and_red_first),
         SEMU_TEST_CASE(test_apply_seam),
         SEMU_TEST_CASE(test_sink_event),
+        SEMU_TEST_CASE(test_queue_event),
         SEMU_TEST_CASE(test_endpoint)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

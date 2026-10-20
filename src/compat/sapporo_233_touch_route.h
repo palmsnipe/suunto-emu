@@ -24,6 +24,9 @@
 /* The TMA5xx sink that builds the 12-byte touch event record at sp
  * (E-SAP-0120): +0 X u16, +2 Y u16, +4 float, +8 float, +12 type. */
 #define SEMU_SAPPORO_233_TOUCH_ROUTE_SINK_PC UINT32_C(0x00100e72)
+/* The uiEngine event queue (E-SAP-0120): the firmware's own
+ * queue -> uiEngine -> touchBuffer path. */
+#define SEMU_SAPPORO_233_TOUCH_ROUTE_QUEUE_PC UINT32_C(0x000a712e)
 #define SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS UINT64_C(64)
 
 /* The synthetic route entry: the firmware-exhibited hw_touch_1 name and

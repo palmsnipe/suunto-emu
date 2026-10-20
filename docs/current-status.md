@@ -6,7 +6,7 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
-## Ticket 710 — the touch-route layer is implemented and exercised; the TMA5xx sink seam is added and unit-tested, but the integration proves it is downstream of the touch manager, so the route-entry record field layout remains the missing observation — 2026-10-20
+## Ticket 710 — the touch-route layer is implemented and exercised with three firmware-derived seams (route-entry, TMA5xx sink, uiEngine queue); the end-to-end touch path is still not reached because the route-entry action chain ends in a null/abort and the uiEngine queue is not called in the run's UI path — 2026-10-20
 
 E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): the owner
 authorized the synthetic touch route ("try to make the touch screen
@@ -15,31 +15,35 @@ three pinned 2.33 hashes, `max_hits=64`) is implemented with the
 opt-in profile stanza, the install of the synthetic enablement entry
 (`hw_touch_1` VA `0x0013dbd0`, route type 12, routeE/touchE=1,
 logged `synthetic=enablement-only`), the route-manager seam apply at
-PC `0x164a8e`, the second TMA5xx sink seam at PC `0x00100e72`
-(writes the 12-byte synthetic event record X=120/Y=120/type=1 via
-`semu_bus_write`), and the IOM3 `0x24`/`0x2f` touch endpoint
-returning the 12-byte E-SAP-0120 report; the device factory has an
-`iom3_bus` with OPT3007 at `0x45` and touch at `0x24`. The red-first
-unit test is 5/5 green (descriptor; disabled-layer refusal; apply
-seam; sink event record; endpoint). Two integration runs with the
-seven layers and the pinning replay are byte-identical
-(`stdout-4.txt` = `stdout-5.txt`, sha256 `310b3743...`):
-`touch-route-install` at vt 0, 7 seam hits at vt 39.29-39.30 s,
-**0 `touch-event` lines**, stop `budget pc=0x000a4f70
-instructions=10000000000 vt=45464773095`. The sink hook never fires
-because the TMA5xx sink is downstream of the touch manager, which
-never starts without the consumed route entry; the sink seam does not
-bypass the gap. The missing observation remains the route-entry
-record field layout (the `nameID`/`routeID`/`routeE`/`touchE` offsets
-inside the `0x164834`/`0x16485a` record); guessing guest-memory
-offsets would violate the fail-closed rule. Next gap: derive the
-record field offsets twice byte-identically, then inject, start the
-touch manager, and let the driver's sink fire the layer's
-event-record hook (or drive the IOM3 reports through the parser) to
-populate `touchBuffer`, re-pinning the stop/golden. The layer stays
-opt-in; the default profile remains fail-closed. `make test
-TEST_FILTER=sapporo_233_touch_route` 5/5; `make check-lines`,
-`make check-task-contracts`, `make check`, `make sanitize` green.
+PC `0x164a8e`, the TMA5xx sink seam at PC `0x00100e72`, the uiEngine
+queue seam at PC `0x000a712e` (both write the 12-byte synthetic event
+record X=120/Y=120/type=1 via `semu_bus_write`), and the IOM3
+`0x24`/`0x2f` touch endpoint returning the 12-byte E-SAP-0120 report.
+The red-first unit test is 6/6 green (descriptor; disabled-layer
+refusal; apply seam; sink event record; uiEngine queue event record;
+endpoint). Two integration runs with the seven layers and the pinning
+replay are byte-identical (`stdout-6.txt` = `stdout-7.txt`, sha256
+`310b3743...`): `touch-route-install` at vt 0, 7 seam hits at vt
+39.29-39.30 s, **0 `touch-event` lines**, stop `budget
+pc=0x000a4f70 instructions=10000000000 vt=45464773095`. Neither the
+sink nor the queue hook fires: the sink is downstream of the touch
+manager (constructed, but its command path is not driven), and the
+uiEngine queue `0xa712e` is not called in the run's UI path. The
+route-entry action chain ends in a null/abort: the action's `+0x20`
+resource client is 0 and the generic methods resolve to `0x6eb4c`
+(abort); the touch manager's vtable[0x14] is the error-log stub
+`0xa7028` (message `0x1f5`). The `0x2203`/`0x2200` commands
+(vtable[2]/[3] `0x100bdb`/`0x100c4b`) drive the driver methods
+`0x1281a2`/`0x1281b4`/`0x1279ee`, but the action path cannot reach
+them; the four field offsets (`nameID`/`routeID`/`routeE`/`touchE`)
+remain unpinned. Injecting the synthetic entry would guess offsets and
+hit the null/abort, so the fail-closed rule forbids it; `touchBuffer`
+stays empty. Next gap: the settings service's route-entry reader (the
+action's `+0x20`/`+4`), or a firmware path that calls the uiEngine
+queue in the run's UI. The layer stays opt-in; the default profile
+remains fail-closed. `make test TEST_FILTER=sapporo_233_touch_route`
+6/6; `make check-lines`, `make check-task-contracts`, `make check`,
+`make sanitize` green.
 
 ## Ticket 710 — the touch-enablement gap stays refused: the route-entry chain and settings-service seam are mapped; the next gap is the settings-service entry reader — 2026-10-20
 
