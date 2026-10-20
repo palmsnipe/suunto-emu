@@ -15833,3 +15833,79 @@ Documentation-only: `make check-lines` clean,
 | `/tmp/sap233-spin/census-1.log` = `census-2.log` | `a1235e6f813c8c87d56460eca8b7bab198c7399f22606a604b1378159618a8c8` |
 | `/tmp/sap233-ohr-20261016/frames-splashpress-1.log` (pre-seed) | `8094ad67f67c2b6743ae3e793d91995e89aa3be2114a2c991ae5c281afecc59b` |
 | `/tmp/sap233-ohr-20261016/splashpress-86.png` | `8c479bf298137c569333c632458cb7cc173d84234a563498ab0fd8606ee53e49` |
+
+
+## E-SAP-0125 - the 2.33 display/wake census: the NEMA GPU's ring/frame sequence is mapped, but the panel transport/MSPI2 evidence (E-SAP-PANEL-001) is missing; the next gap is the panel transport/MSPI2 commands (ticket 710, instance-85)
+
+2026-10-20, ticket 710 instance-85 (sap233-wake) continuing at
+82856e2. This census follows the E-SAP-0084/0085 display-off state and
+the E-SAP-0124 settings/UI wave into the **device-level display
+power-on/off path**, and closes the question with a refusal: the
+NEMA GPU's ring/frame sequence is mapped and deterministic, but the
+panel transport (MSPI2/DIAP) evidence `E-SAP-PANEL-001` is missing,
+so the panel commands that would carry the display power-on/off
+sequence refuse fail-closed. No display/wake layer is authorized by
+this census.
+
+**The probe (twice byte-identical).** The volatile probe
+`/tmp/sap233-wake/display_probe.c` (sha256 `e587871d...`, binary
+`28aa1ce8...`) runs the six-layer guarded 2.33 boot/pinning flow to
+10B instructions / 45.118 s with the E-SAP-0106/0107 input timeline
+and dumps every published frame plus the NEMA GPU registers after the
+run. Two passes are byte-identical: `display-1.log` = `display-2.log`
+(sha256 `cb440142...`), 258 frames. The observed display sequence is
+unchanged in shape: frame 1 black at vt 3.184 s (display enable),
+frame 2 the Suunto splash (crc `4979f432`) at vt 3.184 s, frame 3
+black at vt 4.235 s (splash ends), the pinning screen frames from vt
+5.346 s (the middle-button open), the slide-out and the black frame
+258 at vt 11.551 s (crc `2a01c517`). The display-on/off windows are
+guest-driven and reproducible.
+
+**The NEMA GPU state.** After the run the non-zero registers are
+`reg[37]=ffffffff`, `reg[59]=1015386c` (CMDRINGSTOP),
+`reg[60]=10153678` (CMDADDR), `reg[61]=00000400` (CMDSIZE),
+`reg[82]=00000059` and `reg[125]=0000042c` (FRAME_GEN); the frame
+generation is 1068 and the previous ring stop `10153868`. The ring
+addresses point into the NEMA SRAM window (`0x10000000..0x10180000`),
+the display controller's frame sequence. This is the guest's own
+display power-on/off mechanism: the guest enables the NEMA ring,
+publishes frames, and stops publishing when it turns the display off.
+The emulator's NEMA GPU model reproduces this deterministically; no
+fallback or widened behavior is involved.
+
+**The missing panel evidence.** The display panel path is the
+Sapporo panel transport (`src/devices/sapporo_panel_transport.c`),
+whose endpoint is a deliberate fail-closed stub: "E-SAP-PANEL-001
+evidence is missing; all panel commands refuse." The wiring comment
+(`src/boards/sapporo_wiring.c`) records the unverified panel role as
+omitted (E-SAP-PANEL-001). The MSPI2/DIAP panel transfers that would
+carry the display power-on/off commands are therefore not modeled;
+the backlight (CTIMER9, E-SAP-BACKLIGHT-001) is modeled separately.
+The E-SAP-0084 wake census remains the behavioral boundary: after the
+splash the display-off state is not cleared by semantic button input
+alone, and the wake path is the guest's own display power-on
+sequence - which needs the panel transport/MSPI2 commands to be
+evidenced.
+
+**Next gap.** The panel transport/MSPI2 commands (`E-SAP-PANEL-001`):
+the display power-on/off transfers (the DCS/DSI command set, the
+MSPI2/DIAP register protocol, the panel power-on/off sequence). The
+next instance should derive that command set from the pinned firmware
+(the owner-authorized offline-RE class) or from a lane observation of
+the panel transfers, and then implement a justified hash-pinned
+display/wake layer with red-first tests - or refuse again if the
+firmware does not exhibit the commands. The touch gap remains refused
+(E-SAP-0120/0121/0122); no production change, no fixture/wiring/
+profile/golden change in this instance.
+
+Documentation-only: `make check-lines` clean,
+`make check-task-contracts` 171, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/sap233-wake/display_probe.c` | `e587871ddae3edc73094ac176cb7df415745db2eacdbbcd5725001e5d6e7de03` |
+| `/tmp/sap233-wake/display_probe` (binary) | `28aa1ce812e31ed50416bc94ba41312ef1a83a61403b68d902e8f232a5c3558a` |
+| `/tmp/sap233-wake/display-1.log` = `display-2.log` | `cb4401428e2bc6a16271743368a44d436fc4d23530b904ad01f7eea96c90f3e1` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `wake-1.log` (E-SAP-0084) | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |
+| `frames-cold-2.log` = `frames-cold-3.log` (E-SAP-0085) | `1789d14b5b7c6953eb73294f373b1391c129c7d831405e59bc38dc6ec24f9ae6` |

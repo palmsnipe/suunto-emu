@@ -6,6 +6,33 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the display/wake census: the NEMA GPU's ring/frame sequence is mapped, but the panel transport/MSPI2 evidence (E-SAP-PANEL-001) is missing; the next gap is the panel transport/MSPI2 commands — 2026-10-20
+
+E-SAP-0125 (instance-85, sap233-wake): the device-level display
+power-on/off path is mapped. The twice-byte-identical six-layer
+guarded probe (`display-1.log` = `display-2.log`, sha256 `cb440142...`,
+258 frames) reproduces the guest's display sequence: black at
+3.184 s (display enable), the Suunto splash (crc `4979f432`), black
+at 4.235 s, the pinning screen from 5.346 s, the slide-out and the
+black frame 258 at 11.551 s (`2a01c517`). After the run the NEMA GPU
+registers hold `CMDRINGSTOP=0x1015386c`, `CMDADDR=0x10153678`,
+`CMDSIZE=0x400`, `FRAME_GEN=0x42c` (1068), previous ring stop
+`0x10153868` - the guest's own ring/frame power-on/off mechanism,
+reproduced deterministically. The missing piece is the panel
+transport (`src/devices/sapporo_panel_transport.c`), a deliberate
+fail-closed stub: "E-SAP-PANEL-001 evidence is missing; all panel
+commands refuse"; the wiring records the unverified panel role as
+omitted. The MSPI2/DIAP display power-on/off transfers are therefore
+not modeled; the backlight (CTIMER9, E-SAP-BACKLIGHT-001) is modeled
+separately. The next gap is the panel transport/MSPI2 commands
+(E-SAP-PANEL-001): the display power-on/off command set, to be
+derived from the pinned firmware (owner-authorized offline-RE class)
+or a lane observation, then implemented as a justified hash-pinned
+display/wake layer with red-first tests or refused again. No
+production change; the touch gap remains refused (E-SAP-0120/0121/
+0122). `make check-lines`, `make check-task-contracts`, `make check`
+green.
+
 ## Ticket 710 — the settings/UI wave census: the menu view's resources are read but the revealed screen is black (display-off); the next gap is the display/wake — 2026-10-20
 
 E-SAP-0124 (instance-84, sap233-ui-wave): the 2.33 UI views/screens
