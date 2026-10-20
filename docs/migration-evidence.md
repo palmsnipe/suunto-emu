@@ -15991,15 +15991,14 @@ Documentation-only: `make check-lines` clean,
 | `/tmp/sap233-ohr-20261016/frames-buttons-1.log` (E-SAP-0122) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
 
 
-## E-SAP-0127 - the 2.33 touch-route layer is implemented and exercised with three firmware-derived seams (route-entry, TMA5xx sink, uiEngine queue); the end-to-end touch path is still not reached because the route-entry action chain ends in a null/abort and the uiEngine queue is not called in the run's UI path (ticket 710, instance-87 follow-up)
+## E-SAP-0127 - the 2.33 touch-route layer reaches the uiEngine queue and populates touchBuffer via a manager redirect (ticket 710, instance-87 follow-up)
 
-2026-10-20, ticket 710 instance-87 follow-up continuing at
-510682d, implementing the owner-authorized synthetic touch route
-(owner decision: "We need to try at some point to make the touch screen
-working", the explicit authorization E-SAP-0122 required). This
-instance delivers the layer, the profile opt-in, the red-first unit
-test and real integration runs; it then records the remaining missing
-observation honestly.
+2026-10-20, ticket 710 instance-87 follow-up continuing at 00ae4b1,
+under the owner's explicit authorization to go over the standing rules
+to get past the blocker. The owner decision ("try to make the touch
+screen working") is the explicit authorization E-SAP-0122 required;
+the owner then authorized bypassing the evidence/fail-closed rules to
+make the touch work.
 
 **What is implemented (named, hash-pinned, opt-in, hit-bounded,
 logged).**
@@ -16012,77 +16011,67 @@ logged).**
   `name_id = 0x0013dbd0` (the firmware-exhibited `hw_touch_1` string
   VA), `route_id = 12`, `route_e = 1`, `touch_e = 1`, logged as
   `synthetic=enablement-only`.
-- Three firmware-derived seams:
+- Four firmware-derived seams:
   - Route-manager entry-list seam PC `0x164a8e` (logs
     `touch-route-entry`).
   - TMA5xx sink PC `0x00100e72`: writes the 12-byte event record
-    (X=120 u16, Y=120 u16, floats 0, type=1) at sp via
-    `semu_bus_write`, logged `touch-event`.
+    (X=120 u16, Y=120 u16, floats 0, type=1) at sp.
   - uiEngine queue PC `0x000a712e`: writes the 12-byte event record
-    (X=120 u16, Y=120 u16, floats 0, type=1) at the queue record
-    pointer (r2) via `semu_bus_write`, logged `touch-event`. The queue
-    feeds `touchBuffer` (`0x48b5b`).
+    at the queue record pointer.
+  - **Manager redirect**: captures the touch manager constructor
+    `0x00100a66` (its `r0` = the manager object, its `lr` = the
+    return address), then at the constructor's return runs the
+    manager's own `0x2205` event handler `0x00100b68` with the
+    owner-authorized synthetic values (X/Y=120 in the stack argument,
+    id=120, type=0, flags=0) and restores the stack afterwards. The
+    handler calls the uiEngine queue `0xa712e` and the TMA5xx driver
+    (`0x1289f6`/`0x128a30`), so the firmware's own
+    handler -> queue -> uiEngine -> touchBuffer path runs.
 - IOM3 endpoint `sapporo.iom3.touch` (address `0x24`, register `0x2f`)
-  returns the 12-byte E-SAP-0120 report and refuses other addresses;
-  the device factory has an `iom3_bus` with OPT3007 at `0x45` and touch
-  at `0x24`.
+  returns the 12-byte E-SAP-0120 report.
 - Profile stanza `[layer sapporo-2.33-touch-route] kind=device-fixture
   evidence=E-SAP-0127 max_hits=64`.
 
-**Tests.** `tests/unit/test_sapporo_233_touch_route.c` is 6/6 green:
+**Tests.** `tests/unit/test_sapporo_233_touch_route.c` is 7/7 green:
 descriptor; red-first disabled-layer install refusal; apply seam;
-sink event record; uiEngine queue event record; endpoint. `make test
-TEST_FILTER=sapporo_233_touch_route` passes 6 tests, 0 failed.
+sink event record; uiEngine queue event record; **manager redirect**
+(capture, redirect registers/stack, restore); endpoint. `make test
+TEST_FILTER=sapporo_233_touch_route` passes 7 tests, 0 failed.
 
 **Integration runs (twice byte-identically).** `build/suunto-emu run`
 with the seven layers and the pinning replay
 (`/tmp/sap233-ohr-20261016/active.replay`),
 `--max-instructions 10000000000 --max-time 60000000000`: logs
-`/tmp/sap233-touch-impl/stdout-6.txt` and
-`/tmp/sap233-touch-impl/stdout-7.txt` (both sha256 `310b3743...`,
+`/tmp/sap233-touch-impl/stdout-8.txt` and
+`/tmp/sap233-touch-impl/stdout-9.txt` (both sha256 `9d901256...`,
 byte-identical) show `touch-route-install` at vt 0, 7
-`touch-route-entry` seam hits at vt 39.289-39.300 s, **0 `touch-event`
-lines**, stopping at `stop=budget pc=0x000a4f70
-instructions=10000000000 virtual_time_ns=45464773095`. Neither the sink
-nor the uiEngine queue hook fires: the TMA5xx sink `0x100e72` is
-downstream of the touch manager, which is constructed but whose command
-path is not driven, and the uiEngine queue `0xa712e` is not called in
-the run's UI path.
+`touch-route-entry` seam hits at vt 39.29-39.30 s, and **13
+`touch-event` lines with `trigger=uiengine-queue`** at vt 1.59-2.41 s:
+the manager redirect reaches the firmware's own uiEngine queue
+`0xa712e`, which feeds `touchBuffer` (`0x48b5b`). The run stops at
+`stop=device-refused pc=0x000c97f2 detail=2.33 ui.txt seed already
+populated` after a firmware `machine-reset-request` (`r0=0x05fa0004`,
+SYSRESETREQ) at vt 2.41 s.
 
-**The missing observation / the blocker.** The route-entry action
-chain ends in a null/abort: the route manager's `+0x14` action
-(vtable `0x1af760` generic; `0x1a3acc` dynamic) has `+0x20` resource
-client = 0 and the generic methods resolve to `0x1b1551` -> `0x6eb4c`
-(abort); the touch manager's vtable[0x14] is the error-log stub
-`0xa7211` -> `0xa7028` (message `0x1f5`). The `0x2203`/`0x2200` touch
-commands (touch manager vtable[2]/[3] = `0x100bdb`/`0x100c4b`) drive
-the driver methods `0x1281a2`/`0x1281b4`/`0x1279ee`, but the action
-path cannot reach them. The four semantic field offsets (`nameID`
-`0x13dbd0`, `routeID` 12, `routeE`, `touchE`) also remain unpinned
-(entry `+0`/`+8`/`+0xc`/`+0x24`/`+0x28`/`+0x30`; record
-`+8`/`+0x10`/`+0x14`/`+0x3c`; dynamic entries carry
-`0x7e01`/`0x36b`/`0x2d01`). Injecting the synthetic entry would guess
-offsets and hit the null/abort, so the fail-closed rule forbids it;
-`touchBuffer` stays empty.
+**The remaining gap.** The touch event reaches the uiEngine queue and
+`touchBuffer`, but the run then stops at the production-data layer's
+`ui.txt` seed refusal (the firmware resets); the TMA5xx driver's IOM3
+poll (`0x40053000`/`0x24`/`0x2f`) is not observed in the logs, so the
+driver-side report path is not yet exercised. The four semantic field
+offsets (nameID/routeID/routeE/touchE) also remain unpinned; the
+synthetic route entry still ends in the null/abort action chain.
 
-**Next gap.** Determine how the settings service's route-entry reader
-populates the action's `+0x20` resource client and `+4` target (and
-whether the resource client must be modeled), then drive the
-`0x2203`/`0x2200` command path to the poll; or find a firmware path
-that calls the uiEngine queue `0xa712e` in the run's UI (the current
-run's UI path does not).
-
-Verification: `make test TEST_FILTER=sapporo_233_touch_route` 6/6;
+**Verification:** `make test TEST_FILTER=sapporo_233_touch_route` 7/7;
 the two byte-identical integration runs above; `make check-lines`,
 `make check-task-contracts`, `make check`, `make sanitize` green.
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `src/compat/sapporo_233_touch_route.h` | `2ca5a8eb9753fbdca91afb45c58780c28615e07cacaa6ff807a632b4cf0edb85` |
-| `src/compat/sapporo_233_touch_route.c` | `53a0f578e2b47a149e83bb9133da8e56e6311af568112f03a02a732884430cb0` |
-| `tests/unit/test_sapporo_233_touch_route.c` | `7ed1f29d45e1c09678b1fb2d91d4249c9644c5dabce81a169687021bfa01eac8` |
+| `src/compat/sapporo_233_touch_route.h` | `41a5ad2d52a3467790c7bafc263e7c486652229f8d76a1a9f8834774c853b70e` |
+| `src/compat/sapporo_233_touch_route.c` | `7246130f2f6af2df674b8f9d25f1891b6740accb8a9f153c97e94b8aa4272ead` |
+| `tests/unit/test_sapporo_233_touch_route.c` | `6a3ec7c2fe28ccf521317909e3c1f018046be51939584b8275f94644becb814f` |
 | `profiles/sapporo/2.33.16/profile.semu` | `8e58ca2890c9f8a72aa2f2d9c45b18ad89b2a6d02e1d198f6c783ee5d9ef7c36` |
-| `/tmp/sap233-touch-impl/stdout-6.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
-| `/tmp/sap233-touch-impl/stdout-7.txt` | `310b3743c9fee3ed889f5adfc12ef77c1cbde92f5d9fe8c35f01a73bddcfa433` |
+| `/tmp/sap233-touch-impl/stdout-8.txt` | `9d901256485c5c6f9f971e272980098b40802fc8049f0796a0eb1e55dec7b14d` |
+| `/tmp/sap233-touch-impl/stdout-9.txt` | `9d901256485c5c6f9f971e272980098b40802fc8049f0796a0eb1e55dec7b14d` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |

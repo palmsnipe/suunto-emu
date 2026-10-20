@@ -99,6 +99,52 @@ semu_status semu_sapporo_233_touch_route_apply(
 {
     uint32_t list;
     if (!ready(c) || cpu == NULL) return SEMU_OK;
+    /* The touch manager constructor 0x100a66: capture the manager
+     * object and its return address, so the layer can redirect the
+     * return into the manager's own 0x2205 event handler. */
+    if (cpu->r[15] == SEMU_SAPPORO_233_TOUCH_ROUTE_MANAGER_PC) {
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        c->manager = cpu->r[0];
+        c->return_pc = cpu->r[14];
+        c->pending = 1u;
+        return SEMU_OK;
+    }
+    /* The redirect: at the constructor's return, run the manager's
+     * 0x2205 handler 0x100b68 with the owner-authorized synthetic touch
+     * values. The handler calls the uiEngine queue 0xa712e and the
+     * TMA5xx driver, so the firmware's own queue -> uiEngine ->
+     * touchBuffer path runs. The stack argument holds the X/Y value. */
+    if (c->pending == 1u && cpu->r[15] == c->return_pc) {
+        uint32_t sp;
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        sp = cpu->r[13] - 4u;
+        if (semu_bus_write(bus, sp, 4u, 120u, error) != SEMU_OK) {
+            return refuse(c, error,
+                          "2.33 touch-route redirect stack write failed");
+        }
+        cpu->r[13] = sp;
+        cpu->r[14] = c->return_pc;
+        cpu->r[0] = c->manager + 0x1cu;
+        cpu->r[1] = 120u;
+        cpu->r[2] = 0u;
+        cpu->r[3] = 0u;
+        cpu->r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_EVENT_PC;
+        c->pending = 2u;
+        ++c->hits;
+        log_line(c, "touch-event",
+                 "trigger=manager-redirect x=120 y=120 type=0 kind=0x2205 "
+                 "synthetic=event-values evidence=E-SAP-0127");
+        return SEMU_OK;
+    }
+    if (c->pending == 2u && cpu->r[15] == c->return_pc) {
+        cpu->r[13] += 4u;
+        c->pending = 0u;
+        return SEMU_OK;
+    }
     /* The alternative seam: the TMA5xx sink at 0x100e72 builds the
      * 12-byte touch event record at sp (E-SAP-0120). The layer injects
      * the owner-authorized synthetic event values (X=120, Y=120, type=1)

@@ -178,6 +178,47 @@ static void test_queue_event(semu_test_context *context)
     destroy(&f);
 }
 
+static void test_manager_redirect(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint32_t v = 0u;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_MANAGER_PC;
+    f.cpu.r[0] = UINT32_C(0x10030000);
+    f.cpu.r[14] = UINT32_C(0x10040000);
+    f.cpu.r[13] = UINT32_C(0x10020000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x10030000), f.touch.manager);
+    SEMU_TEST_EQ_U64(context, 1u, f.touch.pending);
+    f.cpu.r[15] = UINT32_C(0x10040000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_SAPPORO_233_TOUCH_ROUTE_EVENT_PC,
+        f.cpu.r[15]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x1003001c), f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, 120u, f.cpu.r[1]);
+    SEMU_TEST_EQ_U64(context, 0u, f.cpu.r[2]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x1001fffc), f.cpu.r[13]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x10040000), f.cpu.r[14]);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x1001fffc),
+        4u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 120u, v);
+    SEMU_TEST_EQ_U64(context, 2u, f.touch.pending);
+    /* The handler's pop returns to the recorded return PC; the layer
+     * then restores the stack and clears the redirect. */
+    f.cpu.r[15] = UINT32_C(0x10040000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x10020000), f.cpu.r[13]);
+    SEMU_TEST_EQ_U64(context, 0u, f.touch.pending);
+    SEMU_TEST_EQ_U64(context, 1u, f.touch.hits);
+    destroy(&f);
+}
+
 static void test_endpoint(semu_test_context *context)
 {
     fixture f;
@@ -215,6 +256,7 @@ int main(void)
         SEMU_TEST_CASE(test_apply_seam),
         SEMU_TEST_CASE(test_sink_event),
         SEMU_TEST_CASE(test_queue_event),
+        SEMU_TEST_CASE(test_manager_redirect),
         SEMU_TEST_CASE(test_endpoint)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));

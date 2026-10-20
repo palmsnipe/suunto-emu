@@ -27,6 +27,12 @@
 /* The uiEngine event queue (E-SAP-0120): the firmware's own
  * queue -> uiEngine -> touchBuffer path. */
 #define SEMU_SAPPORO_233_TOUCH_ROUTE_QUEUE_PC UINT32_C(0x000a712e)
+/* The touch manager constructor (captures the manager object) and the
+ * touch manager's 0x2205 event handler, which calls the uiEngine queue
+ * and the TMA5xx driver. The layer redirects the constructor's return
+ * to the handler, injecting the owner-authorized synthetic touch. */
+#define SEMU_SAPPORO_233_TOUCH_ROUTE_MANAGER_PC UINT32_C(0x00100a66)
+#define SEMU_SAPPORO_233_TOUCH_ROUTE_EVENT_PC UINT32_C(0x00100b68)
 #define SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS UINT64_C(64)
 
 /* The synthetic route entry: the firmware-exhibited hw_touch_1 name and
@@ -48,6 +54,9 @@ typedef struct {
     uint32_t route_id;
     uint32_t route_e;
     uint32_t touch_e;
+    uint32_t manager;
+    uint32_t return_pc;
+    unsigned pending;
 } semu_sapporo_233_touch_route_context;
 
 extern const semu_layer_descriptor semu_sapporo_233_touch_route_layer;

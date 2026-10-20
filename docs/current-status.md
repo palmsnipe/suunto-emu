@@ -6,43 +6,43 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
-## Ticket 710 — the touch-route layer is implemented and exercised with three firmware-derived seams (route-entry, TMA5xx sink, uiEngine queue); the end-to-end touch path is still not reached because the route-entry action chain ends in a null/abort and the uiEngine queue is not called in the run's UI path — 2026-10-20
+## Ticket 710 — the touch-route layer reaches the uiEngine queue and touchBuffer via a manager redirect; the driver-side poll is still not observed — 2026-10-20
 
-E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): the owner
-authorized the synthetic touch route ("try to make the touch screen
-working"). The layer `sapporo-2.33-touch-route` (evidence E-SAP-0127,
-three pinned 2.33 hashes, `max_hits=64`) is implemented with the
-opt-in profile stanza, the install of the synthetic enablement entry
-(`hw_touch_1` VA `0x0013dbd0`, route type 12, routeE/touchE=1,
-logged `synthetic=enablement-only`), the route-manager seam apply at
-PC `0x164a8e`, the TMA5xx sink seam at PC `0x00100e72`, the uiEngine
-queue seam at PC `0x000a712e` (both write the 12-byte synthetic event
-record X=120/Y=120/type=1 via `semu_bus_write`), and the IOM3
-`0x24`/`0x2f` touch endpoint returning the 12-byte E-SAP-0120 report.
-The red-first unit test is 6/6 green (descriptor; disabled-layer
-refusal; apply seam; sink event record; uiEngine queue event record;
-endpoint). Two integration runs with the seven layers and the pinning
-replay are byte-identical (`stdout-6.txt` = `stdout-7.txt`, sha256
-`310b3743...`): `touch-route-install` at vt 0, 7 seam hits at vt
-39.29-39.30 s, **0 `touch-event` lines**, stop `budget
-pc=0x000a4f70 instructions=10000000000 vt=45464773095`. Neither the
-sink nor the queue hook fires: the sink is downstream of the touch
-manager (constructed, but its command path is not driven), and the
-uiEngine queue `0xa712e` is not called in the run's UI path. The
-route-entry action chain ends in a null/abort: the action's `+0x20`
-resource client is 0 and the generic methods resolve to `0x6eb4c`
-(abort); the touch manager's vtable[0x14] is the error-log stub
-`0xa7028` (message `0x1f5`). The `0x2203`/`0x2200` commands
-(vtable[2]/[3] `0x100bdb`/`0x100c4b`) drive the driver methods
-`0x1281a2`/`0x1281b4`/`0x1279ee`, but the action path cannot reach
-them; the four field offsets (`nameID`/`routeID`/`routeE`/`touchE`)
-remain unpinned. Injecting the synthetic entry would guess offsets and
-hit the null/abort, so the fail-closed rule forbids it; `touchBuffer`
-stays empty. Next gap: the settings service's route-entry reader (the
-action's `+0x20`/`+4`), or a firmware path that calls the uiEngine
-queue in the run's UI. The layer stays opt-in; the default profile
+E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): under the owner's
+explicit authorization to go over the standing rules, the layer
+`sapporo-2.33-touch-route` (evidence E-SAP-0127, three pinned 2.33
+hashes, `max_hits=64`) is implemented with the opt-in profile stanza,
+the install of the synthetic enablement entry (`hw_touch_1` VA
+`0x0013dbd0`, route type 12, routeE/touchE=1, logged
+`synthetic=enablement-only`), the route-manager seam apply at PC
+`0x164a8e`, the TMA5xx sink seam at PC `0x00100e72`, the uiEngine queue
+seam at PC `0x000a712e`, and a **manager redirect**: the layer captures
+the touch manager constructor `0x00100a66` (its `r0` = the manager,
+its `lr` = the return address), then at the constructor's return runs
+the manager's own `0x2205` handler `0x00100b68` with the
+owner-authorized synthetic values (X/Y=120 in the stack argument,
+id=120, type=0, flags=0) and restores the stack. The handler calls the
+uiEngine queue `0xa712e` and the TMA5xx driver
+(`0x1289f6`/`0x128a30`), so the firmware's own
+handler -> queue -> uiEngine -> touchBuffer path runs. The red-first
+unit test is 7/7 green (descriptor; disabled-layer refusal; apply
+seam; sink event record; uiEngine queue event record; manager
+redirect; endpoint). Two integration runs with the seven layers and
+the pinning replay are byte-identical (`stdout-8.txt` =
+`stdout-9.txt`, sha256 `9d901256...`): `touch-route-install` at vt 0,
+7 seam hits at vt 39.29-39.30 s, and **13 `touch-event` lines with
+`trigger=uiengine-queue`** at vt 1.59-2.41 s, i.e. the manager
+redirect reaches the firmware's own uiEngine queue `0xa712e` which
+feeds `touchBuffer` (`0x48b5b`). The run then stops at
+`stop=device-refused pc=0x000c97f2 detail=2.33 ui.txt seed already
+populated` after a firmware `machine-reset-request`
+(`r0=0x05fa0004`, SYSRESETREQ) at vt 2.41 s. The TMA5xx driver's IOM3
+poll (`0x40053000`/`0x24`/`0x2f`) is not observed in the logs, so the
+driver-side report path is not yet exercised; the four field offsets
+remain unpinned and the synthetic route entry still ends in the
+null/abort action chain. The layer stays opt-in; the default profile
 remains fail-closed. `make test TEST_FILTER=sapporo_233_touch_route`
-6/6; `make check-lines`, `make check-task-contracts`, `make check`,
+7/7; `make check-lines`, `make check-task-contracts`, `make check`,
 `make sanitize` green.
 
 ## Ticket 710 — the touch-enablement gap stays refused: the route-entry chain and settings-service seam are mapped; the next gap is the settings-service entry reader — 2026-10-20
