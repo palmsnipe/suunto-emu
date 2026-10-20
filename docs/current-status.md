@@ -6,6 +6,36 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the touch-enablement gap stays refused: the route-entry chain and settings-service seam are mapped; the next gap is the settings-service entry reader — 2026-10-20
+
+E-SAP-0126 (instance-87, sap233-touch-enable): the owner asked to try
+making the touch screen work, which is the explicit owner decision
+E-SAP-0122 named as the only unblock path besides a provisioned lane
+image. The route-enablement chain is now mapped: the hardware route
+manager `0x13dc02`/`0x13dc1a` (config from the settings service,
+vtable, entry store at `+0x1c`, `+0x24` byte, route-entry list at
+`+0x120` via `0x164a8e`, per-entry record `0x164834`/`0x16485a`, clear
+`0x164814`); the touch manager `0x100a66` (sink `+0x18`, interface
+`+0x1c`, bus adapter `+0x20` via `0x1276b6`, TMA5xx driver at `+0x50`
+via `0x128486`, state dispatch `0x12849a` to the
+`0x100e72`/`0xa712e` event record); the probe shape E-SAP-0120 (IOM3
+`0x40053000`, address `0x24`, register `0x2f`, 12-byte report,
+1200x1200 raw, `0.2` scale). The settings-service seam is located:
+the route entry payload (`nameID`/`routeID`/`routeE`/`touchE`) comes
+from the settings service, but the entry reader that converts
+`settings/device` into the record layout consumed by `0x164834` is
+not yet derived at field-exact level, so a synthetic route record
+cannot be seeded without guessing a value the pinned firmware does
+not exhibit. The synthetic `sapporo-2.33-touch-route` layer is
+therefore not implemented; the owner authorization is recorded for a
+named, hash-pinned, opt-in, hit-bounded, logged intervention once the
+layout is derived. Next gap: the settings-service entry reader (then
+the synthetic layer, the IOM3 report driver, the red-first unit and
+integration tests, and the re-pinned stop/golden). The touch gap
+otherwise remains refused (E-SAP-0120/0121/0122). No production
+change; `make check-lines`, `make check-task-contracts`, `make check`
+green.
+
 ## Ticket 710 — the display/wake census: the NEMA GPU's ring/frame sequence is mapped, but the panel transport/MSPI2 evidence (E-SAP-PANEL-001) is missing; the next gap is the panel transport/MSPI2 commands — 2026-10-20
 
 E-SAP-0125 (instance-85, sap233-wake): the device-level display

@@ -15909,3 +15909,83 @@ Documentation-only: `make check-lines` clean,
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
 | `wake-1.log` (E-SAP-0084) | `c6b444a9f0fc0bbcf6eea828de35d60b54ca08525e708bfcccb8d718915f0994` |
 | `frames-cold-2.log` = `frames-cold-3.log` (E-SAP-0085) | `1789d14b5b7c6953eb73294f373b1391c129c7d831405e59bc38dc6ec24f9ae6` |
+
+
+## E-SAP-0126 - the 2.33 touch-enablement gap stays refused: the route-entry chain and the settings-service seam are mapped, but the synthetic route entry's settings-service record layout is not fully derived; the next gap is the settings-service entry reader (ticket 710, instance-87, owner-authorized 2026-09-23 offline class)
+
+2026-10-20, ticket 710 instance-87 (sap233-touch-enable)
+continuing at ae48cfa. The owner asked to try making the touch screen
+work, which is the explicit owner decision E-SAP-0122 named as the
+only unblock path besides a provisioned lane image. This instance
+followed that decision into the route-enablement chain. The result is
+again a refusal, but a narrower one: **the route-entry chain and the
+settings-service seam are mapped; the remaining missing observation is
+the settings-service entry reader that lays out the route record the
+route manager consumes, so the synthetic route entry cannot yet be
+seeded at a firmware-exact record layout.**
+
+**The route-enablement chain (offline RE on the pinned application
+`component-04-type-4-v2.raw` sha256 `ba286a7b...`).** The hardware
+route manager is constructed at `0x0013dc02` -> `0x0013dc1a`: it
+receives the settings-service config, installs its vtable
+(`0x13e020`-relative), initialises the entry store at `+0x1c`, sets
+the `+0x24` byte, builds the route-entry list at `+0x120` via
+`0x00164a8e` (`+0` head, `+4` element list via `0x164ba0`, `+8`
+parameter, `+0x10`/`+0x38` iterators `0x17174a`/`0x171754`), and fills
+each record through `0x00164834` -> `0x0016485a` (vtable, `+0xa8`
+sub-record, then the per-entry payload). The record is cleared first by
+`0x00164814` (`+8` = `0xffff`, `+0x10`/`+0x3c` zero). The touch manager
+is constructed at `0x00100a66`: sink interface `+0x18`, second
+interface `+0x1c`, bus adapter `+0x20` via `0x001276b6`, the TMA5xx
+driver object at `+0x50` initialised by `0x00128486` (vtable `+0`,
+sink `+4`, state cleared at `+8`/`+0x30`, timeout `+0x84`), and its
+dispatch `0x0012849a` transitions on the `+0x30` state byte and calls
+the sink vtable entry (`0x100e72`/`0xa712e`, queue ids
+`0x12202`/`0x12205`, kinds `0x2206`/`0x3c26`, the E-SAP-0120 event
+record). The probe shape stays E-SAP-0120: IOM3 (`0x40053000`), 7-bit
+address `0x24`, register `0x2f`, 12-byte report, 1200x1200 raw, `0.2`
+scale.
+
+**The settings-service seam.** The route manager's config (r1/r2)
+comes from the settings service, which supplies the route entry
+payload (`nameID`/`routeID`/`routeE`/`touchE`). That payload is the
+`hw_touch_1` record E-SAP-0122 showed to be personalized device
+settings absent from the OTA (`settings/device`/`devicesettings`/
+`ble/device` are empty; `settings.sbm` carries only general/navigation
+settings; `routelst.txt` is empty). The synthetic route entry the
+owner authorized would be seeded through the `settings/device` file,
+but the settings-service entry reader that converts that file into the
+record layout consumed by `0x164834`/`0x16485a` is not yet derived at
+field-exact level. Seeding a guessed binary record would violate the
+fail-closed evidence rule (a value the pinned firmware does not
+exhibit), so the synthetic layer is **not** implemented.
+
+**Owner authorization recorded.** The owner's request ("We need to try
+at some point to make the touch screen working") is the explicit
+owner decision E-SAP-0122 required for a synthetic route config. It
+authorizes the layer's synthetic enablement values as a named
+compatibility intervention (to be hash-pinned, opt-in, hit-bounded and
+logged) - not a claim of recovered device data. No such layer is
+implemented in this instance because the record layout is missing.
+
+**Next gap.** The settings-service entry reader: how `settings/device`
+is parsed into the `nameID`/`routeID`/`routeE`/`touchE` record consumed
+by the route manager, and how the touch manager is started from it.
+Once that layout is derived (twice byte-identically), the synthetic
+`sapporo-2.33-touch-route` layer can seed the record, drive the IOM3
+`0x24`/`0x2f` reports from a scripted click/double-tap, and assert the
+12-byte event record and `touchBuffer` with red-first unit and
+integration tests. The touch gap otherwise remains refused
+(E-SAP-0120/0121/0122); no production change, no fixture/wiring/
+profile/golden change in this instance.
+
+Documentation-only: `make check-lines` clean,
+`make check-task-contracts` 171, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `settings.sbm` slice (offset `0x5f27a0`, 14721 bytes, E-SAP-0122) | `8817d4721d1f69461edb10978a5b3c94a8e5dffee0bb8c4c8cf9559006eca251` |
+| `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+| `/tmp/sap233-ohr-20261016/frames-buttons-1.log` (E-SAP-0122) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
