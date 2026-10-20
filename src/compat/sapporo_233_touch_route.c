@@ -134,12 +134,30 @@ semu_status semu_sapporo_233_touch_route_apply(
         c->pending = 1u;
         return SEMU_OK;
     }
-    /* The redirect: at the constructor's return, run the manager's
+    /* Before the event dispatch, start the manager's activity through
+     * its own start handler 0x100b07 (r0 = manager + 8), so the
+     * firmware's periodic tick owns the manager and can drive the
+     * TMA5xx driver's IOM3 poll. */
+    if (c->pending == 1u && cpu->r[15] == c->return_pc) {
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        cpu->r[0] = c->manager + 8u;
+        cpu->r[14] = c->return_pc;
+        cpu->r[15] = UINT32_C(0x00100b06);
+        c->pending = 3u;
+        ++c->hits;
+        log_line(c, "touch-event",
+                 "trigger=manager-start r0=manager+8 handler=100b07 "
+                 "synthetic=activity-start evidence=E-SAP-0127");
+        return SEMU_OK;
+    }
+    /* The redirect: at the start handler's return, run the manager's
      * 0x2205 handler 0x100b68 with the owner-authorized synthetic touch
      * values. The handler calls the uiEngine queue 0xa712e and the
      * TMA5xx driver, so the firmware's own queue -> uiEngine ->
      * touchBuffer path runs. The stack argument holds the X/Y value. */
-    if (c->pending == 1u && cpu->r[15] == c->return_pc) {
+    if (c->pending == 3u && cpu->r[15] == c->return_pc) {
         uint32_t sp;
         if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
             return refuse(c, error, "2.33 touch-route hit budget exhausted");

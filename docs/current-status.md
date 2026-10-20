@@ -18,12 +18,15 @@ re-install after a guest reset is idempotent), the route-manager seam
 at PC `0x164a8e`, the TMA5xx sink at PC `0x00100e72`, the uiEngine
 queue at PC `0x000a712e`, and a **manager redirect**: the layer
 captures the touch manager constructor `0x00100a66` and at its return
-runs the manager's own `0x2205` handler `0x00100b68` with the
-owner-authorized synthetic values (X/Y=120 in the stack argument,
-id=120, type=0, flags=0), restoring the stack. The handler calls the
-uiEngine queue `0xa712e` and the TMA5xx driver
-(`0x1289f6`/`0x128a30`), so the firmware's own
-handler -> queue -> uiEngine -> touchBuffer path runs. The
+starts the manager's own activity handler `0x00100b07`
+(`r0` = manager + 8), then runs the manager's own `0x2205` handler
+`0x00100b68` with the owner-authorized synthetic values (X/Y=120 in
+the stack argument, id=120, type=0, flags=0), restoring the stack.
+**The redirect is unit-tested but has never fired in an integration
+run**: the manager constructor `0x100a66` is never reached
+(`manager-redirect`/`manager-start` count zero in `stdout-2` through
+`stdout-21`). The 19 `touch-event trigger=uiengine-queue` lines come
+from the layer's queue seam, not the firmware's manager handler. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.
@@ -32,11 +35,22 @@ integration runs with the seven layers and the pinning replay are
 byte-identical (`stdout-16.txt` = `stdout-17.txt`, sha256
 `f45b20c9...`): 19 `touch-event` lines, and the run now **continues
 past the guest reset** (the logical-files and touch-route re-installs
-log idempotent at vt 4.876 s); it then stops at `stop=unmapped-access
+log idempotent at vt 4.876 s); it then stopped at `stop=unmapped-access
 pc=0x000fa928 detail=memory address overflow at 0x10028d20` at vt
-4.902 s. The TMA5xx driver's IOM3 poll (`0x40053000`/`0x24`/`0x2f`)
-and the 12-byte report path are still not observed; the four field
-offsets remain unpinned. The layer stays opt-in; the default profile
+4.902 s. That stop is now resolved: the guest parser reaches
+`0x0fa928` (`ldrb.w r0,[r4,r6,lsl #1]`) with `r6=0xffffffff` when the
+parsed count is zero, and the address `r4+(count-1)*2` overflows. The
+firmware's own guard at `0x0fa922` (`cbnz r6`) does not cover this
+path, so the layer restores the intended skip to `0x0fa946`
+(`parser-recover`, hit-bounded by the 64-hit budget, gated on the
+exact `r6=0xffffffff` signature). Two further integration runs are
+byte-identical (`stdout-19.txt` = `stdout-20.txt`, sha256
+`57a2530c...`): one `parser-recover` at vt 25.7 ms, the 19
+`touch-event` lines retained, and the run reaches `stop=budget
+pc=0x000bb6b2 instructions=10000000000 virtual_time_ns=14385381459`
+(vt 14.39 s) instead of the unmapped-access. The TMA5xx driver's IOM3
+poll (`0x40053000`/`0x24`/`0x2f`) and the 12-byte report path are
+still not observed; the four field offsets remain unpinned. The layer stays opt-in; the default profile
 remains fail-closed. `make test TEST_FILTER=sapporo_233_touch_route`
 7/7; `make test TEST_FILTER=sapporo_233_files` 4/4; `make
 check-lines`, `make check-task-contracts`, `make check`,

@@ -198,6 +198,15 @@ static void test_manager_redirect(semu_test_context *context)
     f.cpu.r[15] = UINT32_C(0x10040000);
     SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
         &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    /* The constructor's return first starts the manager's activity
+     * through its own start handler 0x100b07 (r0 = manager + 8). */
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x00100b06), f.cpu.r[15]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x10030008), f.cpu.r[0]);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x10040000), f.cpu.r[14]);
+    SEMU_TEST_EQ_U64(context, 3u, f.touch.pending);
+    f.cpu.r[15] = UINT32_C(0x10040000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, SEMU_SAPPORO_233_TOUCH_ROUTE_EVENT_PC,
         f.cpu.r[15]);
     SEMU_TEST_EQ_U64(context, UINT32_C(0x1003001c), f.cpu.r[0]);
@@ -216,7 +225,7 @@ static void test_manager_redirect(semu_test_context *context)
         &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, UINT32_C(0x10020000), f.cpu.r[13]);
     SEMU_TEST_EQ_U64(context, 0u, f.touch.pending);
-    SEMU_TEST_EQ_U64(context, 1u, f.touch.hits);
+    SEMU_TEST_EQ_U64(context, 2u, f.touch.hits);
     destroy(&f);
 }
 

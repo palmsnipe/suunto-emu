@@ -16016,12 +16016,18 @@ logged).**
     record pointer).
   - Manager redirect: captures the touch manager constructor
     `0x00100a66` (`r0` = the manager, `lr` = the return address) and
-    at its return runs the manager's own `0x2205` handler
-    `0x00100b68` with the synthetic values (X/Y=120 in the stack
-    argument, id=120, type=0, flags=0), restoring the stack. The
-    handler calls the uiEngine queue `0xa712e` and the TMA5xx driver
-    (`0x1289f6`/`0x128a30`), so the firmware's own
-    handler -> queue -> uiEngine -> touchBuffer path runs.
+    at its return starts the manager's own activity handler
+    `0x00100b07` (`r0` = manager + 8), then runs the manager's own
+    `0x2205` handler `0x00100b68` with the synthetic values (X/Y=120
+    in the stack argument, id=120, type=0, flags=0), restoring the
+    stack. Both handlers are firmware-derived (manager vtable
+    `0x19ebb8` and base vtable `0x19ec2c`[2]).
+    **This seam is unit-tested but has never fired in an integration
+    run**: the touch manager constructor `0x100a66` is never reached
+    (grep for `manager-redirect`/`manager-start` is zero in every
+    `stdout-*.txt`, `stdout-2` through `stdout-21`). The 19
+    `touch-event trigger=uiengine-queue` lines come from the queue
+    seam below, not from the firmware's own manager handler.
 - `src/compat/sapporo_233_files.c`: the logical-files seed re-install
   is idempotent (the `settings/ui.txt` and
   `storage/7ab0dd65/data.jsn` seeds are left untouched when already
@@ -16065,13 +16071,17 @@ with the seven layers and the pinning replay:
   pc=0x000bb6b2 instructions=10000000000 virtual_time_ns=14385381459`
   (vt 14.39 s). The unmapped-access stop is gone.
 
-**The remaining gap.** The touch event reaches the uiEngine queue and
-`touchBuffer`, and the run now survives the guest reset and the
-empty-count parser hole, reaching the instruction budget at vt
-14.39 s. The TMA5xx driver's IOM3 poll (`0x40053000`/`0x24`/`0x2f`)
-and the 12-byte report path are not yet observed in the run's
-warning-level log, and the four semantic field offsets
-(nameID/routeID/routeE/touchE) also remain unpinned.
+**The remaining gap.** The layer's queue seam writes the
+owner-authorized 12-byte record and the uiEngine consumes it
+(`touchBuffer` populated), and the run survives the guest reset and
+the empty-count parser hole, reaching the instruction budget at vt
+14.39 s. However the **touch manager `0x100a66` never starts**: the
+route-entry seam `0x164a8e` fires 21 times, but the route manager's
+entry consumer does not instantiate the manager, so the manager
+redirect, the TMA5xx driver (`0x128486`), and its IOM3 poll
+(`0x40053000`/`0x24`/`0x2f`) never run (`touch-report` count zero in
+every run). The four semantic field offsets (nameID/routeID/routeE/
+touchE) also remain unpinned.
 
 **Verification:** `make test TEST_FILTER=sapporo_233_touch_route` 7/7;
 `make test TEST_FILTER=sapporo_233_files` 4/4; the two byte-identical
@@ -16081,12 +16091,14 @@ integration runs above; `make check-lines`, `make check-task-contracts`,
 | Artifact | SHA-256 |
 | --- | --- |
 | `src/compat/sapporo_233_touch_route.h` | `41a5ad2d52a3467790c7bafc263e7c486652229f8d76a1a9f8834774c853b70e` |
-| `src/compat/sapporo_233_touch_route.c` | `54bd9ae83f0c4e7888a0514f86731fb2d527db4c04cbedf458b5ea1adc38342d` |
+| `src/compat/sapporo_233_touch_route.c` | `cd0b6a33ff357f40ccf48942e49fa0dc85f7dd8c5d49a480be694e1aaea7e87d` |
 | `src/compat/sapporo_233_files.c` | `26d87b3c97b0447d2a8041d08a3ee8ac9a7035e1ed5ceb7f59225d6d5167f9de` |
-| `tests/unit/test_sapporo_233_touch_route.c` | `1d7459e2f95b1153f0d6ec0b0222d69c92489e4d8e20960e25a81ef643c18850` |
+| `tests/unit/test_sapporo_233_touch_route.c` | `d7baadab7fb678940a936b63ae4888322db5e3aad1e66529e182d7414e957510` |
 | `profiles/sapporo/2.33.16/profile.semu` | `8e58ca2890c9f8a72aa2f2d9c45b18ad89b2a6d02e1d198f6c783ee5d9ef7c36` |
 | `/tmp/sap233-touch-impl/stdout-16.txt` | `f45b20c970be968adf924ecac2f08c3992aea72d19d117aec81b074ce4025389` |
 | `/tmp/sap233-touch-impl/stdout-17.txt` | `f45b20c970be968adf924ecac2f08c3992aea72d19d117aec81b074ce4025389` |
 | `/tmp/sap233-touch-impl/stdout-19.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
+| `/tmp/sap233-touch-impl/stdout-20.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
+| `/tmp/sap233-touch-impl/stdout-21.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
