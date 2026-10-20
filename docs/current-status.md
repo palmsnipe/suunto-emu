@@ -6,6 +6,37 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the touch probe shape is derived but the OTA route list is empty; the post-pinning touch gap stays refused — 2026-10-20
+
+E-SAP-0120 (instance-80, sap233-touch-re2, owner-authorized offline
+class): the E-SAP-0091 unblock path 2 is executed on the pinned 2.33
+application/resources. The `hw_*` route mapping at `0x13db00` returns
+route type 12 for `hw_touch_1`; the touch manager (`0x100a66`, called
+from the UI constructors `0xf5f68`/`0xfc036`) embeds the TMA5xx driver
+at `+0x50` (init `0x128486`, poll `0x127784`, state machine
+`0x127960`), and the driver's I/O calls target **IOM3**
+(`0x40053000`; the bus-index table `0x1bc9ec` maps API index 1 -> IOM3)
+at 7-bit address **`0x24`** with command register **`0x2f`**. The
+report parser `0x127b84` decodes a 12-byte report (status at `+5`,
+flags `+7`, id `+8`, X `+9/+10`, Y `+11/+12`), scales raw coordinates
+by `0.2` into the 240x240 screen and checks the 1200x1200 resolution;
+the driver pushes 12-byte events (X, Y, two floats, type byte) into
+the uiEngine queue via the sink `0x100e72`/`0xa712e` (queue ids
+`0x12202`/`0x12205`, kind `0x2206`), the native side of the JS
+`touchBuffer` name. **The gap still refuses**: the application reads
+`settings/autoload/routelst.txt` and `routes/%08x.%s` through the
+parser at `0xad0b0`, and the OTA's `routelst.sbm` is an empty
+`ROUTELSTSBM ` list (148 bytes at inventory offset `0x9cf060`) with no
+`routes/` files anywhere in the filesystem inventory. No route entry
+means route type 12 is never instantiated, the poll never starts and
+no IOM3 `0x24` transaction appears in any recorded window - exactly
+the E-SAP-0091/0103 observation. A TMA5xx fixture alone would be
+unreachable; the board touch refusal stays correct. The next instance
+must derive the route-list/route-file provisioning format and seed a
+touch route from firmware-exhibited values (or obtain a lane
+observation). No production change; documentation-only; check-lines
+and contracts green, `make check` green.
+
 ## Ticket 710 — the sentinel-insert guard ships: rate-capped budget, opt-in layer, and the crown-conditional tie-breaker — 2026-10-20
 
 E-SAP-0119 (instance-79, sap233-guard-ship): the E-SAP-0117 budget

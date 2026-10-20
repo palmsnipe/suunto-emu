@@ -15388,3 +15388,118 @@ runner's pre-existing stages keep their pinned hashes and stop tuples.
 | `/tmp/sap233-spin/guarded-run-1.log` = `guarded-run-2.log` | `f373de6f3488ed50514a1eea65dad5e6a6dabaaf60d0f5be1516a4901d1d951f` |
 | `/tmp/sap233-spin/guard-38s.sems` (snapshot) | `8af8a5eb231dcc6767310a2e2f64efcbe944f382a9478ef4f4cae619aa9bee76` |
 | `/tmp/sap233-spin/guard-load2.log` (snapshot resume) | `350d274aac7f56c60b5a5a810b96e156ed7a2548c5912302e8f55e1f1d65c759` |
+
+
+## E-SAP-0120 - the 2.33 touch probe shape is derived (IOM3/0x24, register 0x2f, 12-byte event record) but the OTA route list is empty: the touch route is not provisioned and the post-pinning gap stays refused (ticket 710, instance-80, owner-authorized 2026-09-23 offline class)
+
+2026-10-20, ticket 710 instance-80 (sap233-touch-re2) continuing at
+f87874f. This is the E-SAP-0091 unblock path 2: offline RE on the
+hash-pinned 2.33 application (`component-04-type-4-v2.raw` sha256
+`ba286a7b...`) and resource partition (`component-05-type-1-v3.raw`
+sha256 `b06492a9...`). It derives the touch driver's init entry,
+bus/address, probe schedule and event record, and then closes the
+question the other way: **the OTA route list is empty, so the touch
+route is never provisioned and the post-pinning touch gap remains
+refused fail-closed.**
+
+**The hardware-name route mapping.** The function at `0x0013db00`
+compares the input name with the pinned `hw_*` table (`hw_temperature_1`,
+`hw_pressure_1`, `hw_gps_1`, `hw_magnetometer_1`, `hw_touch_1`,
+`hw_wifi_1`, `hw_solar_1`, `hw_uwc_1` at `0x13db8c..0x13dbf4`) and
+returns a route type: temperature/pressure -> 1, GPS -> 9, magnetometer
+-> 4, **touch -> 12**, wifi -> 21, solar -> 22, uwc -> 24. The
+`hw_touch_1` string is at VA `0x13dbd0` (the same table E-SAP-0102
+named); a second copy sits at `0x1ba460` in the settings-schema name
+table.
+
+**The touch manager/driver chain.** The route type 12 constructs the
+touch manager: its constructor is `0x00100a66`, called from the UI
+object constructors at `0x000f5f68` (manager embedded at `+0x1fc`) and
+`0x000fc036` (at `+0x87c`). The manager stores its vtable at `+0`
+(`0x19ebb8`), a sink interface at `+0x18` (vtable `0x19ec4c`), a
+second interface at `+0x1c` (vtable `0x19ec58`, also published at the
+global `0x1001ea90`), and a bus adapter at `+0x20`; the TMA5xx driver
+object sits at `+0x50` and is initialised by `0x00128486` (it stores
+the touch event-name table `0x1b938c` at `+0`, the sink pointer at
+`+4`, and clears its state). The driver's poll is
+`0x00127784`, its state machine `0x00127960` (states 4/6/7,
+subcommands 12/40/41/2/4), its command builders `0x00127b20` (register
+`0x2f` writes) and `0x00127af8` (the init packet), and its report
+parsers `0x00127b84` (touch report) and `0x00127c10` (self-test/POST
+report). The driver's I/O is bus-agnostic only at the vtable seam
+(E-SAP-0103); the concrete bus and address are pinned in these calls.
+
+**Bus/address/probe shape.** The driver's read/write calls go through
+`0x000f7614` (read) and `0x000f75cc` (write), which dispatch through
+`0x00117b20`. The bus-index table at `0x001bc9ec` is the bytes
+`02 03 04`, so API bus index 0 -> IOM2, **1 -> IOM3 (`0x40053000`)**,
+2 -> IOM4. The driver's calls pass bus index 1 and address `0x24`:
+- the manager poll (`0x127952`) reads a report: `bus=1, addr=0x24`;
+- the command builder (`0x127b78`) writes `bus=1, addr=0x24` with
+  register `0x2f` and a 6-byte payload (command class 5/6, subcommand,
+  parameter; 7/8-byte transaction);
+- the init packet (`0x127af8`) copies the 12-byte template at
+  `0x128402` (`2f 00 06 4d 01 00 00 00 ...`) and writes 10 bytes with
+  the command byte at buffer offset 13.
+The report parser (`0x127b84`) decodes: byte `+5` status (contact
+count in the low 5 bits, bit 5 flag), byte `+7` flags (must be 0),
+byte `+8` contact id (low 5 bits) + bit 7 flag, bytes `+9/+10` X,
+bytes `+11/+12` Y; raw coordinates are scaled by the float `0.2`
+(`0x127e04`) into the 240x240 screen, and the manager checks the
+1200x1200 raw resolution at `0x127da2`. So the pinned firmware's touch
+probe shape is **IOM3, 7-bit address `0x24`, command register `0x2f`,
+12-byte report with 0.2-scaled coordinates** - the same address family
+the Race S lane documents (`0x24`, two-byte length header, 13-byte
+report), but derived here from the Sapporo application itself, not
+inherited from the Race S product (E-SAP-0091's cross-product
+prohibition still stands; the controller identity remains
+TMA5xx-class/unresolved).
+
+**The touchBuffer event record.** The driver pushes events through the
+sink vtable `0x19ec4c` entry `0x00100e72`, which builds a 12-byte
+record at `sp`: `+0` X (u16), `+2` Y (u16), `+4` float, `+8` float,
+`+12` event-type byte, and calls the uiEngine queue `0x000a712e` with
+queue id `0x12202` and event kind `0x2206` (the simpler event path uses
+`0x100e56`, queue id `0x12205`, kind `0x3c26`; the type-`0x63` self-test
+path calls `0xa7252(300)` and stores a timeout at `+0x84`). The queue
+implementation is `0x000bbe2e`; the JS name `touchBuffer` is the
+interned duktape string at `0x48b5b`, and the driver's event-name table
+`0x1b938c` carries `onLongPressUp`/`onClickUpAction`/`onLongPressDown`/
+... So a touch fixture's observable effect would be the 12-byte record
+in the uiEngine queue and the `_onDoubleTap` JS callback, not a raw
+register poll.
+
+**Why the gap stays refused: the route provisioning is absent.** The
+application reads `settings/autoload/routelst.txt` (VA `0xacfa0`) at
+startup and then route files `routes/%08x.%s` (VA `0xacfc0`) through
+the settings-list parser at `0x001ad0b0` (file tag
+`settingslistofroutes.cpp`). The OTA's `routelst.sbm` is an **empty
+route list**: the inventory entry at offset `0x9cf060` (148 bytes,
+slice sha256 `d8784e0c...`) is `ROUTELSTSBM ` followed by zeros, and
+the filesystem inventory (sha256 `7bbce056...`) contains **no
+`routes/` files** (the `ex-route*.xml`/`nv-routes.xml` entries are UI
+views, not route provisioning). With no route entry, the touch route
+type 12 is never instantiated, the manager poll never starts, and no
+IOM3 `0x24` transaction appears in any recorded window - exactly the
+E-SAP-0091/0103 observation. The board boundary's touch refusal
+(`semu_machine_input` accepts only `SEMU_INPUT_BUTTON`) therefore stays
+correct: a TMA5xx fixture alone would be unreachable, and seeding one
+without the route provisioning would be a guessed layer. The
+post-pinning touch gap remains **refused fail-closed**; the next
+instance must derive the route-list/route-file format (the SBM
+settings-provider conversion and the `routes/` file schema) and
+provision a touch route from firmware-exhibited values, or obtain a
+twice-byte-identical lane observation. This instance authorizes no
+touch behavior, no wiring change and no fixture.
+
+No production change; no repository file changed. Documentation-only
+instance: `make check-task-contracts` green (171), `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+| `routelst.sbm` slice (offset `0x9cf060`, 148 bytes) | `d8784e0c01117f58620f7cdd968564b26b9a208ddc7b9794267e39ffc820120f` |
+| `/tmp/sap233-touch/app.asm` (full disassembly) | `f4ec3a8d0c62fafbb241968f6f29f9d56274b28b1993874a278af7f8a217531d` |
+| `/tmp/sap233-touch/driver.asm` (driver region `0x127000..0x129000`) | `47bf6196e0f2d3e88e601c95569b7df5a9db3c6e7e9e8c3cb722837881d33965` |
