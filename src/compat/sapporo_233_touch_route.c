@@ -98,8 +98,29 @@ semu_status semu_sapporo_233_touch_route_apply(
     semu_cpu_state *cpu, semu_error *error)
 {
     uint32_t list;
-    (void)bus;
     if (!ready(c) || cpu == NULL) return SEMU_OK;
+    /* The alternative seam: the TMA5xx sink at 0x100e72 builds the
+     * 12-byte touch event record at sp (E-SAP-0120). The layer injects
+     * the owner-authorized synthetic event values (X=120, Y=120, type=1)
+     * so the firmware's own uiEngine queue 0xa712e feeds touchBuffer. */
+    if (cpu->r[15] == SEMU_SAPPORO_233_TOUCH_ROUTE_SINK_PC) {
+        uint32_t sp = cpu->r[13];
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        if (semu_bus_write(bus, sp + 0u, 2u, 120u, error) != SEMU_OK ||
+            semu_bus_write(bus, sp + 2u, 2u, 120u, error) != SEMU_OK ||
+            semu_bus_write(bus, sp + 4u, 4u, 0u, error) != SEMU_OK ||
+            semu_bus_write(bus, sp + 8u, 4u, 0u, error) != SEMU_OK ||
+            semu_bus_write(bus, sp + 12u, 1u, 1u, error) != SEMU_OK) {
+            return refuse(c, error, "2.33 touch-route event write failed");
+        }
+        ++c->hits;
+        log_line(c, "touch-event",
+                 "trigger=touch-event-record x=120 y=120 type=1 bytes=12 "
+                 "synthetic=event-values evidence=E-SAP-0127");
+        return SEMU_OK;
+    }
     if (cpu->r[15] != SEMU_SAPPORO_233_TOUCH_ROUTE_PC) return SEMU_OK;
     if (!c->installed) {
         return refuse(c, error, "2.33 touch route is not installed");

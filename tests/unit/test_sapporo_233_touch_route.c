@@ -16,6 +16,7 @@ typedef struct {
     semu_logger logger;
     FILE *log;
     semu_cpu_state cpu;
+    semu_bus *bus;
 } fixture;
 
 static int init(fixture *f, semu_error *e)
@@ -24,7 +25,12 @@ static int init(fixture *f, semu_error *e)
     unsigned i;
     memset(f, 0, sizeof(*f));
     f->log = tmpfile();
-    if (!f->log) return 0;
+    f->bus = semu_bus_create(e);
+    if (!f->log || !f->bus) return 0;
+    if (semu_bus_map_ram(f->bus, "sram", UINT32_C(0x10000000),
+            UINT32_C(0x180000), e) != SEMU_OK) {
+        return 0;
+    }
     semu_log_init(&f->logger, f->log, SEMU_LOG_WARNING);
     for (i = 0u; i < 3u; ++i) {
         hashes[i] = semu_sapporo_233_touch_route_layer.component_hashes[i];
@@ -41,6 +47,7 @@ static int init(fixture *f, semu_error *e)
 
 static void destroy(fixture *f)
 {
+    semu_bus_destroy(f->bus);
     if (f->log) (void)fclose(f->log);
 }
 
@@ -111,6 +118,41 @@ static void test_apply_seam(semu_test_context *context)
     destroy(&f);
 }
 
+static void test_sink_event(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint32_t v = 0u;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    /* A non-sink PC is a no-op. */
+    f.cpu.r[15] = UINT32_C(0x00100000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0u, f.touch.hits);
+    /* The sink PC writes the 12-byte record at sp. */
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_SINK_PC;
+    f.cpu.r[13] = UINT32_C(0x10030000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, f.touch.hits);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10030000),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 120u, v & 0xffffu);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10030002),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 120u, v & 0xffffu);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x1003000c),
+        1u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, v & 0xffu);
+    /* Hit-bounded: the layer refuses after the budget. */
+    f.touch.hits = SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS;
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) != SEMU_OK);
+    destroy(&f);
+}
+
 static void test_endpoint(semu_test_context *context)
 {
     fixture f;
@@ -146,6 +188,7 @@ int main(void)
         SEMU_TEST_CASE(test_descriptor),
         SEMU_TEST_CASE(test_install_and_red_first),
         SEMU_TEST_CASE(test_apply_seam),
+        SEMU_TEST_CASE(test_sink_event),
         SEMU_TEST_CASE(test_endpoint)
     };
     return semu_test_run(cases, sizeof(cases) / sizeof(cases[0]));
