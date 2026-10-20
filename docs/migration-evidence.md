@@ -15748,3 +15748,88 @@ gap is the widget-pinning persistence read path beyond this seed.
 | `/tmp/sap233-wstorage/next-1.log` = `-2.log` | `5408ccff23457661e6825a93d5a050514ba79812439a07e6f71226695809d6e1` |
 | `/tmp/sap233-wstorage/ohr-1.log` = `-2.log` | `66423c8818ebfc4bc56f3a82471d542c513e7bcddf59239ca160c0b5b13ddef8` |
 | `/tmp/sap233-wstorage/guarded-1.log` = `-2.log` | `27c1fec53024a3cc3b13554ba2e246724ace0b2a446dfec2abb667fae3b71530` |
+
+
+## E-SAP-0124 - the 2.33 settings/UI wave census: the UI view inventory is mapped, the menu view's resources are read, but the revealed screen is black (the display-off); the next gap is the display/wake (ticket 710, instance-84)
+
+2026-10-20, ticket 710 instance-84 (sap233-ui-wave) continuing at
+7ab4a0b. This census maps the 2.33 UI views/screens and the settings
+reads beyond the widget-pinning prompt, and closes the settings/UI
+wave question the same way as the earlier censuses: **the UI screens
+beyond the pinning prompt are not rendered in the recorded windows;
+the menu view's resources are read but the revealed screen is black
+because the display is off.**
+
+**The UI view inventory.** The pinned resource partition
+(`component-05-type-1-v3.raw` sha256 `b06492a9...`) contains the UI
+as XML view files: 2005 unique `<id>` tags, 191 `menu` occurrences,
+306 `vs-h` and 30 `s-cu-widgpin` occurrences, and 317
+`select('#menu')` actions. The widget-pinning view is `s-cu-widgpin`
+at resource offset `0x3c7f00`: its `<userInput>` pushButton `next`
+is `select('#menu')` (the crown-gated `down` stays unbound on the
+Sapporo); its `<onActivate>` is the `$.get('/Storage/Widgets',...)`
+load. The menu view definitions are at `0x221b1d`/`0x227c80` (the
+`<id>menu</id>` menu-type objects: the Suunto-app download, pair
+another watch, device position and the other menu items, with the
+`vs-m`/`vs-h` view sets and the selection hints).
+
+**The probe (twice byte-identical).** The volatile probe
+`/tmp/sap233-spin/pinning_probe.c` (sha256 `a83a0c69...`, binary
+`ead57561...`) runs the six-layer guarded pinning flow (the
+E-SAP-0106/0107 input timeline) to 10B instructions / 44.513 s with
+the widget seed active. Two passes are byte-identical: `census-1.log`
+= `census-2.log` (sha256 `a1235e6f...`), 203 frames, stop
+`stop=budget inst=10000000000 vt=44513003431 frames=203`; the seed's
+load at vt 278 ms is admitted and read (772 bytes); the guard's
+18,000,000th hit is at vt 44.343 s. The probe reads 29 UI views
+(`ui/view/main.xml`, `startup.xml`, `c-0.xml`, `widg-pinguid.xml`,
+`widgp-pinguid.xml`, `widgp-ctrlp.xml`, the `widgm-*` widget views)
+and the menu view's resources: `icon-m-alarm`, `icon-m-bg`,
+`icon-m-dnd`, `icon-m-logbook`, `icon-m-filter`, `icon-s-alarm`,
+`icon-s-airplane`, `icon-s-dnd`, `hint-up`/`hint-down`/
+`hint-btn-middle`, the list backgrounds and the toggles.
+
+**Observed screens.** The splash (frame 2, crc `4979f432`), the
+settled widget-pinning screen (crc `1f62867d`), and the slide-out
+frames 84-88: frame 86/87 are the transition tail (crc
+`1b496ec3`/`57448a44` in the post-seed census; the E-SAP-0089
+pre-seed pair was `1f62867d`/`6321c80b`) and frame 88 is the black
+`2a01c517`. The menu view's revealed area is **black**: the pinning
+`next` selects `#menu`, the menu icons/hints are read, but no menu
+screen is rendered. The same black is visible in the retained
+`/tmp/sap233-ohr-20261016/splashpress-86.png` (sha256
+`8c479bf2...`) - the revealed left area is black.
+
+**Settings reads.** The observed settings files are unchanged from
+the earlier censuses: the `settings/ui.txt` seed (16 bytes),
+`settings/uiv2.txt` (256), `settings/general` (1487),
+`settings/personal` (1727), `settings/sync.txt`, and the empty
+`settings/device`, `settings/devicesettings`, `settings/ble/device`
+and `settings/autoload/routelst.txt`; the general settings source is
+the `settings.sbm` container (E-SAP-0121/0122) and the widget
+settings seed is E-SAP-0123.
+
+**Next gap.** The settings/UI wave's screens (menu, settings,
+watchface) are not rendered in the recorded windows; the menu view's
+resources are read but the revealed screen is black because the
+display is off after the pinning dismiss. The next instance should
+census the **display/wake** behavior (the guest's display power-on/off
+sequence: the NEMA/DIAP power-on writes, the display-off state's wake
+path) - the E-SAP-0084/0085 display-off state, where the buttons
+cannot wake the guest - or obtain a lane observation of a menu/settings
+screen with the display on. No evidence-backed layer is authorized by
+this census; no production change, no fixture/wiring/profile/golden
+change. The touch gap remains refused (E-SAP-0120/0121/0122).
+
+Documentation-only: `make check-lines` clean,
+`make check-task-contracts` 171, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+| `/tmp/sap233-spin/pinning_probe.c` | `a83a0c69b1367f46f2f95e6247342d50341c9612567cbd88b9b04dd75ad11b90` |
+| `/tmp/sap233-spin/pinning_probe_census` (binary) | `ead57561918914ced147300245d68ab38b3a31b4e12c7369c5e77a15ae25d157` |
+| `/tmp/sap233-spin/census-1.log` = `census-2.log` | `a1235e6f813c8c87d56460eca8b7bab198c7399f22606a604b1378159618a8c8` |
+| `/tmp/sap233-ohr-20261016/frames-splashpress-1.log` (pre-seed) | `8094ad67f67c2b6743ae3e793d91995e89aa3be2114a2c991ae5c281afecc59b` |
+| `/tmp/sap233-ohr-20261016/splashpress-86.png` | `8c479bf298137c569333c632458cb7cc173d84234a563498ab0fd8606ee53e49` |

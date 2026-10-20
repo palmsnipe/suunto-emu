@@ -6,6 +6,31 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the settings/UI wave census: the menu view's resources are read but the revealed screen is black (display-off); the next gap is the display/wake — 2026-10-20
+
+E-SAP-0124 (instance-84, sap233-ui-wave): the 2.33 UI views/screens
+and settings reads beyond the widget-pinning prompt are mapped. The
+pinned resource partition holds the UI as XML views: 2005 unique
+`<id>` tags, the `menu` view (191 occurrences), 317 `select('#menu')`
+actions; the pinning view `s-cu-widgpin` (`0x3c7f00`) has the
+`next` → `select('#menu')` pushButton and the `$.get('/Storage/
+Widgets')` activation; the menu view definitions sit at
+`0x221b1d`/`0x227c80`. The twice-byte-identical six-layer guarded
+pinning probe (`census-1.log` = `census-2.log`, sha256 `a1235e6f...`,
+203 frames, stop 10B/44.513 s) reads 29 UI views and the menu
+resources (`icon-m-*`, `icon-s-*`, the hints, the list backgrounds,
+the toggles), yet the revealed screen after the pinning dismiss is
+black (`2a01c517`): the menu view's content is not rendered because
+the display is off. The settings reads are unchanged (ui.txt seed,
+uiv2.txt 256, general 1487, personal 1727, sync.txt; the device
+settings and routelst empty). The next gap is the display/wake
+behavior (the guest's display power-on/off sequence: the NEMA/DIAP
+power-on writes and the display-off state's wake path) or a lane
+observation of a menu/settings screen with the display on; no
+evidence-backed layer is authorized. No production change; the touch
+gap remains refused (E-SAP-0120/0121/0122). `make check-lines`,
+`make check-task-contracts`, `make check` green.
+
 ## Ticket 710 — the widget-settings localStorage seed lands: the observed 772-byte storage/7ab0dd65/data.jsn content is replayed and the pre-write load is admitted — 2026-10-20
 
 E-SAP-0123 (instance-83, sap233-widget-seed): the E-SAP-0115/0116
