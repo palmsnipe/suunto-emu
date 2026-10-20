@@ -6,6 +6,35 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the touch route is a device-settings entry, not the navigation route list; the device settings and route list are empty — 2026-10-20
+
+E-SAP-0121 (instance-81, sap233-route-provision): corrects the
+attribution in E-SAP-0120. The loader at `0xacc12` reads
+`settings/autoload/routelst.txt` and parses the navigation-route keys
+`aid`/`dist`/`lmd`/`name`/`rid`/`rpc`/`rpu`/`suri` (pointer tables
+`0x1bc934..0x1bc950`; the companion `routes/%08x.sbm` blobs at
+`0x8c95c`), so the empty `routelst.sbm` is an empty **navigation**
+route list, not the hardware route config. The hardware route is a
+device-settings entry: the `hw_*` table at `0x1a6a60` feeds the
+route-type mapping (`0x13db00`, touch -> 12), and the keys
+`nameID`/`routeID`/`routeE`/`touchE` live in the settings schema at
+`0xae920..0xae984`/`0xb0070..0xb00d4`. The retained 2.33 log
+(`frames-buttons-1.log`, sha256 `1d0e521b...`) shows native-opens
+`settings/device` size=0, `settings/devicesettings` size=0,
+`settings/ble/device` size=0 and `settings/autoload/routelst.txt`
+size=0; only `settings/general` carries content. The binary source
+`settings.sbm` is present (inventory offset `0x5f27a0`, 14721 bytes,
+slice sha256 `8817d472...`), but the text `SBEM0102` conversion is
+empty in the recorded windows, so no `hw_touch_1` device-settings
+entry exists and the touch route is never started. The post-pinning
+touch gap remains refused fail-closed; next instance: derive the
+settings-provider binary-to-text conversion and the `hw_touch_1`
+device-settings entry/defaults from the pinned firmware, then decide
+whether a hash-pinned touch route fixture can be seeded from
+firmware-exhibited values (otherwise record the refusal and continue
+to the next named gap). No production change; documentation-only;
+check-lines and contracts green, `make check` green.
+
 ## Ticket 710 — the touch probe shape is derived but the OTA route list is empty; the post-pinning touch gap stays refused — 2026-10-20
 
 E-SAP-0120 (instance-80, sap233-touch-re2, owner-authorized offline

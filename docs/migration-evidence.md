@@ -15503,3 +15503,82 @@ instance: `make check-task-contracts` green (171), `make check` green.
 | `routelst.sbm` slice (offset `0x9cf060`, 148 bytes) | `d8784e0c01117f58620f7cdd968564b26b9a208ddc7b9794267e39ffc820120f` |
 | `/tmp/sap233-touch/app.asm` (full disassembly) | `f4ec3a8d0c62fafbb241968f6f29f9d56274b28b1993874a278af7f8a217531d` |
 | `/tmp/sap233-touch/driver.asm` (driver region `0x127000..0x129000`) | `47bf6196e0f2d3e88e601c95569b7df5a9db3c6e7e9e8c3cb722837881d33965` |
+
+
+## E-SAP-0121 - the touch route is a device-settings entry, not the navigation route list: settings/device and settings/devicesettings are empty, and the settings.sbm source is 14721 bytes (correction to E-SAP-0120) (ticket 710, instance-81)
+
+2026-10-20, ticket 710 instance-81 (sap233-route-provision) continuing
+at b7c06c0. This instance set out to derive the route provisioning
+format from the pinned firmware and correct one conflation in
+E-SAP-0120. **The refusal outcome stands, but the mechanism is
+different: the touch route is a device-settings entry, and both the
+device settings and the navigation route list are empty in the
+recorded windows.**
+
+**The routelst.txt is the navigation route list.** The loader at
+`0x001acc12` opens `settings/autoload/routelst.txt` (VA `0xacfa0`),
+iterates text entries and parses the keys `aid`, `dist`, `lmd`,
+`name`, `rid`, `rpc`, `rpu`, `suri` (pointer tables at
+`0x1bc934..0x1bc950`; the same 8 keys the SBEM settings parser
+`0xacb6e` reads). These are GPS route entries (route id, point count,
+point unit, last-modified date), not hardware routes. The companion
+files are `routes/%08x.sbm` (VA `0x8c95c`) and `routes/%08x.%s`
+(VA `0xacfc0`), i.e. the route-point blobs. So the empty
+`routelst.sbm` (148 bytes at inventory offset `0x9cf060`, slice
+sha256 `d8784e0c...`) is an empty **navigation** route list; it does
+not provision or unprovision the touch route.
+
+**The hardware route is a settings entry.** The `hw_*` name table
+(`0x1a6a60`: hw_temperature_1, hw_pressure_1, hw_gps_1,
+hw_magnetometer_1, hw_touch_1, ...) feeds the route-type mapping
+`0x13db00` (touch -> 12); the touch manager construction (E-SAP-0120)
+then happens when that hardware route is configured. The hardware
+settings keys `nameID`, `routeID`, `routeE`, `touchE` sit in the
+settings schema tables at `0xae920..0xae984` and `0xb0070..0xb00d4`
+(the sport-mode/settings key arrays). The device settings files are
+the carriers: the retained 2.33 log
+`/tmp/sap233-ohr-20261016/frames-buttons-1.log` (sha256
+`1d0e521b...`) shows the native-opens `settings/device` size=0,
+`settings/devicesettings` size=0, `settings/ble/device` size=0 and
+`settings/autoload/routelst.txt` size=0; only `settings/general`
+carries content (1487 bytes and the app's write sizes). So the
+device-settings entry that would configure the touch route is empty
+in every recorded window - the touch manager is never started, and no
+IOM3 `0x24` transaction appears (E-SAP-0091/0103/0120).
+
+**The binary source is present but unconverted.** The resource
+partition carries the `settings.sbm` blob at inventory offset
+`0x5f27a0` (14721 bytes, slice sha256 `8817d472...`), header
+`SETTINGSSBM ` plus timestamp/binary data. The application's settings
+provider converts the autoload/device blobs to the text `SBEM0102`
+form (magic at VA `0x1bba18`; parser `0xacb6e`); the device-settings
+text is empty in the recorded windows, so the hardware route
+configuration (including any `hw_touch_1` entry with `routeE`/
+`touchE`) is absent. Deriving the binary-to-text conversion and the
+`hw_touch_1` device-settings entry/default from the pinned firmware
+is the next instance's job; it is not yet derived, so this instance
+authorizes no touch behavior, no wiring change and no fixture.
+
+The E-SAP-0120 refusal therefore stands and is now correctly
+attributed: the touch route is a device-settings entry, the device
+settings and the navigation route list are both empty, and the
+post-pinning touch gap remains refused fail-closed. Next instance:
+derive the settings-provider binary-to-text conversion and the
+`hw_touch_1` device-settings entry (nameID/routeID/routeE/touchE
+defaults) from the pinned firmware, then decide whether a
+hash-pinned touch route fixture can be seeded from firmware-exhibited
+values; otherwise record the refusal and continue to the next named
+gap.
+
+No production change; no repository file changed except this entry
+and the status note. `make check-task-contracts` 171,
+`make check-lines` clean, `make check` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+| `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
+| `settings.sbm` slice (offset `0x5f27a0`, 14721 bytes) | `8817d4721d1f69461edb10978a5b3c94a8e5dffee0bb8c4c8cf9559006eca251` |
+| `routelst.sbm` slice (offset `0x9cf060`, 148 bytes) | `d8784e0c01117f58620f7cdd968564b26b9a208ddc7b9794267e39ffc820120f` |
+| `/tmp/sap233-ohr-20261016/frames-buttons-1.log` | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
