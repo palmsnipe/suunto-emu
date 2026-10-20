@@ -8,6 +8,7 @@
 #include "semu/peripheral.h"
 #include "semu/scheduler.h"
 #include "semu/storage.h"
+#include "../compat/sapporo_233_touch_route.h"
 #include "../soc/apollo4/uart.h"
 
 /*
@@ -76,6 +77,14 @@ semu_status semu_sapporo_devices_bind_233_gps(
 semu_status semu_sapporo_devices_bind_233_ohr(
     semu_sapporo_devices *devices, semu_layer_state *state,
     semu_logger *logger, semu_error *error);
+
+/* Explicit E-SAP-0127 2.33 touch-route fixture: the synthetic route
+ * entry (owner-authorized) and the IOM3 0x24 touch endpoint. Requires the
+ * sapporo-2.33.16 profile selection. */
+semu_status semu_sapporo_devices_bind_233_touch_route(
+    semu_sapporo_devices *devices,
+    semu_sapporo_233_touch_route_context *context,
+    semu_layer_state *state, semu_logger *logger, semu_error *error);
 
 /* Explicit 2.39 binding; lifecycle is held in instance-owned layer counters. */
 semu_status semu_sapporo_devices_bind_gps_startup_fixture(

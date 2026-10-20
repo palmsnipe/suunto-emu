@@ -26,11 +26,12 @@ static void test_sapporo_233_gps_registration(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_profile_load("profiles/sapporo/2.33.16/profile.semu", &profile,
                           &error));
-    /* Six declared staged-boot layers: production data, logical files, the
-     * first-boot translations, the GPS startup fixture, the OHR startup
-     * fixture (instances 33-37) and the opt-in sentinel-insert guard
-     * (instance 79; disabled by default). */
-    SEMU_TEST_EQ_U64(context, 6u, profile.layer_count);
+    /* Seven declared staged-boot layers: production data, logical files,
+     * the first-boot translations, the GPS startup fixture, the OHR
+     * startup fixture (instances 33-37), the opt-in sentinel-insert guard
+     * (instance 79) and the opt-in touch-route layer (instance 87);
+     * disabled by default. */
+    SEMU_TEST_EQ_U64(context, 7u, profile.layer_count);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[0],
         "sapporo-2.33-gps-startup") == 0);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[1],
@@ -43,6 +44,8 @@ static void test_sapporo_233_gps_registration(semu_test_context *context)
         "sapporo-2.33-firstboot") == 0);
     SEMU_TEST_ASSERT(context, strcmp(profile.layers[5],
         "sapporo-2.33-sentinel-guard") == 0);
+    SEMU_TEST_ASSERT(context, strcmp(profile.layers[6],
+        "sapporo-2.33-touch-route") == 0);
 }
 
 static void test_sapporo_233_gps_bind_dispatch_reset(semu_test_context *context)

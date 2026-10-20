@@ -30,9 +30,10 @@ static void test_profile_loads(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 3u, profile.required_count);
     /* Ticket 710 instances 33-37: the staged-boot layer set (GPS startup,
      * OHR startup, production data, logical files, first-boot
-     * translations); instance 79 adds the opt-in sentinel-insert guard
-     * (declared, disabled by default). */
-    SEMU_TEST_EQ_U64(context, 6u, profile.layer_count);
+     * translations); instance 79 adds the opt-in sentinel-insert guard;
+     * instance 87 adds the opt-in touch-route layer (declared, disabled
+     * by default). */
+    SEMU_TEST_EQ_U64(context, 7u, profile.layer_count);
     SEMU_TEST_ASSERT(context,
         strcmp(profile.layers[0], "sapporo-2.33-gps-startup") == 0);
     SEMU_TEST_ASSERT(context,
@@ -45,6 +46,8 @@ static void test_profile_loads(semu_test_context *context)
         strcmp(profile.layers[4], "sapporo-2.33-firstboot") == 0);
     SEMU_TEST_ASSERT(context,
         strcmp(profile.layers[5], "sapporo-2.33-sentinel-guard") == 0);
+    SEMU_TEST_ASSERT(context,
+        strcmp(profile.layers[6], "sapporo-2.33-touch-route") == 0);
 }
 
 static void test_profile_components(semu_test_context *context)

@@ -14,6 +14,7 @@
 #include "sapporo_tli493d.h"
 #include "../compat/sapporo_222.h"
 #include "../compat/sapporo_233_gps.h"
+#include "../compat/sapporo_233_touch_route.h"
 #include "../compat/sapporo_233_ohr.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
@@ -50,10 +51,12 @@ struct semu_sapporo_devices {
     semu_sapporo_ohr2 *ohr2;
     semu_sapporo_flash *flash;
     i2c_bus iom2_bus;
+    i2c_bus iom3_bus;
     i2c_bus iom4_bus;
     semu_serial_endpoint iom0_ep;
     semu_serial_endpoint iom2_ep;
     semu_serial_endpoint iom3_ep;
+    semu_serial_endpoint touch_ep;
     semu_serial_endpoint iom4_ep;
     semu_serial_endpoint iom4_observed_ep;
     semu_serial_endpoint mspi1_ep;

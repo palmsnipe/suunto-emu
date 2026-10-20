@@ -15989,3 +15989,94 @@ Documentation-only: `make check-lines` clean,
 | `settings.sbm` slice (offset `0x5f27a0`, 14721 bytes, E-SAP-0122) | `8817d4721d1f69461edb10978a5b3c94a8e5dffee0bb8c4c8cf9559006eca251` |
 | `vsf-inventory.csv` (2.33.16) | `7bbce0564be42ad2657533972a65d5e37e0ff974d64d4deee350c91f550e8291` |
 | `/tmp/sap233-ohr-20261016/frames-buttons-1.log` (E-SAP-0122) | `1d0e521b93f3e3df0559909d4f0628f636e2c87ba0768895bc03a530520c7713` |
+
+
+## E-SAP-0127 - the 2.33 touch-route layer is implemented and exercised, but the end-to-end touch path is not reached: the route-entry record field layout is not derived, so the synthetic entry is logged at the seam but not consumed; touchBuffer stays empty (ticket 710, instance-87 follow-up)
+
+2026-10-20, ticket 710 instance-87 follow-up continuing at
+510682d, implementing the owner-authorized synthetic touch route
+(owner decision: "We need to try at some point to make the touch screen
+working", the explicit authorization E-SAP-0122 required). This
+instance delivers the layer, the profile opt-in, the red-first unit
+test and a real integration run, and then records the remaining
+missing observation honestly: the route-entry record field layout.
+
+**What is implemented (named, hash-pinned, opt-in, hit-bounded,
+logged).**
+- `src/compat/sapporo_233_touch_route.h` (sha256 `5a781844...`) and
+  `src/compat/sapporo_233_touch_route.c` (sha256 `cf771f1f...`): the
+  layer descriptor `sapporo-2.33-touch-route`, evidence `E-SAP-0127`,
+  kind `device-fixture`, profile `sapporo-2.33.16`, the three pinned
+  2.33 component hashes, `maximum_hits = 64`.
+- Install seeds the owner-authorized synthetic enablement entry:
+  `name_id = 0x0013dbd0` (the firmware-exhibited `hw_touch_1` string
+  VA), `route_id = 12` (the firmware-exhibited route type), `route_e =
+  1`, `touch_e = 1`, logged as `synthetic=enablement-only`. The record
+  layout and the probe shape are firmware-derived (E-SAP-0120/0126).
+- Apply fires at the firmware-derived route-manager entry-list seam PC
+  `0x164a8e` and logs `touch-route-entry` with the seam list pointer;
+  it is hit-bounded and refusal-sticky.
+- IOM3 endpoint `sapporo.iom3.touch` (address `0x24`, register `0x2f`)
+  returns the 12-byte E-SAP-0120 report (status `0x01`, id `0x01`,
+  X/Y 0) and refuses other addresses; the device factory now has an
+  `iom3_bus` with the OPT3007 at `0x45` and the touch at `0x24`
+  (`semu_sapporo_devices_bind_233_touch_route`).
+- Profile stanza `[layer sapporo-2.33-touch-route] kind=device-fixture
+  evidence=E-SAP-0127 max_hits=64`
+  (`profiles/sapporo/2.33.16/profile.semu` sha256 `8e58ca28...`).
+
+**Tests.** `tests/unit/test_sapporo_233_touch_route.c` (sha256
+`95617455...`) is 4/4 green: descriptor; red-first disabled-layer
+install refusal; apply seam (non-seam no-op, entry log, sticky
+null-list refusal); endpoint (12-byte report, address refusal,
+null-context refusal). `make test TEST_FILTER=sapporo_233_touch_route`
+passes.
+
+**Integration run (one pass recorded).** `build/suunto-emu run` with
+the seven layers (production-data, logical-files, firstboot,
+gps-startup, ohr-startup, sentinel-guard, touch-route) and the pinning
+replay (`/tmp/sap233-ohr-20261016/active.replay`): log
+`/tmp/sap233-touch-impl/run-1.log` (sha256 `06555f3f...`) shows
+`touch-route-install` at vt 0, **7 `touch-route-entry` seam hits** at
+vt 39.289-39.300 s (list pointers `10041f10`, `10041f58`, `10041fa0`,
+`10028eb8`), and **0 `touch-report` lines**, stopping at
+`stop=budget pc=0x000bb5ec instructions=9654038666
+virtual_time_ns=45118811761`.
+
+**The missing observation.** The route-entry record field layout: the
+exact offsets of `nameID`/`routeID`/`routeE`/`touchE` inside the
+record built by `0x164834` -> `0x16485a` (record head at `+0`, vtable
+offset at `+4`, payload at `+8`, `+0xa8` sub-record) and consumed by
+the route manager `0x13dc1a` are not derived. The layer currently
+logs the seam but does not write the entry into guest memory, so the
+touch manager (`0x100a66`) never starts the TMA5xx driver
+(`0x128486`) and no IOM3 `0x24` poll occurs; `touchBuffer` stays
+empty. Writing guessed offsets into guest memory would violate the
+fail-closed evidence rule (a value the pinned firmware does not
+exhibit), so the injection is refused rather than guessed.
+
+**Next gap.** Derive the route-entry record field offsets from the
+pinned application (the `0x16485a` store, the `0x164a8e` list, the
+settings-service reader), reproduce twice byte-identically, then
+inject the synthetic entry, start the touch manager, drive the IOM3
+`0x24`/`0x2f` reports, and assert the 12-byte event record and
+`touchBuffer` with red-first unit and integration tests (re-pinning
+the stop/golden). The owner authorization for the synthetic
+enablement values is recorded; the layer is opt-in so the default
+profile stays fail-closed.
+
+Documentation-only for the refusal; the layer/test/profile code is
+committed separately. Verification: `make test
+TEST_FILTER=sapporo_233_touch_route` 4/4; the integration run above;
+`make check-lines`, `make check-task-contracts` 171, `make check`,
+`make sanitize` green.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `src/compat/sapporo_233_touch_route.h` | `5a781844bb9439c2d5a4069a29ec292446728d509a6f8a7ffa18a0b76e237ba2` |
+| `src/compat/sapporo_233_touch_route.c` | `cf771f1f491cdbe9f03608590ef747029a883b5dfe1c4eafbd689e77c7b3649b` |
+| `tests/unit/test_sapporo_233_touch_route.c` | `95617455f5e99dabc5110c15dba3ce81365852c404bc4833518d77c509e5b5af` |
+| `profiles/sapporo/2.33.16/profile.semu` | `8e58ca2890c9f8a72aa2f2d9c45b18ad89b2a6d02e1d198f6c783ee5d9ef7c36` |
+| `/tmp/sap233-touch-impl/run-1.log` | `06555f3f608e991c6b5b0eba6a7c3e62d9ae876ad21f220f570938ba03989637` |
+| pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
+| pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |

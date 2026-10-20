@@ -4,6 +4,7 @@
 #include "../compat/sapporo_233_files.h"
 #include "../compat/sapporo_233_firstboot.h"
 #include "../compat/sapporo_233_sentinel_guard.h"
+#include "../compat/sapporo_233_touch_route.h"
 #include "../compat/sapporo_233_gps.h"
 #include "../compat/sapporo_235_ohr.h"
 #include "../compat/sapporo_235_gps.h"
@@ -128,6 +129,13 @@ static int apply_compat_hook(semu_machine *machine,
         } else if (layer->descriptor == &semu_sapporo_233_firstboot_layer) {
             if (semu_sapporo_233_firstboot_apply(
                     &machine->sapporo_233_firstboot, machine->bus,
+                    semu_cpu_get_state_mutable(machine->cpu),
+                    error) != SEMU_OK) {
+                return 0;
+            }
+        } else if (layer->descriptor == &semu_sapporo_233_touch_route_layer) {
+            if (semu_sapporo_233_touch_route_apply(
+                    &machine->sapporo_233_touch_route, machine->bus,
                     semu_cpu_get_state_mutable(machine->cpu),
                     error) != SEMU_OK) {
                 return 0;

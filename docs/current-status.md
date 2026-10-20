@@ -6,6 +6,35 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 710 — the touch-route layer is implemented and exercised, but the end-to-end touch path is not reached: the route-entry record field layout is the missing observation — 2026-10-20
+
+E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): the owner
+authorized the synthetic touch route ("try to make the touch screen
+working"). The layer is now implemented: `sapporo-2.33-touch-route`
+(evidence E-SAP-0127, three pinned 2.33 hashes, `max_hits=64`),
+opt-in profile stanza, install of the synthetic enablement entry
+(`hw_touch_1` VA `0x0013dbd0`, route type 12, routeE/touchE=1,
+logged `synthetic=enablement-only`), the route-manager seam apply at
+PC `0x164a8e`, and the IOM3 `0x24`/`0x2f` touch endpoint returning
+the 12-byte E-SAP-0120 report; the device factory now has an
+`iom3_bus` with OPT3007 at `0x45` and touch at `0x24`. The red-first
+unit test is 4/4 green (descriptor; disabled-layer refusal; apply
+seam; endpoint report/refusal). The integration run with the seven
+layers and the pinning replay shows `touch-route-install` at vt 0 and
+7 seam hits at vt 39.29-39.30 s, but **0 touch reports**: the layer
+logs the seam without writing the entry into guest memory, so the
+touch manager never starts the TMA5xx driver and `touchBuffer` stays
+empty. The missing observation is the route-entry record field
+layout (the `nameID`/`routeID`/`routeE`/`touchE` offsets inside the
+`0x164834`/`0x16485a` record); guessing guest-memory offsets would
+violate the fail-closed rule. Next gap: derive the record field
+offsets twice byte-identically, then inject, start the touch manager,
+drive the IOM3 reports, and assert the event record and `touchBuffer`
+with re-pinned stop/golden. The layer stays opt-in; the default
+profile remains fail-closed. `make test TEST_FILTER=sapporo_233_touch_
+route` 4/4; `make check-lines`, `make check-task-contracts`,
+`make check`, `make sanitize` green.
+
 ## Ticket 710 — the touch-enablement gap stays refused: the route-entry chain and settings-service seam are mapped; the next gap is the settings-service entry reader — 2026-10-20
 
 E-SAP-0126 (instance-87, sap233-touch-enable): the owner asked to try

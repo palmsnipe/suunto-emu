@@ -245,7 +245,14 @@ semu_sapporo_devices *semu_sapporo_devices_create(
     devices->iom2_ep.name = "sapporo.iom2";
     devices->iom2_ep.transfer = i2c_mux_transfer;
     devices->iom2_ep.context = &devices->iom2_bus;
-    devices->iom3_ep = semu_sapporo_opt3007_endpoint(devices->ambient_light);
+    {
+        semu_serial_endpoint ep;
+        ep = semu_sapporo_opt3007_endpoint(devices->ambient_light);
+        i2c_bus_attach(&devices->iom3_bus, 0x45u, &ep);
+    }
+    devices->iom3_ep.name = "sapporo.iom3";
+    devices->iom3_ep.transfer = i2c_mux_transfer;
+    devices->iom3_ep.context = &devices->iom3_bus;
     devices->iom4_ep.name = "sapporo.iom4";
     devices->iom4_ep.transfer = i2c_mux_transfer;
     devices->iom4_ep.context = &devices->iom4_bus;
@@ -460,4 +467,21 @@ const semu_apollo4_uart_endpoint *semu_sapporo_devices_uart_endpoint(
     semu_sapporo_devices *devices)
 {
     return devices != NULL ? &devices->uart_ep : NULL;
+}
+
+semu_status semu_sapporo_devices_bind_233_touch_route(
+    semu_sapporo_devices *devices,
+    semu_sapporo_233_touch_route_context *context,
+    semu_layer_state *state, semu_logger *logger, semu_error *error)
+{
+    if (devices == NULL || context == NULL || state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "2.33 touch-route bind arguments are incomplete");
+        return SEMU_ERR_ARGUMENT;
+    }
+    context->state = state;
+    context->logger = logger;
+    devices->touch_ep = semu_sapporo_233_touch_route_endpoint(context);
+    i2c_bus_attach(&devices->iom3_bus, 0x24u, &devices->touch_ep);
+    return SEMU_OK;
 }
