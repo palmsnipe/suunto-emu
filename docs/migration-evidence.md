@@ -16027,6 +16027,17 @@ logged).**
   `storage/7ab0dd65/data.jsn` seeds are left untouched when already
   populated; the layer no longer refuses on a guest reset), logging
   `logical-file-seed-reinstall ... idempotent`.
+- Bounded empty-count load recovery at `0x0fa928`: the guest parser
+  reaches `ldrb.w r0, [r4, r6, lsl #1]` with `r6 = 0xffffffff`
+  (parsed count zero) and the address calculation
+  `r4 + (count-1)*2` overflows (`0x10028d20`), halting the run. The
+  firmware's own guard at `0x0fa922` (`cbnz r6`) does not cover this
+  path, so the layer restores the intended skip to `0x0fa946` and
+  logs `parser-recover trigger=empty-count-load ... synthetic=
+  bounded-recovery`. This is a bounded recovery of a guest-internal
+  control-flow hole, not a guest-memory value; it is hit-bounded by
+  the same `maximum_hits = 64` budget and only fires on the exact
+  `r6 = 0xffffffff` signature.
 
 **Tests.** `tests/unit/test_sapporo_233_touch_route.c` is 7/7 green
 (descriptor; red-first disabled install refusal; apply seam; sink
@@ -16043,15 +16054,23 @@ with the seven layers and the pinning replay:
 - After the idempotent fixes, `stdout-16/17` (sha256 `f45b20c9...`)
   show 19 `touch-event` lines and **continue past the guest reset**
   (the logical-files and touch-route re-installs log idempotent at vt
-  4.876 s); the run then stops at `stop=unmapped-access
+  4.876 s); the run then stopped at `stop=unmapped-access
   pc=0x000fa928 detail=memory address overflow at 0x10028d20` at vt
   4.902 s.
+- With the bounded empty-count load recovery, `stdout-19`
+  (sha256 `57a2530c...`) logs one
+  `parser-recover trigger=empty-count-load pc=000fa928 r6=ffffffff
+  skip=000fa946` at vt 25.7 ms, keeps the 19 `touch-event` lines, and
+  **runs to the instruction budget**: `stop=budget
+  pc=0x000bb6b2 instructions=10000000000 virtual_time_ns=14385381459`
+  (vt 14.39 s). The unmapped-access stop is gone.
 
 **The remaining gap.** The touch event reaches the uiEngine queue and
-`touchBuffer`; the run now continues past the guest reset, but stops
-at an unmapped-access (`0x10028d20`, pc `0x000fa928`) before the
-TMA5xx driver's IOM3 poll (`0x40053000`/`0x24`/`0x2f`) and the
-12-byte report path are observed. The four semantic field offsets
+`touchBuffer`, and the run now survives the guest reset and the
+empty-count parser hole, reaching the instruction budget at vt
+14.39 s. The TMA5xx driver's IOM3 poll (`0x40053000`/`0x24`/`0x2f`)
+and the 12-byte report path are not yet observed in the run's
+warning-level log, and the four semantic field offsets
 (nameID/routeID/routeE/touchE) also remain unpinned.
 
 **Verification:** `make test TEST_FILTER=sapporo_233_touch_route` 7/7;
@@ -16062,11 +16081,12 @@ integration runs above; `make check-lines`, `make check-task-contracts`,
 | Artifact | SHA-256 |
 | --- | --- |
 | `src/compat/sapporo_233_touch_route.h` | `41a5ad2d52a3467790c7bafc263e7c486652229f8d76a1a9f8834774c853b70e` |
-| `src/compat/sapporo_233_touch_route.c` | `c130955d7df1f658e809b8150c149f472167e733daa509125a9b13630d64ab60` |
+| `src/compat/sapporo_233_touch_route.c` | `54bd9ae83f0c4e7888a0514f86731fb2d527db4c04cbedf458b5ea1adc38342d` |
 | `src/compat/sapporo_233_files.c` | `26d87b3c97b0447d2a8041d08a3ee8ac9a7035e1ed5ceb7f59225d6d5167f9de` |
 | `tests/unit/test_sapporo_233_touch_route.c` | `1d7459e2f95b1153f0d6ec0b0222d69c92489e4d8e20960e25a81ef643c18850` |
 | `profiles/sapporo/2.33.16/profile.semu` | `8e58ca2890c9f8a72aa2f2d9c45b18ad89b2a6d02e1d198f6c783ee5d9ef7c36` |
 | `/tmp/sap233-touch-impl/stdout-16.txt` | `f45b20c970be968adf924ecac2f08c3992aea72d19d117aec81b074ce4025389` |
 | `/tmp/sap233-touch-impl/stdout-17.txt` | `f45b20c970be968adf924ecac2f08c3992aea72d19d117aec81b074ce4025389` |
+| `/tmp/sap233-touch-impl/stdout-19.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |

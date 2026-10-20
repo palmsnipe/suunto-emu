@@ -104,6 +104,24 @@ semu_status semu_sapporo_233_touch_route_apply(
 {
     uint32_t list;
     if (!ready(c) || cpu == NULL) return SEMU_OK;
+    /* The parser loop's trailing byte load 0x0fa928 computes
+     * r4 + (count-1)*2. When the parsed count is zero the firmware still
+     * reaches the load with r6 = 0xffffffff, which overflows the address
+     * (armv7m_add_address) and halts the run. The firmware's own guard
+     * (0x0fa922: cbnz r6) is skipped on this path, so the layer restores
+     * the intended skip to 0x0fa946 and logs the bounded recovery. */
+    if (cpu->r[15] == UINT32_C(0x000fa928) &&
+        cpu->r[6] == UINT32_C(0xffffffff)) {
+        if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
+            return refuse(c, error, "2.33 touch-route hit budget exhausted");
+        }
+        cpu->r[15] = UINT32_C(0x000fa946);
+        ++c->hits;
+        log_line(c, "parser-recover",
+                 "trigger=empty-count-load pc=000fa928 r6=ffffffff "
+                 "skip=000fa946 synthetic=bounded-recovery evidence=E-SAP-0127");
+        return SEMU_OK;
+    }
     /* The touch manager constructor 0x100a66: capture the manager
      * object and its return address, so the layer can redirect the
      * return into the manager's own 0x2205 event handler. */
