@@ -48,7 +48,12 @@ the budget stop to ~10.0-10.4 s instead of 14.39 s, with
 step is to let the firmware's own route-manager consumer construct and
 register the touch manager first (the route-entry seam fires 21 times
 but the entry is not consumed by the action chain, whose resource
-client is null). The
+client is null). Concretely, the `0x164a8e` seam currently **logs
+only**; it does not write the synthetic entry into the guest's
+route-entry list, so the firmware never constructs or starts the touch
+manager. Implementing that write needs the per-entry record path
+(`0x164834` -> `0x16485a`) and the four payload field offsets, which
+remain unpinned. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.

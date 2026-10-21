@@ -16009,8 +16009,14 @@ logged).**
   a re-install after a guest reset is idempotent (logs
   `route-seed-reinstall ... idempotent`).
 - Four firmware-derived seams:
-  - Route-manager entry-list seam `0x164a8e` (logs
-    `touch-route-entry`).
+  - Route-manager entry-list seam `0x164a8e`: it **logs only**
+    (`touch-route-entry`, 21 hits per run, carrying the list head).
+    It does **not** write the synthetic entry into the guest's
+    route-entry list, so the firmware's own entry consumer never sees
+    `hw_touch_1` and never constructs or starts the touch manager. The
+    per-entry record path (`0x164834` -> `0x16485a`) and the four
+    payload field offsets are still unpinned, so the write cannot be
+    implemented yet without guessing.
   - TMA5xx sink `0x00100e72` (12-byte event record at sp).
   - uiEngine queue `0x000a712e` (12-byte event record at the queue
     record pointer).
