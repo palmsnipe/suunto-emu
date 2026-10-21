@@ -16128,6 +16128,23 @@ hash-pinned `component-04-type-4-v2.raw`).**
   pushed `lr` but leaves `lr` at its last internal return address, so
   a return marker must use `sp`, not `lr`.
 
+**TMA5xx poll and bus dispatcher re-derived (2026-10-20).** The
+firmware's own poll is `0x127952`: `add r2,sp,#4; movs r1,#0x24;
+movs r0,#1; b.w 0xf7614` - API bus index 1 (IOM3 `0x40053000`),
+address `0x24`. The read dispatcher `FUN_000f7614` asserts on
+`param_1 > 2`, then calls `FUN_00117d96`; the write path goes through
+`FUN_000f75cc` -> `FUN_00117bb8` -> the IOM HAL `FUN_0014346c`, whose
+base is `0x40050000 + instance*0x1000` (`FUN_0014325e` is the HAL
+configure call). The manager's `0x2200`/`0x2204` handlers
+(`0x100c50`-`0x100cc8`) call the driver's init packet `0x127af8` with
+the driver instance at `manager+0x20`, and `0x1279ee` with the same
+instance. A layer variant that redirects to the firmware's own poll
+`0x127952` at the queue seam fired three times (`trigger=tma5xx-poll`,
+93 log lines) but produced **no** IOM3 transfer - `touch-report`
+stayed 0 - because the I2C bus slot is not initialised in this
+emulated boot, so the dispatcher never reaches the HAL transfer. That
+variant was rejected as well.
+
 **Injection-point experiments (all rejected).** Four later variants
 tried to move the dispatch off the constructor's return, and every one
 still derailed the boot (the gps-startup and ohr-startup layers stop

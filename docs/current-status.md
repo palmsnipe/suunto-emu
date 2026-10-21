@@ -61,8 +61,13 @@ The touch manager `0x100a66` is constructed three times per run by the
 settings-service constructors `0xf5f0e`/`0xfc002`, with its driver
 object at `manager+0x50`. Two further press/release variants
 (`stdout-32`, `stdout-33`) still derailed the boot (28 log lines, no
-release, `touch-report` 0), so the layer remains at the verified
-state. The
+release, `touch-report` 0). A further variant called the firmware's
+own TMA5xx poll `0x127952` (`add r2,sp,#4; movs r1,#0x24; movs r0,#1;
+b.w 0xf7614` - bus index 1 -> IOM3, address 0x24) at the queue seam:
+it fired three times but produced no IOM3 transfer, because the I2C
+bus slot is not initialised in this emulated boot and the dispatcher
+never reaches the IOM HAL transfer `0x14346c`. The layer remains at
+the verified state. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.
