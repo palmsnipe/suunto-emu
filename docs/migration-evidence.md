@@ -16512,6 +16512,27 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**Transfer-builder signature and I2C bus/instance table derived
+(2026-10-21).** Ghidra decompilation of `FUN_00117b20` pins its real
+signature: `FUN_00117b20(bus, addr, buf, size, timeout, addr_ptr,
+length_m1, direction)`, which it copies into a 0x20-byte descriptor as
+`desc[0] = slot handle` (`*(DAT_00117d50 + bus*0x10 + 4)`),
+`desc[1] = instance` (`*(byte*)(DAT_00117d54 + bus)`), `desc[2] = addr`,
+`desc[3] = size`, `desc[4] = buf`, `desc[5] = direction`,
+`desc[6] = addr_ptr`, `desc[7] = length_m1`, `desc[0x1f] = 0`, and then
+calls `FUN_00143774(&desc)` unconditionally - there is no early bail
+before the HAL setup. The instance table `DAT_00117d54` resolves to VA
+`0x1bc9ec` and its first bytes are **`02 03 04 00`**, so bus index 0 ->
+instance 2, **bus index 1 -> IOM3 instance 3**, bus index 2 -> instance
+4. The slot table `DAT_00117d50` resolves to `0x1004ab80` (guest SRAM,
+so its live contents are not in the pinned image). This confirms the
+synthesised call's bus/instance targeting was correct, and shows the
+residual failure is not a signature or mapping error: the builder was
+entered (`trigger=iom3-transfer-build`) yet no instance-3 `0x143774`
+appeared, and a probe on `0x117b20` entry with `r0 == 1` recorded
+nothing - so the redirect to the builder did not execute as intended
+in that variant.
+
 **Owner-authorized descriptor synthesis attempted (2026-10-21).** After
 the owner authorised synthesising the descriptor arguments and RTOS
 task-registration work, a layer variant called the firmware's own
