@@ -26,7 +26,19 @@ the stack argument, id=120, type=0, flags=0), restoring the stack.
 run**: the manager constructor `0x100a66` is never reached
 (`manager-redirect`/`manager-start` count zero in `stdout-2` through
 `stdout-21`). The 19 `touch-event trigger=uiengine-queue` lines come
-from the layer's queue seam, not the firmware's manager handler. The
+from the layer's queue seam, not the firmware's manager handler.
+The root cause is now identified: the manager capture *does* run
+(`0x100a66` is reached three times, called from `0xfc036` inside the
+settings-service constructor `FUN_000fc002`, reached via `0xf6f2a`),
+but the layer stored the caller's return address with its Thumb bit
+(`0x000fc03b`) while the interpreter reports normalized even PCs
+(`0x000fc03a`), so the redirect's return-PC comparison never matched.
+Normalizing the capture makes the redirect fire three times, but
+dispatching the event at the constructor's return derails the boot
+(36 log lines instead of 579; gps-startup/ohr-startup no longer hit;
+uiEngine-queue 19 -> 0; budget stop at vt 10.03 s instead of 14.39 s),
+so that variant was not kept. The injection point must move to a
+post-construction seam with `r0`-`r3` preserved. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.

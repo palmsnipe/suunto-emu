@@ -16071,6 +16071,26 @@ with the seven layers and the pinning replay:
   pc=0x000bb6b2 instructions=10000000000 virtual_time_ns=14385381459`
   (vt 14.39 s). The unmapped-access stop is gone.
 
+**Root cause of the never-firing redirect (found 2026-10-20).** The
+manager capture *does* run: `0x100a66` is reached three times, called
+from `0xfc036` inside the settings-service constructor `FUN_000fc002`
+(reached via `0xf6f2a`; the constructor's sub-steps `0xff51e`,
+`0x11a0b0`, `0x11b9a4`, `0x1007f8`, `0x11bcae`, `0x11c8f2` all run).
+The redirect never fired because the layer stored
+`c->return_pc = cpu->r[14]`, and the caller's return address carries
+the Thumb bit (`0x000fc03b`) while the interpreter reports normalized
+even PCs (`0x000fc03a`), so the `cpu->r[15] == c->return_pc` check
+could never match. Normalizing the capture (`r[14] & ~1`) makes the
+redirect fire three times, but dispatching the synthetic `0x2205`
+event at the constructor's return **derails the boot**: the run drops
+to 36 log lines instead of 579, the gps-startup and ohr-startup layers
+no longer hit, the uiEngine-queue seam drops from 19 to 0, `touch-report`
+stays 0, and the budget stop moves to vt 10.03 s instead of 14.39 s.
+That variant was therefore not kept; the layer remains at the
+verified `stdout-19/20/21` state. Moving the injection point to a
+post-construction seam and preserving `r0`-`r3` across the dispatch is
+the next required change.
+
 **The remaining gap.** The layer's queue seam writes the
 owner-authorized 12-byte record and the uiEngine consumes it
 (`touchBuffer` populated), and the run survives the guest reset and
@@ -16100,5 +16120,7 @@ integration runs above; `make check-lines`, `make check-task-contracts`,
 | `/tmp/sap233-touch-impl/stdout-19.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
 | `/tmp/sap233-touch-impl/stdout-20.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
 | `/tmp/sap233-touch-impl/stdout-21.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
+| `/tmp/sap233-touch-impl/stdout-27.txt` | `57a2530cd308aae3bad5bd9d9892e533d271a6061a2516aa09c07204ac1225bf` |
+| `/tmp/sap233-touch-impl/stdout-26.txt` (rejected variant) | `-` (36 log lines, boot derailed; not kept) |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
