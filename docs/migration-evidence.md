@@ -16467,6 +16467,23 @@ read chain (`0x127952` -> `0xf7614` -> `0x117d96` -> `0x117b20` ->
 poll task itself. That variant was rejected; the layer stays at the
 verified state.
 
+**The firmware's read chain runs, but only on IOM0/IOM4 (2026-10-21).**
+A bounded diagnostic probe on `0x117b20` (the transfer builder) and
+`0x143774` (the HAL setup) during the scheduler-level poll variant
+(`stdout-57`, 1513 lines, stop at vt 14.396 s) recorded **923 chain
+hits**. The bus argument at `0x117b20` was **0 (48 times)** and
+**2 (367 times)** - never 1. The instance at `0x143774` was 0 (87), 2
+(48), 4 (367) and 0x401 (6) - never 3. So the firmware's own read chain
+`0xf7614 -> 0x117d96 -> 0x117b20 -> 0x143774` is fully functional and
+is exercised constantly, but **exclusively on IOM0 and IOM4**; the
+touch poll's bus-1 (IOM3) read never reaches it. The driver poll task
+did run in that variant (`trigger=tma5xx-poll-task-at-idle` at
+`time_ns=50598177`), yet no bus-1 transfer appeared afterwards, so the
+poll's own `0x127952` call does not arrive at the transfer builder.
+This is the precise residual gap: not a device-model gap, not a HAL
+gap, and not a scheduler gap - the poll task's read is dropped before
+`0x117b20` on the IOM3 path.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
