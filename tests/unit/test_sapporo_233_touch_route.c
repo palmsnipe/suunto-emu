@@ -106,16 +106,87 @@ static void test_apply_seam(semu_test_context *context)
     SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
         &f.touch, NULL, &f.cpu, &e) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, 0u, f.touch.hits);
-    /* The seam PC with a list logs the entry and counts a hit. */
+    /* The seam PC with a list logs the entry array view and counts a
+     * hit. The derived view sits at record+0x98: data, byte size (a
+     * multiple of the 0x30-byte stride), cursor (= data) and count. */
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10050098),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x1005009c),
+        4u, UINT32_C(0x60), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a0),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a4),
+        4u, 2u, &e) == SEMU_OK);
     f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
     f.cpu.r[0] = UINT32_C(0x10030000);
+    f.cpu.r[1] = UINT32_C(0x10050000);
     SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
-        &f.touch, NULL, &f.cpu, &e) == SEMU_OK);
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
     SEMU_TEST_EQ_U64(context, 1u, f.touch.hits);
-    /* A null list refuses (the refusal is sticky). */
-    f.cpu.r[0] = 0u;
+    /* A null container refuses (the refusal is sticky). */
+    f.cpu.r[1] = 0u;
     SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
         &f.touch, NULL, &f.cpu, &e) != SEMU_OK);
+    destroy(&f);
+}
+
+static void test_entry_array_refusals(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    /* A byte size that is not a multiple of the 0x30-byte entry stride
+     * refuses fail-closed. */
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10050098),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x1005009c),
+        4u, UINT32_C(0x40), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100300a0),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a4),
+        4u, 0u, &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
+    f.cpu.r[1] = UINT32_C(0x10050000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) != SEMU_OK);
+    destroy(&f);
+
+    /* A cursor that differs from the data pointer refuses. */
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10050098),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x1005009c),
+        4u, UINT32_C(0x60), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a0),
+        4u, UINT32_C(0x10040030), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a4),
+        4u, 0u, &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
+    f.cpu.r[1] = UINT32_C(0x10050000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) != SEMU_OK);
+    destroy(&f);
+
+    /* A count that overruns the byte size refuses. */
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10050098),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x1005009c),
+        4u, UINT32_C(0x60), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a0),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a4),
+        4u, 3u, &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
+    f.cpu.r[1] = UINT32_C(0x10050000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) != SEMU_OK);
     destroy(&f);
 }
 
@@ -264,6 +335,7 @@ int main(void)
         SEMU_TEST_CASE(test_descriptor),
         SEMU_TEST_CASE(test_install_and_red_first),
         SEMU_TEST_CASE(test_apply_seam),
+        SEMU_TEST_CASE(test_entry_array_refusals),
         SEMU_TEST_CASE(test_sink_event),
         SEMU_TEST_CASE(test_queue_event),
         SEMU_TEST_CASE(test_manager_redirect),

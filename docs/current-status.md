@@ -96,7 +96,19 @@ emulator's IOM3 device are functional; the touch device at `0x24` is
 never addressed because the touch route entry is absent. The probe run
 stayed byte-identical to the verified baseline apart from the two
 probe lines (581 lines, gps/ohr startup and uiengine-queue 19 intact).
-The abort point is now pinned: `FUN_00143774` calls the HAL
+The route-entry array view is now confirmed against the live guest:
+the layer reads `container+0x98` (data, byte size, cursor, count) at
+the `0x164a8e` seam, where `r0` is the iterator and `r1` the container
+(the hook runs before the instruction). The two containers reached
+report `size=144` and `size=192` - both multiples of the 0x30-byte
+stride - with the count incrementing as the firmware appends entries,
+and the run stays byte-identical to the verified baseline (579 lines).
+The seam fails closed on a non-multiple size, a cursor that differs
+from the data pointer, or a count that overruns the size. The filter
+census logged at the seam is `036b000f` x6, `1500001f` x3,
+`1501001f` x3, `2d01000f` x3, `7e01000f` x3 and `7e09000f` x3 - **no
+filter corresponds to route type 12**, confirming the touch entry is
+never provisioned. The abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
 The enable returns 2 when the handle lacks the HAL magic

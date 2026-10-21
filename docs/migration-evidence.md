@@ -16232,6 +16232,34 @@ word are not seeded by the layer's slot initialiser path, so the enable
 outcome depends on guest RAM state the emulated boot never establishes.
 The chain therefore stops at the enable, before the COMMAND write.
 
+**The route-entry array view is confirmed against the live guest
+(2026-10-20).** The layer now reads the derived view at
+`container+0x98` at the `0x164a8e` seam (the hook runs before the
+instruction, so `r0` is the iterator and `r1` is the container; the
+constructor's first statement stores the container into `iter[0]`).
+The live guest confirms the derivation exactly: the two containers
+reached during the boot report `data=10041e60 size=144` and
+`data=10042020 size=192` - both multiples of the 0x30-byte stride -
+with the count incrementing 0,1,2 and 0,1,2,3 as the firmware's own
+find-or-create appends entries. The run stays byte-identical to the
+verified baseline (579 lines, `stdout-43` sha256 `2704d8c4...`), so
+reading the view does not disturb the boot. The seam now fails closed
+if the byte size is not a multiple of 0x30, if the cursor differs from
+the data pointer, or if the count overruns the byte size (red-first
+unit coverage, 8/8).
+
+**The route filters iterated at the seam (2026-10-20).** Logging `r2`
+at the seam (`stdout-44` sha256 `f3d7ef08...`, 579 lines, identical
+trigger census) gives the firmware's route-filter census:
+`036b000f` x6, `1500001f` x3, `1501001f` x3, `2d01000f` x3,
+`7e01000f` x3 and `7e09000f` x3. The entry's first word is the
+filter's high u16 (E-SAP-0127: `FUN_0017168c` copies `src[0]` and
+clears the sub-object's `+0x24`), so these entries carry 0x036b,
+0x1500, 0x1501, 0x2d01, 0x7e01 and 0x7e09. **No filter corresponds to
+route type 12**, which confirms that the touch route entry is never
+provisioned - the objective's premise - and names exactly which
+filters the firmware does provision.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

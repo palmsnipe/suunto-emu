@@ -237,22 +237,58 @@ semu_status semu_sapporo_233_touch_route_apply(
     if (c->hits >= SEMU_SAPPORO_233_TOUCH_ROUTE_MAX_HITS) {
         return refuse(c, error, "2.33 touch-route hit budget exhausted");
     }
-    /* r0 is the route-entry list head; the entry record store is at
-     * +0x1c and the list at +0x120 (E-SAP-0126). The synthetic entry is
-     * appended through the firmware's per-entry record path: the record
-     * head at +0, the vtable-relative payload at +4, and the entry
-     * payload nameID/routeID/routeE/touchE. */
+    /* 0x164a8e is the iterator constructor: r0 is the iterator and the
+     * first statement stores the container (the route record) into
+     * iter[0] (E-SAP-0127). The entry array view sits at container+0x98
+     * (data pointer, byte size, cursor, count). */
     list = cpu->r[0];
     if (list == 0u) {
         return refuse(c, error, "2.33 touch-route seam has a null list");
     }
-    ++c->hits;
+    /* The hook runs before the instruction executes, so the container
+     * is still in r1 (the constructor's param_2). */
+    list = cpu->r[1];
+    if (list == 0u) {
+        return refuse(c, error,
+                      "2.33 touch-route seam has a null container");
+    }
+    /* The route record's entry array view sits at +0x98: data pointer,
+     * byte size (a multiple of the 0x30-byte entry stride), cursor
+     * (= data) and the entry count (E-SAP-0127). Read it so the layer
+     * can verify the derived layout against the live guest before it
+     * ever writes an entry. */
     {
-        char detail[160];
+        uint32_t data = 0u;
+        uint32_t size = 0u;
+        uint32_t cursor = 0u;
+        uint32_t count = 0u;
+        char detail[200];
+        if (semu_bus_read(bus, list + 0x98u, 4u, &data, error) != SEMU_OK ||
+            semu_bus_read(bus, list + 0x9cu, 4u, &size, error) != SEMU_OK ||
+            semu_bus_read(bus, list + 0xa0u, 4u, &cursor, error) != SEMU_OK ||
+            semu_bus_read(bus, list + 0xa4u, 4u, &count, error) != SEMU_OK) {
+            return refuse(c, error,
+                          "2.33 touch-route entry array read failed");
+        }
+        if (size % 0x30u != 0u) {
+            return refuse(c, error,
+                          "2.33 touch-route entry array size is not a "
+                          "multiple of 0x30");
+        }
+        if (cursor != data || count * 0x30u > size) {
+            return refuse(c, error,
+                          "2.33 touch-route entry array view is "
+                          "inconsistent");
+        }
+        ++c->hits;
         (void)snprintf(detail, sizeof(detail),
-            "trigger=route-entry-seam list=%08x name=%s routeType=%u "
-            "routeE=%u touchE=%u synthetic=enablement-only evidence=E-SAP-0127",
-            (unsigned)list, SEMU_SAPPORO_233_TOUCH_ROUTE_NAME,
+            "trigger=route-entry-seam list=%08x data=%08x size=%u "
+            "count=%u filter=%08x index=%u name=%s routeType=%u "
+            "routeE=%u touchE=%u synthetic=enablement-only "
+            "evidence=E-SAP-0127",
+            (unsigned)list, (unsigned)data, (unsigned)size,
+            (unsigned)count, (unsigned)cpu->r[2], (unsigned)cpu->r[3],
+            SEMU_SAPPORO_233_TOUCH_ROUTE_NAME,
             (unsigned)c->route_id, (unsigned)c->route_e,
             (unsigned)c->touch_e);
         log_line(c, "touch-route-entry", detail);
