@@ -16484,6 +16484,21 @@ This is the precise residual gap: not a device-model gap, not a HAL
 gap, and not a scheduler gap - the poll task's read is dropped before
 `0x117b20` on the IOM3 path.
 
+**The poll task takes its 0x3b state branch and skips the read
+(2026-10-21).** A second bounded diagnostic on `0x127952` (the IOM3 read
+helper), `0xf7614` (the read dispatcher) and `0x117d96` (its tail) during
+the same scheduler-level poll variant (`stdout-58`, 596 lines, stop at
+vt 14.396 s) recorded only **six** read-path hits: three `0xf7614` calls
+with `r0 = 0` (bus 0), `r1 = 0x35` (the magnetometer address) and
+`r3 = 0x17`, each followed by `0x117d96`. **`0x127952` was never
+reached.** The driver poll task ran
+(`trigger=tma5xx-poll-task-at-idle`) but `0x127784`'s opening
+`ldrb r0,[r5,#0x18]; cmp r0,#0x3b` took the `0x3b` branch: it clears
+the state byte, calls `0x92970(2)` and `0xa30ce(0x2e)`, and branches
+away to `0x1277e0` - skipping `0x127af0`/`0x127952` entirely. So the
+poll's IOM3 read is skipped by the driver's own state machine, not by
+any emulator or layer behaviour.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
