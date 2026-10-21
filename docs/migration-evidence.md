@@ -16512,6 +16512,21 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**The idle loop is not a safe redirect point (2026-10-21).** A
+register-only diagnostic on `0x117b20`, `0x143774` and `0x117c34`
+(`stdout-63`, 1524 lines, stop at vt 14.396 s) recorded 415 builder
+entries (all with `r0 = 0` or `r0 = 2`, `lr` = `0x117d93`/`0x117dab`/
+`0x117de5`, i.e. entered from the read/write tails), 508 HAL entries
+(instances 0/2/4/0x401, never 3) and 11 slot-init entries. **No builder
+entry had `r0 = 1`**, so the layer's redirect from the idle loop to
+`0x117b20` never executed even though its trigger fired. The guest's
+idle PC `0x000bb6b2` is therefore not a usable redirect point: the CPU
+is parked there (the machine run loop treats it as a wait state), so the
+rewritten PC is not consumed. Redirect-based injection must be anchored
+at a PC the guest actually executes through, which is why the layer's
+existing seams (all at real call sites) work while the idle loop does
+not.
+
 **Transfer-builder signature and I2C bus/instance table derived
 (2026-10-21).** Ghidra decompilation of `FUN_00117b20` pins its real
 signature: `FUN_00117b20(bus, addr, buf, size, timeout, addr_ptr,
