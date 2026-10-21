@@ -16281,6 +16281,21 @@ firmware's own find-or-create now finds the seeded entry and skips one
 append. The touch manager still does not start and the IOM3 touch
 device is still not polled, so the entry alone is not sufficient.
 
+**The synthetic entry is appended to every route record reached
+(2026-10-20).** The layer now writes the synthetic `hw_touch_1` entry
+once into each distinct route record it meets at the `0x164a8e` seam
+(bounded to four records, tracked by record address), instead of only
+the first. Integration (`stdout-46`, sha256 `7f487a99...`) writes two
+entries - `entry=10041e60` in record `10041e58` and `entry=10042020` in
+record `10042128`, both `type=12 filter=000c000f` - and stays at the
+verified 579-line baseline: the only non-entry differences are eleven
+fewer instructions on the reset-request line (278287038 vs 278287049)
+and an 11 ns later budget stop. **The touch manager still does not
+start and the IOM3 touch device is still not polled**, so a synthetic
+entry in the route records is necessary but not sufficient: the
+firmware only provisions a route when the settings-service OTA route
+list names it (E-SAP-0120), and that list is empty.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

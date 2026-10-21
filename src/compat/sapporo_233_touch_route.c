@@ -289,7 +289,14 @@ semu_status semu_sapporo_233_touch_route_apply(
          * (id << 16) | 0x000f, so the touch filter is
          * 0x000c000f - route type 12 (E-SAP-0120) in the high u16 and
          * the same 0x000f tag as the provisioned routes. */
-        if (c->entry_written == 0u && count < size / 0x30u) {
+        {
+            unsigned k;
+            int seen = 0;
+            for (k = 0u; k < c->written_count; ++k) {
+                if (c->written_lists[k] == list) seen = 1;
+            }
+            if (!seen && c->written_count < 4u &&
+                count < size / 0x30u) {
             uint32_t entry = data + count * 0x30u;
             unsigned i;
             if (semu_bus_write(bus, entry, 2u, c->route_id, error)
@@ -309,6 +316,7 @@ semu_status semu_sapporo_233_touch_route_apply(
                 return refuse(c, error,
                               "2.33 touch-route entry count write failed");
             }
+            c->written_lists[c->written_count++] = list;
             c->entry_written = 1u;
             ++c->hits;
             (void)snprintf(detail, sizeof(detail),
@@ -322,6 +330,7 @@ semu_status semu_sapporo_233_touch_route_apply(
                 (unsigned)c->touch_e);
             log_line(c, "touch-route-entry", detail);
             return SEMU_OK;
+            }
         }
         ++c->hits;
         (void)snprintf(detail, sizeof(detail),
