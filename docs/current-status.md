@@ -86,7 +86,17 @@ pointer, length-1, direction=read) and then ran `0x117c34(1)` and the
 poll still produced no IOM3 transfer (`touch-report` 0): the COMMAND
 register at `0x40053000+0x120` is never written, so the dispatcher
 stages `0xf7614`/`0xf74f0`/`0x117d96` still stop the chain before the
-HAL setup. The abort point is now pinned: `FUN_00143774` calls the HAL
+HAL setup. A bounded diagnostic probe (temporary layer instrumentation on the HAL
+entry points, reverted) shows the firmware's IOM HAL runs normally in
+this boot: it initialises and drives IOM4 during startup, and at
+`time_ns=1795048242` it issues an IOM3 transfer through the generic I2C
+wrapper `0x117bb8` (`0x14346c(handle=0x1004ba84, desc=0x100330b0)`
+then `0x1430ec(0x1004ba84)`, instance 3). So the bus stack, HAL and the
+emulator's IOM3 device are functional; the touch device at `0x24` is
+never addressed because the touch route entry is absent. The probe run
+stayed byte-identical to the verified baseline apart from the two
+probe lines (581 lines, gps/ohr startup and uiengine-queue 19 intact).
+The abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
 The enable returns 2 when the handle lacks the HAL magic

@@ -16232,6 +16232,25 @@ word are not seeded by the layer's slot initialiser path, so the enable
 outcome depends on guest RAM state the emulated boot never establishes.
 The chain therefore stops at the enable, before the COMMAND write.
 
+**The firmware's own IOM bus path works; the touch device is simply
+never addressed (2026-10-20).** A bounded diagnostic probe (temporary
+layer instrumentation on the HAL entry points, reverted) showed that
+the firmware's IOM HAL runs normally in this emulated boot: at
+`time_ns=11660502` it initialises instance 4 (`0x1430b2(4, ...)`),
+issues transfers (`0x14346c`), enables (`0x1430ec`) and sets up
+(`0x143774`) on IOM4 (`0x40054000`); and at `time_ns=1795048242` it
+issues an **IOM3** transfer - `0x14346c(handle=0x1004ba84,
+desc=0x100330b0)` followed by `0x1430ec(0x1004ba84)` with instance 3 -
+through the generic I2C wrapper `0x117bb8`. So the bus stack, the HAL
+and the emulator's IOM3 device are all functional in this boot; the
+touch device at address `0x24` is simply never addressed, because the
+touch route entry is absent and the touch manager never starts. The
+probe run itself stayed byte-identical to the verified baseline apart
+from the two probe lines (581 lines: gps-startup-status, gps-version,
+ohr-startup 7, uiengine-queue 19, route-entry-seam 21), which
+confirms the healthy boot does reach gps/ohr startup and that the
+layer's queue seam does not disturb it.
+
 **Baseline reproducibility note.** The integration replay
 `/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
 and was lost; it has been recreated with the same four button events
