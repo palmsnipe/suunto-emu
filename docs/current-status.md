@@ -86,7 +86,14 @@ pointer, length-1, direction=read) and then ran `0x117c34(1)` and the
 poll still produced no IOM3 transfer (`touch-report` 0): the COMMAND
 register at `0x40053000+0x120` is never written, so the dispatcher
 stages `0xf7614`/`0xf74f0`/`0x117d96` still stop the chain before the
-HAL setup. The layer remains at the verified
+HAL setup. The abort point is now pinned: `FUN_00143774` calls the HAL
+enable `FUN_001430ec`, and a non-zero enable result makes it disable
+the instance and return 0 **without** programming the COMMAND register.
+The enable returns 2 when the handle lacks the HAL magic
+`DAT_001436e0`, and 9 when the instance's SUBMODCTRL register
+(`0x40053000+0x11c`) disagrees with the handle's direction byte. The
+handle is seeded with only the magic and instance words, so the
+outcome depends on guest RAM the emulated boot never establishes. The layer remains at the verified
 state. Note: the volatile integration replay was lost and recreated
 (sha256 `be62e581...`); with it the reverted layer reproduces the
 verified run to within 5 instructions (identical 579 lines and trigger

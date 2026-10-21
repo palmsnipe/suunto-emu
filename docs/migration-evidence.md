@@ -16214,6 +16214,24 @@ stages (`FUN_000f7614` -> `FUN_000f74f0` -> `FUN_00117d96`) therefore
 still stop the chain. That variant was rejected; the layer stays at
 the verified state.
 
+**The HAL enable gate that aborts the transfer (2026-10-20).**
+`FUN_00143774` calls `FUN_0014372c(*desc)` (configure, which with a
+zero third argument writes no registers) and then `FUN_001430ec(*desc)`
+(the HAL enable). If the enable returns non-zero, `FUN_00143774`
+immediately calls `FUN_00143742(*desc, 1)` (disable) and returns 0
+**without programming the COMMAND register** - that is why the emulator
+never sees an IOM3 transfer. `FUN_001430ec` returns 2 when the handle's
+first word does not carry the HAL magic `DAT_001436e0`, and returns 9
+when the IOM instance's SUBMODCTRL register
+(`0x40050000+instance*0x1000+0x11c`) disagrees with the handle's
+direction byte (`handle[2]`): it requires
+`(reg & 0xf) >> 1 == direction` or `(reg & 0xff) >> 5 == direction`,
+otherwise it refuses. The handle is seeded by `FUN_001430b2` with only
+word 0 (magic) and word 1 (instance); the direction byte and the count
+word are not seeded by the layer's slot initialiser path, so the enable
+outcome depends on guest RAM state the emulated boot never establishes.
+The chain therefore stops at the enable, before the COMMAND write.
+
 **Baseline reproducibility note.** The integration replay
 `/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
 and was lost; it has been recreated with the same four button events
