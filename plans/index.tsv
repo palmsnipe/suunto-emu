@@ -72,7 +72,7 @@ id	phase	title	status	dependencies	ticket
 700	7	Later Sapporo Evidence Inventory	done	630	plans/tasks/700-sapporo-version-evidence.md
 705	7	One Later Sapporo Profile	done	700	plans/tasks/705-sapporo-version-profile.md
 706	7	Sapporo 2.39.20 Exact Profile	done	700	plans/tasks/706-sapporo-239-profile.md
-710	7	One Later Sapporo Observed Gap	ready	705	plans/tasks/710-sapporo-version-gap.md
+710	7	One Later Sapporo Observed Gap	deferred	705	plans/tasks/710-sapporo-version-gap.md
 711	7	Sapporo 2.39 DSP Memory Power	done	706	plans/tasks/711-sapporo-239-dsp-power.md
 712	7	Sapporo 2.39 Watchdog Configuration Entry	done	711	plans/tasks/712-sapporo-239-watchdog-config.md
 713	7	Sapporo 2.39 Reset Generator Configuration	done	712	plans/tasks/713-sapporo-239-rstgen-config.md
@@ -169,4 +169,4 @@ id	phase	title	status	dependencies	ticket
 804	7	Sapporo Compressed Asset Clipping	done	504,513,793	plans/tasks/804-sapporo-compressed-asset-clipping.md
 805	7	Sapporo Widgets GPU Scale Integration	done	504,513,793,794	plans/tasks/805-sapporo-widgets-gpu-scale.md
 806	7	Sapporo Control Panel 20x32 Icon GPU Admission	ready	504,513,793,794	plans/tasks/806-sapporo-control-icon-20x32.md
-807	7	Sapporo TSC6A Auxiliary-Region Law	ready	504,513,793	plans/tasks/807-sapporo-tsc6a-aux-law.md
+807	7	Sapporo TSC6A Auxiliary-Region Law	done	504,513,793	plans/tasks/807-sapporo-tsc6a-aux-law.md

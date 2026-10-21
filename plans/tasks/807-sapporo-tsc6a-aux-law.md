@@ -1,6 +1,6 @@
 # 807 — Sapporo TSC6A Auxiliary-Region Law
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 504, 513, 793
 
@@ -148,3 +148,29 @@ hash, stop line and census held — re-pinned with a dated note and
 twice byte-identical. The law is fail-total (every 96-bit block
 decodes); the one unrepresentable case (exact-color black) is named in
 the entry. The ticket stays `ready` for integrator review.
+
+## Integrator decision (2026-10-21, project owner): `ready` -> `done`
+
+The instance-2 implementation was re-verified against the current tree rather
+than re-implemented: `tsc6a_block_has_aux`, `tsc6a_aux_color` and the
+exact-color branch in `tsc6a_expand_block` are present with the zero-aux
+four-point law and every other refusal predicate untouched; the red-first
+module `tests/unit/test_nema_tsc6a_aux.c` is 2/2; the seven TSC6A modules
+total 34/34; the full suite is 1,078 tests with 0 failures; `make check-lines`
+is clean (two pre-existing review-threshold warnings only),
+`make check-task-contracts` validates 171 tickets, and `make check` and
+`make sanitize` pass. `make check-era` was SKIPPED locally (no
+`SEMU_SAPORO_239_FULL_FLASH`); the recorded 42/43 census stands as written.
+
+Acceptance ruling on the settled Control frame CRC: the ticket text asks for
+the CRC "staying identical" while also requiring the icon to render. Those
+two clauses are mutually inconsistent — rendering the icon necessarily
+changes its pixels. The observed move `30847819 -> 5f2c742c` is accepted
+because it is fully attributed in E-RE-SAP235-TSC6A-AUX-002: the old CRC is
+validated by reproducing it from the pre-change binary as a control, the two
+removed draw-refused lines are the only log change, the other five cases keep
+byte-identical logs and CRCs (`9b554fd9`, `26867705`, `7ef957e9`, `26867705`,
+`fa3eed01`), all 784,448 differing bytes lie inside the renderer image
+section at `0x4d4540..`, and every moved pin is twice byte-identical. No
+unattributed drift; the golden is corrected with evidence rather than
+weakened.

@@ -1,6 +1,6 @@
 # 710 — One Later Sapporo Observed Gap
 
-**Status:** ready
+**Status:** deferred
 **Phase:** 7
 **Dependencies:** 705
 
@@ -424,3 +424,29 @@ need integrator-owned attachment; authentic 2.33 advancement is not claimed.
 E-SAP-0069 boot/session-file prerequisite remains separate. Pending-7 reopen
 is observed but not supplied; GPS success still emits no GPU submissions.
 Ticket remains ready; full implementation acceptance is outstanding.
+
+## Integrator decision (2026-10-21, project owner): `ready` -> `deferred`
+
+The owner has put touch-screen support on hold. The blocking condition is
+structural, not a temporary obstacle: the touch manager never starts because
+the firmware provisions `hw_touch_1` only from an OTA-supplied route list the
+owner cannot supply, and every authorized emulator-side substitute was
+implemented and measured without producing the IOM3 poll — device-model
+extension (touch endpoint at IOM3 address 0 as well as `0x24`: byte-identical
+to baseline, no report, because `0x14346c` writes only `CLOCK_CONFIG 0x104`
+and `TIMING_STATUS 0x2c0` and never `COMMAND 0x120`), scheduler-level driver
+poll work (both triggers fired, but the idle loop does not consume a rewritten
+PC), and descriptor-argument synthesis at four distinct anchors (idle loop:
+no effect; entry seam: 440-line collapse; manager-return: PC never observed;
+queue seam: 59-line collapse with an unsupported instruction). Every seam the
+layer hooks is load-bearing for the firmware's own control flow.
+
+The recorded derivations and the committed opt-in `sapporo-2.33-touch-route`
+layer remain exactly as written — route-entry array layout, filter encoding,
+the owner-authorized synthetic `hw_touch_1` entry write, the settings
+route-candidate census, the route-manager layout, the driver-instance pin at
+`manager+0x50`, the read-chain bus/instance census, the transfer-builder
+signature, the I2C bus/instance table and the poll task's `0x3b` branch
+analysis, all pinned in E-SAP-0127. Reactivate only if an OTA route list
+naming `hw_touch_1` is ever supplied; because the reverse-engineering is
+already complete and pinned, restart is cheap rather than from scratch.
