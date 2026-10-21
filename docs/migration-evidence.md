@@ -16512,6 +16512,25 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**Every layer anchor is load-bearing: the queue seam derails too
+(2026-10-21).** Anchoring the synthetic descriptor-argument call at the
+uiEngine queue seam `0xa712e` - the last real call site the guest
+executes through late in the boot - did fire both firmware routines
+(`trigger=i2c-slot-init`, `trigger=iom3-transfer-build`), but the run
+collapsed to **59 lines** and stopped with
+`stop=unsupported-instruction pc=0x0012343a detail=unsupported Thumb
+instruction 0xe9d60110 at 0x0012343e`, with `touch-report` still 0.
+Replacing the queue call breaks the caller's control flow badly enough
+to reach an invalid instruction. The complete anchor census is now
+measured: the idle loop `0xbb6b2` does not consume a rewritten PC, the
+entry seam `0x164a8e` derails the boot (440 lines), the manager-return
+address is never observed, and the queue seam `0xa712e` derails the
+boot (59 lines, invalid instruction). Every seam the layer hooks is
+load-bearing for the firmware's own flow, so redirecting away from one
+always breaks the boot; and the one non-load-bearing anchor (the idle
+loop) cannot be redirected at all. There is therefore **no safe
+injection point** in this layer for the firmware's transfer builder.
+
 **The manager constructor's return is never observed as a PC
 (2026-10-21).** Anchoring the synthetic descriptor-argument call at the
 manager constructor's return address (`return_pc`, where the layer
