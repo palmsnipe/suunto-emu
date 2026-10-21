@@ -16413,6 +16413,22 @@ holds the pointer to the enablement byte). It fired
 handler directly at that seam derails the boot. That variant was
 rejected; the layer stays at the verified state.
 
+**The 0x2204 handler is not the TMA5xx driver's start (2026-10-21).**
+The manager vtable is `0x19ebb8`; its slot `+0x0c` is `0x100c4b` (the
+`0x100c4a` handler), slots `+0x08` = `0x100bdb`, `+0x1c` = `0x100cf5`,
+`+0x20` = `0x100d8d` and `+0x24` = `0x100e09`. The handler's `0x2204`
+branch calls `0x127af8` with `manager+0x20` as the "driver" instance -
+but E-SAP-0120 pins the TMA5xx driver object at `manager+0x50` and the
+bus adapter at `manager+0x20`. So the `0x2204` handler initialises the
+**bus adapter**, not the TMA5xx driver, and dispatching it corrupts the
+adapter. A layer variant that dispatched `0x2204` with a fully
+consistent manager context (`r0 = r4 = r5 = manager`, `r3 =
+0x22040000`, `r2` = payload with `+8` pointing at the enablement byte,
+and caller registers/stack restored afterwards) still collapsed the
+run to 8 lines with no `touch-report`. The `0x2204` path is therefore
+not the touch driver's start gate, and the layer's `0x2205` redirect
+remains the only driver-facing seam that works.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
