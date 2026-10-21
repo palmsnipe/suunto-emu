@@ -16380,6 +16380,23 @@ early: the guest reaches the idle loop before the startup's final
 lines. That variant was rejected; the layer stays at the verified
 state.
 
+**The IOM3 HAL enable succeeds (2026-10-20).** A bounded diagnostic
+probe on the enable entry `0x1430ec`, filtered to the IOM3 instance,
+captured the live handle state at `time_ns=1795048330`:
+`handle=0x1004ba84`, `h0=0x01123456` (the HAL magic),
+`h1=3` (IOM3), `h2=1` (the direction byte), `h3=0` (count), and the
+emulator's `SUBMODCTRL` register read back as `0x00000e20`. Applying
+`FUN_001430ec`'s rules: `(reg & 0xf) >> 1 = 0` does not match
+`direction = 1`, but `(reg & 0xff) >> 5 = 1` **does** match, so the
+enable takes the accept branch, writes `SUBMODCTRL = 0x10`, skips the
+count branch (`h3 = 0`) and returns 0. **The HAL enable gate is
+therefore not what blocks the touch write** - the earlier hypothesis
+that `0x143774` aborts on the enable is wrong. The remaining unknown
+is upstream of it: why `0x117b20` (and so `0x143774`) is not reached
+on the touch init-packet write path, even though the same boot
+successfully issues IOM3 transfers through the generic wrapper
+`0x117bb8` -> `0x14346c` -> `0x1430ec`.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

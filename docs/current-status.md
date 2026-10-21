@@ -157,7 +157,15 @@ enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
 The enable returns 2 when the handle lacks the HAL magic
 `DAT_001436e0`, and 9 when the instance's SUBMODCTRL register
-(`0x40053000+0x11c`) disagrees with the handle's direction byte. The
+(`0x40053000+0x11c`) disagrees with the handle's direction byte. A
+live probe shows the IOM3 enable actually **succeeds**: the handle is
+`0x1004ba84` with magic `0x01123456`, instance 3, direction byte 1,
+count 0, and the emulator's SUBMODCTRL reads `0x00000e20` - whose
+`(reg & 0xff) >> 5 = 1` matches the direction, so it takes the accept
+branch and returns 0. The enable is therefore **not** the blocker; the
+remaining unknown is why `0x117b20`/`0x143774` is not reached on the
+touch init-packet write path, even though the same boot issues IOM3
+transfers through `0x117bb8` -> `0x14346c` -> `0x1430ec`. The
 handle is seeded with only the magic and instance words, so the
 outcome depends on guest RAM the emulated boot never establishes. The layer remains at the verified
 state. Note: the volatile integration replay was lost and recreated
