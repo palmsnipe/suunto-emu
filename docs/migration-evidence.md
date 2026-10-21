@@ -16512,6 +16512,24 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**The manager constructor's return is never observed as a PC
+(2026-10-21).** Anchoring the synthetic descriptor-argument call at the
+manager constructor's return address (`return_pc`, where the layer
+already redirects to the start handler) produced **no effect at all**:
+the run stayed byte-identical to the committed baseline at 579 lines
+with stop vt 14.385 s, and neither the new `i2c-slot-init` /
+`iom3-transfer-build` triggers nor the pre-existing `manager-start`
+trigger fired. Relaxing the guard so the synthesis runs even when the
+captured manager is zero changed nothing. The committed layer's own
+census confirms this: a verified baseline run records 21
+`route-entry-seam` lines and no `manager-start`/`manager-redirect` at
+all, so `cpu->r[15] == return_pc` is never reached - the constructor
+does not return to that address through the emulated fetch stream. That
+rules out the manager-return anchor too. All three candidate anchors
+are now measured: the idle loop does not consume a rewritten PC, the
+entry seam derails the boot, and the manager-return address is never
+observed.
+
 **Seam-anchored descriptor synthesis derails the boot (2026-10-21).**
 Anchoring the synthetic descriptor-argument call at the route-entry
 seam `0x164a8e` (a real call site the guest executes through) instead
