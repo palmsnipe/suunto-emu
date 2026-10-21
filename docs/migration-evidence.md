@@ -16499,6 +16499,19 @@ away to `0x1277e0` - skipping `0x127af0`/`0x127952` entirely. So the
 poll's IOM3 read is skipped by the driver's own state machine, not by
 any emulator or layer behaviour.
 
+**Repeated poll calls do not reach the IOM3 read (2026-10-21).** A
+layer variant drove the driver poll `0x127784(manager+0x50)` up to three
+times at the idle loop, so that the first call would consume the `0x3b`
+reinitialise state and a later call would perform the read. The run
+(`stdout-59`, 591 lines, stop at vt 14.396 s) shows only **two** poll
+calls logged (`call=1` at `time_ns=50598177`, `call=2` at
+`time_ns=25738995`); the second did not return to the layer, so the
+third was never issued, and `touch-report` stayed 0. The second call
+evidently blocks inside the reinitialise branch (`0x92970(2)` /
+`0xa30ce(0x2e)`), which are RTOS wait/delay calls, so the driver never
+reaches its normal read path. That variant was rejected; the layer
+stays at the verified state.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
