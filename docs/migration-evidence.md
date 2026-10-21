@@ -16340,6 +16340,31 @@ with the stop moving to vt 13.254 s. The manager start alone does not
 reach the TMA5xx driver's IOM3 poll. That variant was rejected; the
 layer stays at the verified state.
 
+**The driver's start condition is the manager's 0x2204 handler
+(2026-10-20).** The handler that drives the TMA5xx driver's init packet
+is `0x100c4a` (`push {r3,r4,r5,r6,r7,lr}`). It reads the event kind
+from `[sp+2]` after the push - which is the **high u16 of r3** - and
+branches on `0x2200` (`beq`) and `0x2204` (`subs r0,r0,#4; beq`). The
+`0x2204` branch is the one that runs the driver's init packet:
+
+```
+0x100cac: adds r0, r6, #4
+0x100cae: bl   0x93714
+0x100cb2: mov  r1, r0
+0x100cb4: add.w r0, r4, #0x20     ; the driver instance at manager+0x20
+0x100cb8: bl   0x127af8           ; the init packet -> bus 1 / addr 0x24
+```
+
+So dispatching an event of kind `0x2204` to this handler - with `r4` =
+the manager object, `r3` = `0x2204 << 16`, and `r2` = a payload pointer
+- runs the driver's init packet and issues the IOM3 write at address
+`0x24`. The payload's init parameter is `FUN_00093714(p) =
+**(uint8_t **)(p + 4)`, i.e. `p+4` holds a pointer whose first byte is
+the parameter. This is the driver-start gate that the forced manager
+start did not reach: the `0x2205` handler the layer redirects to is a
+different branch of the same dispatch, so it never runs the `0x2204`
+init-packet path.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

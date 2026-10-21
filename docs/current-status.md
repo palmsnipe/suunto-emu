@@ -138,7 +138,15 @@ iterations, so the startup lines were complete) fired
 produced 17 `uiengine-queue` events, but still no IOM3 transfer
 (`touch-report` 0): the driver's init packet `0x127af8` never ran, and
 the run dropped to 449 lines with the stop at vt 13.254 s. The manager
-start alone does not reach the TMA5xx driver's IOM3 poll. The
+start alone does not reach the TMA5xx driver's IOM3 poll: the driver's
+start is a separate gate. The handler that runs the driver's init
+packet is `0x100c4a`; it reads the event kind from `[sp+2]` after its
+push - the high u16 of `r3` - and branches on `0x2200` and `0x2204`.
+The `0x2204` branch does `adds r0,r6,#4; bl 0x93714; mov r1,r0;
+add.w r0,r4,#0x20; bl 0x127af8`, i.e. it calls the init packet with
+the driver instance at `manager+0x20`, which writes register `0x2f` to
+bus 1 / address `0x24`. The layer's redirect uses the `0x2205` handler
+`0x100b68`, a different branch, so the init-packet path never runs. The
 abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
