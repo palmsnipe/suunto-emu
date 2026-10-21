@@ -37,8 +37,18 @@ Normalizing the capture makes the redirect fire three times, but
 dispatching the event at the constructor's return derails the boot
 (36 log lines instead of 579; gps-startup/ohr-startup no longer hit;
 uiEngine-queue 19 -> 0; budget stop at vt 10.03 s instead of 14.39 s),
-so that variant was not kept. The injection point must move to a
-post-construction seam with `r0`-`r3` preserved. The
+so that variant was not kept. Four further injection-point variants
+were tried and rejected (constructor return with `r0`-`r3` preserved,
+redirecting the first natural queue call, non-invasive fall-through,
+and starting the manager's activity at the queue seam): each still
+derailed the boot, losing the gps-startup/ohr-startup hits and moving
+the budget stop to ~10.0-10.4 s instead of 14.39 s, with
+`touch-report` staying 0. The layer remains at the verified state
+(`stdout-27` reproduces `stdout-19/20/21` byte-identically). The next
+step is to let the firmware's own route-manager consumer construct and
+register the touch manager first (the route-entry seam fires 21 times
+but the entry is not consumed by the action chain, whose resource
+client is null). The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.

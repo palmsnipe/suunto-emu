@@ -16091,6 +16091,30 @@ verified `stdout-19/20/21` state. Moving the injection point to a
 post-construction seam and preserving `r0`-`r3` across the dispatch is
 the next required change.
 
+**Injection-point experiments (all rejected).** Four later variants
+tried to move the dispatch off the constructor's return, and every one
+still derailed the boot (the gps-startup and ohr-startup layers stop
+hitting, and the budget stop moves from vt 14.39 s to ~10.0-10.4 s):
+- `stdout-28`: redirect at the constructor's return with `r0`-`r3`
+  preserved -> 9 log lines, 1 `manager-redirect`, 1 `uiengine-queue`.
+- `stdout-29`: redirect the first natural `0xa712e` queue call (after
+  the UI engine is up, vt >= 153 ms) -> 90 lines, 3
+  `manager-redirect`, 0 `uiengine-queue`.
+- `stdout-30`: run the handler before the guest's own queue call and
+  fall through to the queue seam (non-invasive, distinguished by
+  `lr == queue PC`) -> 28 lines, 1 `manager-redirect`, 1
+  `uiengine-queue`.
+- `stdout-31`: start the manager's activity (`0x100b07`,
+  `r0 = manager+8`) at the queue seam -> 93 lines, 3 `manager-start`,
+  3 `uiengine-queue`, 21 `route-entry-seam`, but still no gps/ohr
+  hits and `touch-report` 0.
+
+The common symptom is that injecting the manager's `0x2205` event or
+starting its activity before the UI engine has registered the touch
+manager changes the boot trajectory. None of these variants was kept;
+the layer stays at the verified state and `stdout-27` reproduces
+`stdout-19/20/21` byte-identically.
+
 **The remaining gap.** The layer's queue seam writes the
 owner-authorized 12-byte record and the uiEngine consumes it
 (`touchBuffer` populated), and the run survives the guest reset and
