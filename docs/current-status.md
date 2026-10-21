@@ -67,8 +67,12 @@ b.w 0xf7614` - bus index 1 -> IOM3, address 0x24) at the queue seam:
 it fired three times but produced no IOM3 transfer, because the I2C
 bus slot is not initialised in this emulated boot and the dispatcher
 never reaches the IOM HAL transfer `0x14346c`. A variant that also ran the firmware's own I2C slot initialiser
-`0x117c34(1)` before the poll ran both three times but still produced
-no IOM3 transfer (`touch-report` 0). The layer remains at the verified
+`0x117c34(1)` before the poll, and supplied the caller's transfer
+length `r3 = 2` (derived from `0x1277aa: movs r3,#2; bl 0x127952`),
+ran both three times but still produced no IOM3 transfer
+(`touch-report` 0): the HAL setup `FUN_00143774` never runs, so the
+COMMAND register is never written. Its remaining unknown is the
+device-address field it takes from the caller's `r6`/`r7`. The layer remains at the verified
 state. Note: the volatile integration replay was lost and recreated
 (sha256 `be62e581...`); with it the reverted layer reproduces the
 verified run to within 5 instructions (identical 579 lines and trigger

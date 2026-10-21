@@ -16155,6 +16155,27 @@ still stayed 0: the transfer does not reach the IOM HAL
 `FUN_0014346c`, so the emulator's IOM3 endpoint is never entered. That
 variant was rejected.
 
+**I2C slot initialisation and transfer-length variant (2026-10-20).**
+The poll's caller at `0x1277aa` is `movs r3, #2; bl 0x127952`, so the
+poll needs `r3 = 2` (the transfer length). Without it the HAL setup
+`FUN_00143774` bails: it requires `param_1[3]` (count) and
+`param_1[4]` (target/buffer) to be non-zero, and only then programs
+the IOM registers (`INTEN 0x200`, `INTCLR 0x208`, `COMMAND_TYPE 0x128`,
+`DEVICE_CONFIG 0x2c4`, `DMA_CONFIG 0x218`, `DMA_COUNT 0x21c`,
+`DMA_TARGET 0x220`, `DMA_TRIG_EN 0x210`, `COMMAND_CONFIG 0x124`,
+`COMMAND 0x120`) and returns 1. The HAL init is `FUN_001430b2`
+(instance, &handle) with the instance from the `0x1bc9ec` table
+(`02 03 04`, so bus index 1 -> instance 3 = IOM3); the transfer
+completion check is `FUN_00143920` and the semaphore lock `0x77402`.
+A variant that ran the slot initialiser `0x117c34(1)` and then the
+poll with `r3 = 2` fired both three times
+(`trigger=i2c-slot-init`, `trigger=tma5xx-poll`) but still produced no
+IOM3 transfer (`touch-report` 0): the HAL setup never runs, so the
+COMMAND register is never written. The remaining unknown is the
+device-address field that `FUN_00143774` takes from the caller's
+`r6`/`r7` (the COMMAND register embeds the device address in bits
+24-31), which the layer does not supply. That variant was rejected.
+
 **Baseline reproducibility note.** The integration replay
 `/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
 and was lost; it has been recreated with the same four button events
