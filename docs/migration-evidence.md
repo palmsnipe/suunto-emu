@@ -16442,6 +16442,31 @@ the IOM3 poll: the poll is a task, and the task only exists once the
 touch manager starts through route provisioning. This closes the last
 layer-side avenue for the IOM3 observation.
 
+**Owner-authorized scheduler-level work attempted (2026-10-21).** The
+project owner authorized scheduler-level work after the device-model
+extension proved insufficient. The driver instance was first pinned:
+the manager constructor `0x100a66` builds the TMA5xx driver at
+**`manager+0x50`** via `0x128486(manager+0x50, manager+0x18)` (and a
+separate adapter at `manager+0x20` via `0x1276b6(manager+0x20,
+manager+0x1c)`). The driver poll task `0x127784` takes that instance in
+r0 (`mov r5, r0`) and calls `0x127952`, which is the firmware's own IOM3
+read of bus 1 (`0x40053000`) address `0x24` with `r3 = 2`; its prepare
+helper `0x127af0` stores the `0x1f4` timeout at `[sp]`. A layer variant
+ran the firmware's own I2C slot initialiser `0x117c34(1)` and then the
+driver poll `0x127784(manager+0x50)` at the guest's idle loop after
+10,000,000 idle iterations (so the startup's observable lines were
+already complete), saving and restoring the caller's registers. Both
+fired (`trigger=i2c-slot-init-at-idle`,
+`trigger=tma5xx-poll-task-at-idle`), the run reached 605 lines with the
+startup lines intact (gps/ohr startup, uiengine-queue 20), and the stop
+moved to vt 14.396 s - but **no `touch-report` was produced**. So the
+driver's poll runs, yet its transfer still does not reach the
+emulator's IOM3 endpoint; the residual gap is inside the firmware's
+read chain (`0x127952` -> `0xf7614` -> `0x117d96` -> `0x117b20` ->
+`0x143774`), whose descriptor stack arguments 6-8 are not set by the
+poll task itself. That variant was rejected; the layer stays at the
+verified state.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
