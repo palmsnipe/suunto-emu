@@ -16512,6 +16512,21 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**Seam-anchored descriptor synthesis derails the boot (2026-10-21).**
+Anchoring the synthetic descriptor-argument call at the route-entry
+seam `0x164a8e` (a real call site the guest executes through) instead
+of the idle loop did execute both firmware routines:
+`trigger=i2c-slot-init` and `trigger=iom3-transfer-build` fired. But the
+run collapsed to **440 lines** (from the 579-line verified baseline),
+the stop moved to vt 13.274 s, and `touch-report` stayed 0. The seam is
+the firmware's iterator constructor, so replacing its call with the
+I2C slot initialiser and then the transfer builder breaks the iterator
+flow the surrounding firmware code depends on. That variant was
+rejected; the layer stays at the verified state. Together with the
+idle-loop result this shows both available injection anchors fail: the
+idle loop does not consume a rewritten PC, and the entry seam cannot be
+redirected without derailing the boot.
+
 **The idle loop is not a safe redirect point (2026-10-21).** A
 register-only diagnostic on `0x117b20`, `0x143774` and `0x117c34`
 (`stdout-63`, 1524 lines, stop at vt 14.396 s) recorded 415 builder
