@@ -16145,6 +16145,36 @@ stayed 0 - because the I2C bus slot is not initialised in this
 emulated boot, so the dispatcher never reaches the HAL transfer. That
 variant was rejected as well.
 
+**I2C slot initialisation variant and baseline drift (2026-10-20).**
+A further layer variant ran the firmware's own I2C slot initialiser
+`0x117c34(1)` (only when the `0x117d50` slot table entry's `+8` word
+is zero, to avoid its already-initialised assertion) and then the
+poll `0x127952` at the queue seam. Both ran three times
+(`trigger=i2c-slot-init`, `trigger=tma5xx-poll`) but `touch-report`
+still stayed 0: the transfer does not reach the IOM HAL
+`FUN_0014346c`, so the emulator's IOM3 endpoint is never entered. That
+variant was rejected.
+
+**Baseline reproducibility note.** The integration replay
+`/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
+and was lost; it has been recreated with the same four button events
+(`4500000000/4800000000/5500000000/5800000000`), sha256
+`be62e58130e0aaa7b56c34ec30d3c93bf677c55b19af7f22bfbe2a39c68260cd`.
+With it the reverted layer reproduces the verified run to within
+5 instructions: `stdout-36` (sha256
+`21dca449b842ca0ee155e143d31fa9ec2040552f1b213dac10dd3e973cedd640`)
+has the identical 579 lines and identical trigger census, differing
+only in the reset-request instruction count (105017923 vs 105017928)
+and the final budget stop (vt 14.385381464 s vs 14.385381459 s). The
+original `stdout-19/20/21/27` byte-identical pin (`57a2530c...`)
+cannot be re-derived exactly because the original replay file is gone.
+
+**Guest IOM4 fault observed.** The run's reset-request line carries
+`fault_address=0x40054120` - the guest itself accesses IOM4
+(`0x40054000`) at its command register `0x120`, which this profile
+does not model, and faults into the reset handler. That is the
+firmware's own bus access, independent of the layer.
+
 **Injection-point experiments (all rejected).** Four later variants
 tried to move the dispatch off the constructor's return, and every one
 still derailed the boot (the gps-startup and ohr-startup layers stop

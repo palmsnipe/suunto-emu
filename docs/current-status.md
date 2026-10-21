@@ -66,8 +66,17 @@ own TMA5xx poll `0x127952` (`add r2,sp,#4; movs r1,#0x24; movs r0,#1;
 b.w 0xf7614` - bus index 1 -> IOM3, address 0x24) at the queue seam:
 it fired three times but produced no IOM3 transfer, because the I2C
 bus slot is not initialised in this emulated boot and the dispatcher
-never reaches the IOM HAL transfer `0x14346c`. The layer remains at
-the verified state. The
+never reaches the IOM HAL transfer `0x14346c`. A variant that also ran the firmware's own I2C slot initialiser
+`0x117c34(1)` before the poll ran both three times but still produced
+no IOM3 transfer (`touch-report` 0). The layer remains at the verified
+state. Note: the volatile integration replay was lost and recreated
+(sha256 `be62e581...`); with it the reverted layer reproduces the
+verified run to within 5 instructions (identical 579 lines and trigger
+census; `stdout-36` sha256 `21dca449...`), so the original
+`stdout-19/20/21/27` byte-identical pin (`57a2530c...`) can no longer
+be re-derived exactly. The run's own reset line also shows the guest
+faulting at `0x40054120` (IOM4 command register), which this profile
+does not model. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.
