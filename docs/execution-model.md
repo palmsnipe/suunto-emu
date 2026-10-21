@@ -4,6 +4,22 @@
 
 Virtual time is an unsigned integer count of functional ticks. Normal instructions advance by a documented fixed cost; peripherals schedule future state changes rather than consulting host time. Events are ordered by `(deadline, insertion_sequence)`, making equal-time execution stable across platforms.
 
+### The CPU cadence law
+
+A retired instruction advances virtual time by exactly **1 ns** while the CPU is
+executing: the machine run loop sets `time_delta = instruction_delta` on the
+executing path (`update_run_accounting` in `src/boards/machine_run.c`). While the
+CPU is waiting (WFI/WFE) or a step faults, time advances to the scheduler clock
+instead. This law is the product's deterministic contract — guest-visible timing
+is a function of the executed instruction stream alone, never of host speed.
+
+The reference lane advances virtual time inside CPU-bound code by Renode's
+real-time throughput, so its virtual time there is host-speed dependent and is
+not a stable reference point for guest-internal latency. Where a lane-versus-tree
+divergence roots in that difference it is recorded as an **accepted divergence**
+(E-ULS-0051) rather than adopted, and the lane's host-timing observations are
+excluded from comparison under the exclusion rule below.
+
 Execution is always bounded by an instruction limit, a virtual-time limit, or both. Budget exhaustion is a normal stop reason, not an error. Host wall time, threads, locale, random sources, and filesystem timestamps must not affect guest-visible state.
 
 Callbacks retain their void ABI. A callback that cannot complete a device
