@@ -280,6 +280,49 @@ semu_status semu_sapporo_233_touch_route_apply(
                           "2.33 touch-route entry array view is "
                           "inconsistent");
         }
+        /* Owner-authorized (2026-10-20): append the synthetic
+         * hw_touch_1 entry. The firmware's find-or-create appends at
+         * data + count*0x30, writes the filter's high u16 into the
+         * entry's first word (FUN_0017168c copies src[0]; FUN_00164a5e
+         * matches on that word) and clears the sub-object's +0x24
+         * (FUN_0017167c). The observed filters are all
+         * (id << 16) | 0x000f, so the touch filter is
+         * 0x000c000f - route type 12 (E-SAP-0120) in the high u16 and
+         * the same 0x000f tag as the provisioned routes. */
+        if (c->entry_written == 0u && count < size / 0x30u) {
+            uint32_t entry = data + count * 0x30u;
+            unsigned i;
+            if (semu_bus_write(bus, entry, 2u, c->route_id, error)
+                    != SEMU_OK) {
+                return refuse(c, error,
+                              "2.33 touch-route entry write failed");
+            }
+            for (i = 2u; i < 0x30u; ++i) {
+                if (semu_bus_write(bus, entry + i, 1u, 0u, error)
+                        != SEMU_OK) {
+                    return refuse(c, error,
+                                  "2.33 touch-route entry write failed");
+                }
+            }
+            if (semu_bus_write(bus, list + 0xa4u, 4u, count + 1u, error)
+                    != SEMU_OK) {
+                return refuse(c, error,
+                              "2.33 touch-route entry count write failed");
+            }
+            c->entry_written = 1u;
+            ++c->hits;
+            (void)snprintf(detail, sizeof(detail),
+                "trigger=route-entry-write list=%08x entry=%08x "
+                "type=%u filter=%08x name=%s routeType=%u routeE=%u "
+                "touchE=%u synthetic=enablement-only evidence=E-SAP-0127",
+                (unsigned)list, (unsigned)entry, (unsigned)c->route_id,
+                (unsigned)(c->route_id << 16 | 0x000fu),
+                SEMU_SAPPORO_233_TOUCH_ROUTE_NAME,
+                (unsigned)c->route_id, (unsigned)c->route_e,
+                (unsigned)c->touch_e);
+            log_line(c, "touch-route-entry", detail);
+            return SEMU_OK;
+        }
         ++c->hits;
         (void)snprintf(detail, sizeof(detail),
             "trigger=route-entry-seam list=%08x data=%08x size=%u "

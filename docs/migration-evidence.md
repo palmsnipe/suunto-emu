@@ -16260,6 +16260,27 @@ route type 12**, which confirms that the touch route entry is never
 provisioned - the objective's premise - and names exactly which
 filters the firmware does provision.
 
+**The synthetic hw_touch_1 entry is appended (2026-10-20).** The layer
+now writes the owner-authorized synthetic entry at the `0x164a8e` seam
+into the route record's entry array. The filter encoding is derived
+from the live census: every provisioned filter is `(id << 16) | 0x000f`
+or `| 0x001f`, and `FUN_0017168c` copies the filter's high u16 into the
+entry's first word, which `FUN_00164a5e` matches on. The touch filter
+is therefore `0x000c000f` - route type 12 (E-SAP-0120) in the high u16
+and the same `0x000f` tag as the provisioned routes. The append writes
+the entry at `data + count*0x30` (the firmware's own address formula
+from `FUN_00164948`), sets the first word to 12, zeroes the 0x30-byte
+entry body (the firmware's `FUN_0017167c` clears the sub-object's
+`+0x24`, which is covered by the zeroing), and advances the count.
+Integration (`stdout-45`, sha256 `e6791fe3...`) writes the entry once
+(`trigger=route-entry-write entry=10041e60 type=12 filter=000c000f`)
+and stays at the verified 579-line baseline: the only non-entry
+differences are six fewer instructions on the reset-request line
+(278287043 vs 278287049) and a 6 ns earlier budget stop, because the
+firmware's own find-or-create now finds the seeded entry and skips one
+append. The touch manager still does not start and the IOM3 touch
+device is still not polled, so the entry alone is not sufficient.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

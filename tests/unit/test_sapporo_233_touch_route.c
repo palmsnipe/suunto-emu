@@ -130,6 +130,59 @@ static void test_apply_seam(semu_test_context *context)
     destroy(&f);
 }
 
+static void test_entry_append(semu_test_context *context)
+{
+    fixture f;
+    semu_error e;
+    uint32_t v = 0u;
+    SEMU_TEST_ASSERT(context, init(&f, &e));
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_install(
+        &f.touch, NULL, &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10050098),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x1005009c),
+        4u, UINT32_C(0x60), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a0),
+        4u, UINT32_C(0x10040000), &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x100500a4),
+        4u, 0u, &e) == SEMU_OK);
+    /* Seed the second slot so the append must land in the first. */
+    SEMU_TEST_ASSERT(context, semu_bus_write(f.bus, UINT32_C(0x10040030),
+        2u, UINT32_C(0x7e01), &e) == SEMU_OK);
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
+    f.cpu.r[0] = UINT32_C(0x10030000);
+    f.cpu.r[1] = UINT32_C(0x10050000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    /* The synthetic entry lands at data + count*0x30 with the route
+     * type in its first word, and the count advances. */
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10040000),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 12u, v);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10040002),
+        4u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0u, v);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x1004002c),
+        4u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 0u, v);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x100500a4),
+        4u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, v);
+    /* The neighbouring entry is untouched. */
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x10040030),
+        2u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, UINT32_C(0x7e01), v);
+    /* The append is a one-shot: a second seam pass only logs. */
+    f.cpu.r[15] = SEMU_SAPPORO_233_TOUCH_ROUTE_PC;
+    f.cpu.r[0] = UINT32_C(0x10030000);
+    SEMU_TEST_ASSERT(context, semu_sapporo_233_touch_route_apply(
+        &f.touch, f.bus, &f.cpu, &e) == SEMU_OK);
+    SEMU_TEST_ASSERT(context, semu_bus_read(f.bus, UINT32_C(0x100500a4),
+        4u, &v, &e) == SEMU_OK);
+    SEMU_TEST_EQ_U64(context, 1u, v);
+    destroy(&f);
+}
+
 static void test_entry_array_refusals(semu_test_context *context)
 {
     fixture f;
@@ -335,6 +388,7 @@ int main(void)
         SEMU_TEST_CASE(test_descriptor),
         SEMU_TEST_CASE(test_install_and_red_first),
         SEMU_TEST_CASE(test_apply_seam),
+        SEMU_TEST_CASE(test_entry_append),
         SEMU_TEST_CASE(test_entry_array_refusals),
         SEMU_TEST_CASE(test_sink_event),
         SEMU_TEST_CASE(test_queue_event),

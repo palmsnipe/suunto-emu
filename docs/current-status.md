@@ -108,7 +108,17 @@ from the data pointer, or a count that overruns the size. The filter
 census logged at the seam is `036b000f` x6, `1500001f` x3,
 `1501001f` x3, `2d01000f` x3, `7e01000f` x3 and `7e09000f` x3 - **no
 filter corresponds to route type 12**, confirming the touch entry is
-never provisioned. The abort point is now pinned: `FUN_00143774` calls the HAL
+never provisioned. The layer now appends the owner-authorized synthetic hw_touch_1 entry
+at the seam: the filter encoding is `(id << 16) | 0x000f` (from the live
+census), so touch is `0x000c000f`, and the entry lands at
+`data + count*0x30` with the route type 12 in its first word and a
+zeroed 0x30-byte body (the firmware clears the sub-object's `+0x24`).
+Integration writes it once and stays at the verified 579-line baseline
+(only six fewer instructions on the reset line and a 6 ns earlier
+budget stop, because the firmware's find-or-create now finds the seeded
+entry). The touch manager still does not start and the IOM3 touch
+device is still not polled, so the entry alone is not sufficient. The
+abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
 The enable returns 2 when the handle lacks the HAL magic

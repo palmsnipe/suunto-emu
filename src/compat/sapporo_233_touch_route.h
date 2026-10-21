@@ -56,6 +56,7 @@ typedef struct {
     uint32_t touch_e;
     uint32_t manager;
     uint32_t return_pc;
+    unsigned entry_written;
     unsigned pending;
 } semu_sapporo_233_touch_route_context;
 
