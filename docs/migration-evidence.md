@@ -16429,6 +16429,19 @@ run to 8 lines with no `touch-report`. The `0x2204` path is therefore
 not the touch driver's start gate, and the layer's `0x2205` redirect
 remains the only driver-facing seam that works.
 
+**The I2C poll lives in a scheduled task, not in the handlers
+(2026-10-21).** The `0x2205` handler `0x100b68` - the seam the layer
+already redirects - calls only `0xa712e` (the uiEngine queue) and the
+TMA5xx driver's state-machine functions `0x1289f6`, `0x128a30`,
+`0x128a80` and `0x128ae8`. It does **not** call the I2C read/write
+dispatchers `0xf7614`/`0xf75cc`, the poll `0x127952` or the init packet
+`0x127af8`. Those live in the driver's poll task `0x127784`, which the
+firmware runs from its scheduler; the emulated boot never runs it
+because the driver is never started. So no handler redirect can produce
+the IOM3 poll: the poll is a task, and the task only exists once the
+touch manager starts through route provisioning. This closes the last
+layer-side avenue for the IOM3 observation.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
