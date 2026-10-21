@@ -1,6 +1,6 @@
 # 730 — One Ulsan Observed Hardware Gap
 
-**Status:** in-progress
+**Status:** done
 **Phase:** 7
 **Dependencies:** 725
 
@@ -74,3 +74,29 @@ yet derivable (class F). The stated blocker is therefore still valid as the
 725 chain only. What remains per instance is in-repo implementation plus
 read-only RE derivation; no instance is physical-observation-bound.
 Status is left unchanged for integrator review.
+
+## Integrator decision (2026-10-21, project owner): `in-progress` -> `done`
+
+The acceptance clause ("One gap is fully tested; the new stop is recorded; no
+unrelated device or permissive fallback is added") is met by the E-ULS-0048
+instance: the one byte-exact observed gap — the RTC one-second alarm on IRQ
+line 2 — is implemented in `src/devices/ulsan_rtc.c` with six focused tests
+(6/6: success = store plane, live counter, alarm pulse/repeat/rewrite-no-op,
+unobserved-value no-arm; refusal = unobserved offsets/widths and the manifest
+boot frontier), and the new bounded stop is recorded (the boot frontier
+re-parks from one alarm to the next; four 1-second IRQ2 wakes inside the
+4e9-ns budget).
+
+The census queue named by the E-ULS-0042-era claims is closed in full:
+wake-overflow (E-ULS-0047), IRQ18/line-2 (E-ULS-0048), IRQ37 plus the
+post-adoption steady-era re-run (E-ULS-0049) and the panel era (E-ULS-0050).
+No further gap is authorized here: every remaining lane-versus-tree delta
+roots in the E-ULS-0047 core CPU cadence law (1 ns charged per executing
+instruction), whose disposition — adopt, document as accepted divergence, or
+re-scope — is explicitly integrator territory and would move every era pin of
+every product. The next Ulsan gap therefore needs a new ticket instance rather
+than a reopening of this one.
+
+Comment-only defect noted for the integrator: `src/boards/ulsan_board.c`
+still lists the display controller and MSPI1 as unmapped (src was untouched in
+the census instances).

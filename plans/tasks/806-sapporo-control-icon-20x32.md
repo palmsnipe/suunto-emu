@@ -1,6 +1,6 @@
 # 806 — Sapporo Control Panel 20x32 Icon GPU Admission
 
-**Status:** `ready`
+**Status:** `done`
 **Phase:** 7
 **Dependencies:** 504, 513, 793, 794
 
@@ -155,3 +155,30 @@ pin re-derivation.
 
 Report scope, changed files, evidence IDs, red/green checks, paired hashes,
 attribution and remaining GPU gaps. Integrator owns the final status review.
+
+## Integrator decision (2026-10-21, project owner): `ready` -> `done`
+
+The shape admission landed in this ticket: the witnessed
+20x32/stride-60/480-B family is admitted in `src/display/nema_tsc6a_raster.c`
+with the `MM02 = -rect_x0` / `MM12 = -rect_y0` translation law, the pinned
+quad, identity-scale matrix, `0xffffffff` colours and the two observed clips,
+plus the new red-first module `tests/unit/test_nema_tsc6a_icon20.c` (3/3:
+positive pixel render, near-miss refusals, invalid-source refusal).
+
+Re-verified against the current tree: 3/3 module, seven TSC6A modules 34/34,
+full suite 1,078 tests with 0 failures, `make check-lines` clean,
+`make check-task-contracts` 171, `make check` and `make sanitize` green.
+
+The re-scoped aux-bit blocker recorded in this ticket's 2026-10-08 census was
+resolved by ticket 807's exact-color law (E-RE-SAP235-TSC6A-AUX-002), so the
+Control Panel now reaches zero GPU refusals.
+
+Acceptance ruling on the settled Control frame CRC: the clause asks for
+`30847819` to stay identical while also requiring the refusals to disappear.
+Those are inconsistent, and the attributed `30847819 -> 5f2c742c` move (the
+icon's pixels) is accepted on the same basis as 807 — the old CRC is
+reproduced from the pre-change binary as a control, the log changes by exactly
+the two removed refusal lines, the other five cases keep byte-identical logs
+and CRCs, all differing bytes lie inside the renderer image section, and every
+moved pin is twice byte-identical. The two attributed navigation pins (control
+log `5c0b4e8f...`, image `17709c61...`) are in the runner.
