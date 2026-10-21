@@ -16413,6 +16413,25 @@ holds the pointer to the enablement byte). It fired
 handler directly at that seam derails the boot. That variant was
 rejected; the layer stays at the verified state.
 
+**Owner-authorized device-model extension attempted (2026-10-21).**
+The project owner authorized extending the emulator's device model so
+the firmware's own IOM3 write path could be reached. The extension
+tried was attaching the touch endpoint to the IOM3 bus at address 0 as
+well as its firmware-exhibited address 0x24, because the firmware's
+generic I2C wrapper `0x117bb8` builds its transfer descriptor from the
+fixed template `DAT_00117df0` = `01 00 00 00 ...`, whose address field
+is zero. The run stayed byte-identical to the verified 579-line
+baseline, but **no `touch-report` was produced**: `FUN_0014346c` (the
+legacy HAL transfer the wrapper uses) writes only `CLOCK_CONFIG`
+(`0x104`) and `TIMING_STATUS` (`0x2c0`) - it never writes `COMMAND`
+(`0x120`), `DMA_CONFIG` (`0x218`), `DMA_COUNT` (`0x21c`), `DMA_TARGET`
+(`0x220`) or `DMA_TRIG_EN` (`0x210`) anywhere in its body, so it never
+reaches the emulator's IOM endpoint at all. Only `FUN_00143774` (the
+`0x117b20` path) programs those registers, and the firmware never
+enters that path because the touch driver never starts. The extension
+was therefore reverted: the device model is not the blocker, the
+missing route provisioning is.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that
