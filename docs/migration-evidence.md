@@ -16365,6 +16365,21 @@ start did not reach: the `0x2205` handler the layer redirects to is a
 different branch of the same dispatch, so it never runs the `0x2204`
 init-packet path.
 
+**The 0x2204 dispatch variant (2026-10-20, rejected).** A layer
+variant dispatched the manager's `0x2204` event at the guest's idle
+loop (after 1000 idle iterations) with `r4` = the manager,
+`r3 = 0x22040000`, `r2` = a scratch payload whose `+4` points at the
+synthetic enablement byte `1`, and `pc = 0x100c4a`. It fired
+(`trigger=manager-0x2204`, plus the existing `manager-start` and
+`manager-redirect` and 17 `uiengine-queue` events) but **no IOM3
+transfer** was observed (`touch-report` 0): the init packet
+`0x127af8` -> `0x127b7a` -> the write dispatcher `0xf75cc` does not
+reach the emulator's IOM3 touch endpoint. The run also dropped to 449
+lines with the stop at vt 13.254 s, so the idle-point trigger is too
+early: the guest reaches the idle loop before the startup's final
+lines. That variant was rejected; the layer stays at the verified
+state.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that

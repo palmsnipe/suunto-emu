@@ -146,7 +146,12 @@ The `0x2204` branch does `adds r0,r6,#4; bl 0x93714; mov r1,r0;
 add.w r0,r4,#0x20; bl 0x127af8`, i.e. it calls the init packet with
 the driver instance at `manager+0x20`, which writes register `0x2f` to
 bus 1 / address `0x24`. The layer's redirect uses the `0x2205` handler
-`0x100b68`, a different branch, so the init-packet path never runs. The
+`0x100b68`, a different branch, so the init-packet path never runs. A
+variant that dispatched the `0x2204` event directly fired
+(`manager-0x2204`) but still produced no IOM3 transfer: the init
+packet `0x127af8` -> `0x127b7a` -> the write dispatcher `0xf75cc` does
+not reach the emulator's IOM3 touch endpoint. The run also dropped to
+449 lines, showing the idle-point trigger is too early. The
 abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.
