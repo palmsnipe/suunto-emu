@@ -51,9 +51,18 @@ but the entry is not consumed by the action chain, whose resource
 client is null). Concretely, the `0x164a8e` seam currently **logs
 only**; it does not write the synthetic entry into the guest's
 route-entry list, so the firmware never constructs or starts the touch
-manager. Implementing that write needs the per-entry record path
-(`0x164834` -> `0x16485a`) and the four payload field offsets, which
-remain unpinned. The
+manager. The entry payload layout is now partly derived: entries are **0x30
+bytes**, the array view lives at route-record `+0x98` (data `+0x98`,
+byte size `+0x9c`, cursor `+0xa0`, index `+0xa4`), `0x164a8e` is an
+iterator constructor, and `0x164ba0` -> `0x164948` finds or creates an
+entry by writing a filter descriptor into the slot (`entry+0` = the
+filter's high u16, `entry+8` = a sub-object with `+0x24` cleared).
+The touch manager `0x100a66` is constructed three times per run by the
+settings-service constructors `0xf5f0e`/`0xfc002`, with its driver
+object at `manager+0x50`. Two further press/release variants
+(`stdout-32`, `stdout-33`) still derailed the boot (28 log lines, no
+release, `touch-report` 0), so the layer remains at the verified
+state. The
 logical-files seed re-install is also idempotent now (the
 `settings/ui.txt` and `storage/7ab0dd65/data.jsn` seeds are left
 untouched when already populated), so a guest reset no longer refuses.

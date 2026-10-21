@@ -16097,6 +16097,37 @@ verified `stdout-19/20/21` state. Moving the injection point to a
 post-construction seam and preserving `r0`-`r3` across the dispatch is
 the next required change.
 
+**Route-entry payload layout derived (2026-10-20, Ghidra on the
+hash-pinned `component-04-type-4-v2.raw`).**
+- Entries are **0x30 bytes** each: `FUN_001715e4` sets up an array
+  view and truncates its byte size to a multiple of `0x30`.
+- The array view lives at route-record `+0x98`: `+0x98` data pointer,
+  `+0x9c` byte size, `+0xa0` cursor, `+0xa4` index
+  (`FUN_00164888`, `FUN_00164948`).
+- `0x164a8e` is an **iterator constructor**, not a list accessor:
+  `*iter = container; iter[1] = FUN_00164ba0(iter, filter);
+  iter[2] = index`. `0x164ba0` -> `FUN_00164948` finds or creates an
+  entry: it computes `entry = cursor + index*0x30`, advances the
+  index, and writes the filter descriptor into the slot
+  (`FUN_0017168c`: `entry+0` = the filter's high u16, `entry+8` = a
+  sub-object whose `+0x24` is cleared).
+- The route manager constructor `0x13dc1a` builds two iterators with
+  filters `DAT_0013e024` / `DAT_0013e028`; the per-entry record store
+  is at `param_1 + 0x1a` (byte `0x68`) built by
+  `0x164834`/`0x16485a`.
+- The touch manager `0x100a66` is constructed by the settings-service
+  constructors `FUN_000f5f0e` (embedded at `+0x1fc`) and
+  `FUN_000fc002` (at `+0x87c`), reached via `0xf6f2a`; it is
+  constructed three times per run. Its TMA5xx driver object is
+  constructed at `manager+0x50` by `0x128486`, with the client
+  pointing at `manager+0x18` (the sink vtable `0x19ec4c`).
+- The `0x2205` handler `0x100b68` takes `r3` as the pressed flag
+  (drives `0x1289f6`), `r2` as the subtype (`0` -> liftoff
+  `0x128a30`, `1` -> `0x128a80`, `2` -> `0x128ae8`), and the stack
+  argument as X/Y. Its `pop.w {r0..r8, pc}` restores `pc` from the
+  pushed `lr` but leaves `lr` at its last internal return address, so
+  a return marker must use `sp`, not `lr`.
+
 **Injection-point experiments (all rejected).** Four later variants
 tried to move the dispatch off the constructor's return, and every one
 still derailed the boot (the gps-startup and ohr-startup layers stop
@@ -16115,11 +16146,16 @@ hitting, and the budget stop moves from vt 14.39 s to ~10.0-10.4 s):
   3 `uiengine-queue`, 21 `route-entry-seam`, but still no gps/ohr
   hits and `touch-report` 0.
 
-The common symptom is that injecting the manager's `0x2205` event or
-starting its activity before the UI engine has registered the touch
-manager changes the boot trajectory. None of these variants was kept;
-the layer stays at the verified state and `stdout-27` reproduces
-`stdout-19/20/21` byte-identically.
+Two further variants drove the owner-authorized press/release
+sequence: `stdout-32` dispatched the press and never reached the
+release because the return marker used `lr`; `stdout-33` used an
+`sp` marker and still produced 28 log lines, 1 `manager-press`, no
+release, no `touch-report`, and a derailed boot. The common symptom is
+that injecting the manager's `0x2205` event or starting its activity
+before the UI engine has registered the touch manager changes the boot
+trajectory. None of these variants was kept; the layer stays at the
+verified state and `stdout-27` reproduces `stdout-19/20/21`
+byte-identically.
 
 **The remaining gap.** The layer's queue seam writes the
 owner-authorized 12-byte record and the uiEngine consumes it
