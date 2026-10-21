@@ -80,7 +80,13 @@ COMMAND register is never written. The transfer descriptor layout is now derived
 path supplies only bus/addr/buf/size/timeout, so the remaining three
 arguments come from the caller's stack frame at `[sp+4]`, `[sp+8]`,
 `[sp+0xc]`, which `0x127784` does not obviously set on that path -
-that is the remaining step. The layer remains at the verified
+that is the remaining step. A variant that explicitly built that
+caller frame from the derived layout (timeout `0x1f4`, address-byte
+pointer, length-1, direction=read) and then ran `0x117c34(1)` and the
+poll still produced no IOM3 transfer (`touch-report` 0): the COMMAND
+register at `0x40053000+0x120` is never written, so the dispatcher
+stages `0xf7614`/`0xf74f0`/`0x117d96` still stop the chain before the
+HAL setup. The layer remains at the verified
 state. Note: the volatile integration replay was lost and recreated
 (sha256 `be62e581...`); with it the reverted layer reproduces the
 verified run to within 5 instructions (identical 579 lines and trigger

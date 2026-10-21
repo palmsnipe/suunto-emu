@@ -16198,6 +16198,22 @@ the driver's own poll caller `0x127784` does not obviously set on that
 path. Supplying them is the remaining step before the COMMAND write
 can occur.
 
+**Poll-caller-frame variant (2026-10-20, rejected).** Using the
+derived descriptor layout, a layer variant built the poll's caller
+frame explicitly - `[sp+0]` = `0x1f4` (lock timeout, as the firmware's
+own `0x127af0` stores), `[sp+4]` = a pointer to a byte holding the
+device address `0x24` (the `desc[6]` source for COMMAND bits 24-31),
+`[sp+8]` = the transfer length-1 (`1`), `[sp+0xc]` = the direction
+selector (`1` = read) - and then ran the firmware's slot initialiser
+`0x117c34(1)` and the poll `0x127952` with `r3 = 2`. Both ran three
+times (`trigger=i2c-slot-init`, `trigger=tma5xx-poll`) but
+`touch-report` still stayed 0: the COMMAND register at
+`0x40053000+0x120` is never written, so `FUN_00143774` is still not
+reached (or returns 0 before programming). The earlier dispatcher
+stages (`FUN_000f7614` -> `FUN_000f74f0` -> `FUN_00117d96`) therefore
+still stop the chain. That variant was rejected; the layer stays at
+the verified state.
+
 **Baseline reproducibility note.** The integration replay
 `/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
 and was lost; it has been recreated with the same four button events
