@@ -131,7 +131,14 @@ E-SAP-0120's "OTA route list is empty" refers to the OTA-supplied list,
 not this candidate table. The route-manager object is constructed by
 `FUN_00112a90` with the record manager at `+8` and per-route-type
 sub-managers at `+0x86`..`+0x1fe`. What remains is the provisioning
-requester path that consumes the `0x7a00` reply. The
+requester path that consumes the `0x7a00` reply. A layer variant that
+started the touch manager at the guest's idle loop (after 1000 idle
+iterations, so the startup lines were complete) fired
+`manager-start-at-idle`, `manager-start` and `manager-redirect` and
+produced 17 `uiengine-queue` events, but still no IOM3 transfer
+(`touch-report` 0): the driver's init packet `0x127af8` never ran, and
+the run dropped to 449 lines with the stop at vt 13.254 s. The manager
+start alone does not reach the TMA5xx driver's IOM3 poll. The
 abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.

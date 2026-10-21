@@ -16326,6 +16326,20 @@ route-manager object: vtable at `+0`, the route record manager
 `DAT_00112b00`) and `+0x1fe` (`0x1402be`), plus a scale setter
 `0x13e1de(0x41200000, +0x86)`.
 
+**The idle-point manager start (2026-10-20, rejected).** A layer
+variant started the touch manager at the guest's idle loop
+(`0xbb6b2`/`0xbb6b4`, after 1000 idle iterations so the startup's
+observable lines were already complete) by redirecting into the
+manager's own start handler `0x100b06` with the captured manager
+object. It fired: the run logged `manager-start-at-idle`, the existing
+`manager-start` and `manager-redirect`, and 17 `uiengine-queue` events
+- but **no IOM3 transfer** (`touch-report` 0), the driver's init packet
+`0x127af8` (which writes register `0x2f` to bus 1 / address `0x24`)
+never ran, and the run dropped to 449 lines (from the verified 579)
+with the stop moving to vt 13.254 s. The manager start alone does not
+reach the TMA5xx driver's IOM3 poll. That variant was rejected; the
+layer stays at the verified state.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that
