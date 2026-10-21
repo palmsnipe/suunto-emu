@@ -123,9 +123,15 @@ record it meets (bounded to four, tracked by record address): the
 integration run writes two entries and stays at the verified 579-line
 baseline (eleven fewer instructions on the reset line, an 11 ns later
 budget stop) with no manager start and no IOM3 touch poll. A synthetic
-entry in the route records is necessary but not sufficient - the
-firmware only provisions a route when the settings-service OTA route
-list names it (E-SAP-0120), and that list is empty. The
+entry in the route records is necessary but not sufficient. The
+settings route-candidate table (`DAT_00112a78`, VA `0x1a6a34`, 29
+entries) **does** name `hw_touch_1` (index 16) and maps it to route
+type 12, and `FUN_001129ac` builds a `0x7a00` route-list reply from it;
+E-SAP-0120's "OTA route list is empty" refers to the OTA-supplied list,
+not this candidate table. The route-manager object is constructed by
+`FUN_00112a90` with the record manager at `+8` and per-route-type
+sub-managers at `+0x86`..`+0x1fe`. What remains is the provisioning
+requester path that consumes the `0x7a00` reply. The
 abort point is now pinned: `FUN_00143774` calls the HAL
 enable `FUN_001430ec`, and a non-zero enable result makes it disable
 the instance and return 0 **without** programming the COMMAND register.

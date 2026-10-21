@@ -16296,6 +16296,36 @@ entry in the route records is necessary but not sufficient: the
 firmware only provisions a route when the settings-service OTA route
 list names it (E-SAP-0120), and that list is empty.
 
+**The settings route-candidate table and the route-list reply
+(2026-10-20).** `FUN_001129ac` answers a `0x7a00` route-list request: it
+walks the 29-entry table `DAT_00112a78` (VA `0x1a6a34`), calls
+`FUN_0013db00` (name -> route type) on each name, and appends the names
+whose route type is non-zero to a bounded 10-entry reply
+(`FUN_000a7072(..., 0x7a00)`). The table's entries, in order, are:
+`feat_guides_v5`, `feat_guidetemplate_v8`, `feat_wbstorage_v1`,
+`feat_widgets_v2`, `feat_trainingzone_v1`, `feat_devices_1`,
+`feat_plugins_1`, `plugin_maxzappsize_2`, `plugin_settings_v1`,
+`ui_version_2`, `ui_screensize_medium`, `hw_displaytype_mip`,
+`hw_temperature_1`, `hw_pressure_1`, `hw_gps_1`, `hw_magnetometer_1`,
+**`hw_touch_1` (index 16)**, `hw_wifi_1`, `hw_solar_1`, `hw_uwc_1`,
+`hw_buttoncount_3`, `feat_simvariant_Sapporo`,
+`hw_accelerometerrate_52`, `feat_voicefeedback_1`, `feat_weather_1`,
+`feat_findphone_1`, `feat_hrv_1`, `feat_notificationswitch_1`,
+`feat_lastknowngeocoordinates_1`. So the settings route-candidate table
+is **not** empty and does name `hw_touch_1`, which maps to route type
+12; E-SAP-0120's "OTA route list is empty" refers to the OTA-supplied
+list, not this candidate table.
+
+**The route-manager object layout.** `FUN_00112a90` constructs the
+route-manager object: vtable at `+0`, the route record manager
+`FUN_0013dc02` at `+8` (which owns the 0x30-byte entry array view at
+`+0x98`), then per-route-type sub-managers at `+0x86` (`0x13e066`),
+`+0x14c` (`0x13e644`), `+0x158` (`0x13e93e`), `+0x176` (`0x13ed62`),
+`+0x196` (`0x13f18c`), `+0x19e` (`0x13f32e`), `+0x1ac` (`0x13f6ea`),
+`+0x1da` (`0x13fcba`, which also takes the global table
+`DAT_00112b00`) and `+0x1fe` (`0x1402be`), plus a scale setter
+`0x13e1de(0x41200000, +0x86)`.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that
