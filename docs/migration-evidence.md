@@ -16397,6 +16397,22 @@ on the touch init-packet write path, even though the same boot
 successfully issues IOM3 transfers through the generic wrapper
 `0x117bb8` -> `0x14346c` -> `0x1430ec`.
 
+**The corrected-payload 0x2204 dispatch (2026-10-20, rejected).** The
+write path is now fully derived: `FUN_000f75cc` (write dispatcher) ->
+`FUN_00117d7c` -> `FUN_00117b20`, and `FUN_00117d96` (read) ->
+`FUN_00117b20`; `FUN_00117db0` passes all eight arguments, with the
+stack arguments 5-8 = `(param_7, param_3, param_4 & 0xff, 0)`. So both
+the read and the write converge on `0x117b20`, which calls `0x143774`
+unconditionally after building the descriptor. A layer variant
+dispatched the manager's `0x2204` event at the entry seam with the
+payload corrected to the handler's actual getter
+(`FUN_00093714(payload+4) = **(uint8_t **)(payload+8)`, so `payload+8`
+holds the pointer to the enablement byte). It fired
+(`trigger=manager-0x2204`) but **no IOM3 transfer** was observed
+(`touch-report` 0), and the run collapsed to 8 lines: dispatching the
+handler directly at that seam derails the boot. That variant was
+rejected; the layer stays at the verified state.
+
 **The firmware's own IOM bus path works; the touch device is simply
 never addressed (2026-10-20).** A bounded diagnostic probe (temporary
 layer instrumentation on the HAL entry points, reverted) showed that
