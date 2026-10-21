@@ -71,8 +71,16 @@ never reaches the IOM HAL transfer `0x14346c`. A variant that also ran the firmw
 length `r3 = 2` (derived from `0x1277aa: movs r3,#2; bl 0x127952`),
 ran both three times but still produced no IOM3 transfer
 (`touch-report` 0): the HAL setup `FUN_00143774` never runs, so the
-COMMAND register is never written. Its remaining unknown is the
-device-address field it takes from the caller's `r6`/`r7`. The layer remains at the verified
+COMMAND register is never written. The transfer descriptor layout is now derived: `FUN_00117b20` builds
+`desc[0]` handle, `desc[1]` instance, `desc[2]` address 0x24,
+`desc[3]` size, `desc[4]` buffer, `desc[5]` direction (arg 8),
+`desc[6]` a pointer to the address byte (arg 6), `desc[7]` length-1
+(arg 7); `FUN_00143774` turns that into the COMMAND register value
+(`COMMAND 0x120`), and the lock timeout is the 5th argument. The poll
+path supplies only bus/addr/buf/size/timeout, so the remaining three
+arguments come from the caller's stack frame at `[sp+4]`, `[sp+8]`,
+`[sp+0xc]`, which `0x127784` does not obviously set on that path -
+that is the remaining step. The layer remains at the verified
 state. Note: the volatile integration replay was lost and recreated
 (sha256 `be62e581...`); with it the reverted layer reproduces the
 verified run to within 5 instructions (identical 579 lines and trigger

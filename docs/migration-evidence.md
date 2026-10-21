@@ -16176,6 +16176,28 @@ device-address field that `FUN_00143774` takes from the caller's
 `r6`/`r7` (the COMMAND register embeds the device address in bits
 24-31), which the layer does not supply. That variant was rejected.
 
+**IOM transfer descriptor layout derived (2026-10-20).** `FUN_00117b20`
+takes eight arguments and builds a 0x20-byte descriptor:
+`desc[0]` = the slot's HAL handle (`slot+4`), `desc[1]` = the IOM
+instance byte from the `0x1bc9ec` table (`02 03 04`), `desc[2]` = the
+device address (0x24), `desc[3]` = the transfer size, `desc[4]` = the
+buffer, `desc[5]` = the direction selector (arg 8), `desc[6]` = a
+**pointer** to the device-address byte (arg 6), `desc[7]` = the
+transfer length-1 in its low byte (arg 7). `FUN_00143774` then builds
+the COMMAND register as
+`base | count<<8 | (desc[7]&7)<<4 | (desc[6] pointer byte)<<24 |
+direction`, and writes it to `COMMAND 0x120`, which is the write that
+would drive the emulator's IOM3 transfer. The lock timeout is the
+5th argument (`0x77402`, loaded from the caller's `[sp]`; the poll's
+`0x127af0` stores `0x1f4` there). The poll path
+(`0x127952` -> `0xf7614` -> `0x117d96` -> `0x117b20`) supplies only
+`bus=1, addr=0x24, buf=sp+4, size=2` and the timeout; the remaining
+three arguments (direction, length-1, address-byte pointer) are taken
+from the caller's stack frame at `[sp+4]`, `[sp+8]`, `[sp+0xc]`, which
+the driver's own poll caller `0x127784` does not obviously set on that
+path. Supplying them is the remaining step before the COMMAND write
+can occur.
+
 **Baseline reproducibility note.** The integration replay
 `/tmp/sap233-ohr-20261016/active.replay` is a volatile workspace file
 and was lost; it has been recreated with the same four button events
