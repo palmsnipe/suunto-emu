@@ -16512,6 +16512,27 @@ evidently blocks inside the reinitialise branch (`0x92970(2)` /
 reaches its normal read path. That variant was rejected; the layer
 stays at the verified state.
 
+**Owner-authorized descriptor synthesis attempted (2026-10-21).** After
+the owner authorised synthesising the descriptor arguments and RTOS
+task-registration work, a layer variant called the firmware's own
+transfer builder `FUN_00117b20` directly with the eight arguments it
+consumes (`r0 = 1` bus index for IOM3, `r1 = 0x24`, `r2` = buffer,
+`r3 = 2`, and a scratch frame holding `[sp+0] = 0x1f4` timeout,
+`[sp+4]` = pointer to a byte holding `0x24` for `desc[6]`, `[sp+8] = 1`
+length-1 for `desc[7]`, `[sp+0xc] = 1` direction for `desc[5]`), after
+running the firmware's own I2C slot initialiser `0x117c34(1)`.
+`trigger=iom3-transfer-build` fired and the run stayed at 590 lines
+(startup intact, stop at vt 14.396 s), but `touch-report` stayed 0 and
+a descriptor probe on `0x143774` recorded **1038 hits with instance 4
+and 0x401 only** - never instance 3. So the builder was entered but did
+not reach the HAL setup for IOM3, i.e. it bailed before
+`FUN_00143774`; a follow-up probe on `0x117b20` entry with `r0 == 1`
+recorded nothing, so the builder's early-return condition was not
+captured by that probe placement. The variant was rejected and the
+layer stays at the verified state. This remains the most promising
+line of attack, but the builder's pre-HAL bail condition still has to
+be identified.
+
 **Owner-authorized device-model extension attempted (2026-10-21).**
 The project owner authorized extending the emulator's device model so
 the firmware's own IOM3 write path could be reached. The extension
