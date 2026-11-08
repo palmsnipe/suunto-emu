@@ -2,15 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-semu_nema_backend *semu_nema_backend_create(semu_error *error)
+static semu_nema_backend *backend_create(int race_s, semu_error *error)
 {
+    unsigned width = race_s ? NEMA_ULSAN_SIDE : NEMA_BACKEND_PANEL_WIDTH;
+    unsigned height = race_s ? NEMA_ULSAN_SIDE : NEMA_BACKEND_PANEL_HEIGHT;
     semu_nema_backend *b = calloc(1u, sizeof(*b));
     if (b == NULL) {
         semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate backend");
         return NULL;
     }
-    b->surface = semu_surface_create(NEMA_BACKEND_PANEL_WIDTH,
-        NEMA_BACKEND_PANEL_HEIGHT, error);
+    b->panel_bytes = (size_t)width * height * 2u;
+    b->surface = semu_surface_create(width, height, error);
     if (b->surface == NULL ||
         nema_state_create(&b->state, error) != SEMU_OK ||
         nema_state_create(&b->pending_state, error) != SEMU_OK ||
@@ -20,8 +22,8 @@ semu_nema_backend *semu_nema_backend_create(semu_error *error)
         semu_nema_backend_destroy(b);
         return NULL;
     }
-    b->published_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
-    b->working_pixels = calloc(NEMA_BACKEND_PANEL_BYTES, 1u);
+    b->published_pixels = calloc(b->panel_bytes, 1u);
+    b->working_pixels = calloc(b->panel_bytes, 1u);
     b->guest_span = calloc(NEMA_TSC6A_SPAN_BYTES, 1u);
     b->span_scratch = malloc(NEMA_TSC6A_SPAN_BYTES);
     b->saved_guest_span = malloc(NEMA_TSC6A_SPAN_BYTES);
@@ -37,7 +39,25 @@ semu_nema_backend *semu_nema_backend_create(semu_error *error)
         semu_nema_backend_destroy(b);
         return NULL;
     }
+    if (race_s) {
+        b->race_s = calloc(1u, sizeof(*b->race_s));
+        if (b->race_s == NULL) {
+            semu_error_set(error, SEMU_ERR_NOMEM, "cannot allocate Race S renderer state");
+            semu_nema_backend_destroy(b);
+            return NULL;
+        }
+    }
     return b;
+}
+
+semu_nema_backend *semu_nema_backend_create(semu_error *error)
+{
+    return backend_create(0, error);
+}
+
+semu_nema_backend *semu_nema_backend_create_race_s(semu_error *error)
+{
+    return backend_create(1, error);
 }
 
 void semu_nema_backend_destroy(semu_nema_backend *b)
@@ -45,6 +65,7 @@ void semu_nema_backend_destroy(semu_nema_backend *b)
     if (b == NULL || b->phase == NEMA_BACKEND_PREPARING ||
         b->phase == NEMA_BACKEND_COMMITTING) return;
     free(b->published_pixels);
+    free(b->race_s);
     free(b->frames);
     free(b->working_pixels);
     free(b->guest_span);
@@ -79,6 +100,7 @@ semu_status semu_nema_backend_reset(semu_nema_backend *b)
     b->draw_refusal_valid = 0;
     semu_surface_clear(b->surface, 0u);
     b->published_valid = 0;
+    if (b->race_s != NULL) b->race_s->bands = 0u;
     return SEMU_OK;
 }
 

@@ -340,7 +340,28 @@ static semu_status bind_ulsan_emmc(semu_machine *machine, const char *path,
         return error != NULL ? error->code : SEMU_ERR_STATE;
     status = semu_ulsan_sdio_map(machine->bus, &machine->ulsan_244.sdio,
         machine->ulsan_244.emmc_media, size, error);
-    return status == SEMU_OK ? semu_ulsan_244_sd_pad_map(machine->bus, error) : status;
+    if (status == SEMU_OK)
+        status = semu_ulsan_244_sd_pad_map(machine->bus, error);
+    if (status == SEMU_OK)
+        status = semu_ulsan_244_iom2_map(machine->bus, &machine->ulsan_244.iom2,
+            machine->scheduler, irq_sink, machine, error);
+    if (status == SEMU_OK)
+        status = semu_ulsan_244_motion_map(machine->bus, &machine->ulsan_244.motion,
+            machine->ulsan_244.iom2.dma, machine->scheduler, irq_sink, machine, error);
+    if (status != SEMU_OK)
+        return status;
+    machine->race_s_backend = semu_nema_backend_create_race_s(error);
+    if (machine->race_s_backend == NULL)
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    machine->nema_gpu = semu_nema_gpu_create(machine->bus,
+        &semu_nema_backend_ops, machine->race_s_backend,
+        machine->frame_callback, machine->frame_context,
+        irq_sink, machine, machine->scheduler, error);
+    if (machine->nema_gpu == NULL)
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    semu_nema_gpu_select_race_s(machine->nema_gpu);
+    semu_nema_gpu_set_logger(machine->nema_gpu, machine->logger);
+    return semu_nema_gpu_attach(machine->nema_gpu, error);
 }
 
 semu_machine *semu_machine_create(const semu_machine_options *options,
@@ -423,9 +444,12 @@ void semu_machine_destroy(semu_machine *machine)
     if (machine != NULL) {
         semu_cpu_destroy(machine->cpu);
         semu_nema_gpu_destroy(machine->nema_gpu);
+        semu_nema_backend_destroy(machine->race_s_backend);
         semu_sapporo_devices_destroy(machine->devices);
         semu_storage_destroy(machine->flash_storage);
         semu_apollo4_destroy(machine->soc);
+        semu_apollo4_iom_destroy(machine->ulsan_244.motion.controller);
+        semu_ulsan_244_iom2_destroy(&machine->ulsan_244.iom2);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
         semu_ulsan_disp_destroy_state(&machine->ulsan_244.display);
@@ -473,7 +497,12 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
     }
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
+    semu_ulsan_244_iom2_reset(&machine->ulsan_244.iom2);
+    if (machine->ulsan_244.motion.controller != NULL)
+        semu_ulsan_244_motion_reset(&machine->ulsan_244.motion);
     semu_nema_gpu_reset(machine->nema_gpu);
+    if (machine->race_s_backend != NULL)
+        (void)semu_nema_backend_reset(machine->race_s_backend);
     if (load_components(machine, &machine->firmware, error) != SEMU_OK) {
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return error->code;

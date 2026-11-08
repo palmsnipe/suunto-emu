@@ -42,6 +42,8 @@ semu_status semu_nema_gpu_reset(semu_nema_gpu *gpu);
 int semu_nema_gpu_busy(const semu_nema_gpu *gpu);
 
 semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error);
+/* Select the E-ULS-0082 register window before attaching the GPU. */
+void semu_nema_gpu_select_race_s(semu_nema_gpu *gpu);
 /* Borrow a logger for the named GPU-side draw-refusal line (ticket 794,
  * E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001). NULL disables the lines. The
  * logger is transient host wiring: never serialized in snapshots. */

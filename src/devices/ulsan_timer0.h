@@ -18,7 +18,7 @@
  */
 
 typedef struct semu_ulsan_timer0 {
-    uint32_t regs[12];
+    uint32_t regs[16];
     semu_scheduler *scheduler;
     semu_apollo4_irq_fn irq_sink;
     void *irq_context;

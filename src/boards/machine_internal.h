@@ -17,6 +17,7 @@
 #include "../compat/sapporo_239_files.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_nema_gpu.h"
+#include "../display/nema_backend.h"
 #include "ulsan_board.h"
 
 struct semu_machine {
@@ -27,6 +28,7 @@ struct semu_machine {
     semu_sapporo_devices *devices;
     semu_storage *flash_storage;
     semu_nema_gpu *nema_gpu;
+    semu_nema_backend *race_s_backend;
     semu_ulsan_244_board ulsan_244;
     semu_sapporo_239_files *sapporo_239_files;
     semu_sapporo_233_files_context sapporo_233_files;

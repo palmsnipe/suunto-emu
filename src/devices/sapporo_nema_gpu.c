@@ -25,18 +25,19 @@ static int is_command_register(uint32_t offset)
            offset == NEMA_REG_CLID;
 }
 
-static int is_sram_range(uint32_t address, uint32_t size)
+static int is_sram_range(const semu_nema_gpu *gpu, uint32_t address,
+                         uint32_t size)
 {
+    uint32_t end = gpu->race_s ? UINT32_C(0x10267000) : NEMA_SRAM_END;
     return size > 0u && size <= NEMA_MAX_CAPTURE_SIZE &&
-           address >= NEMA_SRAM_START && address < NEMA_SRAM_END &&
-           size <= NEMA_SRAM_END - address;
+           address >= NEMA_SRAM_START && address < end && size <= end - address;
 }
 
 int nema_gpu_ring_configured(const semu_nema_gpu *gpu)
 {
     uint32_t addr = gpu->registers[NEMA_REG_CMDADDR / 4u];
     uint32_t size = gpu->registers[NEMA_REG_CMDSIZE / 4u];
-    return addr != 0u && size != 0u && is_sram_range(addr, size);
+    return is_sram_range(gpu, addr, size);
 }
 
 static uint32_t normalize_ring_pointer(uint32_t raw)
@@ -72,6 +73,12 @@ static semu_status nema_gpu_read(void *context, uint32_t offset,
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "nema: unsupported register read shape");
         return SEMU_ERR_UNSUPPORTED;
     }
+    if (gpu->race_s && offset != NEMA_REG_MODULE_ID && offset != NEMA_REG_CONFIG &&
+        offset != NEMA_REG_CLID) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Race S NemaGPU read offset 0x%x is unobserved", offset);
+        return SEMU_ERR_UNSUPPORTED;
+    }
     if (offset == NEMA_REG_MODULE_ID) {
         *value = NEMA_MODULE_ID;
         return SEMU_OK;
@@ -82,6 +89,27 @@ static semu_status nema_gpu_read(void *context, uint32_t offset,
     }
     *value = gpu->registers[offset / 4u];
     return SEMU_OK;
+}
+
+static int race_s_write_allowed(const semu_nema_gpu *gpu, uint32_t offset,
+                                uint32_t value)
+{
+    switch (offset) {
+    case NEMA_REG_SETUP: return value == UINT32_MAX;
+    case NEMA_REG_INTERRUPT: case NEMA_REG_CLID:
+    case NEMA_REG_CMDSTATUS: case NEMA_REG_STATUS:
+        return value == 0u;
+    case NEMA_REG_CMDADDR:
+        return (value & 7u) == 0u && is_sram_range(gpu, value, 0x400u);
+    case NEMA_REG_CMDSIZE:
+        return value == 0x400u;
+    case NEMA_REG_CMDRINGSTOP:
+        return ((value & NEMA_RING_CTRL_MASK) == 4u ||
+                (value & NEMA_RING_CTRL_MASK) == NEMA_BOOTSTRAP_CTRL) &&
+               is_sram_range(gpu, normalize_ring_pointer(value), 4u);
+    default:
+        return 0;
+    }
 }
 
 static semu_status nema_gpu_write(void *context, uint32_t offset,
@@ -98,6 +126,11 @@ static semu_status nema_gpu_write(void *context, uint32_t offset,
     if (gpu->submitting) {
         semu_error_set(error, SEMU_ERR_CONFLICT, "nema: submission already active");
         return SEMU_ERR_CONFLICT;
+    }
+    if (gpu->race_s && !race_s_write_allowed(gpu, offset, value)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Race S NemaGPU write 0x%x = 0x%08x is unobserved", offset, value);
+        return SEMU_ERR_UNSUPPORTED;
     }
     if (gpu->initialization_complete && offset == NEMA_REG_CMDRINGSTOP &&
         (value & NEMA_RING_CTRL_MASK) != NEMA_BOOTSTRAP_CTRL)
@@ -211,6 +244,11 @@ semu_status semu_nema_gpu_attach(semu_nema_gpu *gpu, semu_error *error)
     }
     return semu_bus_map_device(gpu->bus, "sapporo.nema_gpu",
         NEMA_GPU_BASE, NEMA_GPU_SIZE, &nema_gpu_ops, gpu, error);
+}
+
+void semu_nema_gpu_select_race_s(semu_nema_gpu *gpu)
+{
+    if (gpu != NULL) gpu->race_s = 1;
 }
 
 void semu_nema_gpu_set_logger(semu_nema_gpu *gpu, semu_logger *logger)

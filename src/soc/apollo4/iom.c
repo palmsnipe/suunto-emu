@@ -76,6 +76,7 @@ enum {
 #define IRQ_DMA_COMPLETE    (UINT32_C(1) << 10)
 #define IRQ_DMA_ERROR       (UINT32_C(1) << 11)
 #define IRQ_CMD_COMPLETE    (UINT32_C(1) << 0)
+#define IRQ_FIFO_THRESHOLD  (UINT32_C(1) << 1)
 #define DMA_STATUS_PROGRESS UINT32_C(0x01)
 #define DMA_STATUS_COMPLETE UINT32_C(0x02)
 #define DMA_STATUS_ERROR    UINT32_C(0x04)
@@ -148,6 +149,54 @@ static int is_known_write(uint32_t offset)
     }
 }
 
+static int race_s_read_allowed(uint32_t offset)
+{
+    return offset == REG_INTEN || offset == REG_INTSTAT ||
+           offset == REG_DMA_TRIG_EN ||
+           (observed_register_index(offset) >= 0 &&
+            offset != REG_COMMAND_CONFIG && offset != REG_COMMAND_TYPE);
+}
+
+static int race_s_write_allowed(const semu_apollo4_iom *iom, uint32_t offset,
+                                uint32_t value)
+{
+    const int motion = iom->irq == SEMU_APOLLO4_IOM0_IRQ;
+    switch (offset) {
+    case REG_CLOCK_CONFIG: return value == 0x1010u;
+    case REG_TIMING_CONFIG:
+        return motion ? (value == 0x401u || value == 0xc01u) : value == 0x1d0e1301u;
+    case REG_SUBMODCTRL:
+        if (motion) return value == 1u || value == 0xe20u || value == 0xe21u;
+        return value == 0x10u || value == 0xe20u || value == 0xe30u;
+    case REG_COMMAND:
+        if (motion) {
+            uint32_t shape = value & 0xffffffu;
+            return value == 0x201u || ((value >> 31u) != 0u &&
+                (shape == 0x112u || shape == 0x212u || shape == 0x612u));
+        }
+        return value == 0x112u || value == 0x1c000112u ||
+               value == 0x201u || value == 0x1702u;
+    case REG_INTEN: return value == 0u || value == 0x4e7du;
+    case REG_INTCLR: return value == UINT32_MAX || value == 0x401u;
+    case REG_DMA_TRIG_EN: return value == 0u || value == 2u;
+    case REG_DMA_CONFIG: return value == 0u || value == 0x101u || value == 0x103u;
+    case REG_DMA_COUNT: return value == 1u || value == 2u || value == (motion ? 6u : 23u);
+    case REG_DMA_TARGET: return value <= DMA_TARGET_MASK;
+    case REG_DEVICE_CONFIG:
+        if (motion) return value == 0u;
+        return value == 0x35u || value == 0x48u || value == 0x49u || value == 0x4au;
+    case REG_CLOCK_STATUS: return value == IOM_CLOCK_STATUS_RESET || (motion && value == 0u);
+    case REG_TIMING_STATUS:
+        return motion ? value == 0u : (value == 0x0103f270u || value == IOM_TIMING_STATUS_RESET);
+    case REG_COMMAND_CONFIG: case REG_COMMAND_TYPE: case REG_DMA_OFFSET:
+    case REG_DMA_OFFSET_COUNT: case REG_DMA_CONFIG2: case REG_DMA_COUNT2:
+    case REG_DMA_TARGET2: case REG_DMA_STATUS2:
+        return value == 0u;
+    default:
+        return 0;
+    }
+}
+
 static void raise_irq(semu_apollo4_iom *iom, uint32_t bits)
 {
     iom->intstat |= bits;
@@ -169,11 +218,14 @@ static void dma_complete(void *context, semu_transaction_result result)
     if (iom == NULL) {
         return;
     }
+    if (iom->race_s && result != SEMU_TRANSACTION_OK)
+        return;
     iom->dma_config &= ~DMA_ENABLE_MASK;
     if (result == SEMU_TRANSACTION_OK) {
         iom->dma_status = DMA_STATUS_COMPLETE;
         iom->dma_trig_stat |= DMA_TRIG_TOTAL;
-        raise_irq(iom, IRQ_DMA_COMPLETE | IRQ_CMD_COMPLETE);
+        raise_irq(iom, IRQ_DMA_COMPLETE | IRQ_CMD_COMPLETE |
+                       (iom->race_s ? IRQ_FIFO_THRESHOLD : 0u));
     } else {
         iom->dma_status = DMA_STATUS_ERROR;
         raise_irq(iom, IRQ_DMA_ERROR);
@@ -191,7 +243,12 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
     uint8_t *tx_bytes = NULL;
     uint8_t offset_byte = 0u;
     semu_transaction_result result;
+    semu_error local;
 
+    if (iom->race_s && error == NULL) {
+        semu_error_clear(&local);
+        error = &local;
+    }
     if (iom->pressure235 &&
         (iom->device_config == 0x5cu || iom->device_config == 0x5du))
         return semu_apollo4_iom_pressure235_command(iom, value, error);
@@ -230,7 +287,27 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
     memset(&transaction, 0, sizeof(transaction));
     transaction.address = (uint8_t)(iom->device_config & UINT32_C(0xff));
     transaction.chip_select = transaction.address;
-    if (request.direction == SEMU_DMA_FROM_ENDPOINT &&
+    if (iom->race_s) {
+        if (count != cmd_size || count != iom->dma_count ||
+            (op == CMD_OP_READ) != (request.direction == SEMU_DMA_FROM_ENDPOINT)) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "Race S IOM DMA direction or count is unobserved");
+            return SEMU_ERR_UNSUPPORTED;
+        }
+        if (request.direction == SEMU_DMA_FROM_ENDPOINT) {
+            uint32_t i;
+            for (i = 0u; i < count; ++i) {
+                semu_status status = semu_bus_validate_write(iom->bus,
+                    request.guest_address + i, 1u, error);
+                if (status != SEMU_OK) return status;
+            }
+            if ((value & 0x10u) != 0u) {
+                offset_byte = (uint8_t)(value >> 24u);
+                transaction.tx = &offset_byte;
+                transaction.tx_size = 1u;
+            }
+        }
+    } else if (request.direction == SEMU_DMA_FROM_ENDPOINT &&
         (transaction.address == 0x48u || transaction.address == 0x10u ||
          transaction.address == 0x45u || transaction.address == 0x50u ||
          transaction.address == 0x5cu)) {
@@ -261,10 +338,12 @@ static semu_status execute_command(semu_apollo4_iom *iom, uint32_t value,
     request.transaction = iom->endpoint->transfer != NULL ? &transaction : NULL;
     request.completion = dma_complete;
     request.completion_context = iom;
-    iom->dma_status = DMA_STATUS_PROGRESS;
+    if (!iom->race_s) iom->dma_status = DMA_STATUS_PROGRESS;
     result = iom->dma_sink(iom->dma_context, &request, error);
     free(tx_bytes);
     if (result == SEMU_TRANSACTION_REFUSE) {
+        if (iom->race_s)
+            return error != NULL && error->code != SEMU_OK ? error->code : SEMU_ERR_STATE;
         iom->dma_status = DMA_STATUS_ERROR;
         raise_irq(iom, IRQ_DMA_ERROR);
         semu_error_set(error, SEMU_ERR_STATE,
@@ -295,7 +374,8 @@ static void reset_state(semu_apollo4_iom *iom)
     iom->observed_registers[OBS_SUBMODCTRL] = IOM_SUBMODCTRL_RESET;
     iom->observed_registers[OBS_FIFO_STATUS] = IOM_FIFO_STATUS_RESET;
     iom->observed_registers[OBS_CLOCK_STATUS] = IOM_CLOCK_STATUS_RESET;
-    iom->observed_registers[OBS_TIMING_STATUS] = IOM_TIMING_STATUS_RESET;
+    iom->observed_registers[OBS_TIMING_STATUS] =
+        iom->race_s && iom->irq == SEMU_APOLLO4_IOM0_IRQ ? 0u : IOM_TIMING_STATUS_RESET;
     if (old_irq_level != 0 && iom->irq_sink != NULL) {
         iom->irq_sink(iom->irq_context, iom->irq, 0);
     }
@@ -394,7 +474,7 @@ semu_status semu_apollo4_iom_read(void *context, uint32_t offset,
                        "Apollo4 IOM supports 32-bit accesses only");
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (!is_known_read(offset)) {
+    if (!is_known_read(offset) || (iom->race_s && !race_s_read_allowed(offset))) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 IOM offset 0x%08x is unsupported", offset);
         return SEMU_ERR_UNSUPPORTED;
@@ -438,7 +518,7 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
                        "Apollo4 IOM supports 32-bit accesses only");
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (!is_known_write(offset)) {
+    if (!is_known_write(offset) || (iom->race_s && !race_s_write_allowed(iom, offset, value))) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 IOM offset 0x%08x is unsupported", offset);
         return SEMU_ERR_UNSUPPORTED;
@@ -451,7 +531,10 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
                 IOM_SUBMODCTRL_RESET | (value & UINT32_C(0x1f));
         } else if (offset == REG_TIMING_STATUS) {
             iom->observed_registers[index] = value & UINT32_C(0xffff);
-        } else {
+        } else if (iom->race_s && iom->irq == SEMU_APOLLO4_IOM0_IRQ &&
+                   offset == REG_TIMING_CONFIG) {
+            iom->observed_registers[index] = value & ~0x800u;
+        } else if (!iom->race_s || offset != REG_CLOCK_STATUS) {
             iom->observed_registers[index] = value;
         }
         semu_error_clear(error);
@@ -476,7 +559,8 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
         iom->dma_trig_en = value & DMA_TRIG_EN_MASK;
         break;
     case REG_DMA_CONFIG:
-        iom->dma_config = value & (iom->pressure235 ? UINT32_C(0x103) : DMA_CONFIG_MASK);
+        iom->dma_config = value & ((iom->pressure235 || iom->race_s)
+                                  ? UINT32_C(0x103) : DMA_CONFIG_MASK);
         break;
     case REG_DMA_COUNT:
         iom->dma_count = value & DMA_COUNT_MASK;
@@ -497,4 +581,14 @@ semu_status semu_apollo4_iom_write(void *context, uint32_t offset,
 const semu_bus_device_ops *semu_apollo4_iom_bus_ops(void)
 {
     return &iom_ops;
+}
+
+void semu_apollo4_iom_select_race_s(semu_apollo4_iom *iom)
+{
+    if (iom != NULL && (iom->irq == SEMU_APOLLO4_IOM2_IRQ ||
+                        iom->irq == SEMU_APOLLO4_IOM0_IRQ)) {
+        iom->race_s = 1;
+        if (iom->irq == SEMU_APOLLO4_IOM0_IRQ)
+            iom->observed_registers[OBS_TIMING_STATUS] = 0u;
+    }
 }

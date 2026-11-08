@@ -52,6 +52,14 @@ void nema_backend_draw(void *context, const nema_draw_snapshot *snap)
     if (backend->draw_error.code != SEMU_OK) {
         return;
     }
+    if (backend->race_s != NULL) {
+        semu_error error;
+        semu_error_clear(&error);
+        if (nema_ulsan_draw(backend->race_s, draw_context->bus,
+                            backend->working_pixels, snap, &error) != SEMU_OK)
+            set_draw_error(backend, snap, &error);
+        return;
+    }
 
     if (snap->target_format == NEMA_FMT_TSC6A) {
         semu_status st;

@@ -27,6 +27,8 @@
 typedef struct semu_nema_backend semu_nema_backend;
 
 semu_nema_backend *semu_nema_backend_create(semu_error *error);
+/* Race S uses the same transactional backend with its native panel geometry. */
+semu_nema_backend *semu_nema_backend_create_race_s(semu_error *error);
 void semu_nema_backend_destroy(semu_nema_backend *backend);
 /* Reset refuses with CONFLICT while preparing/prepared/publishing. Destroy
  * aborts a prepared transaction; destruction from callbacks is unsupported. */

@@ -33,6 +33,7 @@ static semu_status save(void *context, uint8_t **data, size_t *size, semu_error 
     semu_nema_backend *b=context;
     uint8_t *p; uint32_t i;
     if (!b || !data || !size) return fail(e,SEMU_ERR_ARGUMENT,"invalid arguments");
+    if (b->race_s != NULL) return fail(e,SEMU_ERR_UNSUPPORTED,"Race S codec is unavailable");
     if (b->phase != NEMA_BACKEND_IDLE) return fail(e,SEMU_ERR_CONFLICT,"active transaction");
     if ((b->shadow_fresh != 0 && b->shadow_fresh != 1) ||
         (b->baseline_valid != 0 && b->baseline_valid != 1) ||
@@ -74,6 +75,7 @@ static semu_status load(void *context, const uint8_t *p, size_t size, semu_error
     nema_state state = {0};
     uint32_t i, published, fresh, valid, base; uint64_t generation, count;
     if (!b || !p) return fail(e,SEMU_ERR_ARGUMENT,"invalid arguments");
+    if (b->race_s != NULL) return fail(e,SEMU_ERR_UNSUPPORTED,"Race S codec is unavailable");
     if (b->phase != NEMA_BACKEND_IDLE) return fail(e,SEMU_ERR_CONFLICT,"active transaction");
     if (size < 4u) return fail(e,SEMU_ERR_FORMAT,"invalid length");
     if (get32(p)==1u) return fail(e,SEMU_ERR_UNSUPPORTED,

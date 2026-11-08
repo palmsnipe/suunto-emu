@@ -18253,3 +18253,147 @@ standalone Hello frame has been reproduced at this boundary.
 | `iom2-hello-2/probe.resc` | `519449d131f95ae78d5a7a612307fc0a1b2818832e8cd10bbb858d2452781472` |
 | `iom2-hello-1/renode.log` | `4df88150bf68d9f7dd2ecf722683d8271e26ea8de084cec849e8587391c46d6f` |
 | `iom2-hello-2/renode.log` | `f89140604db97785ad37e3813ecd744b96123429a39173e383ac1830efbb5fe8` |
+
+## E-ULS-0083 — 2.44.52 IOM2 startup payloads and motion-controller boundary
+
+2026-11-07. Two cold 5 s reference runs enable the existing
+`TraceMotion` DMA payload log on IOM2. The 13 ordered transfers
+are identical after removing host timestamps and the peripheral
+name. The trace's legacy `ULSAN_IOM0_MOTION` tag refers to the same
+wrapper's debug function, while the emitting peripheral and
+addresses here are IOM2. All 13 command completions read `0x403`
+at interrupt status before the handler clears `0x401`.
+
+| I²C address | Command | Payload and count |
+| --- | --- | --- |
+| `48`, `4a` | `0x00000112` | Read `00` at selector 0, three and one times respectively |
+| `49` | `0x00000112`, `0x1c000112` | Read `49` and `41` once each |
+| `49` | `0x00000201` | Write `11 80`, `0e 03`, `0f a5`, `13 3c` in order |
+| `35` | `0x00000201` | Write `11 9d`, `10 a8` in order |
+| `35` | `0x00001702` | Read five copies of `a8 9d 00 00` and tail `a8 9d 00` |
+
+The shared Apollo4 DMA controller uses these exact endpoint shapes
+with full destination validation before transfer. The Race S
+NemaGPU window admits the E-ULS-0082 initialization tuples. Across
+the two E-ULS-0080 English-probe logs the observed ring size is
+`0x400`, ring-stop control bits are 4 and 6, and the observed
+control/status/interrupt clear stores are all zero. The Service Mode
+path uses its original display controller mapping.
+
+Two cold standalone boots with the opt-in fixtures and the shared
+GPU and IOM2 wiring reach the first IOM0 access at `0x40050104`.
+The first guest reset occurs at 126,167,356 instructions and
+1,100,764,450 ns in both runs. The instruction cap is 240,000,000
+and the virtual cap is 8 s.
+
+| Files below `/tmp/semu-ulsan-820.9P8t2G` | SHA-256 |
+| --- | --- |
+| `probe-iom2.py` | `6ce120f279029fd6f9d8595961f915ae222a3bfe125c4be2e383dd0d7cef531e` |
+| `iom2-hello-1/probe.resc` | `d06a504d2c87ba4a40e11c34fd438f289b531abedeacb9970c64e77ed38be53e` |
+| `iom2-hello-2/probe.resc` | `8491fff820923719192670d0864f861d833580ac0860ec4043f01c3d43e34e29` |
+| `iom2-hello-1/renode.log` | `985fd42a000229f2f4dc21595eeddf4fe1bd3530ab65f46ba11239b621523fd4` |
+| `iom2-hello-2/renode.log` | `ab302b9b6c116cb3a8e438268fcaaf2924c809b51cbd5a6357aa1b4cff609fe4` |
+| `iom2-payload-{1,2}.norm` | `2ea9627ba2a563da70276e8f607be82bb2dc2dea5611c6f0917af6bc8e36c1a3` |
+| `iom-boot-{1,2}.log` | `bcfa671475f9f3fc3bde95d18436397be0ff2e1d972b8388379cd1e2b22baa65` |
+
+## E-ULS-0084 — 2.44.52 466×466 Nema drawing and retained publication
+
+2026-11-07. Decode the logged child-list register/value pairs in both
+E-ULS-0080 English reference runs, preserving inherited register state.
+Compare the distinct draw tuples without occurrence counts, since the
+wall budget stopped the two later greeting cycles at different points.
+Both yield the same 57 tuples keyed by opcode, target base/format/
+resolution, source format/stride, matrix mode, program, and three
+instruction-memory words. The register set has 31 offsets:
+`000 004 008 010 014 018 01c 0c4 0c8 0cc 100 110 114 118 11c 120
+124 12c 130 134 140 144 150 154 160 164 168 16c 170 174 204`.
+
+All tuples use RGB565 format/stride `0x040003a4`, resolution
+`0x01d201d2`, and instruction-memory words
+`0 / 0x004e0002 / 0x804b1286`. The observed draw families are:
+
+- Triangle 4 uses matrix mode `0x90000000` and program `0x941eb400`.
+  The first black bands use single center samples. The bounded A2LE
+  vector state uses quarter-position 2×2 coverage.
+- Quad 5 uses A2LE sampling mode 1, matrix mode 0, and program
+  `0x941d8000` or `0x941e8000`. The lane transforms integer panel
+  coordinates into texture space with six binary32 coefficients,
+  samples bilinearly with transparent out-of-bounds taps, and rounds
+  tint and channel conversion to nearest. A2 texels are low-bit-first
+  within each byte, with alpha values 0, 85, 170 and 255.
+
+E-ULS-0082 records the band clips and marker timings. The 466×466
+backend stages the same retained surface across bands and publishes
+changed frames once a full three-band set or a full-width partial
+transaction completes. The Race S draw and guest RAM updates commit
+only after every draw and destination validates. The bounded renderer
+test exercises a three-band frame, an A2 mask and a refused batch.
+The standalone boot has not reached the reference Hello submission.
+
+| Files below `/tmp/semu-ulsan-820.9P8t2G` | SHA-256 |
+| --- | --- |
+| `nema-census.py` | `3da3e889f64505e246f501a9f22e2d68b004d0e4bdc80710d5b76a5e61581f94` |
+| `nema-tuples-{1,2}.norm` | `bdd2fa7061616b7d8ef071f741b474c9bdd2228124440d7b9e1b2ff8150995af` |
+
+## E-ULS-0085 — 2.44.52 IOM0 motion and magnetometer identification
+
+2026-11-07. Two cold 5 s lane boots with the E-ULS-0079 inputs record
+19,678 identical ordered IOM0 word accesses and 364 identical ordered
+DMA payload rows. The controller is at `0x40050000`, IRQ 6.
+The first threshold word at `+0x104` is `0x1010`. Clock words
+`0x401` and `0xc01` read back `0x401`; enabling SPI at `+0x11c`
+produces `0xe21`. The DMA count is 1, 2, or 6, and completed commands
+read `0x403` at interrupt status. Device and chip select are zero.
+
+Reads are native selector/receive phases, with command lower 24 bits
+`0x112`, `0x212`, or `0x612`; the upper byte is the register with
+bit 7 set. Write command `0x201` carries a register/value pair.
+The ordered trace contains 25 single-byte selectors and two
+multi-byte shapes, `c6` (two bytes) and `a8` (six bytes). The
+first WHO_AM_I read at selector `8f` returns `6c`. The 29 distinct
+write pairs include `12 01`, whose bit 0 self-clears, and the
+LIS2MDL hub setup `15 3d`, `16 4f`, `17 01`. After that setup,
+selector `9e` returns 1, `a2` returns `40` then 1, and `82`
+returns `40`. The motion buffers and FIFO reads are zero in this
+window. The reference `UlsanLsm6Dsox.cs` hashes to
+`016871ef9837e9cf6a6356108b0ed4d9a105a769b7253fd58c3f2db550c1f080`.
+
+With the IOM0 startup admitted, both 240M-instruction/8 s standalone
+boots reach TIMER8 at `0x40008300` before the first reset request.
+That request occurs at 197,513,635 instructions and 2,122,709,441 ns.
+
+| Files below `/tmp/semu-ulsan-820.9P8t2G` | SHA-256 |
+| --- | --- |
+| `probe-iom0.py` | `e85a1b807d661fa4cd6fb3df1d2159a4c115170a861ee080c34fe7ea66ef638e` |
+| `iom0-hello-1/probe.resc` | `1caaf5a0dc326d15c6a1fea07d7c55a1527fd1d1e1ced8c45307d60b204b576b` |
+| `iom0-hello-2/probe.resc` | `dce918ba50baea604597ff21cbbd758bcf763a5646f5e41c50888d189129af5d` |
+| `iom0-hello-1/renode.log` | `40b20d53bef93769aa355c4623526d9bb2b1cf08efa4711ba419864528428451` |
+| `iom0-hello-2/renode.log` | `fb3bbcf69efa6e5d442811cfb65641f3d616a8127051157ce69cbd6ea30fad59` |
+| `iom0-access-{1,2}.norm` | `68ed855730709c1bedd8098a1b445e679167445f447440c1fa5b656b137f7d3f` |
+| `iom0-payload-{1,2}.norm` | `4ce5c50c417bc1cb9d509790c7e7ee88289bc4fa9c2a7fcc34025d7e4b1d24ef` |
+| `motion-boot-{1,2}.log` | `2169423cb4bd03b29dfd29e1cc53eb3f01ab9e73077cbe681e7c1353470d8099` |
+
+## E-ULS-0086 — 2.44.52 disabled TIMER8 configuration
+
+2026-11-07. Two cold 5 s lane boots issue the same eight aligned
+TIMER8 accesses. The control at `0x40008300` first reads zero.
+The guest writes `0`, then `0x144`, sets mode `0x100` at
+`+0x310`, and stores zero at both compare offsets `0x308` and
+`0x30c`. Control reads back `0x140`. The lane logs the discarded
+bit 2 as the `TMR8POL0` tag. The final control write is `0x142`,
+using the same self-clearing reset bit as TIMER7. Enable bit 0 is
+never set and no TIMER8 counter or interrupt operation is admitted.
+
+With these tuples modeled, two cold standalone 360M-instruction,
+12 s runs reach the next SDIO access at `0x40070034`. They first
+request reset at 289,872,617 instructions and 10,942,690,193 ns.
+
+| Files below `/tmp/semu-ulsan-820.9P8t2G` | SHA-256 |
+| --- | --- |
+| `probe-timer8.py` | `4376407b10c711c4554755734b487c2fad31b05d6874dba70f6f6107975e9a12` |
+| `timer8-hello-1/probe.resc` | `0acdf36e7254c3afca50bc2a9c2c94bf197227232bbb1479c7017eb450857ef7` |
+| `timer8-hello-2/probe.resc` | `44f3b14378329b8ded19ca1b654c299bad9ee5f9ead2d5743aefeac101b9f038` |
+| `timer8-hello-1/renode.log` | `552fb511858420a31a8740c91552a829d69a235dcf79f085be4922e06001c396` |
+| `timer8-hello-2/renode.log` | `12aec1ca370abfd6efc3026d8dbd6d046defc9fbca6547dc15c077211125e716` |
+| `timer8-{1,2}.norm` | `d986b15c03bce98edc0fc0ed8c8e94c7deb49be7468f668797d13dceaaef393e` |
+| `timer8-boot-{1,2}.log` | `e411e238c05f70f80dd03f130bdd1c0121f239bf9ae218151e3dc7d6c801116c` |

@@ -2,6 +2,7 @@
 #define SEMU_NEMA_BACKEND_INTERNAL_H
 #include "nema_backend.h"
 #include "nema_tsc6a.h"
+#include "nema_ulsan.h"
 
 enum { NEMA_BACKEND_IDLE, NEMA_BACKEND_PREPARING, NEMA_BACKEND_PREPARED,
        NEMA_BACKEND_COMMITTING };
@@ -15,7 +16,8 @@ struct semu_nema_backend {
     nema_diagnostics *diag;
     nema_tsc6a *tsc6a, *pending_tsc6a;
     uint8_t *working_pixels, *frames;
-    size_t frame_count;
+    size_t frame_count, panel_bytes;
+    nema_ulsan *race_s;
     semu_frame_callback callback;
     void *frame_context;
     int phase, tsc6a_dirty;

@@ -66,6 +66,10 @@
 #define TIMER7_COMPARE0 0x2e8u
 #define TIMER7_COMPARE1 0x2ecu
 #define TIMER7_MODE 0x2f0u
+#define TIMER8_CONTROL 0x300u
+#define TIMER8_COMPARE0 0x308u
+#define TIMER8_COMPARE1 0x30cu
+#define TIMER8_MODE 0x310u
 #define TIMER_TICK_NS UINT64_C(61035)
 #define TIMER1_244_HZ UINT64_C(32768)
 #define NS_PER_SECOND UINT64_C(1000000000)
@@ -89,6 +93,10 @@ static int timer0_slot(uint32_t offset, unsigned *slot, int write, int race_s_24
     case TIMER7_COMPARE0: *slot = 9u; return race_s_244 && write;
     case TIMER7_COMPARE1: *slot = 10u; return race_s_244 && write;
     case TIMER7_MODE: *slot = 11u; return race_s_244 && write;
+    case TIMER8_CONTROL: *slot = 12u; return race_s_244;
+    case TIMER8_COMPARE0: *slot = 13u; return race_s_244 && write;
+    case TIMER8_COMPARE1: *slot = 14u; return race_s_244 && write;
+    case TIMER8_MODE: *slot = 15u; return race_s_244 && write;
     default: return 0;
     }
     if (!write) {
@@ -209,7 +217,11 @@ static semu_status timer0_write(void *context, uint32_t offset,
          value != 0x120u && value != 0x122u) ||
         ((offset == TIMER7_COMPARE0 || offset == TIMER7_COMPARE1) &&
          value != UINT32_MAX) ||
-        (offset == TIMER7_MODE && value != 0u)) {
+        (offset == TIMER7_MODE && value != 0u) ||
+        (offset == TIMER8_CONTROL && value != 0u &&
+         value != 0x144u && value != 0x142u) ||
+        ((offset == TIMER8_COMPARE0 || offset == TIMER8_COMPARE1) && value != 0u) ||
+        (offset == TIMER8_MODE && value != 0x100u)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan TIMER write at 0x%08x width %u is "
                        "unsupported", offset, width);
@@ -218,6 +230,8 @@ static semu_status timer0_write(void *context, uint32_t offset,
     if ((offset == TIMER1_CONTROL && s->race_s_244) || offset == TIMER7_CONTROL) {
         value &= ~TIMER1_CONTROL_CLEAR; /* E-ULS-0065 and E-ULS-0081 */
     }
+    if (offset == TIMER8_CONTROL)
+        value &= ~0x6u; /* E-ULS-0086: reset self-clears and polarity is a tag. */
     s->regs[slot] = value;
     if (offset == TIMER1_CONTROL) {
         if ((value & TIMER1_CONTROL_ENABLE) != 0u) {

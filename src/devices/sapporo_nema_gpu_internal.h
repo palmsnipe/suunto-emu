@@ -36,6 +36,7 @@ struct semu_nema_gpu {
     uint32_t previous_ring_stop;
     uint32_t frame_generation;
     int submitting;
+    int race_s;
     /* Transient, non-serialized diagnostic state (ticket 794,
      * E-EMU-SAP235-RINGKICK-CPU-INVISIBLE-001): the logger borrowed at
      * wiring time and the count of committed CMDRINGSTOP submissions since

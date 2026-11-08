@@ -43,6 +43,12 @@ synthetic first-boot fixture and further device coverage.
 - `profiles/ulsan/2.44.52/profile.semu` for opt-in layer declarations
 - `tests/devices/test_ulsan_*.c`, `tests/integration/test_ulsan_244_*.c`
 - `tests/integration/test_firmware_ulsan_244_*.sh`
+- `src/devices/sapporo_nema_gpu{,_internal,_submission}.{c,h}`,
+  `src/display/nema_{backend,backend_internal,backend_draw,backend_transaction,framing,state}*.{c,h}`,
+  and `src/display/nema_ulsan*.{c,h}` for the shared GPU integration and
+  native Race S frame composition
+- `src/soc/apollo4/iom{,_internal}.{c,h}` for Race S IOM2 and the observed
+  IOM0 motion startup transactions through the shared DMA controller
 
 ## Frozen Interfaces
 
@@ -63,7 +69,10 @@ Introduce only reproduced native hardware behavior and explicit,
 identity-pinned compatibility inputs required by the observed startup
 path. Keep compatibility opt-in, logged and hit-bounded. Obtain
 onboarding pixels from the real firmware through the frame callback.
-Use a separate component ticket if a required interface is out of scope.
+The owner authorized the shared NemaGPU and IOM2 integration in the
+continuation of this ticket. Keep the Race S additions profile-scoped.
+Use a separate component ticket if a further required interface is out
+of scope.
 
 ## Tests and Commands
 
@@ -120,6 +129,17 @@ on both cold boots.
 The private Hello startup gate also exercises missing path/layer and
 wrong-size image refusals. A separate CLI run with a 256 MiB zero image
 refuses on the SHA-256 check before execution.
+
+The continuation wires the Race S GPU register window and IOM2
+through the shared controllers, adds the 466×466 retained renderer,
+and models the observed IOM0 motion and TIMER8 startup. The two
+standalone runs now reach late SDIO at `0x40070034` after
+289,872,617 instructions and 10,942,690,193 ns. See E-ULS-0083
+through E-ULS-0086. The focused tests are
+`make test TEST_FILTER=ulsan_244_hello_io`,
+`make test TEST_FILTER=ulsan_244_nema`, and
+`make test TEST_FILTER=ulsan_timer0wake`. The native Hello
+acceptance still requires two standalone frame matches.
 
 Files changed for this ticket
 

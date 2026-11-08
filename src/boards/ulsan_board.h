@@ -6,7 +6,9 @@
 #include "semu/scheduler.h"
 #include "../devices/ulsan_clkgen.h"
 #include "../devices/ulsan_disp.h"
+#include "../devices/ulsan_iom2.h"
 #include "../devices/ulsan_iom4.h"
+#include "../devices/ulsan_motion.h"
 #include "../devices/ulsan_mspi1_native.h"
 #include "../devices/ulsan_pwrctrl.h"
 #include "../devices/ulsan_rtc.h"
@@ -22,6 +24,8 @@ typedef struct semu_ulsan_244_board {
     semu_ulsan_wdt watchdog;
     semu_ulsan_rtc rtc;
     semu_ulsan_timer0 timer;
+    semu_ulsan_iom2 iom2;
+    semu_ulsan_motion motion;
     semu_ulsan_iom4 iom4;
     ulsan_mspi1_state mspi1;
     semu_ulsan_disp display;

@@ -76,7 +76,7 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
         return SEMU_TRANSACTION_REFUSE;
     }
     if (callback != NULL && nonempty != 0u) {
-        b->frames = malloc(nonempty * (size_t)NEMA_BACKEND_PANEL_BYTES);
+        b->frames = malloc(nonempty * b->panel_bytes);
         if (b->frames == NULL) {
             semu_error_set(error, SEMU_ERR_NOMEM, "backend: cannot stage frames");
             return SEMU_TRANSACTION_REFUSE;
@@ -88,18 +88,34 @@ static semu_transaction_result prepare(void *context, semu_bus *bus,
     semu_error_clear(&b->draw_error);
     nema_state_copy(b->pending_state, b->state);
     memcpy(b->working_pixels, semu_surface_frame(b->surface)->pixels,
-        NEMA_BACKEND_PANEL_BYTES);
+           b->panel_bytes);
+    if (b->race_s != NULL) nema_ulsan_begin(b->race_s, bus);
     for (i = 0u; i < count; ++i) {
+        int publish;
         if (lists[i].word_count == 0u) continue;
+        if (b->race_s != NULL) b->race_s->list_drew = 0;
         if (nema_backend_render_list(b, bus, &lists[i], error) != SEMU_OK) {
             discard(b);
             return SEMU_TRANSACTION_REFUSE;
         }
-        if (callback != NULL && lists[i].flags == 0u) {
-            memcpy(b->frames + b->frame_count * NEMA_BACKEND_PANEL_BYTES,
-                b->working_pixels, NEMA_BACKEND_PANEL_BYTES);
+        publish = lists[i].flags == 0u;
+        if (b->race_s != NULL && publish) {
+            const uint8_t *previous = b->frame_count != 0u ?
+                b->frames + (b->frame_count - 1u) * b->panel_bytes :
+                b->published_valid ? b->published_pixels : NULL;
+            publish = nema_ulsan_end_list(b->race_s) &&
+                (previous == NULL ||
+                 memcmp(previous, b->working_pixels, b->panel_bytes) != 0);
+        }
+        if (callback != NULL && publish) {
+            memcpy(b->frames + b->frame_count * b->panel_bytes,
+                b->working_pixels, b->panel_bytes);
             ++b->frame_count;
         }
+    }
+    if (b->race_s != NULL && nema_ulsan_validate(b->race_s, error) != SEMU_OK) {
+        discard(b);
+        return SEMU_TRANSACTION_REFUSE;
     }
     b->callback = callback; b->frame_context = frame_context;
     b->phase = NEMA_BACKEND_PREPARED;
@@ -128,13 +144,13 @@ static void commit(void *context)
     }
     b->shadow_fresh = b->pending_shadow_fresh;
     b->baseline_saved = 0; /* The updated cache is now committed. */
+    if (b->race_s != NULL) nema_ulsan_commit(b->race_s, b->working_pixels);
     pixels = semu_surface_pixels(b->surface, NULL);
     if (b->callback != NULL) {
         for (i = 0u; i < b->frame_count; ++i) {
-            memcpy(pixels, b->frames + i * NEMA_BACKEND_PANEL_BYTES,
-                NEMA_BACKEND_PANEL_BYTES);
+            memcpy(pixels, b->frames + i * b->panel_bytes, b->panel_bytes);
             semu_surface_publish(b->surface);
-            memcpy(b->published_pixels, pixels, NEMA_BACKEND_PANEL_BYTES);
+            memcpy(b->published_pixels, pixels, b->panel_bytes);
             b->published = *semu_surface_frame(b->surface);
             b->published.pixels = b->published_pixels;
             b->published_valid = 1;
@@ -142,7 +158,7 @@ static void commit(void *context)
         }
     }
     /* Inline draws after the last published child still commit their pixels. */
-    memcpy(pixels, b->working_pixels, NEMA_BACKEND_PANEL_BYTES);
+    memcpy(pixels, b->working_pixels, b->panel_bytes);
     discard(b);
 }
 

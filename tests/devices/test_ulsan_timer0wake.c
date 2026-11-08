@@ -88,6 +88,13 @@ static void check_compare_wake_edges(semu_test_context *context, int race_s)
             semu_bus_write(bus, 0x400082e0u, 4u, 0x121u, &error));
         SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
             semu_bus_read(bus, 0x400082e4u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_write(bus, 0x40008300u, 4u, 0x144u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(bus, 0x40008300u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0x140u, value);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_write(bus, 0x40008300u, 4u, 0x141u, &error));
     } else {
         SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
         semu_ulsan_timer0_attach(scheduler, wake_sink, NULL);
