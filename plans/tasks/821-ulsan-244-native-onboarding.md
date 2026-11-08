@@ -1,6 +1,6 @@
 # 821 — Ulsan 2.44.52 Native Onboarding Input
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 820
 
@@ -89,6 +89,14 @@ The SDL adapter sends crown and touch through the machine input API to the
 PAT9126 on IOM6/GPIO104 and the touch controller on IOM3/GPIO100.
 The renderer accepts the observed A8 transition and vector draws.
 See E-ULS-0096 through E-ULS-0099.
+
+Two cold standalone runs reached the pairing guidance bottom at frame
+245, 52,538,537,483 virtual ns, and 4,325,812,021 instructions. The
+RGB565 SHA-256 was
+`d3014e708de945e59f5a41e226fd89156bb9ba9467c676ed4eef634229346ae4`.
+The original Hello and Service Mode gates also passed twice with unchanged
+pins. The Race S unit and private firmware commands, task contracts, line
+review, full checks, sanitizers, and SDL checks passed.
 
 At the first pairing guidance screen, swipe up and then turn the crown
 clockwise. The supported walk ends at the bottom of the guidance; BLE
