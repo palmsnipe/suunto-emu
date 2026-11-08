@@ -56,10 +56,23 @@
  * (probe73 census), so the engine keeps refusing. +0x108 INTCLR is
  * written only by the guest's IRQ40 vector handler (0xc2bc0), which
  * no engine raises in-era (no STIMER IRQ line is wired), so it stays
- * refused. Like the pre-E-ULS-0046 model, the state is process-static
- * and outside the machine snapshot plane (pre-existing footprint).
+ * refused. The 2.35.36 attachment uses process-static state.
+ * The 2.44.52 attachment owns its state per machine (E-ULS-0060).
  */
 
+typedef struct semu_ulsan_stimer {
+    uint32_t nvram[4];
+    uint32_t config;
+    uint32_t control;
+    uint64_t base_ticks;
+    uint64_t anchor_ns;
+    int enabled;
+    semu_scheduler *scheduler;
+} semu_ulsan_stimer;
+
+semu_status semu_ulsan_stimer_map_state(semu_bus *bus, semu_ulsan_stimer *state,
+                                        semu_scheduler *scheduler,
+                                        semu_error *error);
 semu_status semu_ulsan_stimer_map(semu_bus *bus, semu_error *error);
 
 /* Feed the STTMR clock: without an attached scheduler the virtual-time

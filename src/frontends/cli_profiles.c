@@ -12,7 +12,8 @@ static const char *profile_path(const char *argument)
         {"sapporo-2.22.60", "profiles/sapporo/2.22.60/profile.semu"},
         {"sapporo-2.33.16", "profiles/sapporo/2.33.16/profile.semu"},
         {"sapporo-2.35.34", "profiles/sapporo/2.35.34/profile.semu"},
-        {"sapporo-2.39.20", "profiles/sapporo/2.39.20/profile.semu"}
+        {"sapporo-2.39.20", "profiles/sapporo/2.39.20/profile.semu"},
+        {"ulsan-2.44.52", "profiles/ulsan/2.44.52/profile.semu"}
     };
     size_t i;
     if (argument != NULL) {
@@ -31,5 +32,6 @@ static int command_list(void)
     puts("sapporo-2.33.16  Sapporo  2.33.16.17428-P  evidence-contract");
     puts("sapporo-2.35.34  Sapporo  2.35.34.18929-P  evidence-contract");
     puts("sapporo-2.39.20  Sapporo  2.39.20.22297-P  evidence-contract");
+    puts("ulsan-2.44.52  Ulsan  2.44.52.20521-R  reset-bring-up");
     return 0;
 }

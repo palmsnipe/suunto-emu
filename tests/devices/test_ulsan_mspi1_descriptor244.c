@@ -1,8 +1,7 @@
 /*
  * Ulsan MSPI1 2.44.52 descriptor-shape tests (ticket 730, E-ULS-0034).
  *
- * These descriptor shapes come from the 2.44.52 profile and stay dormant
- * on the 2.35.36 boot, so the boot-sequence replay never reaches them.
+ * Exercise the 2.44.52 descriptor shapes through the 2.44.52 board.
  * This file pins the ported branch contract directly from the lane
  * class (SapporoApollo4Mspi1.cs lines 676-771): the Initial descriptor
  * retires into the PIO chain, the QPI repeat at return word 0x003925C2
@@ -114,31 +113,39 @@ static void expect_identity(semu_test_context *context, semu_bus *bus)
     SEMU_TEST_EQ_U64(context, 0x01u, rd8(bus, DESC + 3u)); /* untouched  */
 }
 
-static void open_board(semu_test_context *context, semu_bus **out)
+static void open_board(semu_test_context *context, semu_bus **out,
+                        semu_ulsan_244_board *board)
 {
     semu_error error;
 
     semu_error_clear(&error);
     *out = semu_bus_create(&error);
     SEMU_TEST_ASSERT(context, *out != NULL);
-    semu_ulsan_mspi1_set_irq_sink(record_sink, NULL);
     event_count = 0u;
     semu_error_clear(&error);
-    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(*out, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_244_board_map(
+        *out, board, NULL, record_sink, NULL, &error));
     wr(context, *out, 0x200u, 0x41u);
 }
 
 static void test_244_descriptor_lifecycle(semu_test_context *context)
 {
     semu_bus *bus;
+    semu_ulsan_244_board board;
 
-    open_board(context, &bus);
+    open_board(context, &bus, &board);
+    SEMU_TEST_EQ_U64(context, 0x41u, rd(bus, 0x200u));
 
     /* Initial: the 00 01 00 01 descriptor retires with the identity
      * regardless of the return word (lane line 676). */
     descriptor_0001(bus, 0x00000000u);
     retire(context, bus);
     expect_identity(context, bus);
+    SEMU_TEST_EQ_U64(context, 2u, event_count);
+    SEMU_TEST_EQ_U64(context, 21u, events[0].irq);
+    SEMU_TEST_EQ_U64(context, 1u, events[0].level);
+    SEMU_TEST_EQ_U64(context, 21u, events[1].irq);
+    SEMU_TEST_EQ_U64(context, 0u, events[1].level);
 
     /* PIO chain advances to the QPI identification stage. */
     wr(context, bus, 0xCu, 0xB7u);
@@ -169,10 +176,11 @@ static void test_244_descriptor_lifecycle(semu_test_context *context)
 static void test_244_descriptor_refusals(semu_test_context *context)
 {
     semu_bus *bus;
-    semu_error error;
+    semu_ulsan_244_board board;
 
     /* Unproven return word in the QPI identification stage. */
-    open_board(context, &bus);
+    open_board(context, &bus, &board);
+    SEMU_TEST_EQ_U64(context, 0x41u, rd(bus, 0x200u));
     descriptor_0001(bus, 0x00000000u);
     retire(context, bus); /* Initial branch fires first, stage advances */
     wr(context, bus, 0xCu, 0xB7u);
@@ -191,7 +199,7 @@ static void test_244_descriptor_refusals(semu_test_context *context)
 
     /* Broken prefix at the descriptor address: neither the 2.44.52
      * shape nor the return-word JEDEC applies - nothing completes. */
-    open_board(context, &bus);
+    open_board(context, &bus, &board);
     wr8(bus, DESC, 0x00u);
     wr8(bus, DESC + 1u, 0x02u); /* not 00 01 00 01                      */
     wr8(bus, DESC + 2u, 0x00u);
@@ -202,15 +210,52 @@ static void test_244_descriptor_refusals(semu_test_context *context)
     wr(context, bus, 0x110u, 3u);
     wr(context, bus, 0x100u, 0x13u);
     SEMU_TEST_EQ_U64(context, 0u, rd(bus, 0x204u) & 0x40u);
+    SEMU_TEST_EQ_U64(context, 0u, rd8(bus, DESC));
+    SEMU_TEST_EQ_U64(context, 2u, rd8(bus, DESC + 1u));
+    SEMU_TEST_EQ_U64(context, 0u, event_count);
     SEMU_TEST_EQ_U64(context, 0x13u, rd(bus, 0x100u)); /* store stands   */
-    (void)error;
 
     semu_bus_destroy(bus);
+}
+
+static void test_244_controller_and_backing_isolation(semu_test_context *context)
+{
+    const uint32_t flash_address = ULSAN_MSPI1_PERSIST_BACKING_START;
+    semu_ulsan_244_board first, second;
+    semu_bus *first_bus, *second_bus;
+    uint8_t byte;
+
+    open_board(context, &first_bus, &first);
+    wr(context, first_bus, 0x90u, 0x100e0u);
+    ulsan_mspi1_initialize_synthetic_range(&first.mspi1);
+    SEMU_TEST_EQ_U64(context, 0,
+        ulsan_mspi1_xip_write(&first.mspi1, flash_address, 0x5au));
+
+    open_board(context, &second_bus, &second);
+    SEMU_TEST_EQ_U64(context, 0u, rd(second_bus, 0x90u));
+    SEMU_TEST_ASSERT(context,
+        ulsan_mspi1_xip_read(&second.mspi1, flash_address, &byte) != 0);
+    ulsan_mspi1_initialize_synthetic_range(&second.mspi1);
+    SEMU_TEST_EQ_U64(context, 0,
+        ulsan_mspi1_xip_read(&second.mspi1, flash_address, &byte));
+    SEMU_TEST_EQ_U64(context, 0xffu, byte);
+
+    semu_bus_reset(second_bus);
+    SEMU_TEST_EQ_U64(context, 0x100e0u, rd(first_bus, 0x90u));
+    semu_bus_reset(first_bus);
+    SEMU_TEST_EQ_U64(context, 0u, rd(first_bus, 0x90u));
+    SEMU_TEST_EQ_U64(context, 0,
+        ulsan_mspi1_xip_read(&first.mspi1, flash_address, &byte));
+    SEMU_TEST_EQ_U64(context, 0x5au, byte);
+
+    semu_bus_destroy(second_bus);
+    semu_bus_destroy(first_bus);
 }
 
 static const semu_test_case cases[] = {
     {"244 descriptor lifecycle", test_244_descriptor_lifecycle},
     {"244 descriptor refusals", test_244_descriptor_refusals},
+    SEMU_TEST_CASE(test_244_controller_and_backing_isolation),
 };
 
 int main(void)

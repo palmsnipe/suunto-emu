@@ -353,12 +353,83 @@ static void test_boot_passes_power_status_sampler(semu_test_context *context)
     semu_machine_destroy(machine);
 }
 
+static void test_244_display_power_and_refusals(semu_test_context *context)
+{
+    semu_error error;
+    semu_ulsan_pwrctrl power;
+    semu_bus *bus = semu_bus_create(&error);
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_pwrctrl_map(bus, &power, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x00100000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, PWR_BASE + 0x04u, 4u, 0x004e8020u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x04u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x000e0020u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, PWR_BASE + 0x04u, 4u, 0x000c0020u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_write(bus, PWR_BASE + 0x04u, 4u, 0x80000000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_write(bus, PWR_BASE + 0x08u, 4u, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(bus, PWR_BASE + 0x08u, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(bus, PWR_BASE + 0x2cu, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x000c01e0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, PWR_BASE + 0x04u, 4u, 0x00200000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_reset(bus);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x00100000u, value);
+    semu_bus_destroy(bus);
+}
+
+static void test_244_power_instances_are_isolated(semu_test_context *context)
+{
+    semu_error error;
+    semu_ulsan_pwrctrl first_power, second_power;
+    semu_bus *first = semu_bus_create(&error);
+    semu_bus *second = semu_bus_create(&error);
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, first != NULL && second != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_pwrctrl_map(first, &first_power, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(first, PWR_BASE + 0x04u, 4u, 0x00040000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_pwrctrl_map(second, &second_power, &error));
+    semu_bus_reset(second);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(first, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x00040000u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(second, PWR_BASE + 0x08u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x00100000u, value);
+    semu_bus_destroy(second);
+    semu_bus_destroy(first);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         SEMU_TEST_CASE(test_observed_transactions_accepted),
         SEMU_TEST_CASE(test_unobserved_transactions_refused),
         SEMU_TEST_CASE(test_device_power_store_plane),
+        SEMU_TEST_CASE(test_244_display_power_and_refusals),
+        SEMU_TEST_CASE(test_244_power_instances_are_isolated),
         SEMU_TEST_CASE(test_boot_passes_power_status_sampler)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

@@ -216,6 +216,109 @@ static void test_unsupported_accesses_refused(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+typedef struct {
+    unsigned count;
+    uint64_t generation;
+    uint16_t left, right, corner;
+} scanout_record;
+
+static uint16_t frame_pixel(const semu_frame *frame, unsigned x, unsigned y)
+{
+    const uint8_t *pixel = frame->pixels + y * frame->stride + x * 2u;
+    return (uint16_t)(pixel[0] | ((uint16_t)pixel[1] << 8u));
+}
+
+static void record_scanout(void *context, const semu_frame *frame)
+{
+    scanout_record *record = context;
+
+    if (frame->width != 466u || frame->height != 466u ||
+        frame->stride != 932u || frame->size != 434312u ||
+        frame->format != SEMU_PIXEL_RGB565_LE || frame->pixels == NULL)
+        return;
+    ++record->count;
+    record->generation = frame->generation;
+    record->left = frame_pixel(frame, 1u, 2u);
+    record->right = frame_pixel(frame, 2u, 2u);
+    record->corner = frame_pixel(frame, 465u, 465u);
+}
+
+static void test_244_scanout_and_refusal(semu_test_context *context)
+{
+    const uint32_t source = 0x10000000u;
+    semu_ulsan_disp display;
+    semu_error error;
+    semu_status status;
+    scanout_record record = {0};
+    semu_bus *bus;
+
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_map_ram(bus, "packed layer", source, 233u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, source, 1u, 0x21u, &error));
+    irq_count = 0u;
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_244_disp_map(
+        bus, &display, record_sink, NULL, record_scanout, &record, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x00u, 4u, 0x20008u));
+    SEMU_TEST_EQ_U64(context, 0u, record.count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0xf8u, 4u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x30u, 4u, 0x88ff0109u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x34u, 4u, 0x00010002u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x38u, 4u, 0x00020001u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x3cu, 4u, source));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x40u, 4u, 233u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x444u, 4u, 0xff0000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x488u, 4u, 0x00ff00u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x00u, 4u, 0x120008u));
+    SEMU_TEST_EQ_U64(context, 1u, record.count);
+    SEMU_TEST_EQ_U64(context, 1u, record.generation);
+    SEMU_TEST_EQ_U64(context, 0xf800u, record.left);
+    SEMU_TEST_EQ_U64(context, 0x07e0u, record.right);
+    SEMU_TEST_EQ_U64(context, 0u, record.corner);
+    SEMU_TEST_EQ_U64(context, 3u, irq_count);
+    SEMU_TEST_EQ_U64(context, 29u, irq_events[2].irq);
+    SEMU_TEST_EQ_U64(context, 1u, irq_events[2].level);
+    SEMU_TEST_EQ_U64(context, 0x10u, rd(context, bus, 0xf8u, 4u, &status));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, status);
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0xf8u, 4u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x3cu, 4u, source + 1u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_RANGE,
+                     wr(context, bus, 0x00u, 4u, 0x120008u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x30u, 4u, 0x88ff0105u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     wr(context, bus, 0x00u, 4u, 0x120008u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     wr(context, bus, 0x00u, 4u, 0x120009u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     wr(context, bus, 0x00u, 2u, 8u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     wr(context, bus, 0x8074u, 1u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_read(bus, DISP + 0x8074u, 4u, &(uint32_t){0}, &error));
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0xf8u, 4u, &status));
+    SEMU_TEST_EQ_U64(context, 4u, irq_count);
+    SEMU_TEST_EQ_U64(context, 1u, record.count);
+    SEMU_TEST_EQ_U64(context, 0x120008u, display.registers[0]);
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x30u, 4u, 0x88ff0109u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x34u, 4u, 0x01d101d1u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x38u, 4u, 0x00010001u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x3cu, 4u, source));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(context, bus, 0x00u, 4u, 0x120008u));
+    SEMU_TEST_EQ_U64(context, 2u, record.count);
+    SEMU_TEST_EQ_U64(context, 2u, record.generation);
+    SEMU_TEST_EQ_U64(context, 0u, record.left);
+    SEMU_TEST_EQ_U64(context, 0u, record.right);
+    SEMU_TEST_EQ_U64(context, 0xf800u, record.corner);
+
+    semu_bus_destroy(bus);
+    semu_ulsan_disp_destroy_state(&display);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -224,7 +327,8 @@ int main(void)
         { "test_translated_lanes_semantics",
           test_translated_lanes_semantics },
         { "test_unsupported_accesses_refused",
-          test_unsupported_accesses_refused }
+          test_unsupported_accesses_refused },
+        SEMU_TEST_CASE(test_244_scanout_and_refusal)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

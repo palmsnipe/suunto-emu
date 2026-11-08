@@ -18,4 +18,17 @@
 
 semu_status semu_ulsan_clkgen_map(semu_bus *bus, semu_error *error);
 
+#define SEMU_ULSAN_CLKGEN_SLOTS 64u
+
+typedef struct semu_ulsan_clkgen {
+    uint32_t stored[SEMU_ULSAN_CLKGEN_SLOTS];
+    uint32_t value[SEMU_ULSAN_CLKGEN_SLOTS];
+    unsigned used;
+} semu_ulsan_clkgen;
+
+/* The caller owns state for the lifetime of the bus. */
+semu_status semu_ulsan_clkgen_map_state(semu_bus *bus,
+                                       semu_ulsan_clkgen *state,
+                                       semu_error *error);
+
 #endif

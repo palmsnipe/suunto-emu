@@ -32,6 +32,7 @@ typedef struct run_arguments {
     const char *until;
     const char *input_replay;
     const char *full_flash;
+    const char *ulsan_emmc;
     const char *layers[SEMU_MAX_LAYERS];
     size_t layer_count;
     uint64_t max_instructions;
@@ -59,7 +60,7 @@ static void usage(FILE *stream)
             "  suunto-emu validate --profile PROFILE --firmware MANIFEST\n"
             "  suunto-emu list-layers --profile PROFILE\n"
             "  suunto-emu run --profile PROFILE --firmware MANIFEST "
-            "[--layer ID] [--full-flash PATH] [--until CHECKPOINT] "
+            "[--layer ID] [--full-flash PATH] [--ulsan-emmc PATH] [--until CHECKPOINT] "
             "[--max-instructions N] [--max-time NS] "
             "[--trace PATH] [--input-replay PATH] [--headless] "
             "[--report PATH] [--snapshot-load PATH] [--snapshot-save PATH] "
@@ -130,6 +131,8 @@ static int parse_options(int argc, char **argv, int start,
             arguments->input_replay = value;
         } else if (strcmp(option, "--full-flash") == 0) {
             arguments->full_flash = value;
+        } else if (strcmp(option, "--ulsan-emmc") == 0) {
+            arguments->ulsan_emmc = value;
         } else if (strcmp(option, "--until") == 0) {
             arguments->until = value;
         } else if (strcmp(option, "--max-time") == 0) {
@@ -235,6 +238,10 @@ static int command_validate(const run_arguments *arguments)
     semu_firmware_manifest firmware;
     semu_error error;
     semu_error_clear(&error);
+    if (arguments->ulsan_emmc != NULL) {
+        fputs("validate: --ulsan-emmc is only supported by run\n", stderr);
+        return 2;
+    }
     if (!load_and_validate(arguments, &profile, &firmware, &error)) {
         fprintf(stderr, "validate: %s\n", error.text);
         return 2;
@@ -370,6 +377,7 @@ static int command_run(const run_arguments *arguments,
     options.display_snapshot = &semu_nema_backend_snapshot_ops;
     options.display_backend_context = backend;
     options.external_flash_path = arguments->full_flash;
+    options.ulsan_emmc_path = arguments->ulsan_emmc;
     options.input_poll = input_poll;
     options.input_poll_context = input_poll_context;
     machine = semu_machine_create(&options, &error);

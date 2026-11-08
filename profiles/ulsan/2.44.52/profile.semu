@@ -1,0 +1,40 @@
+# Ulsan (Suunto Race S) 2.44.52 reset profile. Ticket 808.
+# E-ULS-0003 pins the identities and E-ULS-0052 pins the reset placement.
+# The resources load is the physical XIP address of the recovered OTA tail.
+[profile]
+format=1
+id=ulsan-2.44.52
+board=ulsan
+product=Ulsan
+version=2.44.52.20521-R
+vector_table=0x00030000
+display_width=466
+display_height=466
+
+[component resident]
+role=resident
+load_address=0x00010000
+size=114669
+sha256=3ba7a5b312a2fd4fdb4c327270ec66888f3fc03940bf8b5184233dad221369d9
+
+[component application]
+role=application
+load_address=0x00030000
+size=1828547
+sha256=64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef
+
+[component resources]
+role=resources
+load_address=0x18040000
+size=33292288
+sha256=81f861d4541d5c9f0e6b0cb73c2b3e44197d5abc6f147e1de8005da9af87f524
+
+[layer ulsan-2.44-production-data]
+kind=synthetic-state
+evidence=E-ULS-0078
+max_hits=1
+
+[layer ulsan-2.44-emmc]
+kind=synthetic-state
+evidence=E-ULS-0079
+max_hits=1

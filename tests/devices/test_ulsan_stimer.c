@@ -375,9 +375,50 @@ static void test_boot_passes_stimer(semu_test_context *context)
     semu_machine_destroy(machine);
 }
 
+static void test_244_stimer_instances_are_isolated(semu_test_context *context)
+{
+    semu_error error;
+    semu_ulsan_stimer a, b;
+    semu_scheduler *first = semu_scheduler_create(&error);
+    semu_scheduler *second = semu_scheduler_create(&error);
+    semu_bus *left = semu_bus_create(&error);
+    semu_bus *right = semu_bus_create(&error);
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, first && second && left && right);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_ulsan_stimer_map_state(left, &a, first, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(left, STIMER_CONFIG, 4u, 0x303u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(left, 0x40008854u, 4u, 7u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_ulsan_stimer_map_state(right, &b, second, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_scheduler_advance(first, 62500u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(left, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 2u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(right, STIMER_COUNT, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_reset(left);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(left, 0x40008854u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 7u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(right, 0x40008854u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_destroy(right);
+    semu_bus_destroy(left);
+    semu_scheduler_destroy(second);
+    semu_scheduler_destroy(first);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_244_stimer_instances_are_isolated),
         { "test_registers_hold_lane_behavior", test_registers_hold_lane_behavior },
         { "test_unobserved_registers_refused",
           test_unobserved_registers_refused },

@@ -232,11 +232,34 @@ void semu_ulsan_mspi1_set_irq_sink(semu_apollo4_irq_fn sink, void *context)
     mspi1_instance.irq_context = context;
 }
 
+static const semu_bus_device_ops mspi1_ops = {
+    mspi1_read, mspi1_write, mspi1_reset
+};
+
+semu_status semu_ulsan_mspi1_map_state(semu_bus *bus, ulsan_mspi1_state *state,
+                                      semu_apollo4_irq_fn sink, void *context,
+                                      semu_error *error)
+{
+    semu_status status;
+
+    if (state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan MSPI1 needs state");
+        return SEMU_ERR_ARGUMENT;
+    }
+    status = semu_bus_map_device(bus, "ulsan.mspi1", ULSAN_MSPI1_BASE,
+                                 ULSAN_MSPI1_SIZE, &mspi1_ops, state, error);
+    if (status == SEMU_OK) {
+        memset(state, 0, sizeof(*state));
+        state->bus = bus;
+        state->irq_sink = sink;
+        state->irq_context = context;
+        ulsan_mspi1_native_reset(state);
+    }
+    return status;
+}
+
 semu_status semu_ulsan_mspi1_map(semu_bus *bus, semu_error *error)
 {
-    static const semu_bus_device_ops mspi1_ops = { mspi1_read, mspi1_write,
-                                                   mspi1_reset };
-
     if (bus == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan MSPI1 needs a bus");

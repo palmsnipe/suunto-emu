@@ -60,17 +60,7 @@ static const uint64_t stimer_clksel_hz[STIMER_CLKSEL_MAX + 1u] = {
 };
 #define STIMER_TICK_NS_SCALE UINT64_C(1000000000)
 
-typedef struct {
-    uint32_t nvram[4];
-    uint32_t config;
-    uint32_t control;
-    uint64_t base_ticks;    /* value captured at the last CONFIG capture */
-    uint64_t anchor_ns;     /* virtual time of that capture (or attach) */
-    int enabled;
-    semu_scheduler *scheduler;
-} stimer_state;
-
-static stimer_state stimer_instance;
+static semu_ulsan_stimer stimer_instance;
 
 static uint64_t stimer_clksel_hz_value(uint32_t config)
 {
@@ -107,7 +97,7 @@ static int stimer_elapsed_ticks(uint64_t elapsed_ns, uint64_t freq_hz,
  * 2.35.36 wake loop reads the counter every ~170 ns of virtual time, so
  * the frozen-remainder fold pinned STTMR at 184 forever (found by the
  * E-ULS-0046 in-era probe). Reads therefore only consult state. */
-static int stimer_held(const stimer_state *state, uint64_t now_ns,
+static int stimer_held(const semu_ulsan_stimer *state, uint64_t now_ns,
                        uint64_t *out)
 {
     uint64_t ticks = 0u;
@@ -137,7 +127,7 @@ static int stimer_held(const stimer_state *state, uint64_t now_ns,
 /* Fold the live value into base_ticks and re-anchor. Only CONFIG
  * transitions (the upstream Enabled gate) and attach capture; reads
  * must not call this. */
-static semu_status stimer_capture(stimer_state *state, semu_error *error)
+static semu_status stimer_capture(semu_ulsan_stimer *state, semu_error *error)
 {
     uint64_t now_ns = semu_scheduler_now(state->scheduler);
     uint64_t held = 0u;
@@ -157,7 +147,7 @@ static semu_status stimer_read(void *context, uint32_t offset,
                                unsigned width, uint32_t *value,
                                semu_error *error)
 {
-    stimer_state *state = (stimer_state *)context;
+    semu_ulsan_stimer *state = (semu_ulsan_stimer *)context;
     uint64_t held = 0u;
 
     if (value == NULL) {
@@ -215,7 +205,7 @@ static semu_status stimer_write(void *context, uint32_t offset,
                                 unsigned width, uint32_t value,
                                 semu_error *error)
 {
-    stimer_state *state = (stimer_state *)context;
+    semu_ulsan_stimer *state = (semu_ulsan_stimer *)context;
 
     if (width != 4u || (offset & 3u) != 0u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
@@ -262,7 +252,7 @@ static semu_status stimer_write(void *context, uint32_t offset,
 
 static void stimer_reset(void *context)
 {
-    stimer_state *state = (stimer_state *)context;
+    semu_ulsan_stimer *state = (semu_ulsan_stimer *)context;
 
     state->config = STIMER_CONFIG_FREEZE;
     state->control = 0u;
@@ -271,8 +261,8 @@ static void stimer_reset(void *context)
     state->enabled = 0;
     /* NVRAM words are deliberately not cleared: the lane wrapper's
      * Reset() keeps them (SapporoApollo4Extensions.cs line 136) so the
-     * firmware carries its next startup mode across AIRCR. The static
-     * instance is already zero on a fresh process map. */
+     * firmware carries its next startup mode across AIRCR. A fresh
+     * mapping clears the retained words. */
 }
 
 static const semu_bus_device_ops stimer_ops = {
@@ -281,23 +271,29 @@ static const semu_bus_device_ops stimer_ops = {
     stimer_reset
 };
 
-semu_status semu_ulsan_stimer_map(semu_bus *bus, semu_error *error)
+semu_status semu_ulsan_stimer_map_state(semu_bus *bus, semu_ulsan_stimer *state,
+                                        semu_scheduler *scheduler,
+                                        semu_error *error)
 {
-    if (bus == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Ulsan SystemTimer needs a bus");
+    semu_status status;
+
+    if (state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan SystemTimer needs state");
         return SEMU_ERR_ARGUMENT;
     }
-    /* Fresh machine: NVRAM starts at power-on zero (lane power-on has an
-     * empty wrapper array); in-machine resets keep it via stimer_reset. */
-    stimer_instance.nvram[0] = 0u;
-    stimer_instance.nvram[1] = 0u;
-    stimer_instance.nvram[2] = 0u;
-    stimer_instance.nvram[3] = 0u;
-    stimer_instance.scheduler = NULL;
-    stimer_reset(&stimer_instance);
-    return semu_bus_map_device(bus, "ulsan.stimer", STIMER_BASE, STIMER_SIZE,
-                               &stimer_ops, &stimer_instance, error);
+    status = semu_bus_map_device(bus, "ulsan.stimer", STIMER_BASE, STIMER_SIZE,
+                                 &stimer_ops, state, error);
+    if (status == SEMU_OK) {
+        *state = (semu_ulsan_stimer){0};
+        stimer_reset(state);
+        state->scheduler = scheduler;
+    }
+    return status;
+}
+
+semu_status semu_ulsan_stimer_map(semu_bus *bus, semu_error *error)
+{
+    return semu_ulsan_stimer_map_state(bus, &stimer_instance, NULL, error);
 }
 
 void semu_ulsan_stimer_attach(semu_scheduler *scheduler)

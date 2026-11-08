@@ -61,25 +61,20 @@
 #define TIMER0_SIZE 0x800u
 #define TIMER1_CONTROL 0x220u
 #define TIMER1_CONTROL_ENABLE 1u
+#define TIMER1_CONTROL_CLEAR 2u
+#define TIMER7_CONTROL 0x2e0u
+#define TIMER7_COMPARE0 0x2e8u
+#define TIMER7_COMPARE1 0x2ecu
+#define TIMER7_MODE 0x2f0u
 #define TIMER_TICK_NS UINT64_C(61035)
+#define TIMER1_244_HZ UINT64_C(32768)
+#define NS_PER_SECOND UINT64_C(1000000000)
 #define TIMER_COMBINED_IRQ 14u
 #define TIMER1_IRQ 68u
 
-typedef struct {
-    uint32_t regs[8];
-    semu_scheduler *scheduler;
-    semu_apollo4_irq_fn irq_sink;
-    void *irq_context;
-    semu_event_id compare_event;
-    int compare_event_valid;
-    semu_event_id clear_event;
-    int clear_event_valid;
-    int line_high;
-} timer0_state;
+static semu_ulsan_timer0 timer0_instance;
 
-static timer0_state timer0_instance;
-
-static int timer0_slot(uint32_t offset, unsigned *slot, int write)
+static int timer0_slot(uint32_t offset, unsigned *slot, int write, int race_s_244)
 {
     switch (offset) {
     case 0x010u: *slot = 0u; break;
@@ -90,6 +85,10 @@ static int timer0_slot(uint32_t offset, unsigned *slot, int write)
     case 0x228u: *slot = 4u; break;
     case 0x22cu: *slot = 5u; break;
     case 0x230u: *slot = 6u; break;
+    case TIMER7_CONTROL: *slot = 8u; return race_s_244;
+    case TIMER7_COMPARE0: *slot = 9u; return race_s_244 && write;
+    case TIMER7_COMPARE1: *slot = 10u; return race_s_244 && write;
+    case TIMER7_MODE: *slot = 11u; return race_s_244 && write;
     default: return 0;
     }
     if (!write) {
@@ -105,7 +104,7 @@ static int timer0_slot(uint32_t offset, unsigned *slot, int write)
     return 1;
 }
 
-static void timer0_set_line(timer0_state *s, int level)
+static void timer0_set_line(semu_ulsan_timer0 *s, int level)
 {
     if (s->irq_sink == NULL || ((s->line_high != 0) == (level != 0))) {
         return;
@@ -117,15 +116,17 @@ static void timer0_set_line(timer0_state *s, int level)
 
 static void timer0_compare_event(void *context, uint64_t now_ns);
 
-static void timer0_arm(timer0_state *s)
+static void timer0_arm(semu_ulsan_timer0 *s)
 {
     semu_error error;
+    uint64_t delay_ns;
 
     if (s->scheduler == NULL) {
         return;
     }
     if (s->compare_event_valid) {
-        (void)semu_scheduler_cancel(s->scheduler, s->compare_event);
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->compare_event,
+                                         timer0_compare_event, s);
         s->compare_event_valid = 0;
     }
     /* No observed run ever armed with compare 0; the first enabled
@@ -133,8 +134,16 @@ static void timer0_arm(timer0_state *s)
     if (s->regs[4] == 0u) {
         return;
     }
+    if (s->race_s_244) {
+        /* E-ULS-0070: round up to the first whole ns at the compare tick.
+         * The 32-bit compare fits in 64 bits after scaling and rounding. */
+        delay_ns = ((uint64_t)s->regs[4] * NS_PER_SECOND + TIMER1_244_HZ - 1u)
+                   / TIMER1_244_HZ;
+    } else {
+        delay_ns = (uint64_t)s->regs[4] * TIMER_TICK_NS;
+    }
     if (semu_scheduler_schedule(s->scheduler,
-            (uint64_t)s->regs[4] * TIMER_TICK_NS,
+            delay_ns,
             timer0_compare_event, s, &s->compare_event, &error) == SEMU_OK) {
         s->compare_event_valid = 1;
     }
@@ -142,7 +151,7 @@ static void timer0_arm(timer0_state *s)
 
 static void timer0_clear_event(void *context, uint64_t now_ns)
 {
-    timer0_state *s = (timer0_state *)context;
+    semu_ulsan_timer0 *s = (semu_ulsan_timer0 *)context;
 
     (void)now_ns;
     s->clear_event_valid = 0;
@@ -151,7 +160,7 @@ static void timer0_clear_event(void *context, uint64_t now_ns)
 
 static void timer0_compare_event(void *context, uint64_t now_ns)
 {
-    timer0_state *s = (timer0_state *)context;
+    semu_ulsan_timer0 *s = (semu_ulsan_timer0 *)context;
     semu_error error;
 
     (void)now_ns;
@@ -170,20 +179,20 @@ static semu_status timer0_read(void *context, uint32_t offset,
 {
     unsigned slot = 0u;
 
-    (void)context;
+    const semu_ulsan_timer0 *s = (const semu_ulsan_timer0 *)context;
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan TIMER read value required");
         return SEMU_ERR_ARGUMENT;
     }
     if (width != 4u || (offset & 3u) != 0u ||
-        !timer0_slot(offset, &slot, 0)) {
+        !timer0_slot(offset, &slot, 0, s->race_s_244)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan TIMER read at 0x%08x width %u is "
                        "unsupported", offset, width);
         return SEMU_ERR_UNSUPPORTED;
     }
-    *value = timer0_instance.regs[slot];
+    *value = s->regs[slot];
     return SEMU_OK;
 }
 
@@ -191,45 +200,62 @@ static semu_status timer0_write(void *context, uint32_t offset,
                                 unsigned width, uint32_t value,
                                 semu_error *error)
 {
-    timer0_state *s = (timer0_state *)context;
+    semu_ulsan_timer0 *s = (semu_ulsan_timer0 *)context;
     unsigned slot = 0u;
 
     if (width != 4u || (offset & 3u) != 0u ||
-        !timer0_slot(offset, &slot, 1)) {
+        !timer0_slot(offset, &slot, 1, s->race_s_244) ||
+        (offset == TIMER7_CONTROL && value != 0u &&
+         value != 0x120u && value != 0x122u) ||
+        ((offset == TIMER7_COMPARE0 || offset == TIMER7_COMPARE1) &&
+         value != UINT32_MAX) ||
+        (offset == TIMER7_MODE && value != 0u)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan TIMER write at 0x%08x width %u is "
                        "unsupported", offset, width);
         return SEMU_ERR_UNSUPPORTED;
+    }
+    if ((offset == TIMER1_CONTROL && s->race_s_244) || offset == TIMER7_CONTROL) {
+        value &= ~TIMER1_CONTROL_CLEAR; /* E-ULS-0065 and E-ULS-0081 */
     }
     s->regs[slot] = value;
     if (offset == TIMER1_CONTROL) {
         if ((value & TIMER1_CONTROL_ENABLE) != 0u) {
             timer0_arm(s);
         } else if (s->compare_event_valid && s->scheduler != NULL) {
-            (void)semu_scheduler_cancel(s->scheduler, s->compare_event);
+            (void)semu_scheduler_cancel_owned(s->scheduler, s->compare_event,
+                                         timer0_compare_event, s);
             s->compare_event_valid = 0;
         }
     }
     return SEMU_OK;
 }
 
-static void timer0_reset(void *context)
-{
-    timer0_state *s = (timer0_state *)context;
-    unsigned index = 0u;
+void semu_ulsan_timer0_reset_state(semu_ulsan_timer0 *s)
+{    unsigned index = 0u;
 
     if (s->compare_event_valid && s->scheduler != NULL) {
-        (void)semu_scheduler_cancel(s->scheduler, s->compare_event);
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->compare_event,
+                                         timer0_compare_event, s);
     }
     if (s->clear_event_valid && s->scheduler != NULL) {
-        (void)semu_scheduler_cancel(s->scheduler, s->clear_event);
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->clear_event,
+                                         timer0_clear_event, s);
     }
     s->compare_event_valid = 0;
     s->clear_event_valid = 0;
     timer0_set_line(s, 0);
-    for (index = 0u; index < 8u; ++index) {
+    for (index = 0u; index < SEMU_ARRAY_LEN(s->regs); ++index) {
         s->regs[index] = 0u;
     }
+    if (s->race_s_244) {
+        s->regs[0] = 0x7ffu; /* GlobalEnable reset (E-ULS-0065) */
+    }
+}
+
+static void timer0_reset(void *context)
+{
+    semu_ulsan_timer0_reset_state((semu_ulsan_timer0 *)context);
 }
 
 static const semu_bus_device_ops timer0_ops = {
@@ -238,19 +264,41 @@ static const semu_bus_device_ops timer0_ops = {
     timer0_reset
 };
 
-semu_status semu_ulsan_timer0_map(semu_bus *bus, semu_error *error)
+static semu_status timer0_map(semu_bus *bus, semu_ulsan_timer0 *state,
+                               int race_s_244, semu_scheduler *scheduler,
+                               semu_apollo4_irq_fn sink, void *context,
+                               semu_error *error)
 {
-    if (bus == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Ulsan TIMER needs a bus");
+    semu_status status;
+
+    if (state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan TIMER needs state");
         return SEMU_ERR_ARGUMENT;
     }
-    timer0_instance.scheduler = NULL;
-    timer0_instance.irq_sink = NULL;
-    timer0_instance.irq_context = NULL;
-    timer0_reset(&timer0_instance);
-    return semu_bus_map_device(bus, "ulsan.timer0", TIMER0_BASE, TIMER0_SIZE,
-                               &timer0_ops, &timer0_instance, error);
+    status = semu_bus_map_device(bus, "ulsan.timer0", TIMER0_BASE, TIMER0_SIZE,
+                                 &timer0_ops, state, error);
+    if (status == SEMU_OK) {
+        *state = (semu_ulsan_timer0){0};
+        state->race_s_244 = race_s_244;
+        state->scheduler = scheduler;
+        state->irq_sink = sink;
+        state->irq_context = context;
+        semu_ulsan_timer0_reset_state(state);
+    }
+    return status;
+}
+
+semu_status semu_ulsan_timer0_map(semu_bus *bus, semu_error *error)
+{
+    return timer0_map(bus, &timer0_instance, 0, NULL, NULL, NULL, error);
+}
+
+semu_status semu_ulsan_244_timer0_map(semu_bus *bus, semu_ulsan_timer0 *state,
+                                     semu_scheduler *scheduler,
+                                     semu_apollo4_irq_fn sink, void *context,
+                                     semu_error *error)
+{
+    return timer0_map(bus, state, 1, scheduler, sink, context, error);
 }
 
 void semu_ulsan_timer0_attach(semu_scheduler *scheduler,

@@ -13,3 +13,7 @@ status=evidence-contract
 [profile ulsan-2.35.36]
 path=profiles/ulsan/2.35.36/profile.semu
 status=reset-bring-up
+
+[profile ulsan-2.44.52]
+path=profiles/ulsan/2.44.52/profile.semu
+status=reset-bring-up

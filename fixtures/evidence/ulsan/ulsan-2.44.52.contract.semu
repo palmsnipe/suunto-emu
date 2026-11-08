@@ -132,3 +132,22 @@ device_personalized=eMMC CID/CSD, ProductionData serial/calibration, NVM OTP,
 description=Component/vector contracts exact; one bounded boundary observed;
  fifteen full-UI screen captures exist in the reference research lane and are
  registered separately by later tickets, never re-derived here
+
+[reset_profile_808]
+evidence=E-ULS-0052
+id=ulsan-2.44.52
+reference_terminal_tuple_sha256=a2a1aac2017f349ba3299fea247a6d561643c582cb9f92fdaf18a4111f649462
+first_fault_pc=0x00076eca
+first_fault_address=0x40021008
+first_fault_after_retired_instructions=14836578
+stop=budget pc=0x000b1690 instructions=20000000 virtual_time_ns=20000000
+two_run_transcript_sha256=83eab065068c7345685651ec75ea71e75c597ee6940c57661bad8038e947d9ce
+
+[reference_service_mode_frame]
+evidence=E-ULS-0054
+status=reference lane reproduced twice; standalone pending
+width=466
+height=466
+format=rgb565le
+bytes=434312
+sha256=bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526

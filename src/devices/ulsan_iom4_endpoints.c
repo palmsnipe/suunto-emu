@@ -20,22 +20,6 @@
 
 #include <string.h>
 
-typedef struct {
-    uint8_t selected;
-    uint8_t regs[256];
-} recorder_state;
-
-typedef struct {
-    uint16_t regs[256];
-    uint8_t register_pointer;
-    unsigned read_byte_index;
-    unsigned write_byte_index;
-    int expecting_register;
-} gauge_state;
-
-static recorder_state recorder;
-static gauge_state gauge;
-
 #define GAUGE_REG_STATUS 0x00u
 #define GAUGE_REG_SOC 0x06u
 #define GAUGE_REG_TEMPERATURE 0x08u
@@ -48,32 +32,31 @@ int ulsan_iom4_endpoint_known(unsigned device)
            device == ULSAN_IOM4_DEV_FUEL_GAUGE;
 }
 
-void ulsan_iom4_endpoints_reset(void)
+void ulsan_iom4_endpoints_reset(ulsan_iom4_endpoints *state)
 {
-    memset(&recorder, 0, sizeof(recorder));
-    memset(&gauge, 0, sizeof(gauge));
-    gauge.regs[GAUGE_REG_STATUS] = 0x0000u;
-    gauge.regs[GAUGE_REG_SOC] = 0x3200u;
-    gauge.regs[GAUGE_REG_TEMPERATURE] = 0x1900u;
-    gauge.regs[GAUGE_REG_VCELL] = 0xC000u;
-    gauge.regs[GAUGE_REG_AVG_VCELL] = 0xC000u;
-    gauge.expecting_register = 1;
+    memset(state, 0, sizeof(*state));
+    state->gauge.regs[GAUGE_REG_STATUS] = 0x0000u;
+    state->gauge.regs[GAUGE_REG_SOC] = 0x3200u;
+    state->gauge.regs[GAUGE_REG_TEMPERATURE] = 0x1900u;
+    state->gauge.regs[GAUGE_REG_VCELL] = 0xC000u;
+    state->gauge.regs[GAUGE_REG_AVG_VCELL] = 0xC000u;
+    state->gauge.expecting_register = 1;
 }
 
-static void gauge_write_byte(uint8_t value)
+static void gauge_write_byte(ulsan_iom4_gauge *gauge, uint8_t value)
 {
-    uint16_t current = gauge.regs[gauge.register_pointer];
-    if ((gauge.write_byte_index++ & 1u) == 0u) {
-        gauge.regs[gauge.register_pointer] =
+    uint16_t current = gauge->regs[gauge->register_pointer];
+    if ((gauge->write_byte_index++ & 1u) == 0u) {
+        gauge->regs[gauge->register_pointer] =
             (uint16_t)((current & 0xFF00u) | value);
         return;
     }
-    gauge.regs[gauge.register_pointer] =
+    gauge->regs[gauge->register_pointer] =
         (uint16_t)((current & 0x00FFu) | ((uint16_t)value << 8));
-    gauge.register_pointer++;
+    gauge->register_pointer++;
 }
 
-void ulsan_iom4_endpoint_write(unsigned device, const uint8_t *data,
+void ulsan_iom4_endpoint_write(ulsan_iom4_endpoints *state, unsigned device, const uint8_t *data,
                                unsigned length)
 {
     unsigned index;
@@ -82,26 +65,26 @@ void ulsan_iom4_endpoint_write(unsigned device, const uint8_t *data,
         return;
     }
     if (device == ULSAN_IOM4_DEV_RECORDER) {
-        recorder.selected = data[0];
+        state->recorder.selected = data[0];
         for (index = 1u; index < length; index++) {
-            recorder.regs[(uint8_t)(recorder.selected + index - 1u)] =
+            state->recorder.regs[(uint8_t)(state->recorder.selected + index - 1u)] =
                 data[index];
         }
         return;
     }
-    /* Fuel gauge. */
+    /* Fuel state->gauge. */
     index = 0u;
-    if (gauge.expecting_register) {
-        gauge.register_pointer = data[0];
-        gauge.expecting_register = 0;
+    if (state->gauge.expecting_register) {
+        state->gauge.register_pointer = data[0];
+        state->gauge.expecting_register = 0;
         index = 1u;
     }
     for (; index < length; index++) {
-        gauge_write_byte(data[index]);
+        gauge_write_byte(&state->gauge, data[index]);
     }
 }
 
-void ulsan_iom4_endpoint_read(unsigned device, uint8_t *out,
+void ulsan_iom4_endpoint_read(ulsan_iom4_endpoints *state, unsigned device, uint8_t *out,
                               unsigned count)
 {
     unsigned index;
@@ -111,31 +94,31 @@ void ulsan_iom4_endpoint_read(unsigned device, uint8_t *out,
     }
     if (device == ULSAN_IOM4_DEV_RECORDER) {
         for (index = 0u; index < count; index++) {
-            out[index] = recorder.regs[(uint8_t)(recorder.selected + index)];
+            out[index] = state->recorder.regs[(uint8_t)(state->recorder.selected + index)];
         }
         return;
     }
     /* Fuel gauge: low byte then high byte of the selected 16-bit
      * register, pointer advances on each completed pair. */
     for (index = 0u; index < count; index++) {
-        uint16_t value = gauge.regs[gauge.register_pointer];
-        if ((gauge.read_byte_index++ & 1u) == 0u) {
+        uint16_t value = state->gauge.regs[state->gauge.register_pointer];
+        if ((state->gauge.read_byte_index++ & 1u) == 0u) {
             out[index] = (uint8_t)value;
         } else {
             out[index] = (uint8_t)(value >> 8);
         }
-        if ((gauge.read_byte_index & 1u) == 0u) {
-            gauge.register_pointer++;
+        if ((state->gauge.read_byte_index & 1u) == 0u) {
+            state->gauge.register_pointer++;
         }
     }
 }
 
-void ulsan_iom4_endpoint_finish(unsigned device)
+void ulsan_iom4_endpoint_finish(ulsan_iom4_endpoints *state, unsigned device)
 {
     if (device != ULSAN_IOM4_DEV_FUEL_GAUGE) {
         return;
     }
-    gauge.expecting_register = 1;
-    gauge.read_byte_index = 0u;
-    gauge.write_byte_index = 0u;
+    state->gauge.expecting_register = 1;
+    state->gauge.read_byte_index = 0u;
+    state->gauge.write_byte_index = 0u;
 }

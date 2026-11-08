@@ -185,9 +185,36 @@ static void test_boot_passes_wdt(semu_test_context *context)
     semu_machine_destroy(machine);
 }
 
+static void test_244_wdt_instances_are_isolated(semu_test_context *context)
+{
+    semu_error error;
+    semu_ulsan_wdt a, b;
+    semu_bus *left = semu_bus_create(&error);
+    semu_bus *right = semu_bus_create(&error);
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, left && right);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_ulsan_wdt_map_state(left, &a, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(left, 0x40024000u, 4u, 0x033c3d06u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_ulsan_wdt_map_state(right, &b, &error));
+    semu_bus_reset(right);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(left, 0x40024000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x033c3d04u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(right, 0x40024000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_destroy(right);
+    semu_bus_destroy(left);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_244_wdt_instances_are_isolated),
         { "test_register_store_sequence", test_register_store_sequence },
         { "test_unobserved_transactions_refused",
           test_unobserved_transactions_refused },

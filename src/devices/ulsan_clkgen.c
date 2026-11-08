@@ -25,19 +25,7 @@
 #include "semu/types.h"
 
 #define CLKGEN_SIZE 0x800u
-#define CLKGEN_SLOTS 64u
-
-typedef struct {
-    uint32_t stored[CLKGEN_SLOTS];
-    uint32_t value[CLKGEN_SLOTS];
-    unsigned used;
-} clkgen_state;
-
-/* Single boot-phase machine context, like the other Ulsan devices;
- * reset clears it. */
-static clkgen_state clkgen_instance;
-
-static int clkgen_find(const clkgen_state *state, uint32_t offset)
+static int clkgen_find(const semu_ulsan_clkgen *state, uint32_t offset)
 {
     unsigned index;
 
@@ -53,7 +41,7 @@ static semu_status clkgen_read(void *context, uint32_t offset,
                                unsigned width, uint32_t *value,
                                semu_error *error)
 {
-    clkgen_state *state = (clkgen_state *)context;
+    semu_ulsan_clkgen *state = (semu_ulsan_clkgen *)context;
     int slot;
 
     if (value == NULL) {
@@ -76,7 +64,7 @@ static semu_status clkgen_write(void *context, uint32_t offset,
                                 unsigned width, uint32_t value,
                                 semu_error *error)
 {
-    clkgen_state *state = (clkgen_state *)context;
+    semu_ulsan_clkgen *state = (semu_ulsan_clkgen *)context;
     int slot;
 
     if (width != 4u || (offset & 3u) != 0u) {
@@ -87,7 +75,7 @@ static semu_status clkgen_write(void *context, uint32_t offset,
     }
     slot = clkgen_find(state, offset);
     if (slot < 0) {
-        if (state->used >= CLKGEN_SLOTS) {
+        if (state->used >= SEMU_ULSAN_CLKGEN_SLOTS) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "Ulsan clock generator storage exhausted at "
                            "0x%08x", offset);
@@ -103,7 +91,7 @@ static semu_status clkgen_write(void *context, uint32_t offset,
 
 static void clkgen_reset(void *context)
 {
-    clkgen_state *state = (clkgen_state *)context;
+    semu_ulsan_clkgen *state = (semu_ulsan_clkgen *)context;
 
     state->used = 0u;
 }
@@ -114,15 +102,28 @@ static const semu_bus_device_ops clkgen_ops = {
     clkgen_reset
 };
 
-semu_status semu_ulsan_clkgen_map(semu_bus *bus, semu_error *error)
+semu_status semu_ulsan_clkgen_map_state(semu_bus *bus,
+                                       semu_ulsan_clkgen *state,
+                                       semu_error *error)
 {
-    if (bus == NULL) {
+    semu_status status;
+
+    if (bus == NULL || state == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Ulsan clock generator needs a bus");
+                       "Ulsan clock generator needs a bus and state");
         return SEMU_ERR_ARGUMENT;
     }
-    clkgen_instance.used = 0u;
-    return semu_bus_map_device(bus, "ulsan.clkgen", 0x40004000u,
-                               CLKGEN_SIZE, &clkgen_ops, &clkgen_instance,
-                               error);
+    status = semu_bus_map_device(bus, "ulsan.clkgen", 0x40004000u,
+                                 CLKGEN_SIZE, &clkgen_ops, state, error);
+    if (status == SEMU_OK) {
+        clkgen_reset(state);
+    }
+    return status;
+}
+
+semu_status semu_ulsan_clkgen_map(semu_bus *bus, semu_error *error)
+{
+    static semu_ulsan_clkgen instance;
+
+    return semu_ulsan_clkgen_map_state(bus, &instance, error);
 }

@@ -248,12 +248,94 @@ static void test_irq_line_and_status(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_244_dma_completion_and_refusal(semu_test_context *context)
+{
+    static const uint8_t rom = 0x5au;
+    semu_ulsan_iom4 controller;
+    semu_ulsan_iom4 other_controller;
+    irq_record rec = {0};
+    semu_error error;
+    semu_bus *bus;
+    semu_bus *other;
+    uint32_t value;
+
+    semu_error_clear(&error);
+    bus = semu_bus_create(&error);
+    other = semu_bus_create(&error);
+    SEMU_TEST_ASSERT(context, bus != NULL && other != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_map_ram(bus, "payload", BUFFER, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_map_rom(bus, "read-only", BUFFER + 4u,
+                                      &rom, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_map_ram(other, "payload", BUFFER, 4u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_iom4_map(bus, &controller, record_irq,
+                                            &rec, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, BUFFER, 4u, 0xf0d0017fu, &error));
+    wr(context, bus, 0x200u, 0x4e7du);
+    wr(context, bus, 0x218u, 0x103u);
+    wr(context, bus, 0x21Cu, 4u);
+    wr(context, bus, 0x220u, BUFFER);
+    wr(context, bus, 0x2C4u, 0x28u);
+    wr(context, bus, 0x120u, 0x401u);
+    SEMU_TEST_EQ_U64(context, 0x102u, rd(context, bus, 0x218u));
+    SEMU_TEST_EQ_U64(context, 0x403u, rd(context, bus, 0x204u));
+    SEMU_TEST_EQ_U64(context, 1u, rec.count);
+    SEMU_TEST_EQ_U64(context, 10u, rec.irq[0]);
+    SEMU_TEST_EQ_U64(context, 1u, rec.level[0]);
+    wr(context, bus, 0x208u, 0x401u);
+    SEMU_TEST_EQ_U64(context, 2u, rec.count);
+    SEMU_TEST_EQ_U64(context, 0u, rec.level[1]);
+    SEMU_TEST_EQ_U64(context, 2u, rd(context, bus, 0x204u));
+
+    /* Mapping and resetting a second controller preserves the first PMIC. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_iom4_map(other, &other_controller, NULL,
+                                            NULL, &error));
+    wr(context, other, 0x218u, 1u);
+    wr(context, other, 0x21Cu, 1u);
+    wr(context, other, 0x220u, BUFFER);
+    wr(context, other, 0x2C4u, 0x28u);
+    wr(context, other, 0x120u, 0x7f000112u);
+    SEMU_TEST_EQ_U64(context, 0x403u, rd(context, other, 0x204u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(other, BUFFER, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    semu_bus_reset(other);
+
+    wr(context, bus, 0x208u, 0xffffffffu);
+    wr(context, bus, 0x218u, 1u);
+    wr(context, bus, 0x21Cu, 1u);
+    wr(context, bus, 0x120u, 0x7f000112u);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, BUFFER, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 1u, value);
+
+    /* Refuse a destination spanning RAM and ROM before modifying RAM. */
+    wr(context, bus, 0x208u, 0xffffffffu);
+    wr(context, bus, 0x218u, 1u);
+    wr(context, bus, 0x21Cu, 2u);
+    wr(context, bus, 0x220u, BUFFER + 3u);
+    wr(context, bus, 0x120u, 0x7f000212u);
+    SEMU_TEST_EQ_U64(context, 0x800u, rd(context, bus, 0x204u));
+    SEMU_TEST_EQ_U64(context, 1u, rd(context, bus, 0x218u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, BUFFER + 3u, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xf0u, value);
+    semu_bus_destroy(other);
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_doorbell_write_read_cycle", test_doorbell_write_read_cycle },
         { "test_doorbell_refusal_paths", test_doorbell_refusal_paths },
-        { "test_irq_line_and_status", test_irq_line_and_status }
+        { "test_irq_line_and_status", test_irq_line_and_status },
+        { "test_244_dma_completion_and_refusal", test_244_dma_completion_and_refusal }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

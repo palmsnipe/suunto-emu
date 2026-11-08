@@ -77,21 +77,7 @@
 #define RTC_ALARM_PERIOD_NS UINT64_C(1000000000)
 #define RTC_PULSE_FALL_NS UINT64_C(61035)
 
-typedef struct {
-    uint32_t regs[4]; /* +0x00, +0x30, +0x200, +0x208 */
-    uint32_t upper;   /* +0x24, reset 0x14700101 */
-    uint32_t subsec;  /* +0x20 store, kept; reads answer the live counter */
-    semu_scheduler *scheduler; /* attached machine scheduler */
-    semu_apollo4_irq_fn irq_sink;
-    void *irq_context;
-    semu_event_id alarm_event;
-    int alarm_event_valid;
-    semu_event_id clear_event;
-    int clear_event_valid;
-    int line_high;
-} rtc_state;
-
-static rtc_state rtc_instance;
+static semu_ulsan_rtc rtc_instance;
 
 static int rtc_slot(uint32_t offset, unsigned *slot)
 {
@@ -123,7 +109,7 @@ static uint32_t rtc_bcd_hundredths(const semu_scheduler *scheduler)
     return out;
 }
 
-static void rtc_set_line(rtc_state *s, int level)
+static void rtc_set_line(semu_ulsan_rtc *s, int level)
 {
     if (s->irq_sink == NULL || ((s->line_high != 0) == (level != 0))) {
         return;
@@ -136,7 +122,7 @@ static void rtc_alarm_event(void *context, uint64_t now_ns);
 
 static void rtc_clear_event(void *context, uint64_t now_ns)
 {
-    rtc_state *s = (rtc_state *)context;
+    semu_ulsan_rtc *s = (semu_ulsan_rtc *)context;
 
     (void)now_ns;
     s->clear_event_valid = 0;
@@ -145,7 +131,7 @@ static void rtc_clear_event(void *context, uint64_t now_ns)
 
 static void rtc_alarm_event(void *context, uint64_t now_ns)
 {
-    rtc_state *s = (rtc_state *)context;
+    semu_ulsan_rtc *s = (semu_ulsan_rtc *)context;
     semu_error error;
 
     (void)now_ns;
@@ -166,7 +152,7 @@ static void rtc_alarm_event(void *context, uint64_t now_ns)
 /* The observed pair 0x200=1 and 0x208=1 arms one second ahead when no
  * alarm is pending; with one pending (the lane repeats at its 1 s
  * schedule) the observed rewrite from the service leaves it running. */
-static void rtc_alarm_arm(rtc_state *s)
+static void rtc_alarm_arm(semu_ulsan_rtc *s)
 {
     semu_error error;
 
@@ -185,7 +171,7 @@ static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
 {
     unsigned slot = 0u;
 
-    (void)context;
+    semu_ulsan_rtc *s = (semu_ulsan_rtc *)context;
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan RTC read required");
         return SEMU_ERR_ARGUMENT;
@@ -197,15 +183,15 @@ static semu_status rtc_read(void *context, uint32_t offset, unsigned width,
         return SEMU_ERR_UNSUPPORTED;
     }
     if (slot == 4u) {
-        if (rtc_instance.scheduler == NULL) {
+        if (s->scheduler == NULL) {
             semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                            "Ulsan RTC counter needs the machine scheduler");
             return SEMU_ERR_UNSUPPORTED;
         }
-        *value = rtc_bcd_hundredths(rtc_instance.scheduler);
+        *value = rtc_bcd_hundredths(s->scheduler);
         return SEMU_OK;
     }
-    *value = (slot == 5u) ? rtc_instance.upper : rtc_instance.regs[slot];
+    *value = (slot == 5u) ? s->upper : s->regs[slot];
     return SEMU_OK;
 }
 
@@ -214,7 +200,7 @@ static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
 {
     unsigned slot = 0u;
 
-    (void)context;
+    semu_ulsan_rtc *s = (semu_ulsan_rtc *)context;
     if (width != 4u || (offset & 3u) != 0u || !rtc_slot(offset, &slot)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan RTC write at 0x%08x width %u is unsupported",
@@ -222,27 +208,27 @@ static semu_status rtc_write(void *context, uint32_t offset, unsigned width,
         return SEMU_ERR_UNSUPPORTED;
     }
     if (slot == 4u) {
-        rtc_instance.subsec = value; /* kept; read stays the live counter */
+        s->subsec = value; /* kept; read stays the live counter */
         return SEMU_OK;
     }
     if (slot == 5u) {
-        rtc_instance.upper = value;
+        s->upper = value;
         return SEMU_OK;
     }
-    rtc_instance.regs[slot] = value;
-    rtc_alarm_arm(&rtc_instance);
+    s->regs[slot] = value;
+    rtc_alarm_arm(s);
     return SEMU_OK;
 }
 
-static void rtc_reset(void *context)
+void semu_ulsan_rtc_reset_state(semu_ulsan_rtc *s)
 {
-    rtc_state *s = (rtc_state *)context;
-
     if (s->alarm_event_valid && s->scheduler != NULL) {
-        (void)semu_scheduler_cancel(s->scheduler, s->alarm_event);
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->alarm_event,
+                                         rtc_alarm_event, s);
     }
     if (s->clear_event_valid && s->scheduler != NULL) {
-        (void)semu_scheduler_cancel(s->scheduler, s->clear_event);
+        (void)semu_scheduler_cancel_owned(s->scheduler, s->clear_event,
+                                         rtc_clear_event, s);
     }
     s->alarm_event_valid = 0;
     s->clear_event_valid = 0;
@@ -255,24 +241,43 @@ static void rtc_reset(void *context)
     s->subsec = 0u;
 }
 
+static void rtc_reset(void *context)
+{
+    semu_ulsan_rtc_reset_state((semu_ulsan_rtc *)context);
+}
+
 static const semu_bus_device_ops rtc_ops = {
     rtc_read,
     rtc_write,
     rtc_reset
 };
 
-semu_status semu_ulsan_rtc_map(semu_bus *bus, semu_error *error)
+semu_status semu_ulsan_rtc_map_state(semu_bus *bus, semu_ulsan_rtc *state,
+                                     semu_scheduler *scheduler,
+                                     semu_apollo4_irq_fn sink, void *context,
+                                     semu_error *error)
 {
-    if (bus == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan RTC needs a bus");
+    semu_status status;
+
+    if (state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan RTC needs state");
         return SEMU_ERR_ARGUMENT;
     }
-    rtc_instance.scheduler = NULL;
-    rtc_instance.irq_sink = NULL;
-    rtc_instance.irq_context = NULL;
-    rtc_reset(&rtc_instance);
-    return semu_bus_map_device(bus, "ulsan.rtc", RTC_BASE, RTC_SIZE,
-                               &rtc_ops, &rtc_instance, error);
+    status = semu_bus_map_device(bus, "ulsan.rtc", RTC_BASE, RTC_SIZE,
+                                 &rtc_ops, state, error);
+    if (status == SEMU_OK) {
+        *state = (semu_ulsan_rtc){0};
+        state->scheduler = scheduler;
+        state->irq_sink = sink;
+        state->irq_context = context;
+        semu_ulsan_rtc_reset_state(state);
+    }
+    return status;
+}
+
+semu_status semu_ulsan_rtc_map(semu_bus *bus, semu_error *error)
+{
+    return semu_ulsan_rtc_map_state(bus, &rtc_instance, NULL, NULL, NULL, error);
 }
 
 void semu_ulsan_rtc_attach(semu_scheduler *scheduler,

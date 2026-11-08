@@ -24,10 +24,12 @@
 #include "../compat/sapporo_239_gps.h"
 #include "../compat/sapporo_239_gps_reopen.h"
 #include "../compat/sapporo_239_gps_awake.h"
+#include "../compat/ulsan_244_production.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_flash.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
+#include "../devices/ulsan_buszero.h"
 #include "ulsan_board.h"
 
 #include <stdlib.h>
@@ -63,6 +65,16 @@ static semu_status map_sapporo(semu_machine *machine, semu_error *error);
 static semu_status map_board(semu_machine *machine, semu_error *error)
 {
     if (known_ulsan_profile(&machine->profile)) {
+        if (strcmp(machine->profile.id, "ulsan-2.44.52") == 0) {
+            semu_status status = semu_ulsan_244_board_map(machine->bus,
+                &machine->ulsan_244, machine->scheduler, irq_sink, machine,
+                error);
+            if (status != SEMU_OK)
+                return status;
+            return semu_ulsan_244_disp_map(machine->bus,
+                &machine->ulsan_244.display, irq_sink, machine,
+                machine->frame_callback, machine->frame_context, error);
+        }
         /* Integrator seam (precedent: map_sapporo passes irq_sink):
          * one line sink and scheduler for every evidence-wired Ulsan
          * interrupt (IOM4 IRQ 10, MSPI1 IRQ 21, TIMER1 comparator
@@ -243,7 +255,17 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
         return SEMU_ERR_RANGE;
     }
     state = &machine->layers[machine->layer_count];
-    if (strcmp(id, semu_sapporo_222_no_device_layer.id) == 0) {
+    if (strcmp(id, semu_ulsan_244_production_layer.id) == 0 ||
+        strcmp(id, semu_ulsan_244_emmc_layer.id) == 0) {
+        descriptor = strcmp(id, semu_ulsan_244_production_layer.id) == 0
+            ? &semu_ulsan_244_production_layer : &semu_ulsan_244_emmc_layer;
+        for (i = 0u; i < machine->layer_count; ++i) {
+            if (machine->layers[i].descriptor == descriptor) {
+                semu_error_set(error, SEMU_ERR_CONFLICT, "duplicate Ulsan layer %s", id);
+                return SEMU_ERR_CONFLICT;
+            }
+        }
+    } else if (strcmp(id, semu_sapporo_222_no_device_layer.id) == 0) {
         descriptor = &semu_sapporo_222_no_device_layer;
     } else if (strcmp(id, semu_sapporo_233_files_layer.id) == 0) {
         descriptor = &semu_sapporo_233_files_layer;
@@ -294,6 +316,31 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
     }
     machine->layer_count++;
     return SEMU_OK;
+}
+
+static semu_status bind_ulsan_emmc(semu_machine *machine, const char *path,
+                                   semu_error *error)
+{
+    size_t i, size;
+    int enabled = 0;
+    semu_status status;
+
+    for (i = 0u; i < machine->layer_count; ++i)
+        if (machine->layers[i].descriptor == &semu_ulsan_244_emmc_layer)
+            enabled = 1;
+    if (enabled != (path != NULL)) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "Ulsan eMMC requires both the named layer and --ulsan-emmc");
+        return SEMU_ERR_CONFLICT;
+    }
+    if (!enabled)
+        return SEMU_OK;
+    machine->ulsan_244.emmc_media = semu_ulsan_sdio_load_media(path, &size, error);
+    if (machine->ulsan_244.emmc_media == NULL)
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    status = semu_ulsan_sdio_map(machine->bus, &machine->ulsan_244.sdio,
+        machine->ulsan_244.emmc_media, size, error);
+    return status == SEMU_OK ? semu_ulsan_244_sd_pad_map(machine->bus, error) : status;
 }
 
 semu_machine *semu_machine_create(const semu_machine_options *options,
@@ -359,6 +406,10 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
             return NULL;
         }
     }
+    if (bind_ulsan_emmc(machine, options->ulsan_emmc_path, error) != SEMU_OK) {
+        semu_machine_destroy(machine);
+        return NULL;
+    }
     machine->cpu = semu_cpu_create(machine->bus, machine->scheduler, error);
     if (machine->cpu == NULL || semu_machine_reset(machine, error) != SEMU_OK) {
         semu_machine_destroy(machine);
@@ -377,6 +428,8 @@ void semu_machine_destroy(semu_machine *machine)
         semu_apollo4_destroy(machine->soc);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
+        semu_ulsan_disp_destroy_state(&machine->ulsan_244.display);
+        free(machine->ulsan_244.emmc_media);
         semu_sapporo_239_files_destroy(machine->sapporo_239_files);
         free(machine);
     }
@@ -399,6 +452,10 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
                                error) != SEMU_OK) {
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return error != NULL ? error->code : SEMU_ERR_CONFLICT;
+    }
+    if (preserve_ram && strcmp(machine->profile.id, "ulsan-2.44.52") == 0) {
+        semu_ulsan_rtc_reset_state(&machine->ulsan_244.rtc);
+        semu_ulsan_timer0_reset_state(&machine->ulsan_244.timer);
     }
     semu_scheduler_reset(machine->scheduler);
     if (!preserve_ram) {
@@ -439,6 +496,19 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
             if (machine->layers[i].descriptor == &semu_sapporo_235_production_layer &&
                 semu_sapporo_235_install_production(machine->bus,
                     &machine->layers[i], machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_ulsan_244_production_layer &&
+                semu_ulsan_244_install_production(machine->bus, &machine->layers[i],
+                    machine->logger, error) != SEMU_OK) {
+                machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+                return error->code;
+            }
+            if (machine->layers[i].descriptor == &semu_ulsan_244_emmc_layer &&
+                semu_layer_hit(&machine->layers[i], machine->logger,
+                    "trigger=emmc-mount classification=synthetic verified session media",
+                    error) != SEMU_OK) {
                 machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
                 return error->code;
             }

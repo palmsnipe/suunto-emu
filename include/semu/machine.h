@@ -38,6 +38,8 @@ typedef struct semu_machine_options {
     const char *external_flash_path;
     semu_machine_input_poll_fn input_poll;
     void *input_poll_context;
+    /* Optional exact-hash eMMC image for the named Ulsan compatibility layer. */
+    const char *ulsan_emmc_path;
 } semu_machine_options;
 
 semu_machine *semu_machine_create(const semu_machine_options *options,

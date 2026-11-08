@@ -170,14 +170,16 @@ static int validate_access(uint32_t offset, unsigned width,
     (UINT32_C(0x0000001E) | UINT32_C(0x000001E0) | UINT32_C(0x00001E00) | \
      UINT32_C(0x00002000) | UINT32_C(0x00100000))
 
-typedef struct {
-    uint32_t device_power_enable;
-} pwrctrl_state;
+/* E-ULS-0053: GFX, DISP, and DISPPHY mirror into status on 2.44.52.
+ * MSPI1, USB and post-selector SDIO (E-ULS-0078) are tag-only. */
+#define ULSAN_244_DISPLAY_MASK UINT32_C(0x000e0000)
+#define ULSAN_244_TAG_ONLY_MASK UINT32_C(0x00608000)
 
-static uint32_t device_power_status(const pwrctrl_state *state)
+static uint32_t device_power_status(const semu_ulsan_pwrctrl *state)
 {
     const uint32_t enable = state->device_power_enable;
-    uint32_t status = enable & (UINT32_C(0x00002000) | UINT32_C(0x00100000));
+    uint32_t status = enable & (UINT32_C(0x00002000) | UINT32_C(0x00100000) |
+                                state->display_mask);
     if ((enable & UINT32_C(0x0000001E)) != 0u) status |= UINT32_C(0x0000001E);
     if ((enable & UINT32_C(0x000001E0)) != 0u) status |= UINT32_C(0x000001E0);
     if ((enable & UINT32_C(0x00001E00)) != 0u) status |= UINT32_C(0x00001E00);
@@ -188,7 +190,8 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error)
 {
-    pwrctrl_state *state = (pwrctrl_state *)context;
+    semu_ulsan_pwrctrl *state = (semu_ulsan_pwrctrl *)context;
+    const uint32_t word_offset = offset & ~3u;
     size_t index;
 
     if (value == NULL) {
@@ -199,10 +202,15 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
     if (!validate_access(offset, width, "read", error)) {
         return SEMU_ERR_UNSUPPORTED;
     }
-    if ((offset & ~3u) == OFFSET_DEVICE_POWER_ENABLE ||
-        (offset & ~3u) == OFFSET_DEVICE_POWER_STATUS) {
+    if (state->display_mask != 0u && width != 4u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Ulsan 2.44 power control requires 32-bit reads");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (word_offset == OFFSET_DEVICE_POWER_ENABLE ||
+        word_offset == OFFSET_DEVICE_POWER_STATUS) {
         const uint32_t word =
-            ((offset & ~3u) == OFFSET_DEVICE_POWER_ENABLE)
+            (word_offset == OFFSET_DEVICE_POWER_ENABLE)
                 ? state->device_power_enable
                 : device_power_status(state);
         const uint32_t shift = (offset & 3u) * 8u;
@@ -214,7 +222,13 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
     }
     for (index = 0u; index < sizeof(observed_reads) / sizeof(observed_reads[0]);
          ++index) {
-        if (observed_reads[index].offset == (offset & ~3u)) {
+        if (observed_reads[index].offset == word_offset) {
+            /* Only the older profile observed these constant reads. */
+            if (state->display_mask != 0u &&
+                (word_offset == 0x0cu || word_offset == 0x10u ||
+                 word_offset == 0x2cu)) {
+                break;
+            }
             const uint32_t shift = (offset & 3u) * 8u;
             const uint32_t mask = (width == 4u)
                 ? UINT32_C(0xFFFFFFFF)
@@ -233,7 +247,7 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
                                  unsigned width, uint32_t value,
                                  semu_error *error)
 {
-    pwrctrl_state *state = (pwrctrl_state *)context;
+    semu_ulsan_pwrctrl *state = (semu_ulsan_pwrctrl *)context;
     size_t index;
 
     if (!validate_access(offset, width, "write", error)) {
@@ -246,11 +260,19 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
         return SEMU_ERR_UNSUPPORTED;
     }
     if (offset == OFFSET_DEVICE_POWER_ENABLE) {
-        state->device_power_enable =
-            value & DEVICE_POWER_ENABLE_STORE_MASK;
+        const uint32_t mask = DEVICE_POWER_ENABLE_STORE_MASK |
+                              state->display_mask;
+        if (state->display_mask != 0u &&
+            (value & ~(mask | ULSAN_244_TAG_ONLY_MASK)) != 0u) {
+            semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                           "Ulsan 2.44 power enable value 0x%08x is unsupported",
+                           value);
+            return SEMU_ERR_UNSUPPORTED;
+        }
+        state->device_power_enable = value & mask;
         return SEMU_OK;
     }
-    if (offset == OFFSET_DEVICE_POWER_STATUS) {
+    if (offset == OFFSET_DEVICE_POWER_STATUS && state->display_mask == 0u) {
         /* FieldMode.Read mirrors and tag bits only: the framework accepts
          * and stores nothing. */
         return SEMU_OK;
@@ -272,7 +294,7 @@ static semu_status pwrctrl_write(void *context, uint32_t offset,
 
 static void pwrctrl_reset(void *context)
 {
-    pwrctrl_state *state = (pwrctrl_state *)context;
+    semu_ulsan_pwrctrl *state = (semu_ulsan_pwrctrl *)context;
     state->device_power_enable = DEVICE_POWER_ENABLE_RESET;
 }
 
@@ -282,17 +304,35 @@ static const semu_bus_device_ops pwrctrl_ops = {
     pwrctrl_reset
 };
 
-/* Mutable context: the +0x04 stored word (E-ULS-0037); one instance. */
-static pwrctrl_state pwrctrl_instance;
+static semu_status pwrctrl_map(semu_bus *bus, semu_ulsan_pwrctrl *state,
+                               uint32_t display_mask, semu_error *error)
+{
+    semu_status status;
+
+    if (bus == NULL || state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "Ulsan power control needs a bus and state");
+        return SEMU_ERR_ARGUMENT;
+    }
+    status = semu_bus_map_device(bus, "ulsan.pwrctrl", 0x40021000u, 0x400u,
+                                 &pwrctrl_ops, state, error);
+    if (status == SEMU_OK) {
+        state->display_mask = display_mask;
+        pwrctrl_reset(state);
+    }
+    return status;
+}
 
 semu_status semu_ulsan_pwrctrl_map(semu_bus *bus, semu_error *error)
 {
-    if (bus == NULL) {
-        semu_error_set(error, SEMU_ERR_ARGUMENT,
-                       "Ulsan power control needs a bus");
-        return SEMU_ERR_ARGUMENT;
-    }
-    pwrctrl_reset(&pwrctrl_instance);
-    return semu_bus_map_device(bus, "ulsan.pwrctrl", 0x40021000u, 0x400u,
-                               &pwrctrl_ops, &pwrctrl_instance, error);
+    static semu_ulsan_pwrctrl instance;
+
+    return pwrctrl_map(bus, &instance, 0u, error);
+}
+
+semu_status semu_ulsan_244_pwrctrl_map(semu_bus *bus,
+                                      semu_ulsan_pwrctrl *state,
+                                      semu_error *error)
+{
+    return pwrctrl_map(bus, state, ULSAN_244_DISPLAY_MASK, error);
 }

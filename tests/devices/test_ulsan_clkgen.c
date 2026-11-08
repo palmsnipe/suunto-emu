@@ -103,6 +103,34 @@ static void test_invalid_access_widths_refused(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_244_clock_instances_are_isolated(semu_test_context *context)
+{
+    semu_error error;
+    semu_ulsan_clkgen first_clock, second_clock;
+    semu_bus *first = semu_bus_create(&error);
+    semu_bus *second = semu_bus_create(&error);
+    uint32_t value = 0u;
+
+    SEMU_TEST_ASSERT(context, first != NULL && second != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_clkgen_map_state(first, &first_clock, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(first, CLKGEN_ADDR + 0x84u, 4u, 0xb9u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_clkgen_map_state(second, &second_clock, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(second, CLKGEN_ADDR + 0x84u, 4u, 0x30u, &error));
+    semu_bus_reset(second);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(second, CLKGEN_ADDR + 0x84u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(first, CLKGEN_ADDR + 0x84u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0xb9u, value);
+    semu_bus_destroy(second);
+    semu_bus_destroy(first);
+}
+
 /*
  * Boot frontier (ticket 730, re-pinned by E-ULS-0041): BKPT #0 now
  * retires as a no-op without a debug session (E-ULS-0040 lane probe:
@@ -192,6 +220,7 @@ int main(void)
           test_dictionary_stores_and_returns },
         { "test_invalid_access_widths_refused",
           test_invalid_access_widths_refused },
+        SEMU_TEST_CASE(test_244_clock_instances_are_isolated),
         { "test_boot_passes_hfclk_control", test_boot_passes_hfclk_control }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

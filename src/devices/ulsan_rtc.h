@@ -19,6 +19,25 @@
  * for the observed transaction sequence and lane calibration.
  */
 
+typedef struct semu_ulsan_rtc {
+    uint32_t regs[4]; /* +0x00, +0x30, +0x200, +0x208 */
+    uint32_t upper;   /* +0x24, reset 0x14700101 */
+    uint32_t subsec;  /* +0x20 store, kept; reads answer the live counter */
+    semu_scheduler *scheduler; /* attached machine scheduler */
+    semu_apollo4_irq_fn irq_sink;
+    void *irq_context;
+    semu_event_id alarm_event;
+    int alarm_event_valid;
+    semu_event_id clear_event;
+    int clear_event_valid;
+    int line_high;
+} semu_ulsan_rtc;
+
+semu_status semu_ulsan_rtc_map_state(semu_bus *bus, semu_ulsan_rtc *state,
+                                     semu_scheduler *scheduler,
+                                     semu_apollo4_irq_fn sink, void *context,
+                                     semu_error *error);
+void semu_ulsan_rtc_reset_state(semu_ulsan_rtc *state);
 semu_status semu_ulsan_rtc_map(semu_bus *bus, semu_error *error);
 
 /* Counter-window source and alarm line (ticket 730, E-ULS-0036,

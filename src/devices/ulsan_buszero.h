@@ -21,5 +21,7 @@
  */
 
 semu_status semu_ulsan_buszero_map(semu_bus *bus, semu_error *error);
+semu_status semu_ulsan_244_buszero_map(semu_bus *bus, semu_error *error);
+semu_status semu_ulsan_244_sd_pad_map(semu_bus *bus, semu_error *error);
 
 #endif

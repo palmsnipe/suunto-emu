@@ -84,7 +84,7 @@ typedef enum {
  * 0 while never stored; Reset clears it (registers.Clear()). */
 #define ULSAN_MSPI1_REG_WORDS 1024u
 
-typedef struct {
+typedef struct ulsan_mspi1_state {
     uint32_t registers[6];          /* 0 queue control, 1 address,
                                        2 device, 3 count,
                                        4 PIO control, 5 PIO address/

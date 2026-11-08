@@ -1,0 +1,26 @@
+# Copy beside the expanded components and pass the copy to --firmware.
+[firmware]
+format=1
+product=Ulsan
+version=2.44.52.20521-R
+
+[component resident]
+role=resident
+path=component-03-type-5-v2.raw
+load_address=0x00010000
+size=114669
+sha256=3ba7a5b312a2fd4fdb4c327270ec66888f3fc03940bf8b5184233dad221369d9
+
+[component application]
+role=application
+path=component-04-type-4-v2.raw
+load_address=0x00030000
+size=1828547
+sha256=64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef
+
+[component resources]
+role=resources
+path=component-05-type-1-v3.raw
+load_address=0x18040000
+size=33292288
+sha256=81f861d4541d5c9f0e6b0cb73c2b3e44197d5abc6f147e1de8005da9af87f524

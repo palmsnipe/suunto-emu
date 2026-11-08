@@ -10,6 +10,14 @@
 #include "semu/apollo4.h"
 #include "semu/bus.h"
 
+struct ulsan_mspi1_state;
+
+/* Cold map for a machine-owned controller. Bus reset retains its backing. */
+semu_status semu_ulsan_mspi1_map_state(semu_bus *bus,
+                                      struct ulsan_mspi1_state *state,
+                                      semu_apollo4_irq_fn sink, void *context,
+                                      semu_error *error);
+
 semu_status semu_ulsan_mspi1_map(semu_bus *bus, semu_error *error);
 
 /* Same shared seam as the IOM4 (E-ULS-0030): the integrator wires one

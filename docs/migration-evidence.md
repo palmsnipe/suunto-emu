@@ -16742,3 +16742,1514 @@ integration runs above; `make check-lines`, `make check-task-contracts`,
 | `/tmp/sap233-touch-impl/stdout-26.txt` (rejected variant) | `-` (36 log lines, boot derailed; not kept) |
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
+
+## E-ULS-0052 — Ulsan 2.44.52 reset profile and GPIO checkpoint (ticket 808)
+
+2026-11-04. E-ULS-0003 pins the three pristine components. The reference
+`emulator/devices/ulsan/ulsan-2.44.52.resc` (SHA-256
+`410c37dd20813dfabf87dba5ed9b32c59efdb45a59a63c099a68e5f93657c495`)
+loads them at `0x00010000/0x00030000/0x18040000`, with VTOR
+`0x00030000`, SP `0x1005ffc0` and Thumb entry `0x001da733`. It
+includes the exact Ulsan platform and storage descriptions below.
+The standalone profile executes the original application bytes.
+
+| Reference lane input | SHA-256 |
+| --- | --- |
+| `emulator/devices/ulsan/ulsan-platform.repl` | `e82fe05f7139e9baa0f2b84507982adc0505a94a026ea09a4e451fb22d1adc14` |
+| `emulator/devices/ulsan/ulsan-storage.repl` | `5984c98ea434ca33f5c8e072aad936de0d8ee24b6202fa8c541e1371746c97b1` |
+| Bundled Renode `platforms/cpus/ambiq-apollo4.repl` | `e1f8560bd32f82fb2aaf7e9a8877b1b1c4aff7bd0a35821f8761a76243b74376` |
+| Bundled Renode 1.16.1 executable | `8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab` |
+| `emulator/devices/ulsan/ulsan-2.44.52-boundary.resc` | `3498d962c557569189a90b780265e3b266cb842cfc10f80edfdfaa76eaebbc60` |
+
+The declared memory regions match E-ULS-0006 by base and size. MRAM is
+`0+0x200000`, TCM `0x10000000+0x60000`, shared SRAM
+`0x10060000+0x100000`, extended SRAM `0x10160000+0x60000`, working
+memory `0x101c0000+0xa7000`, and the recovered XIP tail
+`0x18040000+0x01fc0000`. The standalone mapping leaves the 256 KiB
+personalized flash prefix absent. Both lane profiles use the same
+`AmbiqApollo4_GPIO` at `0x40010000` and NVIC priority mask `0xe0`.
+
+Two fresh Renode runs of the boundary script with `RunFor 1.000` exit 0.
+In `/tmp/semu-ulsan244-lane-xh_bndvo`, `smoke-1.log` and
+`smoke-2.log` have SHA-256
+`a183274320032fbfb3dec3ba7bd8adaca7ee9f2f1284a211bd4e419d8ebbb69a`
+and `373b016762ab12d8c6245e5e5b205c2382f851460ea145b25dedd75fcf709e80`.
+Keep only monitor lines matching `^0x[0-9A-Fa-f]+$`, lowercase them,
+and join with LF and a trailing LF. The result is byte-identical, SHA-256
+`a2a1aac2017f349ba3299fea247a6d561643c582cb9f92fdaf18a4111f649462`.
+In the order PC, SP, LR, CFSR, HFSR, then display/MSPI/NVIC reads, the
+17 values are `d47f0 10029d70 779ab 0 0 87452365 0 0 0 0 10034360 1
+28200406 0f000000 00004004 0 00012000`. The scope is the terminal
+monitor tuple, distinct from the older transaction hash E-ULS-0004.
+
+The startup probe in E-ULS-0053 records 36 GPIO transactions before the
+first power access, byte-identical after removing log timestamps
+(SHA-256 `4a8b3af648e6ad7eb92f2140ec0d0f8dae99df7f8c96c6ce37fcfd6c326551df`).
+Nine iterations use aligned 32-bit PADKEY unlock `0x73` at PC
+`0x000aa30c`, write PINCFG `0x183` at `0x000aa30e`, lock with
+`0` at `0x000aa314`, then clear the pin output at `0x000aa372`.
+The pins in order are 91, 18, 90, 101, 22, 3, 60, 93, 96. That is the
+shared controller's existing key, pin configuration and output-clear law.
+This profile attaches no GPIO interrupt or semantic inputs.
+
+With RAM alone, two standalone boots fault at `0x40010200` at
+PC `0x000aa30c`, after 14,831,228 retired instructions. The retained
+20,000,000-instruction transcript SHA-256 was
+`dbfea766eb11a23a5dfd80ba1eabd8daef483940506fc389b493e991d9b0791b`.
+With the shared GPIO attachment, two cold boots reach the first precise
+fault on the PWRCTRL read at PC `0x00076eca`, address `0x40021008`,
+after 14,836,578 retired instructions. The scratch inspector
+`/tmp/semu-ulsan244-tree.UUNJPY/first-fault.c` (SHA-256
+`b0542a8ba8546558bddbb4598cdc83c1ca73d32a2816b3cc6a388d482736e00c`)
+runs 14,000,000 instructions, then single-steps to the fault with a
+20,000,000 total instruction cap. The output pairs have SHA-256
+`c4aa2635aacfce07ee52a38688b5cfbfcd3c44c1534f671bbbc5dd4403d8312b`
+for RAM only and
+`0405b5393dadd53a24dbc423a64f3bdd58d6111995f9d74d44bb25216f2514d9`
+for RAM and GPIO.
+
+The final CLI pair under `--max-instructions 20000000 --max-time
+1000000000` has transcript SHA-256
+`83eab065068c7345685651ec75ea71e75c597ee6940c57661bad8038e947d9ce`.
+Both runs log one guest reset at PC `0x000b2b82`, instruction and virtual
+time `14836658`, fault address `0x40021008`, with zero compatibility
+hits. Both stop at the budget at PC `0x000b1690`, instruction and
+virtual time `20000000`. No PWRCTRL behavior is admitted by ticket 808.
+
+## E-ULS-0053 — Ulsan 2.44.52 startup power access census (ticket 809 input)
+
+2026-11-04. The E-ULS-0052 Renode binary ran the normal 2.44.52 script
+with GPIO and PWRCTRL peripheral-access logging for 1.000 virtual seconds.
+The probe `/tmp/semu-ulsan244-lane-xh_bndvo/startup.resc` has SHA-256
+`29ac4a8b9a55a258147a592ecf12c21e4bf5c59de24fd3af194be8ef1a15a788`.
+Both exited 0. Raw `startup-1.log` and `startup-2.log` in that directory
+have SHA-256 `7a9e1a7efc6c8387ed3a0a6947d2c1e0087cfe37949a4e2efa3ca428e3462cbc`
+and `213d31f616e87e7f6b3994e08994c39870867ea5ad905b167c66909867d60cff`.
+Strip timestamps and severity from lines matching `ulsan_pwrctrl: [cpu:`.
+The 929 ordered records compare byte-identically, SHA-256
+`341f48739ec1ba7e4d2847f25806d4b6496d8507a8095bf2d0cad4c682d9884e`.
+
+The first access is `R32 +0x08 -> 0x00100000` at PC `0x00076eca`,
+matching the standalone fault boundary. Later display power readbacks
+include `0x00040000`, `0x00080000` and `0x000c0000` at both
+`+0x04` and `+0x08`. The 2.44.52 lane replaces PWRCTRL with
+`UlsanApollo4PowerController`, declared in
+`emulator/devices/ulsan/ulsan-2.44.52-power-model.repl` (SHA-256
+`1df16b33e03a8dbc633ba939c0db7770d1cedcc6eaf0cda6b624323a218b0acb`)
+and implemented in
+`emulator/renode/peripherals/SapporoApollo4Extensions.cs` (SHA-256
+`a9561ac90c10d9b7b2ec859c11c3f9ba974aea4abf504e5d9454d6038bc90405`).
+The wrapper retains bits 17–19 from each write to `+0x04`, mirrors
+them on reads at `+0x04/+0x08`, clears them at reset, and delegates
+other fields to the underlying model. E-ULS-0037 is the underlying
+2.35.36 observation. Directly attaching that profile's controller
+would discard the retained display bits.
+
+Read census (offset in hex, value/count): `00:9/34; 04:0/160,20/144,
+40000/18,80000/2,c0000/10,100000/2; 08:0/90,1e0/144,40000/13,
+80000/2,c0000/10,100000/2; 14:3f/9; 18:3f/5; 1c:8/3;
+24:0/2; 28:3/6; 58:0/5; 5c:0/3; 60:0/3; 78:0/5; 7c:0/3;
+80:0/3; 100:0/1; 108:0/45`.
+Write census: `04:0/78,20/72,8000/1,40000/9,80000/1,c0000/5,
+400000/1; 14:3f/4; 1c:8/3; 24:3/1; 58:0/1,1/1;
+60:0/2,4/1; 78:0/1,1/1; 80:0/2,4/1; 100:1/1`.
+The firmware also writes zero once to each word at `0x140..0x188`
+inclusive. No access of a different width was observed.
+
+## E-ULS-0054 — Reproduced reference Service Mode frame
+
+2026-11-04. Two cold E-ULS-0052 Renode boots with 8.000 virtual seconds
+each published byte-identical 466x466 little-endian RGB565 frames,
+434,312 bytes, SHA-256
+`bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526`.
+This is the native Service Mode text layer on a black canvas. There
+are 3,150 nonzero pixels within inclusive bounds `x=90..373 y=6..32`.
+
+The generator `/tmp/semu-ulsan244-lane-xh_bndvo/capture-first.py`
+(SHA-256 `642c51be8cdd158bf6667775d915cf977649388f65869c37232c2da6380528c8`)
+takes the read-only display observer from
+`emulator/devices/ulsan/ulsan-2.44.52-native-ui-trace.resc`
+(SHA-256 `abce9cc8b54cc8a8c4aaae99201ff3b7af3c2e195d62e98139cfa8d922eb259b`),
+keeps its first nonempty publication, and uses the base 2.44.52
+launcher. It sets GPIO57–59 to released and observes PADKEY. It uses
+no added synthetic full-flash, eMMC, manufacturing, or GPS fixture.
+The base Renode script still applies its own instruction-equivalent
+translator substitutions. Nothing is installed in the standalone CPU.
+
+| Volatile capture path below `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `first-frame-1/service.resc` | `d4f805c8ea61bee14deacf91fcb6d3db9b9c98184bf94bdb8558e3cc4484466d` |
+| `first-frame-2/service.resc` | `8f38c1031f89a503b2b735a0144724b032ad7bc9a331b3a5cd2f2077e3b9e5b9` |
+| `first-frame-1/renode.log` | `0f696cc6385744cc5a06caaaf5acc051c6589b165972769be9f0a90d3dda0367` |
+| `first-frame-2/renode.log` | `ddc89cefac994f69bf35c127cc14df5b1ca40a8c9e8c65feef942549689119e9` |
+
+Both exit 0 at PC `0x000d47f0`. Keep the four PADKEY lines, one
+native layer line, and the terminal PC, excluding timestamp, severity,
+logger prefix, and output path. The two normalized records are
+byte-identical, SHA-256
+`38921131a009e664578dc99658a046d60fc7111812319116879049f52f9e38f5`.
+The frame uses mode `0x08ff0109` (low five bits `0x09` L4), source
+`0x1006fed8`, start `(0,0)`, size `466x42`, stride 233, and a
+9,786-byte packed source span. The low nibble is the first pixel of
+each pair. The 16 RGB888 palette words come from display offset
+`0x400 + index*0x44` and the observer converts to RGB565. This pins
+the reference frame, with standalone device and publication work pending.
+
+A second 8.000 s pair adds a 32-bit write watchpoint on NemaDC PLAY
+(`0x400a0000`) and reads layer registers `+0x30/+0x34/+0x38/+0x3c/+0x40`
+at each write. The generator `capture-play.py` in the same scratch
+directory has SHA-256
+`dfe2d530af57e9db8917254e99fe60f03c8f6a3ecac9382a976ff6be0690daf4`.
+Both runs preserve the frame SHA-256 above. `play-frame-1/service.resc`
+and `play-frame-2/service.resc` have SHA-256
+`8de530f626d0643c7235584cb01a7032f52b6f86a8b1fb6a7fa613a6223b1c92`
+and `e0f141f48e393adf84b8cdd4498b774f13c243976a6aeaa540b0bb466e271bac`.
+The corresponding `renode.log` hashes are
+`95571bf6eac0fb9e3b3b0d95de4d333df0b351bf79559d3061a26a3cd5f1ce3b`
+and `f33d2d14f767574dae568e0e5215ecf248536713697131a99a9cdb2e1ba67dff`.
+Keep the nine `ULSAN244_PLAY` lines after the logger prefix. The two
+ordered streams match, SHA-256
+`1439c1ae2ca1154ab417197719e8036fa8f19b1a32bf9bc823bc982c466f4499`.
+
+All nine writes come from PC `0x000de172`. Start is always zero. The
+observed mode changes between PLAY and the idle frame observer.
+
+| Write ordinal | PLAY | Mode | Size word | Source | Stride |
+| --- | --- | --- | --- | --- | --- |
+| 1, 3, 4 | `0` | `0` | `0` | `0` | `0` |
+| 2 | `0x00020008` | `0` | `0` | `0` | `0` |
+| 5 | `0x00120008` | `0x88ff0109` | `0x01d201d2` | `0x10060000` | `0xe9` |
+| 6 | `0` | `0x08ff0109` | `0x01d201d2` | `0x10060000` | `0xe9` |
+| 7 | `0x00120008` | `0x88ff0109` | `0x01d200d2` | `0x10060000` | `0xe9` |
+| 8 | `0x00120008` | `0x88ff0109` | `0x01d2002a` | `0x1006fed8` | `0xe9` |
+| 9 | `0` | `0x08ff0109` | `0x01d2002a` | `0x1006fed8` | `0xe9` |
+
+The first nonempty frame publishes between writes 8 and 9. A standalone
+display test should distinguish the blank initial submissions from the
+text-layer submission.
+
+## E-ULS-0055 — 2.44.52 power-control attachment advances to BootROM (ticket 809)
+
+2026-11-04. E-ULS-0053 supplies the 2.44.52 access census and the
+version-specific wrapper. The standalone attachment starts with
+`+0x04/+0x08 = 0x00100000`. Writes to `+0x04` replace the supported
+enable fields. GFX, DISP and DISPPHY bits 17–19 persist and mirror into
+`+0x08` on this profile, and reset clears them. Observed MSPI1 and USB
+tag bits are discarded. The machine owns the 2.44.52 power state. The
+2.35.36 mapping retains its previous register law.
+
+Observed constant registers and tag-only stores reuse the existing
+PWRCTRL tables. For 2.44.52 the model refuses narrow accesses, writes
+to status, unobserved offsets and unsupported enable bits before any
+mutation. Device tests cover reset, display enable and selective
+clear, IOM group status, unknown bits and widths, and isolation of two
+live 2.44.52 instances.
+
+The before probe reproduced the E-ULS-0052 fault at `0x40021008`.
+The two post-attachment CLI runs under `--max-instructions 20000000
+--max-time 1000000000` exit 3 on the budget and have byte-identical
+stdout and stderr (`809-after-1.log`, `809-after-2.log` under
+`/tmp/semu-ulsan244-tree.UUNJPY`, SHA-256
+`b4750df34a310173f8214f7ebc31bd8141c9e3afcc3928cc505057aacfb61040`).
+Both runs log one reset at PC `0x000b2b82`, instruction and virtual time
+`14836819`, fault address `0x0800009c`, and zero compatibility hits.
+Both finish at PC `0x000b168c`, instruction and virtual time
+`20000000`. This supersedes the active regression pin while preserving
+the previous checkpoint in E-ULS-0052.
+
+The E-ULS-0052 single-step inspector confirms an instruction-fetch
+fault at PC/address `0x0800009c` after 14,836,739 retired instructions
+on each cold boot. The two `809-fault-*.log` transcripts match,
+SHA-256 `2d32e09e905fa8bab436a4665b7e50818a2996952f2fe054244893e003504a4a`.
+The fetch enters the delay stub whose presence in the 2.44.52 lane is
+confirmed by E-ULS-0056.
+
+## E-ULS-0056 — 2.44.52 BootROM delay and clock-generator sharing
+
+2026-11-04. The two one-second Renode probes below include the hash-pinned
+E-ULS-0052 2.44.52 lane. Both use its unmodified BootROM declaration from
+`ambiq-apollo4.repl` and clock script from `ulsan-platform.repl`.
+
+| Volatile path under `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `bootrom-244.resc` | `6182d99582bd1b77e5c94bb72add1e15393ebef95869404430a3837606ca34a8` |
+| `bootrom-244-1.log` | `c5a57bda93063d25085e15cd74d74a2ac336eb98686a802f786a6783794664a9` |
+| `bootrom-244-2.log` | `99f333748a47b08e0c1c9ba143c79d5f216484e7d5b98611ac26f0d01a4938a8` |
+| `clock-244.resc` | `b4ba25431622f468dbfde029163e34a8c4ce6dbe0bb8f42a6a040c9fb43ba97f` |
+| `clock-244-1.log` | `295f2f6a2a9ba16e22e4ca7eef5b49eda24e42d7ac3385860012232e67160d28` |
+| `clock-244-2.log` | `64387e168fe2ca0a1fffd86b4310c50d08394576a09bb55a6cbb7a0a9a3afa27` |
+
+The hook at `0x0800009c` logs the caller and argument. The normalized
+record consists of the 87 delay lines after the CPU logger prefix and
+three monitor readouts, with LF separators and final LF. Both runs
+match, SHA-256
+`0de3f3b2440196518e8091265d9099dec33e5b91bb86e3e53edf827527cc0f0f`.
+The monitor reads are `R32 0x0800009c = 0x3801300f`,
+`R32 0x080000a0 = 0xd1fc2800`, and `R16 0x080000a4 = 0x4770`,
+matching the E-ULS-0009 delay routine. The 96 calls after expanding
+Renode's repeated-line counts have caller/argument/count tuples
+(hex addresses and arguments): `76f2f/c71/1 a3ad9/11/15
+de039/271/12 de057/131/12 de107/271/8 de129/131/8 de1fb/271/4
+de215/131/4 de389/271/1 de3a5/131/1 f3577/7cf1/5 f35df/31f1/5
+f35ef/131/5 f3609/7e31/5 f363d/3e71/5 f36b3/131/5`.
+This is the lane-declared stub, with no claim about a physical BootROM.
+
+The 211 CLKGEN access lines after the severity prefix compare
+byte-identically, SHA-256
+`329542ebff3d3cbfe0fa6bfc97e40facfd652fa53ddccdeefe5ef2740394887e`.
+All accesses are 32-bit. The startup sequence at +0x44 is
+`R=0 W=fc0000 R=fc0000 W=fc0040` at PCs `76ee8/76eee/76f2e/76f38`.
+Offset +0x0c sees one read and one write of zero. The +0x84 census
+(value/count) is reads `0/5 8/5 9/5 30/5 89/30 b0/5 b1/5 b9/55`,
+writes `0/5 8/5 9/5 30/5 89/30 b0/5 b1/5 b9/30`. The same
+declared dictionary law as E-ULS-0010 covers these transactions.
+
+Read-only standalone probes linked temporary copies of
+`src/boards/ulsan_board.c` from `/tmp/semu-ulsan244-tree.UUNJPY`.
+Adding the existing BootROM map in `810-board-probe.c` (SHA-256
+`ba784c607c2e1258e7863bf2bcb356edf15b24471207fd87647ecd09446c0a7e`)
+gives two identical `810-fault-probe-*.log` outputs (SHA-256
+`5319e7fbe1499ee5155fec6f467a226f1734beaa28320c2ece81345749740aa5`).
+The next precise fault is `0x40004044` at PC `0x00076ee8` after
+14,837,352 retired instructions. Adding the existing CLKGEN map as well
+in `810-clock-board-probe.c` (SHA-256
+`edaada90cc880b6a51446c19be49eb37bb76f27b26b0a3ec251805be0b4960ae`)
+gives two identical `810-clock-fault-probe-*.log` outputs (SHA-256
+`e4aea4e6d6bd24f22ae6a0810d4458ca1b71b8f4feb09dbc15fb384f3fd4558d`).
+The next fault is `0x48000050` at PC `0x000778aa` after 14,837,402
+retired instructions. Both probes use the E-ULS-0052 inspector and
+its 20,000,000-instruction cap.
+
+## E-ULS-0057 — 2.44.52 BootROM and CLKGEN attachment advances to DAXI (ticket 810)
+
+2026-11-04. The 2.44.52 board attaches the existing BootROM and clock
+callbacks under E-ULS-0056. Each machine owns its clock dictionary.
+The 2.35.36 attachment retains the same context and callbacks as before.
+The tests cover the BootROM write/logger refusals, CLKGEN width refusals,
+clock readback, and reset isolation between two live 2.44.52 instances.
+
+Two cold CLI runs with the verified three-component manifest and
+`--max-instructions 20000000 --max-time 1000000000` match byte-for-byte.
+The volatile `810-after-1.log` and `810-after-2.log` in
+`/tmp/semu-ulsan244-tree.UUNJPY` both hash to
+`f0208d593652aae119c14450150751c25038f7772bc7b92b904cfc3e0af498f2`.
+Each logs one guest reset at PC `0x000b2b82`, at instruction and virtual
+time `14837482`, with zero compatibility hits. The first fault is
+the DAXI read at `0x48000050`, PC `0x000778aa`, after 14,837,402
+retired instructions (E-ULS-0056 scratch attribution). The 20,000,000
+instruction budget stop is PC `0x000b16a0`, time 20,000,000 ns. The
+existing private gate pins this transcript. E-ULS-0055 retains the
+previous BootROM boundary and transcript.
+
+## E-ULS-0058 — 2.44.52 DAXI and early unmapped-read census
+
+2026-11-04. The E-ULS-0052 lane runs the base 2.44.52 script for
+1.000 virtual seconds with access logging on `sysbus.cpu_complex`
+and monitor reads of the two declared silenced apertures.
+
+| Volatile path under `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `daxi-244.resc` | `d44d7d16b7777124b24bba2e837c1033787911b090a4c8161925d53383958e2d` |
+| `daxi-244-1.log` | `e6da54920dd07bdcdfd8c92b1119bc6da65e523894aa4ee2f9b58d9594c6c9d5` |
+| `daxi-244-2.log` | `284023af328627b411ecfa7feae1186588c8a4f65b5639f39d534c784c1855f1` |
+
+The 303-line normalized keep set is byte-identical, SHA-256
+`0ac0de3320b8057f6607896ee0c6435eefe79b29f76004a88c089f69b17ebcc9`.
+Keep the `cpu_complex: [cpu:` lines and sysbus diagnostics for
+`NVM_OTP/INFO1`, `'CRYPTO'` and exact address `0x40000000`, strip
+the timestamp and severity, then append the two monitor values. Use LF
+separators and a final LF.
+
+The DAXI reads and writes follow the E-ULS-0011 script from the same
+hash-pinned bundled platform. The first read `R32 +0x50 = 0` occurs
+at PC `0x000778aa`. The ordered initial sequence after it is
+`R54=4 W54=5 R54=4 W54=6 R54=4 W50=20f03`. Across all 296 DAXI
+accesses the value/count census is `R00 0/2; W00 0/1,1/1,1007e0/1;
+R08 0/1; W08 1/1; R50 0/48; W50 20f03/1; R54 4/144;
+W54 5/48,6/48`. The two E-ULS-0011 silenced apertures read zero at
+`0x40020000` and `0x47ff0000`.
+
+The two INFO1 reads at PC `0x000a3a64` are aligned words at
+`0x42003240` and `0x42003310`, both returning zero. The single
+CRYPTO word read at PC `0x00076d8c` returns zero at `0x400c0fe0`.
+The unbacked logger sees one word read at PC `0x000d4456` and one
+word write of 2 at PC `0x000d4460`, both at `0x40000000`. The
+unbacked read returns the lane's untagged default per E-ULS-0038.
+These zeros describe the lane's missing endpoints and authorize no
+personalization data or wildcard fallback.
+
+The E-ULS-0052 inspector linked three temporary board variants in
+`/tmp/semu-ulsan244-tree.UUNJPY`, each under 20,000,000 instructions
+and a 1,000,000,000 ns cap. Each output pair was byte-identical.
+The final diagnostic links the older bus-zero map to locate the next
+fault. No inference about the unused windows follows from that run.
+
+| Scratch variant | Source SHA-256 | Both log SHA-256 | Next precise fault (PC, address, preceding retired instructions) |
+| --- | --- | --- | --- |
+| `811-daxi.c` | `750aeb0717294ff851accf4efe0a83ba89ef468f5b80a303746c8d839928a652` | `70a2265a772c647bb017947a75ecbde0e9048afa7b76729a7923c53bc5108fcb` | `0x000a3a64, 0x42003240, 14847166` |
+| `811-info.c` | `56711ef3b7d9562afcc5a8655e53c05eeef5f73b0ff6a537eff85db5868bebb1` | `46e9e90b2f8098d654f97838c2ab263bd9d4368d6611799528762e9aeca915b2` | `0x00076d8c, 0x400c0fe0, 14847479` |
+| `811-crypto.c` | `e21a48397f72fb70a91d3057b2f0c195accf2ccbe8223e3e7b4ccdb19461c37d` | `ce766066be954b55b22a0d6985ce0b37714864dc44cf3633a58dc15e6f26536b` | `0x0006d5ac, 0x40008800, 14847534` |
+
+The paired log names match each source stem with `-1.log` and
+`-2.log`. The final boundary is the retained SystemTimer at
+`0x40008800`.
+
+## E-ULS-0059 — 2.44.52 DAXI and early bus attachment advances to SystemTimer (ticket 811)
+
+2026-11-04. E-ULS-0058 supplies the shared DAXI and INFO1 contracts.
+The 2.44.52 board attaches these maps and the CRYPTO and logger tuples
+only from the bus-zero model. The older I2C and USB-adjacent fallback
+windows stay outside the 2.44.52 map. Tests verify the two observed
+reads and logger write, wrong-width and value refusals, and unmapped
+reads at `0x400b0000` and `0x400b2000`.
+
+The two cold CLI runs under `--max-instructions 20000000 --max-time
+1000000000` produce identical `811-after-1.log` and `811-after-2.log`
+under `/tmp/semu-ulsan244-tree.UUNJPY`, SHA-256
+`225106e6eca13b074e79df63f64adc84800480878aee58b776b7fe98fa6d6e6d`.
+Each logs one guest reset at PC `0x000b2b82`, instruction and time
+`14847614`, with zero compatibility hits. The first fault is the
+SystemTimer CONFIG read at `0x40008800` at PC `0x0006d5ac` after
+14,847,534 retired instructions (E-ULS-0058 diagnostic pair). Both runs
+stop at the instruction budget at PC `0x000b16b2`, instruction and
+time `20000000`. E-ULS-0057 preserves the superseded transcript.
+
+## E-ULS-0060 — 2.44.52 retained SystemTimer startup census
+
+2026-11-04. The base E-ULS-0052 Renode profile loads
+`emulator/renode/peripherals/apollo4-retained-stimer.repl`, which
+maps `Timers.Apollo4RetainedSystemTimer` at `0x40008800` and has
+SHA-256 `5af6f84f7dda606cc690c865222896ee8b86ecd52a74b90920e4e2db82d74b8c`.
+The E-ULS-0053 pinned `SapporoApollo4Extensions.cs` supplies the
+same retained NVRAM wrapper used for 2.35.36. E-ULS-0045/0046
+describe the existing virtual-time counter law.
+
+Two runs of `/tmp/semu-ulsan244-lane-xh_bndvo/stimer-244-1s.resc`
+(SHA-256 `c8b9e94697bc13433ad97596c1c2422028f30df8abc2e026607e3359a34d259c`)
+run 1.000 virtual seconds with SystemTimer access logging. Raw
+`stimer-244-1s-1.log` and `stimer-244-1s-2.log` in the same
+directory have SHA-256
+`c960e8ae42c241f43d1d2f8896168dc7d5b707040eb8a4a09ed797f3329d4557`
+and `06b307f5501852e1183a1375891298b7b4b40445ca72d9e0a81d0f67a963ac1d`.
+The 200,095 `apollo4_retained_stimer: [cpu:` lines after removal of
+time and severity are byte-identical, SHA-256
+`03c803a8cd089f480dc49f979512fbb87794214a47520defe5c1bbda97844417`.
+
+The initial 32-bit read at PC `0x0006d5ac` returns CONFIG
+`0x80000000`, and PC `0x0006d5ae` writes it back. The same pair
+then reads `0x80000000` and writes `0x303`. PCs
+`0x0006d5f8/0x0006d5fe` read and write zero at `+0x100`.
+NVRAM reads return zero at +0x50 (one), +0x54 (one), +0x58 (one),
+and +0x5c (three), and the one +0x54 write stores zero. The remaining
+200,082 accesses are 32-bit counter reads at `+0x04`, ranging from
+1 to 26,733. The observed counter samples characterize the lane
+run. The standalone scheduler retains the deterministic cadence in
+E-ULS-0051 and derives reads from its own virtual time.
+
+Two standalone diagnostics with the existing SystemTimer mapped and
+connected to the machine scheduler reach the watchdog write at PC
+`0x000d444e`, address `0x40024000`, after 14,847,877 retired
+instructions. The probes reuse the E-ULS-0052 inspector with the
+20,000,000-instruction cap. Under `/tmp/semu-ulsan244-tree.UUNJPY`,
+`812-board-probe.c` and `812-machine-probe.c` have SHA-256
+`f22e3ddab2b0ffec10c82669b6f696b128e6195168db07a7541c64d099f7ce52`
+and `a1898b1c6bca92f5ba44db055806620210f41541709955e65349238196df09cf`.
+The identical `812-fault-1.log` and `812-fault-2.log` outputs hash to
+`8ce25d109ea3e7d083e477d4113206a949b70996edc6179522e2b8c9495ad715`.
+
+The watchdog probe changes the access-log target to `sysbus.wdt`
+and retains the 1.000 virtual-second cap. The script
+`/tmp/semu-ulsan244-lane-xh_bndvo/wdt-244.resc` has SHA-256
+`0dbbbadc7271efd7d9fe2caf5a9b94531756d80dbe38ab6012c65ff6168be8a8`.
+The raw `wdt-244-1.log` and `wdt-244-2.log` hashes are
+`df95f5e63924f3823087ca8829f830f709879bbefb860a811073b3c78a5e1f74`
+and `43bed3e424f29ad9b3cf2839b4232485ecace37c5e505622605f03ee88f5ff78`.
+The 100 ordered `wdt: [cpu:` records match after removing time
+and severity, SHA-256
+`11825e114d8991cdc59f8c2cc0b1f20a4c90b5516fe4d02d5f198c6c7f1d3d2a`.
+All are 32-bit. The ordered startup sequence is
+`W00=33c3d06 R200=0 W200=1 W04=b2 R00=33c3d04 W00=33c3d05`.
+The PCs are `d444e/d455c/d4560/d44b2/d44b4/d44ba`. The remaining
+records are 321 writes of `0xb2` at +0x04 from PC `0x000d453a`
+after expanding repeat markers. The base lane uses the same
+`AmbiqApollo4_Watchdog` declaration as the E-ULS-0015 model.
+
+Adding the existing watchdog as well in `812-wdt-board-probe.c`
+(SHA-256 `b6dfc73d45703d4d0ba3bca881d3b2cdea438a296180549778d3d3d1f1f50c88`)
+advances both diagnostic runs to RTC CONFIG at PC `0x0006d45a`,
+address `0x40004800`, after 14,847,944 retired instructions.
+`812-wdt-fault-1.log` and `812-wdt-fault-2.log` both hash to
+`a81bde0a031e3e65f17bb42228c4dcd1b8b52f8b365bf2f2edce2d0e586f9e7a`.
+
+## E-ULS-0061 — 2.44.52 early RTC access census
+
+2026-11-04. The base E-ULS-0052 reference script maps
+`Timers.AmbiqApollo4_RTC` at `0x40004800` with IRQ 2. Two 2.000
+virtual-second runs of `/tmp/semu-ulsan244-lane-xh_bndvo/rtc-244.resc`
+(SHA-256 `508250d4f3bb3912bffd8f590f54da02b42b2ec8aab602d461f693747a01dbf5`)
+log RTC accesses. The raw `rtc-244-1.log` and `rtc-244-2.log` hashes
+are `4bbd56e2d128e5c24d945a49ac56b10adc5947514c47f01f84a93eafe435900a`
+and `977dc4a4c4e421d794266eb93666a3c86e3e2fbaacc9927f38640cc31ca6ae21`.
+Keep `rtc: [cpu:`, `rtc: First alarm`, and `rtc: Alarm occurred`
+records after removing timestamps and severity. The resulting 122
+ordered lines match, SHA-256
+`1d9950c1a4643f1349c97e00d9ee19f6841aa61d39a5b105789c6e0f9591b822`.
+
+All accesses are 32-bit. The first read at PC `0x0006d45a` returns
+zero from CONFIG. The initial ordered sequence is `R00=0 W00=0
+R30=0 R00=0 W00=e R30=0 W30=0 W208=1 R200=0 W200=1`.
+The count/value census is `R00 0/2; W00 0/1,e/1; R20 15/2,21/46,
+22/4,37/16,100/2,161/4; R24 14700101/37; R30 0/2; W30 0/1;
+R200 0/1; W200 1/1; W208 1/2`. Counter samples describe the lane's
+elapsed time. This access-log capture contains no alarm log at its
+chosen severity, so it establishes register traffic and no IRQ cadence
+or absence.
+
+## E-ULS-0062 — 2.44.52 SystemTimer and watchdog advance to RTC (ticket 812)
+
+2026-11-04. The 2.44.52 board attaches the existing SystemTimer and
+watchdog startup register laws from E-ULS-0060, with separate state per
+machine and the SystemTimer bound to that machine's scheduler. The
+2.35.36 attachment and its timing are unchanged. The isolation tests
+verify that live counters use their own scheduler, retained NVRAM
+survives a bus reset without appearing on another bus, and watchdog
+configuration on one bus survives reset of another.
+
+Two cold standalone CLI boots with the verified manifest and the
+20,000,000-instruction, 1,000,000,000 ns caps exit 3 on the budget.
+`812-after-1.log` and `812-after-2.log` under
+`/tmp/semu-ulsan244-tree.UUNJPY` have identical SHA-256
+`48f1bbbb0c277869140c77fc00d87ab846ecc09136b68c40592e09aab7d07843`.
+Each reports one guest reset at PC `0x000b2b82` at instruction and
+virtual time `14848024`, with zero compatibility hits. The first
+fault is the RTC CONFIG read at `0x40004800` at PC `0x0006d45a`
+after 14,847,944 retired instructions (the E-ULS-0060 probe pair).
+Both boots stop at PC `0x000b16a0` at 20,000,000 instructions and ns.
+The private runner pins this transcript. E-ULS-0059 preserves the
+superseded SystemTimer boundary.
+
+## E-ULS-0063 — 2.44.52 RTC alarm confirmation and Timer1 boundary
+
+2026-11-04. E-ULS-0061 pins the register sequence. The follow-up probe
+`/tmp/semu-ulsan244-lane-xh_bndvo/rtc-alarm-244.resc` enables RTC debug
+logging and runs for 4.000 virtual seconds. Script SHA-256 is
+`3163630f0302ef06f921a7fe671f19a8cb347f19f7af2cb12961f9439af782b5`.
+Raw `rtc-alarm-244-1.log` and `rtc-alarm-244-2.log` in the same
+directory hash to
+`dcac2148f9c14f8532c88776f59cc7da546932d2eb2dc93e3f7530004c7dd2f7`
+and `32ae446c9f055921d4cbb13d5428a765f94983cda82a40ca089ee7a00513431c`.
+After stripping timestamps and severity, the 12 RTC lines for first
+alarm, alarm occurrence and IRQ set/reset match, SHA-256
+`6a9e762a6f586efbb016d33b206f551cf3aa90fc2e8fc2a1c771414456ff1a45`.
+
+The initial arm is epoch +1 s with one-second repeat. The alarms occur
+at epoch +1, +2, +3 and +4 s with next deadlines one second later.
+The lane logs four assertions and three deassertions, with the final
+assertion at the cap. This confirms sharing the E-ULS-0048 RTC wiring
+and recurring alarm path. The in-tree 61,035 ns pulse remains the
+E-ULS-0048 scheduler representation of the lane's short assertion.
+
+The E-ULS-0052 inspector with the existing RTC attached (private
+`813-board-probe.c` and `813-machine-probe.c` under
+`/tmp/semu-ulsan244-tree.UUNJPY`, SHA-256
+`851b37d83170401b335320d7f1135c4e46ea1a05a0ee50b2ce27d70b5e622710`
+and `dafd987b63ce0d815f66bf4e8022fd13f27df290aef15c0031cfa03b2cc79670`)
+reaches the Timer1 control read at PC `0x000d464a`, address
+`0x40008220`, after 14,854,261 retired instructions. The two
+`813-fault-*.log` outputs are byte-identical, SHA-256
+`f6fb0d16a90129383054dd9271d545f0fc22fba68408952f4fb8daf5074a6d80`.
+
+## E-ULS-0064 — 2.44.52 RTC attachment advances to Timer1 (ticket 813)
+
+2026-11-04. The 2.44.52 board maps the existing RTC startup registers,
+scheduler counter and IRQ 2 alarm from E-ULS-0061/0063 with machine-owned
+state. It clears alarm bookkeeping on a 2.44.52 guest reset before
+resetting the scheduler. Cancellation checks the event owner, and
+tests exercise isolated alarms on two live buses and cancellation on
+reset. The 2.35.36 RTC law remains the same.
+
+The two cold CLI runs at 20,000,000 instructions and 1,000,000,000 ns
+exit 3 on budget with identical transcripts. `813-after-1.log` and
+`813-after-2.log` under `/tmp/semu-ulsan244-tree.UUNJPY` hash to
+`1d597fea2808a39792995723313cb11b8ad11c08fc88e47b3657cb2e95833903`.
+Each reports one reset at PC `0x000b2b82` at instruction and virtual
+time `14854341`, with zero compatibility hits. The first fault is the
+Timer1 control read at `0x40008220` at PC `0x000d464a` after
+14,854,261 retired instructions (E-ULS-0063). Both stop at the
+instruction budget at PC `0x000b169c` and 20,000,000 ns. The reset
+regression now checks this transcript, with the prior boundary preserved
+in E-ULS-0062.
+
+## E-ULS-0065 — 2.44.52 Timer1 transactions and IRQ wiring
+
+2026-11-04. The E-ULS-0052 base platform declares Timer1 outputs to
+the combined IRQ 14 and dedicated IRQ 68. The access probe
+`timer-244.resc` enables `sysbus.timer` access logs for 2.000 virtual
+seconds. The IRQ probe `timer-irq-244.resc` enables NVIC diagnostics
+for 1.000 virtual second. The scripts and logs are under
+`/tmp/semu-ulsan244-lane-xh_bndvo`.
+
+| Path | SHA-256 |
+| --- | --- |
+| `timer-244.resc` | `0bba8743c9d29ae516270bbea8dd53353c092eefb251354cca1195765861baae` |
+| `timer-244-1.log` | `05fa8e63428c9bb8de54dfad01367d944e00e6996f6311b678e64fcc06f53cc3` |
+| `timer-244-2.log` | `56029a2145188b1e970105aa16edc41083a5fd06f74b9896db5c05042bc3930d` |
+| `timer-irq-244.resc` | `e1f9f6fe0fde4255a8c10b317d4f66433f68ba0b394b71efad14bfc8d61dcd82` |
+| `timer-irq-244-1.log` | `beb491b357ec6b1beb22293e21487ba9b781c525d7ec4f75e79aaa4312c98f7d` |
+| `timer-irq-244-2.log` | `4c5497a848e0c379a1a3f18087fbeb8c2b94bb4e4f2642dc4d44dfa3f0bce0a2` |
+
+The 3,229 ordered `timer: [cpu:` lines after removing time and
+severity match, SHA-256
+`1a74adf467af7b6f25354aea259fa9c5bd3b6f06a6ad9ff3ed2fbc442bdcaf3b`.
+Every access is 32-bit. The first access is `R220=0` at PC
+`0x000d464a`; initialization then writes `W220=0 W220=a20 W230=0
+W228=0 W22c=0 R220=a20 W220=a22 W68=4 R60=0 W60=4 W228=20`.
+The first GlobalEnable read is `R10=7ff`, before any guest write.
+While programming Timer1, the guest writes `0xa22` and reads
+`0xa20` at the next instruction (PC `0x000d4690` or `0x000d470e`).
+The clear bit does not persist. The three read-back control words
+are `0` (1), `0xa20` (799), `0xa21` (159). Writes are
+`0` (1), `0xa20` (479), `0xa21` (160), `0xa22` (320).
+
+Other offset and value/count tuples are `R10 7ff/160; W10 7ff/160;
+R60 0/1; W60 4/1; R64 0/412; W68 4/413; W22c 0/1; W230 0/1`.
+Compare0 `W228` sees `0/1 20/80 24/1 25/1 26/3 35/1 37/1
+63/1 69/1 8b/1 a5/1 a7/2 a8/3 f4/1 102/5 107/2 108/3 119/1
+12d/1 1a9/1 257/1 2b7/1 2c2/1 352/1 386/1 388/1 390/1 393/1
+394/1 396/4 397/37`. These are guest writes, not a replacement
+for deriving compare events from virtual time.
+
+The 2,429 ordered NVIC lines for external exception numbers 30/84
+and hardware IRQ 14/68 match after removing time and severity,
+SHA-256 `6e2a0c46aad5c6cf3fbfba105d528c16d5b6221fed3d8baa3a7d0be58789ad15`.
+Each output asserts, pends and deasserts 309 times. IRQ 68 has 265
+acknowledgments/completions and 44 explicit pending clears.
+This confirms the shared wiring used by the E-ULS-0035 comparator.
+The standalone keeps the existing tick and pulse representation
+and the E-ULS-0051 CPU cadence.
+
+An earlier diagnostic linked the existing 2.35.36 Timer map temporarily.
+It used `814-board-probe.c` and `814-machine-probe.c` under
+`/tmp/semu-ulsan244-tree.UUNJPY`, SHA-256
+`466949fa166eba963d222e6a54db43015f269b335a4b210d567f6a5671174210`
+and `23eca6cc99082c87ea4485bcb8a92c69e4ea008b88601c283276a1b67774d466`.
+Two E-ULS-0052 inspector runs give identical `814-fault-*.log`
+outputs, SHA-256
+`bed354ab42343fa0a97e55f06f28e9d53fbc0d652d00c5f765423a7b6b8caecb`.
+The next IOM4 write at PC `0x0015c9e0` faults on `0x40054104`
+after 14,859,783 retired instructions. The diagnostic localizes the
+next controller without validating the old profile's Timer reset or
+clear-bit behavior for 2.44.52.
+
+## E-ULS-0066 — 2.44.52 Timer1 attachment advances to IOM4 (ticket 814)
+
+2026-11-04. The standalone 2.44.52 profile attaches Timer1 with
+machine-owned state and IRQs 14 and 68. E-ULS-0065 supplies the
+`0x7ff` GlobalEnable reset and nonpersistent Timer1 clear bit.
+The existing comparator period and scheduled pulse remain in use.
+The 2.35.36 control readback is preserved. Focused tests exercise
+both IRQ outputs, an unobserved counter read refusal, the reset
+word, clear-bit readback, and independent bus state.
+
+Two standalone CLI boots with the verified manifest and caps of
+20,000,000 instructions and 1,000,000,000 ns produce identical
+`814-after-1.log` and `814-after-2.log` under
+`/tmp/semu-ulsan244-tree.UUNJPY`, SHA-256
+`d3e490a420406aea641717dc9a623a02d731004ab680c744e0e72a54b4f8c6c6`.
+Each reports one guest reset at PC `0x000b2b82`, instruction and
+virtual time `14859863`, with zero compatibility hits. The first
+fault is the IOM4 threshold write at `0x40054104`; E-ULS-0065
+identifies the guest PC as `0x0015c9e0`. The final standalone
+E-ULS-0052 inspector confirms that PC and 14,859,783 preceding
+retired instructions. Its two `814-final-fault-*.log` files
+match the E-ULS-0065 diagnostic digest. Both boots stop on the
+instruction budget at PC `0x000b1694` and 20,000,000 ns. The
+private reset regression pins this transcript.
+
+## E-ULS-0067 — 2.44.52 IOM4 startup access census
+
+2026-11-04. The E-ULS-0052 base lane maps `SPI.Apollo4IomDma` at
+`0x40054000` with IRQ 10. The lane inputs
+`emulator/renode/iom/Apollo4IomDma.cs` and `apollo4-iom-dma.repl`
+hash to `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd`
+and `5a6d1a316d1ff75584e7be478f9de4a2986e381f55bbc1a8acbc620afaae25e7`.
+Two 1.000 virtual-second runs of `iom4-244.resc` under
+`/tmp/semu-ulsan244-lane-xh_bndvo` (SHA-256
+`9d2d2429a654a663ae587a54d4454dce2e9111f80c0c0084bab019652ee6c9d7`)
+enable IOM4 peripheral access logging. The two raw log hashes are
+`30ab67220c5a6776713e78135c4e81860c8a4ef5f1020bb5ef629f9eaa1dacad`
+and `e8f7cb6b33856ae86c3af66af9f18ac70826d57ad1a75a499ce137aa93b19d31`
+(`iom4-244-1.log`, `iom4-244-2.log`).
+
+Keep the `apollo4_iom_dma: [cpu:` and `apollo4_iom_dma: Apollo4 IOM`
+lines after removal of time and severity. The 4,000 ordered records
+are byte-identical, SHA-256
+`9ea441667a3e2ee728aaa224c086ab6b4ad9d8b16f8edef3cb6aa63da6799c59`.
+The first three writes are `+104=1010 +2c0=103f270 +118=1d0e1301`
+from PCs `15c9e0/15cbee/15cb3a`. The first reads are
+`R11c=e20 R11c=e20`, before `W11c=10`, then
+`R248=4 R104=1010 R118=1d0e1301 R11c=e30`. Accesses are aligned
+32-bit. The MMIO census is 1,579 reads and 2,348 writes, plus 51
+endpoint-write and 22 endpoint-read log records.
+
+There are 71 doorbell writes, with 51 device selections at 0x28
+and 20 at 0x36. DMA count is 1 (22), 2 (20), or 4 (29).
+DMAConfig writes are `0/71 101/42 103/29`. Each completion reads
+`INTSTAT=0x403` (71), then clears `0x401` (71) as part of the
+IRQ service path. There are another 142 `INTCLR=0xffffffff`
+writes. Command census (word/count) is
+`212/1 401/29 2000112/1 6000112/1 6000212/1 7000112/1 8000112/1
+8000212/1 9000212/1 a000112/1 10000112/1 12000112/1 16000112/1
+19000212/1 21000212/15 27000112/1 34000112/2 36000112/1
+40000112/1 51000112/1 55000112/2 59000112/2 5c000112/2
+62000112/1 89000112/1`. The common controller and endpoint contracts
+are relevant, but this does not establish identical interrupt
+status or full PMIC/gauge transfer semantics across versions.
+
+## E-ULS-0068 — 2.44.52 post-IOM4 wait diagnosis
+
+2026-11-04. A temporary board attached the existing IOM4 controller
+and IRQ 10 after the 2.44.52 Timer1 integration. Two cold runs with
+caps of 200,000,000 instructions and 4,000,000,000 virtual ns each
+retired 21 IOM4 doorbells, all to device 0x28. The first computed
+wrap in Timer1 Compare0 is `0xffffffbe` at 28,929,149 ns. After
+each RTC alarm a guest write of `0x20` is followed by
+`0xffffffbf`. Both runs stop on the virtual-time budget at
+`0x000d47f0` (19,106,348 instructions, 4,014,847,988 ns). The
+PC is the firmware's low-power loop, so the PC alone does not
+prove the reference display checkpoint was reached.
+
+The temporary sources and logs are under
+`/tmp/semu-ulsan244-tree.UUNJPY`. All log hashes below are shared
+by both runs of each variant.
+
+| Path or pair | SHA-256 |
+| --- | --- |
+| `815-timer-board.c` | `4c6f03994ef30931a321869b48e0fde358047fd7cb6c9c448e028f72e5bcbcc7` |
+| `815-timer-trace.c` | `32872e6342fca420055f736678284c6b7b0eb3063b07dd915939160f23497008` |
+| `815-iom-trace.c` | `cdd94da9c4b815dfd43bdcaefb04579c4d2f2a9f076365c77e77112c4f3fcd57` |
+| `815-timer-boot-{1,2}.log` | `0d2a65802ee4da5ba4add0696d7e66694b0e1c5b36c109a38c909abac3d6263b` |
+| `815-timer-clear-probe.c` | `f2b867e1f31dec117d5e6947e7435791cd8320cb9b0b64e611931f484f77f235` |
+| `815-clear-boot-{1,2}.log` | `51c21d7146ddcb3be0af15b2d47bc5b34267e48741ad1d5ea73db313ac9399e0` |
+| `815-rtc-clear-probe.c` | `6b2d88f7822e89f939d635fa465f5b366935ab035a9568676b673eea75d39cb7` |
+| `815-dual-clear-boot-{1,2}.log` | `1446e2d7497b4e3efd3a9456347887008fce3693d2b65876ed39de56ac4a5bfd` |
+| `815-cadence-cpu.c` | `b8bff87a32d8d7e328fbd91ca68f019cf34b0b9c6430a92430f06e25c28e589d` |
+| `815-cadence-machine-run.c` | `8f193a3ce600ae4ff454dba24bd56284215c1cc24af911b0e163af91740669e2` |
+| `815-cadence-boot-{1,2}.log` | `02424d68ef1c084723a78463b29fbbd2b5d1431e98ad994a8eb48f96b990fcc1` |
+
+Two 1.000 virtual-second lane runs of `timer-ack-access-244.resc`
+under `/tmp/semu-ulsan244-lane-xh_bndvo`, script SHA-256
+`756bbf7bdebf816862a4ff8a949b7629a660a4a76606dcb90a527c1d5f225539`,
+produce raw log hashes
+`3ef52d7415f85e903974cd17a0d0e81bc2234efb171466aa2fa414379fd7dfb6`
+and `127f26578fc7d9584dad797f3550f4814149ea3d7fc38c14cdda3db5b8e84c92`.
+Retain Timer access lines and the E-ULS-0065 NVIC filter after removal
+of log prefixes. The 4,402 lines match, SHA-256
+`3f495e20ce412f86a6cd0fb9e5f85e3bfa6fefbf19430bc951a3a765b61bb6e2`.
+All 309 deassertions of IRQ 68 follow a Timer InterruptClear write
+`+0x68=4` from PC `0x000d4746` in the filtered stream, with the
+IRQ 14 deassertion immediately before IRQ 68. The 265 serviced
+interrupts show the acknowledgment immediately before the write.
+The RTC debug logs in E-ULS-0063 show each of the three in-budget
+IRQ deassertions after an RTC InterruptClear write `+0x208=1`
+at PC `0x0006d58c`.
+
+Adding immediate Timer1 deassertion on the observed clear in a
+diagnostic still stops at `0x000d47f0` (18,984,863 instructions).
+Adding RTC deassertion on clear still stops at the same PC
+(18,813,031 instructions), with RTC-era compare writes of
+`0xffffffc0`. These variants keep the original pulse timeout.
+None advances the guest beyond the wait.
+
+The read-only lane query `cadence-query-244.resc` (SHA-256
+`079895fc81fb3a388adf83577746534e37175d8a28613856521bdce6bcb52e35`)
+records CPU PerformanceInMips, ExecutedInstructions and PC before
+and across virtual-time caps of 100 ms and 120 ms. Raw log hashes are
+`6288cae762be43403fa3b94c5d77ffed11c100ad50b4e8a951d71ec69e54c821`
+and `b7221ad0cff29b3df54b9dd2190de9c9249ef867dacd351b1703854024752846`.
+The six bare hex records match, SHA-256
+`d9652c9aed30eef89f9ad72707ea2488ab0498ae20d8d3255ce4ad4232fcb0b7`.
+The configured rate is 96 MIPS. Both runs retire 9,600,000
+instructions by 100 ms (PC `0x000b169c`) and 11,520,000 by 120 ms
+(PC `0x000b169e`). This proves the early lane instruction budget
+tracks the configured virtual rate for this CPU-bound window.
+A scratch-only per-instruction rational 125/12 ns variant with
+both clear responses also parks at `0x000d47f0` (15,281,782
+instructions, 4,154,666,541 ns), with RTC-era `0xffffffa1` compare
+writes. This probe does not establish the lane's intra-quantum
+timing or explain the full wait divergence. No timing or
+interrupt-clear behavior from these probes is shipped.
+
+## E-ULS-0069 — 2.44.52 standalone PMIC completion and timer operands (ticket 815)
+
+2026-11-04. The standalone reset profile maps machine-owned IOM4
+controller and endpoint state and attaches IRQ 10. E-ULS-0067
+supplies the observed completion and mask sequence. Two cold
+boots with a verified E-ULS-0052 manifest and caps of 200,000,000
+instructions and 4,000,000,000 ns match. The stop is a budget
+at PC `0x000d47f0`, with 19,106,348 retired instructions and
+4,014,847,988 ns, with no reset warning. The private test also
+refuses a mismatched manifest identity. The previous IOM4
+boundary remains recorded in E-ULS-0066.
+
+Scratch probes in `/tmp/semu-ulsan244-tree.UUNJPY` record
+21 successful completions on endpoint `0x28`: 11 four-byte
+writes and 10 one-byte reads. Each reports status `0x403` and
+enable `0x4e7d`. No gauge doorbell appears. Focused device
+tests pin IRQ 10 assert and deassert, the remaining masked
+threshold status after clearing `0x401`, DMAEN auto-clear,
+independent endpoint state, and refusal of a destination
+spanning RAM and ROM before writing its first byte.
+
+| Path in volatile workspace | SHA-256 |
+| --- | --- |
+| `815-after-{1,2}.log` | `cabe8ca11e5ebabb2f9de40302eb921085f7f74c1a2166c7f2564d02cbf1debf` |
+| `815-operand-probe.c` | `674c75bfd43aae1eeca98cc95079a68786d62566085dd8847df1f6603800d063` |
+| `815-completion-probe.c` | `274fae0f288f72125d008d5226d19999ea29b69ba850d553cb423acfbdcec401` |
+| `815-operand-{1,2}.log` | `b722e426023ae4cf9eb3b8092cf4f14842c1ef2b22a6ca2fe9cb93c65a51139c` |
+
+Two 0.400 virtual-second lane runs of `timer-operand-244.resc`
+in `/tmp/semu-ulsan244-lane-xh_bndvo` hook the Compare0
+writer at `0x000d471e`. Keep the operand lines with log
+prefixes removed. The 48 normalized lines match. The same
+operands are recorded by the standalone scratch probe above.
+The first six compare writes in lane order are `20,35,20,63,20,107`
+and in standalone order `20,3f,20,65,20,ffffffbe`.
+At the sixth write the caller is `0x000b2363` in both. The
+registers `r4,r6,r7` are `a,120,19` on lane and
+`7ffffff,ffffffc0,2` in standalone. SystemTimer reads
+`0x89d` on lane and `0x1c2` in standalone.
+The sixth standalone write occurs at 28,929,149 ns.
+
+| Lane path | SHA-256 |
+| --- | --- |
+| `timer-operand-244.resc` | `0b6dda52632146c45428c3914586a8b726a8d1d493026b0c568d4d57518747eb` |
+| `timer-operand-244-1.log` | `69e5f8574dbbc6d8c4414430f895ad13597b68b7ee22f537eb5948d0c1994828` |
+| `timer-operand-244-2.log` | `401486e9b6bc4cc492e948d14f43458c08bac2a09d1acb759518d53d3dd27465` |
+| `timer-operand-244-normal-{1,2}.log` | `d00d43144c1ead0751387f6bd6ff5eb66c9cfc34f721adc5ea5c441dd3c52c06` |
+
+A focused offline decode confirms the operand calculation. Input
+`component-04-type-4-v2.raw` in the same standalone workspace
+has SHA-256 `64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef`
+and base `0x00030000`. `815-disasm.py` (SHA-256
+`eb1e2d38c3d6e8060bfeb306a8b48149ad7c4ffb656a42cd259f118af24aa975`)
+decodes bounded windows using Capstone 5.0.9 `cstool cortexm`.
+The executable and loaded Capstone library hashes are
+`095bd82f9fe5fe3664b0910a758a527fb4eb9852578a7ae35964db21181b9082`
+and `5bb9d5aa85d879bf6f4872b30659dbe3668817a5508c90809c3eef2fccea95a6`.
+Both `815-disasm-{1,2}.log` transcripts hash to
+`849a9fdf3ded938ea6c45e3991feaa626bfb8efc05561711c4939c5a35953f67`.
+The routine beginning at `0x000b2316` clamps its incoming argument
+to `0x07ffffff`, derives `r6 = (r4 - 1) << 5`, subtracts a
+saved SystemTimer sample from the current count into `r7`,
+and passes `r6 - r7` as Compare0 at `0x000b235a`.
+Thus the sixth write already differs in the guest's requested
+sleep duration, before the Timer1 device processes the write.
+The reason the caller requests the longer sleep remains open.
+
+## E-ULS-0070 — 2.44.52 Timer1 count rate and next MSPI1 boundary
+
+2026-11-04. A read-only lane probe samples SystemTimer COUNT,
+Timer1 CONTROL, COUNT and CMP0 in that order at 0.225 and 0.229
+virtual seconds. Both runs produce the same tuples:
+`(0x8cc,0xa21,0x31,0x107)` and
+`(0x94c,0xa21,0xb4,0x107)`. The comparator remains armed
+with the same compare and advances 131 ticks in 4 ms, while
+the SystemTimer advances 128. This supports the 32,768 Hz Timer1
+rate and excludes the inherited 61035 ns period for this control
+word. E-ULS-0069 also measures the lane's first two serviced
+intervals as 52 and 96 SystemTimer ticks versus standalone's
+123 and 197.
+
+The supplementary edge probe samples just before the enabling
+store at `0x000d46b0` and on the wake path at `0x000b23fa`.
+The 71 normalized records match. The first three paired
+SystemTimer counts, with the sampled Timer1 compare, are
+`(0x0f,0x42,0x35)`, `(0xc0,0x121,0x64)` and
+`(0x89d,0x99d,0x107)`. The first boot arm and subsequent
+baseline `0x20` arms are interleaved in the trace.
+
+| Path in `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `timer-clock-244.resc` | `c6fbdcc0d6062227cf5404ec4ee0fdaeb7ed3082eb437835ad213ffcf44b3623` |
+| `timer-clock-244-1.log` | `f69314b4469d0dbb032c5bbd4e2864b5cbb3bc15fe4eebc1bbf6f02d687aa9bf` |
+| `timer-clock-244-2.log` | `970204cb1f328851c116f0a598b87642c9e27cbeae0e17b8e4ba0368027fc8ec` |
+| `timer-clock-244-normal-{1,2}.log` | `747854e6071eef9861d6ce05b24a54c2f351945d5ffa34a352171e8f49b6c531` |
+| `timer-edge-244.resc` | `ec0116a65d68ea06626817601bf35377b62e02e16a00b8de30a528e4eb241f65` |
+| `timer-edge-244-1.log` | `46c67f622baf7a78fb0e823dfa45700e3fd2e46e942ac081ef692a2e13d745ff` |
+| `timer-edge-244-2.log` | `eab0a228727681f0e8c2ca1b59c1f7b0c4e88e69c909c17a91d78352535671b7` |
+| `timer-edge-244-normal-{1,2}.log` | `511da90e4761ba0c7e213337854305eb5729b9cd19316d55977870bd2b121fb5` |
+
+In the standalone scratch variant, only the 2.44.52 Compare0
+deadline uses `ceil(compare * 1e9 / 32768)` ns. The CPU cadence
+and pulse deassertion law are unchanged in this diagnostic.
+With 25,000,000 instruction and 4,000,000,000 ns caps, two
+runs move beyond the former wait and first request reset with
+fault address `0x40061090` at 18,986,536 instructions and
+25,790,937 ns. Both stop on the instruction budget at PC
+`0x000b169c` and 31,804,401 ns. The single-step fault inspector
+identifies PC `0x00124b1e` with 18,986,456 preceding retired
+instructions. An initial diagnostic at 200,000,000 instructions
+also encountered secondary resets on `0x40008800`; the first
+boundary is the MSPI1 read.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `816-rate-exact.c` | `244e1def7ebfb870c99d7215523bac965e498246b15612d7f2bb8441c4c4abea` |
+| `816-exact-{1,2}.log` | `1d69ff1fda6bf94ae56fe46f042bd8f23b5c7c056e98803b39bed92d674bd2f7` |
+| `816-exact-first-fault.c` | `d7c08b41289c51076b57d84d4717abd9bc16b6285aab26886746b7b614d2b16e` |
+| `816-exact-fault-{1,2}.log` | `bbddca21789ff343473056ce1b141d3b040fb324f50e776c7b96853f23950c3b` |
+| `816-tick-30518.c` | `7d4104710278e5dbb31331e735778df63ffeb13e904a95072c328be562937d52` |
+| `816-tick-30518-{1,2}.log` | `33a0920e97884ef39f4cef1bdd7ec291a457805e5e79febcc87ed58519a9f700` |
+
+Two 0.300 virtual-second lane runs independently confirm the first
+MSPI1 access. Retain the 41,213 `ulsan_mspi1:` records with the
+log prefix removed. The first access is `R90=0` at PC
+`0x00124b1e`, followed by `W90=0 W9c=0 W80=0 R200=0 W200=0
+W208=ffffffff W84=1010460`. These records establish the next
+boundary for a separate MSPI1 integration.
+
+| Path in `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `mspi-startup-244.resc` | `27eb1eedb4d3856de84226e9777049880457e681be760d59cd0f82ad55ff4bb9` |
+| `mspi-startup-244-1.log` | `ff95c13a055498a43ed5e3ed557d1664384e9201aa56e6cfdb947796af27e5fe` |
+| `mspi-startup-244-2.log` | `4cce90fae08ce5bd38cef64c5972a5cba47a3249158bbc6e3db15876102ce96c` |
+| `mspi-startup-244-normal-{1,2}.log` | `6f55eb2c8190bcfcdb8bf95d5d120b7925dd3c1ff0cc2f5208bf9578e6e143b9` |
+
+## E-ULS-0071 — 2.44.52 Timer1 deadline advances boot to MSPI1 (ticket 816)
+
+2026-11-04. The 2.44.52 comparator now schedules deadlines at
+32,768 Hz with integer rounding up. Compare `0x107` stays
+low through 8,026,123 ns and raises IRQs 14 and 68 at 8,026,124 ns.
+The focused test failed at the assertion on the inherited
+rate and passes with the measured rate. The E-ULS-0035 comparator
+period for 2.35.36 and the existing pulse deassertion policy
+are preserved.
+
+Two cold CLI boots with the verified manifest, capped at
+25,000,000 instructions and 4,000,000,000 ns, reproduce the
+E-ULS-0070 MSPI1 boundary. The first refused read at
+`0x40061090`, PC `0x00124b1e`, follows 18,986,456 retired
+instructions. The guest requests reset at instruction
+18,986,536, 25,790,937 ns. Both boots stop at
+`0x000b169c` at 25,000,000 instructions and 31,804,401 ns.
+The gate verifies the full transcript and mismatched manifest refusal.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `816-final-{1,2}.log` | `8eb3b4124d5afc67206835f76fe52723a636b974778361dd0425976a4694d8ef` |
+| `816-final-fault-{1,2}.log` | `bbddca21789ff343473056ce1b141d3b040fb324f50e776c7b96853f23950c3b` |
+
+The fault inspector source is `816-exact-first-fault.c` with
+the SHA-256 in E-ULS-0070. These runs link the production board
+and Timer1 code.
+
+## E-ULS-0072 — 2.44.52 diagnostic MSPI1 attachment
+
+2026-11-04. A scratch board maps the existing MSPI1 device after
+IOM4 and connects IRQ 21. With verified E-ULS-0052 inputs, two
+independent cold runs capped at 50,000,000 instructions and
+4,000,000,000 ns reach a new first refusal. The guest writes
+`0x80000000` to `0x400b2024` at PC `0x000d4db2`, with
+28,764,728 instructions retired before the write. It requests reset
+at instruction 28,764,808 and 35,569,209 ns. The two logs also
+show one later reset and match through the budget stop.
+The E-ULS-0070 lane logs independently record that same PC,
+address, width and value once each.
+
+Two scratch runs with the queue probe, capped at 30,000,000
+instructions and 4,000,000,000 ns, record 2,131 successful queue
+transactions before the same first refusal. Read-control `0x13`
+counts are `1/23 3/3 4/41 36/1 64/2048 256/4` (size in bytes
+then occurrences). Program-control `0x17` counts are `1/1 64/10`.
+The first two queue retirements advance through the 2.44.52
+JEDEC and repeated QPI identity stages with three-byte results.
+E-ULS-0070's normalized lane MSPI1 stream contains 15,170
+aligned 32-bit reads and 25,929 aligned 32-bit writes. It includes
+the 2.44.52 native JEDEC and repeated QPI messages, one configuration
+write and 13 persistence record program messages. The scratch runs
+establish the next boot boundary and do not assert full traffic
+equivalence. The temporary board uses the existing shared controller.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `817-board-probe.c` | `2c53589bbb040dc2e92cc73db1e8c334cf95d3b579871930e6e443c393fcffa0` |
+| `817-boot-{1,2}.log` | `9dc1bdfe855f3ffad9aee5cdefad71b0cfadf68a13ab44b229d23e4de880575f` |
+| `817-first-fault.c` | `215ad9b350e69fee1fb76a752ff263ef69b3d431004b33d5c0ab08fbc74ad6e3` |
+| `817-fault-{1,2}.log` | `9c499436354d9edf967a87edfa5f2961daa128a56e5c012bdb322a9cb9c48e66` |
+| `817-mspi-probe.c` | `a653d3b64402247d3cbe3aaec67278eecca63ac362c76d86b21b3c80aa82b096` |
+| `817-mspi-{1,2}.log` | `98a933685a2fa8a58e1d40fd1a1589b414ba73dec73cff646d1f9e47d3ae6799` |
+
+## E-ULS-0073 — 2.44.52 diagnostic post-storage MMIO to display boundary
+
+2026-11-04. Filter the two E-ULS-0070 raw MSPI1 startup logs for
+`non existing peripheral at 0x400B` and retain the CPU access text
+without prefixes. The 52 ordered lines match, SHA-256
+`ceb74089c6472a350a4f09445b4c00b8ec62f821d145a26e69db977f4f0a4744`.
+The first accesses are the E-ULS-0072 write at `0x400b2024`, then
+byte read/write at `0x400b0001` with written value zero,
+then a word read at `0x400b2000` and a write of `0x02000000`.
+The next access is a byte read at `0x400b000b`.
+
+A scratch variant of the E-ULS-0072 board additionally attaches
+the 2.35.36 narrow access tables to diagnose the next boundary.
+With 50,000,000 instruction and 4,000,000,000 ns caps, both cold
+runs reach `0x0009d0ea` at 128,853,328 ns without a reset
+warning. With 200,000,000 instruction and 8,000,000,000 ns caps,
+both cold runs first request reset with fault address `0x400a8074`
+at instruction 70,867,091 and 206,572,275 ns, then stop at
+`0x000b1694` and 335,705,184 ns. The first fault falls in the
+DSI PHY window served by the display controller for 2.35.36.
+This diagnostic neither admits the full older table for 2.44.52
+nor establishes the 2.44.52 display-controller contract.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `818-buszero-probe.c` | `38a0c2ccbce818b2c3b57671bde0a205eccbe83daf02798f13639248ea6e2221` |
+| `818-boot-{1,2}.log` | `a723cd8fe150b282d94f6106f23852578910de87023d62ccfa7a9893036cc0b5` |
+| `818-long-{1,2}.log` | `5c2ea7008a176689f8e769a70b38c87a19c37d610885d7e8d118598a9df63b59` |
+
+## E-ULS-0074 — 2.44.52 machine-owned MSPI1 advances through storage (ticket 817)
+
+2026-11-04. The reset profile now maps MSPI1 at `0x40061000`
+with a machine-owned register plane, IRQ 21 sink, lifecycle and
+backing. The existing descriptor admission and queue execution
+are shared. Reset retention applies to that controller's own
+backing. The focused tests exercise the 2.44.52 board entry point,
+JEDEC and QPI completion, IRQ assert and clear, unsupported
+descriptor refusal, independent backing and register state, and
+reset retention.
+
+Two cold CLI boots at 30,000,000 instructions and 4,000,000,000 ns
+match. The first fault is the E-ULS-0072 32-bit write at
+`0x400b2024`, PC `0x000d4db2`, with 28,764,728 retired
+instructions preceding the access. The guest requests reset at
+instruction 28,764,808 and 35,569,209 ns. Both runs stop on the
+instruction budget at PC `0x001c828a` and 36,804,401 ns.
+The private gate also checks mismatched manifest identity refusal.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `817-final-{1,2}.log` | `e1220c6dc437f400769c0b3955e012e63a01eb6031bab00a7aabface5eea3fc8` |
+| `817-final-fault-{1,2}.log` | `9c499436354d9edf967a87edfa5f2961daa128a56e5c012bdb322a9cb9c48e66` |
+
+The fault inspector uses the source in E-ULS-0072 with the
+production machine and board.
+
+## E-ULS-0075 — 2.44.52 display startup and standalone guest layer
+
+2026-11-04. Two read-only lane runs at 2.000 virtual seconds
+log display peripheral accesses. The lane class
+`emulator/renode/display/Apollo4DisplayController.cs` hashes to
+`fa6e67f38230899d0ae76b455e060b3e3af586f53dcace1cfa1b4191df487532`.
+Its Ulsan platform fragment `apollo4-display-controller-ulsan.repl`
+hashes to `4807857066c2bc5725755947c5ecad269325b6dd71515b71f4c44fab0163b70c`
+and wires IRQ 29. The 920 CPU access lines match after stripping
+the logger prefix (398 aligned word reads and 522 aligned word
+writes). The first access is `W8074=0` at PC `0x000f3632`.
+The next accesses are `Wf8=0 Rf4=87452365 Rf0=0 Rc=0 R14=0
+R18=0 R1c=0 W8074=0 W800c=8001 W8010=ffffff`. The nine PLAY
+writes match E-ULS-0054.
+
+| Path in `/tmp/semu-ulsan244-lane-xh_bndvo` | SHA-256 |
+| --- | --- |
+| `display-startup-244.resc` | `90ef95a5a54dcc315d9e03c4f191211b4965ae6648346284ac3bada0b1bc0640` |
+| `display-startup-244-1.log` | `62e4b7046b402a0c58058a2027895471981e33d2db7615cb8fcfeae7e3afa9a8` |
+| `display-startup-244-2.log` | `da4b41deb60a44a8c91a829acae98682b8b79ce8270f177ae2bbf858376aaff4` |
+| `display-startup-244-normal-{1,2}.log` | `a42f05a357bf33bf3e685d0e37cce51d63ac5eb39e320d58e07d3cafe1ad0457` |
+
+The scratch board attaches the E-ULS-0073 post-storage tables and
+existing display MMIO to the production 2.44.52 controller chain.
+Two runs with 160,000,000 instructions and 8,000,000,000 ns caps
+record seven PLAY writes and stop without a reset warning at
+`0x000d47f0`, 98,756,036 instructions and 8,014,847,988 ns.
+The three enabled layer submissions are `PLAY=0x00120008` with
+mode `0x88ff0109`, start 0 and stride 233. Their (width, height,
+source) tuples are `(466,466,0x10060000)`,
+`(466,210,0x10060000)` and `(466,42,0x1006fed8)`. In the probe
+logs the four labels for offsets `0x30/34/38/40` are reversed from
+the actual register meanings, which are mode/start/size/stride.
+
+The final enabled submission yields 9,786 bytes of packed guest
+pixels plus the 16 RGB888 palette words. Decoding each independent
+capture with the E-ULS-0054 nibble order and conversion on a black
+466x466 surface yields 434,312 bytes, 3,150 nonzero pixels,
+`x=90..373 y=6..32`, and SHA-256
+`bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526`.
+Both scratch RGB565 outputs compare byte-for-byte with the
+E-ULS-0054 lane frame. These are guest-produced bytes observed
+at PLAY, with production frame publication still pending.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `819-board-probe.c` | `04070a92b968b94e5b17c6d73604d427737075b9bddcc91fa3cc37f288d23e66` |
+| `819-play-probe.c` | `b1f2ab63aacee16841b089412536c07c08d68e9162b5717545f6b14a38657261` |
+| `819-play-{1,2}.log` | `0871d977a8433a84a1d5801e2b1508dd8b85f53fa3ab9100901314d5b2525263` |
+| `819-make-frame-probe.py` | `d01be8410798162b6b6321bd6995b3624cf6c4e1eb80a71bf802aa8b3f16bc9e` |
+| `819-frame-probe.c` | `1bcbe514c8c0594a8eaeff4f36539a145144582b65e6109d0664afe6e09517e4` |
+| `819-frame-{1,2}.log` | `e54db371949890817d8c2e1e7e42f7ac680a8549b1427893ce8b826f26558cb5` |
+| `819-frame-{1,2}.l4` | `a39e8aa72946cc62af52172777016905132cc842ee6acda876b18a68f23929f5` |
+| `819-decode.py` | `d87b9edc1fc4662b6df6eb43e8eac53b93c8f73476b14135e5390505951be895` |
+
+A follow-up scratch capture records all three enabled submissions.
+Both normalized RGB565 censuses match. The 466-row submission is
+black, the 210-row submission has 93,082 white pixels, and the
+42-row Service Mode submission has 3,150 white pixels. The first
+visible standalone submission is therefore distinct from Service
+Mode. Each enabled PLAY describes an independent layer scanout,
+with the Service Mode reference black outside its rectangle.
+
+| Height | Scratch packed/palette SHA-256 | Full RGB565 SHA-256 |
+| --- | --- | --- |
+| 466 | `23c75d8fb31b86ccf502f8bcaa6e731c722f41e56b43adad5b51fcba9ef9f7eb` | `6cc911ec30cb65f8bd344e37320439eed8e62fcb79c6010ec125dd4ee959ee2a` |
+| 210 | `ecd1dc3b54012cf4e8a7544dee7f21586665379eaffde7de7901ac887ae10bec` | `02e0e0115b1ea61c60a48ed1a57b5c2db8ee425bb5ac10b7e08181579f2d2b1c` |
+| 42 | `a39e8aa72946cc62af52172777016905132cc842ee6acda876b18a68f23929f5` | `bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526` |
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `819-all-frames-probe.c` | `a09117e2c7cdb15979d185b12a41df13e11054dd43731aa6ab115d6d87b7f7d4` |
+| `819-all-{1,2}.log` | `c59fab22a687a8b4c63753bd89f672ac9ca773c19f56a281404519cb6bc56853` |
+| `819-decode-all.py` | `9367e334fdb32954e7babfb3c2d673eef77270c5714161593bbdc3bac6ae1108` |
+| `819-census-{1,2}.log` | `a49ad4f94ac1d3ccacadbf2ebeaf73714c8f2916b9997140871df84677dfa642` |
+
+The lane word-read offsets are `c 14 18 1c 28 2c 30 ec f0 f4 f8
+fc 8000 805c 806c 8070 8078 807c 8080 8084`. Word-write offsets
+are `0 4 8 c 10 14 18 1c 24 28 2c 30 34 38 3c 40 44 d0 d4 d8
+e8 f8 1a0 1a8 400 444 488 4cc 510 554 598 5dc 8000 800c
+8010 8014 8018 801c 8044 8050 805c 8068 806c 8070 8074
+8078 807c 8080 8084`. Two scratch runs with access logging
+and the same caps as the PLAY probe record 744 accesses that
+exercise all 69 direction/offset tuples. Every scratch access
+is in the lane set.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `819-mmio-probe.c` | `0cd443e6482f8dbe7c9b35598db133c7293fb0c3b9521a08f9e97040879ff49c` |
+| `819-mmio-{1,2}.log` | `83943ccf66cf8b64d720a4cb76585f2310e1ead7fc049033de5c12a77691c651` |
+
+## E-ULS-0076 — 2.44.52 post-storage access tables advance to display (ticket 818)
+
+2026-11-04. The 52 E-ULS-0073 post-storage accesses cover 13
+distinct read tuples and 11 distinct write tuples. These are
+exactly the corresponding E-ULS-0038 table rows, with the same
+address, width, direction and write value. The lane count by
+tuple is:
+
+- Word reads at `0x400b0000/04/08/0c/10/14/18` occur
+  `1/1/1/10/5/5/5` times, and at `0x400b2000` once.
+- Byte reads at `0x400b0001/04/0a/0b` occur `3/1/1/1` times,
+  and the halfword read at `0x400b0002` occurs once.
+- Byte writes at `0x400b0001` are `0/2 0x40/1`, and at
+  `0x400b000b` are `0x04/1`.
+- Word writes at `0x400b000c` are zero five times and
+  `0x10000..0x50000` once each in 0x10000 steps. The
+  `0x400b2000=0x02000000` and `0x400b2024=0x80000000`
+  word writes occur once each.
+
+The same narrow tables now serve both firmware profiles. The
+2.44.52 regression failed on the first write before attachment
+and passes the width, direction and value refusal checks.
+Two production boots capped at 72,000,000 instructions and
+4,000,000,000 ns reach the E-ULS-0075 `W32 0x400a8074=0`
+at PC `0x000f3632`, after 70,867,011 preceding instructions.
+The guest requests reset at instruction 70,867,091 and
+206,572,275 ns. Both boot transcripts stop on budget at
+`0x001c828e` and 207,705,184 ns.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `818-final-{1,2}.log` | `99b35d36ff85cdd16e8f34cb075e924735d0b24284cc7646498b33d1119496f9` |
+| `818-first-fault.c` | `ec94e26a2b6ac187fe76b3761dd25affdfd82b94e3d0cf2fed422ecf7dc350fb` |
+| `818-final-fault-{1,2}.log` | `870d029a85974012ec9c9c8bc583381460bac3d4e9b8bfb32f9eb3fc21d7816e` |
+
+## E-ULS-0077 — 2.44.52 standalone firmware publishes Service Mode (ticket 819)
+
+2026-11-04. The production Ulsan 2.44.52 profile attaches a
+machine-owned display controller with IRQ 29. Its MMIO accepts
+the E-ULS-0075 word offsets per direction. The active PLAY
+word `0x00120008` validates the full L4 source, destination
+and mode before committing the frame and display interrupt.
+The frame uses the firmware's packed SRAM and RGB888 palette.
+The renderer clears outside the active rectangle and publishes
+through the standard machine frame callback. The 2.35.36
+register and interrupt tests still pass.
+
+Two cold machines use the verified E-ULS-0052 manifest,
+160,000,000 instructions and 8,000,000,000 ns as caps. Both
+publish the following ordered 466x466 RGB565LE frames:
+
+| Generation | Nonzero pixels | SHA-256 |
+| --- | --- | --- |
+| 1 | 0 | `6cc911ec30cb65f8bd344e37320439eed8e62fcb79c6010ec125dd4ee959ee2a` |
+| 2 | 93,082 | `02e0e0115b1ea61c60a48ed1a57b5c2db8ee425bb5ac10b7e08181579f2d2b1c` |
+| 3 (Service Mode) | 3,150 | `bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526` |
+
+The Service Mode frame is 434,312 bytes with a 932-byte row stride.
+Its nonzero bounds are `x=90..373 y=6..32`. Two additional
+independent processes using the production library capture the
+third callback to private raw files. Both compare byte-for-byte
+with each other and with both E-ULS-0054 lane frame captures.
+The earlier visible layer is a separate publication. The bounded
+CLI stops without a reset warning at `0x000d47f0`, 98,756,036
+retired instructions and 8,014,847,988 ns. The wrong-profile
+manifest still refuses before firmware execution.
+
+| Path in `/tmp/semu-ulsan244-tree.UUNJPY` | SHA-256 |
+| --- | --- |
+| `819-final-{1,2}.log` | `d1be2e3c8a2404eb89e33e435d2e6ba475e3197abe56044f8e14bb8272c54f01` |
+| `819-verified-2.log` | `a811bb44337111ce5c9d729c12fddc7ab924967f7ae23551fcf26de4552c0457` |
+| `819-callback-{1,2}.log` | `3a62aef605e284c6d26e19f3c2259ed5cbbada3df6f0419f2c404b5dd9f4a5f0` |
+| `819-final-capture.c` | `ae7c881d2bd641681d17ddf6f5d36b8434ef8bd0507de816e923ebe8c96aad7e` |
+| `819-capture-{1,2}.log` | `9fdbd35b109897636849db7e6079e1cfa67cb1fd732775efa93dd24ddf3c327f` |
+| `819-service-{1,2}.rgb565` | `bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526` |
+
+Two runs of the SDL frontend with `SDL_VIDEODRIVER=dummy`
+and the same manifest and budgets exit with the expected budget
+status. They log the 466x466 generation-1 CRC32 `ca02d5fc` and
+the same terminal checkpoint. The two logs `819-sdl.log` and
+`819-sdl-2.log` in the same volatile directory match, SHA-256
+`14eb05ffb1895507206fd5ac4279d2d8e9ec4d5a4004ba7e84e2156b115df6c6`.
+
+## E-ULS-0078 — 2.44.52 native production-mode selector (ticket 820)
+
+2026-11-07. Two cold lane probes per condition requested two seconds
+and compared the pristine OTA against the same image with the synthetic
+4 KiB page at `0x1803f000`. The probe observes guest registers at
+instruction boundaries. It does not change registers or branch results.
+The base launcher still uses its documented translator-equivalent
+substitutions. Both conditions first write boot mode 5 at `0x000b29c6`.
+
+- OTA only: factory validator continuation `0x00083a22` returns
+  `0xfffffffd`. The selector writes mode 2 at `0x000b29c0`.
+  The later service readiness helper at `0x00102760` returns 1 at
+  `0x000f4a50`. This is the E-ULS-0077 Service Mode path.
+- Synthetic page only: continuations `0x00083a22/2a/3e/46/5a/6a`
+  return zero. The selector retains mode 5 at `0x000b29c0`.
+  Startup proceeds to SDIO and later reaches a startup assertion.
+  This condition establishes the selector input by itself.
+
+Keep the unique ordered `HELLO_PROBE` lines without log prefixes or
+rate-limit suffixes. The nine baseline and ten page-only records
+match across their respective pairs. For page-only startup the first
+new power tuple is `W32 0x40021004=0x00200000` at `0x00076d5c`.
+The lane discards bit 21 (PWRENSDIO tag) and a subsequent word read at
+`0x40021008`, PC `0x000a3ada`, returns zero.
+The two power follow-ups also complete their full two-second virtual
+budget with the page alone. They end at `0x0004df58` and reproduce
+the nine ordered selector records before the assertion.
+
+The source fixture and generator are
+`../suunto-firmware/emulator/storage/fixtures/ulsan-production-data.synthetic.bin`
+and `../suunto-firmware/tools/build_production_data_fixture.py`, hashes
+`c08816067aed620fb8c3a074f5f0e3a8ceb398416d6f9c33d1f6c13df5619a53`
+and `58c90b029e6901a266704afb2a9f20e8bcd3812b32361d13156d4db215ef3f4c`.
+The older generated 2.35.36 application component has hash
+`5e229bb3893ee0ac0748d701bcd339aedb6dfd928250e69504e7d089d6cb5bc3`.
+Its 64-byte CRC table at `0x001cf654` occurs exactly once in the
+E-ULS-0052 2.44.52 application (SHA-256
+`64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef`),
+at `0x001c6604`. The table hash is
+`9836b52678556fb94422aa1ee1376efc8caf39d46db02b7be6ca15520f9f734f`.
+Two executions of the lane generator against that table produce the
+exact sector and checksums `a2c492a6/7310559d/717aee21/b7717e8b/9f42edf7`
+for ProductionData, ACCR, ACCC, MAGN, HLAT. All identity and
+calibration payloads remain synthetic.
+
+The standalone temporary ROM-page and selector probes reproduce mode 5
+at instruction 23,565,335. The 48M-instruction follow-up records the same
+rejected power write in both runs. With the opt-in generated page and
+the SDIO tag modeled, two cold production runs with 52M instructions
+and 8 s virtual time reach the first SDIO access at `0x40070028`.
+The guest requests reset at 46,775,336 retired instructions and
+53,579,737 ns. Both runs stop at `0x000b16bc` and 58,804,401 ns.
+The layer is exact-profile/firmware pinned and performs one logged
+installation per reset. The ROM sector persists through guest reset.
+
+| Files below `/tmp/semu-ulsan-hello.1JMD0Q` | SHA-256 |
+| --- | --- |
+| `probe.py` | `052d7b799dd05a85a28eb460a4a2e76b2b9b7fd2d55702b3b7d2bf29685f7f1d` |
+| `base-{1,2}/probe.resc` | `774da8033ef6c1ac6b8543e8a4319e998a9f2f438667fc937ff7255d1756496b` |
+| `base-1/renode.log` | `8d95dfe581598a09b21adeecdfbf61e9970cf5632760c162f916ed31b2c3b8d5` |
+| `base-2/renode.log` | `7719ce9503b7eb4fd1a67da1302896332a9ddb80053cbad30e5d3debe8bceb33` |
+| `base-{1,2}.norm` | `76a5dc4f8e54189036af70ab783ba956cf7589375f6730d2753f30a393140781` |
+| `page-{1,2}/probe.resc` | `2ae84f4475ab936d085c451f7f2f995b041a125ef680aad91e20a4f7158163cd` |
+| `page-1/renode.log` | `4ccc652d5f81e9aab437c237c961dcef59d71f01db915216985bc797bd0a4a7b` |
+| `page-2/renode.log` | `9fc49c9128cd89d885b4c696ae62fdb27662cfcdfcd3c6bb13c9a3f1cd047e9b` |
+| `page-{1,2}.norm` | `824de822e7b02ddf97d6c21237e3268a2cbfc76dd8b8f2f86333a22b488c2ada` |
+| `probe-power.py` | `022754c0551f8f95e7797d1655660cc060c3ea4a80d358ad3f9aa6192771b2d8` |
+| `follow-page-{1,2}/probe.resc` | `04bad1e650f6d6ddc1540395ec581004e2a16adb755b9599c02eb6d64119c6cf` |
+| `follow-page-1/renode.log` | `292d75e3541c14dd76fa9efb4c80c2cb16e28ffcf2e6a8a277775cd309892db6` |
+| `follow-page-2/renode.log` | `d95e41d57ef6cb8711667b6b6fd0707d4f8cf9405413ece87f8b8cd8bcf32a66` |
+| `follow-page-{1,2}.norm` | `2cda965e70c5dcf12b974964372adccf868de806eaca3ac02ce5711fcbb406c3` |
+| `power-{1,2}.norm` | `1596cee561e06a265e61bada3935b415df1fc2dcecfda549d17155a6f8b44dbb` |
+| `check-page.py` | `22f7c4856617994009a8cf1efc8cb96fa742d4fc7115dd4d11287f198e496665` |
+| `page-build-{1,2}.log` | `b76bd5033fb18b8a75ac979b21ffbbce11a76714fee5e9acd46c91920ad2b6a2` |
+| `probe-machine.c` | `5e207fcba343000a2472f035dde27a26d5affd4582769a7e50c51e84be315c33` |
+| `probe-machine-run.c` | `ef60357a51038703be3fd4819d33a9d755bcf59ef34dfe6b4497ac8d75e11aed` |
+| `standalone-page-{1,2}.log` | `98ac14b2088c9397e2b2860f88597ae7e2db236c2480fc083ca3152d246a3d04` |
+| `probe-power.c` | `2304d5797f94639db5614657bf5fa311131e8929639be7667eccbb931981dcd9` |
+| `pwr-standalone-{1,2}.log` | `ff677d7b5f85e099713c79209d90c2f1ddffd832acb13a8e777f30ae04680999` |
+| `820-page-{1,2}.log` | `39dd4c580326b260528b71b9c3774cdee219aeebe5897c75237c75a33b277cd5` |
+
+## E-ULS-0079 — 2.44.52 native SDIO startup with explicit synthetic eMMC
+
+2026-11-07. Two cold four-second lane runs use the E-ULS-0078 page,
+the staged synthetic full flash and synthetic FAT eMMC generated by the
+reference builders, and the native UI launcher device endpoints. No
+button events are sent. The staged flash SHA-256 is
+`072287b39d1bc0604d7288c2e3334104d2fe76d12af7ca6598d4ce938eb257b1`.
+The 256 MiB eMMC SHA-256 is
+`62b711d026fa42cbcade59e5de6b1f9fb14397dba828a392e993991298c4d962`.
+The fixture includes 226 inferred FAT file paths. This is an explicit
+compatibility medium, with source bytes immutable and writes local to
+the emulated session. The builder inputs and manifest provenance are
+the same as the reference full-UI launcher. The builder script hashes
+are `dfcc00915b7f288012d42d61465ceb62860380ab76c3935c767d9207ca13afce`
+for `build_ulsan_244_first_boot_flash.py` and
+`7a5542697eb9113d689711dc131b55c238ad17c3b190b6d0567da03acd80dd0b`
+for `build_ulsan_synthetic_ui_fat.py`. The generated flash and eMMC
+manifest hashes are `b9b4e8191521318c20200304a47d7f7f182cf47793e1ec76aae9ca2a1542c4e5`
+and `f636678d6bf857a0ed487093177ade82cfe089c0e9bd048267930bc5a97a2055`.
+The reference inputs and launcher have these SHA-256 identities:
+
+| Path below `../suunto-firmware` | SHA-256 |
+| --- | --- |
+| `artifacts/analysis/ulsan-2.44.52/component-05-type-1-v3.raw` | `81f861d4541d5c9f0e6b0cb73c2b3e44197d5abc6f147e1de8005da9af87f524` |
+| `artifacts/analysis/ulsan-2.44.52/filesystem-carve/carved-files.csv` | `96f28cbbb475ca81cb4f9d3a8ea804bcf308d7a3046d063bb0351da5589fc7c2` |
+| `artifacts/firmware/Ulsan-fw_2.44.52.20521-R-fc822bb5.sof` | `276ca7e6bbec83f2e08945e89b67859b090027810e2d314237e0abc25fb15a25` |
+| `emulator/devices/ulsan/run-2.44-full-ui.sh` | `b26dc5b52659ed9a542430e9f4ba81ecb0e5e04c09d9d0abe9c2df2302186188` |
+
+`Apollo4Sdio.cs` and `apollo4-sdio.repl` under
+`../suunto-firmware/emulator/renode/peripherals` hash to
+`72b39c1c637d0a69f497d869a024ecf50af4b648f5726d124f719c5e4fe885c4`
+and `83cf2175d71023d9b31f843b6430c064f48c7f439c7759c84b321b398df6b477`.
+The host is polled at `0x40070000`, with no IRQ wiring. First read
+`+0x28=0` at PC `0x000d22fa` matches the standalone boundary.
+Subsequent initial writes to `+0x28` are `0x40` and `0xc0`.
+All accesses are aligned words.
+
+- Read offsets are `04 10 14 18 1c 20 24 28 2c 30 40 fc`.
+  Write offsets are `04 08 0c 20 28 2c 30 34 38`. At `+0x2c`
+  reset bits 24–26 self-clear and internal clock enable reflects stable.
+  Present state reports card inserted and the active transfer direction.
+  Interrupt status is W1C. Data transfers finish with status bit 1.
+- Identification command-word/argument pairs are
+  `0/0, 08020000/1a5, 01020000/0, 02090000/0, 031a0000/10000,
+  09090000/10000, 071b0000/10000, 101a0000/200`, each once.
+  The pre-eMMC CMD8 times out with bit 16. CMD1 reports
+  `c0ff8080`. CMD2 and CMD9 return the lane's synthetic CID/CSD
+  words, respectively `15010046 4134454d 4d303031 25010000`
+  and `00180000 ffc00380 32000900 00000e00`.
+  CMD3, CMD7, CMD13 and CMD16 report `0x900` with upper
+  words zero. CMD13 word `0d1a0000`, argument `0x10000`,
+  occurs 1,359 times with block register `0/10200/20200`
+  in counts `1/1350/8`.
+- CMD17 word `113a0012` reads one 512-byte block (1,215 transfers);
+  CMD18 word `123a0036` reads two (5 transfers). CMD24
+  word `183a0002` writes one (28 transfers). The block registers
+  are `0x10200` and `0x20200` for one and two blocks.
+  Observed LBA ranges by command are `0..46186`, `860..40820`,
+  and `b9..46186` (hexadecimal). The data port has 156,800
+  word reads and 3,584 word writes. Each transfer is sector
+  addressed and the direction is encoded in the command word.
+
+The census compares full ordered control records with log prefixes
+removed and data-port payload lines excluded, then compares offset
+and command counts. Both runs match. Ordered control SHA-256 is
+`ea78b4956dbc088a056dd7f53b4304cc03b85f887ab98cc63d79acbadc65bcbd`.
+
+| Files below `/tmp/semu-ulsan-hello.1JMD0Q` | SHA-256 |
+| --- | --- |
+| `probe-sdio.py` | `a337a250ce27e6726d364afb07107352c15d008cc4cd183c3c555e163faa5c78` |
+| `sdio-census.py` | `38cdd3f3431c0402c59a90e0c17409443d0932c64104c6279fc72607984c34f0` |
+| `sdio-hello-1/probe.resc` | `f20d190f1d04f1791c08427cb1e0d5f3d2f80f4520df6efa9b00e546de209c98` |
+| `sdio-hello-2/probe.resc` | `9f782bb6f967c8aaf1c38c0fa48385aff514b23a8fed5cdb852916133a062246` |
+| `sdio-hello-1/renode.log` | `1933d49065051179b6ba09827cfa37e48cdca9f520ee5e12b97eba4996ae7208` |
+| `sdio-hello-2/renode.log` | `450ba90ec0bbdfee2e09e634827b730160f99e98ac25b2d2aed3c3e946c7269f` |
+| `sdio-{1,2}.census` | `58b14ddece30b3a90b7ccb90439f04c1a7084367b6a70251e33673cdeff1cf7a` |
+
+## E-ULS-0080 — 2.44.52 SDIO pad select and native greeting reference
+
+2026-11-07. With E-ULS-0078 and E-ULS-0079 enabled, two cold
+standalone boots reach the first unmapped GPIO pad selector access
+at `0x40010294`. The first guest reset occurs after 47,892,473
+instructions at 54,696,874 ns in both runs.
+
+Two 800 ms cold lane runs with the E-ULS-0079 fixtures show the
+following aligned word transactions at GPIO offset `0x294`.
+All writes are tagged `SDIFCDWPPadSelect` and discarded. Each
+read returns zero, including reads immediately after a write.
+The standalone pad overlay is active only with the explicit eMMC
+fixture and permits exactly these observed values and width.
+
+| Guest PC | Direction | Word |
+| --- | --- | --- |
+| `0x000ecc14` | Read | `0` |
+| `0x000ecc1c` | Write | `0x4b` |
+| `0x000ecc20` | Read | `0` |
+| `0x000ecc26` | Write | `0x4a00` |
+| `0x000d2322` | Read | `0` |
+| `0x000d2328` | Write | `0x7f` |
+| `0x000d232a` | Read | `0` |
+| `0x000d2330` | Write | `0x7f00` |
+
+The reference greeting was also reproduced in two cold 180 s lane
+runs with the same storage fixtures, native-UI endpoint setup, and
+GPIO 57/58/59 idle high. Both end at `0x000d47f0`. Their last
+466×466 RGB565 frames compare byte for byte and show the Chinese
+phase of the native Hello greeting cycle. Each 434,312-byte frame
+hashes to `c7b548f23200679fe8b8f48c7e2a060f90d027c2ee9fd909030f7e61965e0673`.
+The lane's `ulsan-2.44.52-native-ui-trace.resc` template hashes to
+`abce9cc8b54cc8a8c4aaae99201ff3b7af3c2e195d62e98139cfa8d922eb259b`
+and the included `ulsan-2.44-gps-first-boot-fixture.resc` hashes to
+`79922b2dba25c580bd1265007825ed0c4ed68b3583f38a46ac1dd511c9b85a4e`.
+No input events were sent.
+
+Two further cold lane probes observed the English phase without input.
+They requested 45 s of virtual time. The host observer sampled the
+atomically published RGB565 file and retained the exact English frame
+before the 220 s wall-clock bound stopped both runs. The two retained
+files compare byte for byte and hash to
+`9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76`.
+This matches the English Hello target in
+`race_s_setup_auto_advance.py`, SHA-256
+`35890c3266a63346f557b5c2d21d9f321b6c751197e6e903b643896db322ac33`.
+
+| Files below `/tmp/semu-ulsan-hello.1JMD0Q` | SHA-256 |
+| --- | --- |
+| `820-sdio-{1,2}.log` | `a24a08f85ea1277693fbd6d75d3399cfe9de16ead1603705908a51e87b21dcbb` |
+| `probe-gpio.py` | `fc6a7ceab90e96d375383ce856413c20696b3ca9b0600bb3222f0375c27f3842` |
+| `gpio-hello-1/probe.resc` | `0eed762c8589f01cc178be6c4098eafc1c243b4327ab61856af99572a805c0bc` |
+| `gpio-hello-2/probe.resc` | `0e1211b7a9d29a062d7b09d5d31b2329565faa3a82a716077b7c3a6435adc547` |
+| `gpio-hello-1/renode.log` | `5229f215386960f00953e8d9b629c235ae31c8a845b738bc30e4ef57cd618bac` |
+| `gpio-hello-2/renode.log` | `3d30424b6930857d73d5714f8f3d38e8e34123c53cda307a6df1b623ab347ae4` |
+| `gpio-access-{1,2}.norm` | `233b52965197ac873a6d9dba2a65eda96cf86acde9f1f0c6e28bbbd6b8bcc395` |
+| `probe-follow.py` | `6df2cf5e4e95960b4608b1c1b1ca8c661399e80365448d65863334bdb9f4720b` |
+| `follow-hello-1/probe.resc` | `6469def3027d0e72c4a200707c81c397fe0e48491d8da479c90e6cc9d03406b4` |
+| `follow-hello-2/probe.resc` | `672e707e98a5d8a74ee61caa94324e15cb510eced9c642a5f05351fba30eb03b` |
+| `follow-hello-1/renode.log` | `feebc399bf65632b150b084ba90c1af6d9c8db041ff085cd4fc4253d64284bc4` |
+| `follow-hello-2/renode.log` | `2ceb9f7124198b6f1a15afbc1b3fa7b78180ee0ded1503138ef80bc1254940ca` |
+| `probe-english.py` | `439c4c986459a40e7cb6980bc82cf3dd2784d00532afca493d958950c777bb87` |
+| `english-hello-1/probe.resc` | `bd9ad4d0f615d1b1c521de78ac50d285e08280dd09c2181751e7abd27d0a0401` |
+| `english-hello-2/probe.resc` | `70ac99bccf7b33c51760817d53f2f0168261187bf099ae64d64267adef626949` |
+| `english-hello-1/renode.log` | `88e363c1baa21acf3d73fd8949e4d8eed5b2bc9ce1c2dde9c3f0350826d9cebd` |
+| `english-hello-2/renode.log` | `4270d3de269104f49304d1219f1368a05cb85d92c237039a3cf10e3856920cee` |
+
+## E-ULS-0081 — 2.44.52 disabled TIMER7 configuration
+
+2026-11-07. After modeling the E-ULS-0080 pad, two cold standalone
+boots reach TIMER7 control at `0x400082e0`. Both first request reset
+at 75,940,541 instructions and 472,999,658 ns.
+
+Two cold 1.5 s reference boots with the E-ULS-0079 fixtures end
+at `0x0015ce2c`. Each issues these eight aligned word transactions
+to TIMER7. No enabled TIMER7 control or counter reads appear.
+In both follow-up boots a monitor read after the guest's final
+`0x122` store returns `0x120`, confirming the self-clearing reset
+bit. Only disabled setup is modeled.
+
+| Guest PC | Offset | Direction | Word |
+| --- | --- | --- | --- |
+| `0x000d464a` | `0x2e0` | Read | `0` |
+| `0x000d4650` | `0x2e0` | Write | `0` |
+| `0x000d4654` | `0x2e0` | Write | `0x120` |
+| `0x000d4656` | `0x2f0` | Write | `0` |
+| `0x000d4658` | `0x2e8` | Write | `0xffffffff` |
+| `0x000d465a` | `0x2ec` | Write | `0xffffffff` |
+| `0x000d465c` | `0x2e0` | Read | `0x120` |
+| `0x000d4662` | `0x2e0` | Write | `0x122` |
+
+| Files below `/tmp/semu-ulsan-hello.1JMD0Q` | SHA-256 |
+| --- | --- |
+| `820-pad-{1,2}.log` | `ca2803b0fd0ddf92f1341689f19d1f5a33c80f63286ea4b62834a41389cf81ca` |
+| `probe-timer.py` | `983cddb1b5568cf6b3eae74881b16194a6e94f83582f0a31ed0f379a4230a9bd` |
+| `timer-new-{1,2}.norm` | `59bd3aa92e6f32473588d910019144dc5883888d16e1f5ee9b49a7037618ee24` |
+| `timer-hello-1/probe.resc` | `ec402ed6910c6cedbc051c2363ee9cedd2e81c782063b1435e5b7399072b3f20` |
+| `timer-hello-2/probe.resc` | `38e2a8972acd8ae3e650def609dafe273be087764fb5ad6ec522c91676c5fc12` |
+| `timer-hello-1/renode.log` | `ea12357d537505407163c9fb90f4fb959d8740965fcf361e679db8100dc9f5f7` |
+| `timer-hello-2/renode.log` | `21df29119d57579c49a9832a69b244849189d1460ee551f291dd27b8386207f0` |
+| `probe-timer-retained.py` | `a2dc13fd0b3ededfa6d95ae730d7f523286b7f607691e857d7166b7fafea9ff4` |
+| `timer-retained-{1,2}.norm` | `ff60f18dcfe44344c8fad02f8af1460fbf59f87ea49ec694530fb8b73361c157` |
+| `timer-retained-hello-1/probe.resc` | `2708d8d81c804d66b5b9fe1a07695244052d8408c288b7f860fb8fe91063ed73` |
+| `timer-retained-hello-2/probe.resc` | `a0949f660a356ddc24b39f7a1bbe8cf4d358caec98da03d48da671e0301adc98` |
+| `timer-retained-hello-1/renode.log` | `f526484453ef58278fc5693c8923959fa03d0227ef0fda518ee639c4869f2037` |
+| `timer-retained-hello-2/renode.log` | `0ae0576776c711a9848e46f79c9e95fe4a95829f6b2e89905bfd8fb6221ae9f1` |
+
+## E-ULS-0082 — 2.44.52 NemaGPU handoff and IOM2 startup frontier
+
+2026-11-07. With the two explicit 820 layers, two fresh standalone
+processes run to the pre-GPU budget without requesting reset. At
+85,000,000 instructions they reach PC `0x000b22cc` and
+558,718,255 ns. In two 140M-instruction follow-up runs, the first
+reset request is at 88,714,524 instructions and 567,406,465 ns,
+after a fault at `0x40090094`. The Ulsan board currently maps the
+display controller, while the shared NemaGPU window is unmapped.
+
+Two cold 2 s reference boots with the E-ULS-0079 fixtures produce
+the same eleven aligned NemaGPU transactions at `0x40090000`:
+
+| Guest PC | Offset | Direction | Word |
+| --- | --- | --- | --- |
+| `0x000a3c0a` | `0x094` | Write | `0xffffffff` |
+| `0x000a3c0e` | `0x0f8` | Write | `0` |
+| `0x000a3bfa` | `0x148` | Write | `0` |
+| `0x000a3bfa` | `0x0ec` | Write | `0x10149fbe` |
+| `0x000a3bfa` | `0x0f0` | Write | `0x10149fb8` |
+| `0x000a3bfa` | `0x0f4` | Write | `0x400` |
+| `0x000a3bf4` | `0x1ec` | Read | `0x86362000` |
+| `0x000a3bfa` | `0x0e8` | Write | `0` |
+| `0x000a3bfa` | `0x0fc` | Write | `0` |
+| `0x000a3bf4` | `0x1f0` | Read (twice) | `0` |
+
+The two full greeting logs from E-ULS-0080 each begin display output
+with a 466×466 RGB565 surface, 932-byte stride. Three 256-byte child
+lists at `0x10117820` drive y ranges `0..156`, `156..312`,
+and `312..466`, advancing the retained mask `1,3,7` before
+publication. The first two interleaved completion markers deliver
+CLID 1 and 2 at ring stops `0x1014a0cc` and `0x1014a0fc`,
+each after 100 µs. The same runs later publish retained partial
+transactions in the greeting cycle. `SapporoNemaP.cs` SHA-256 is
+`a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165`
+and `sapporo-nemap.repl` SHA-256 is
+`6ccc2d3711104c8543d8de3d314dfdc925e0fc0ba25da8f2efa93115d9ab5a28`.
+
+A temporary standalone diagnostic attaches the current shared GPU and
+backend through their existing APIs, with no firmware edits. In both
+180M-instruction runs, the first new fault moves to `0x40052104`,
+with reset requested at 110,819,866 instructions and 692,477,097 ns.
+That is IOM2 at `0x40052000`, IRQ 8. Two 2 s IOM2 lane probes
+produce 737 identical ordered word transactions. The first is
+`W32 +0x104=0x1010` at `0x0015c9e0`. The next two stores are
+`+0x2c0=0x0103f270` and `+0x118=0x1d0e1301`. DMA control
+`+0x218` sees `0`, `0x101`, and `0x103` in counts 13, 7,
+and 6. The lane's `apollo4-iom2-dma.repl` hashes to
+`9f01374ff4961ec67288fd773912eee658e8417f4c829ca4d3d23214825b4262`.
+
+The diagnostic establishes a second independent device boundary.
+The in-tree 820 configuration stops at the first GPU access.
+The shared GPU attachment has no product-specific register admission,
+and the current shared backend constructs a fixed 240×240 Sapporo
+surface. Finishing this milestone requires an integration change to
+admit the observed Race S GPU transactions and select its native
+466×466 retained renderer, plus the IOM2 endpoint wiring. No
+standalone Hello frame has been reproduced at this boundary.
+
+| Files below `/tmp/semu-ulsan-hello.1JMD0Q` | SHA-256 |
+| --- | --- |
+| `820-storage-checkpoint-{1,2}.log` | `04f0a9e0e7c196e0fd2645293e5b96459220a6491cf3f77cf8bcaab032a6829e` |
+| `820-timer-{1,2}.log` | `aa548b74aa9a68a5bc180c7175f8058f472abf8346b78e96856ad7257b1dc80a` |
+| `probe-nema.py` | `f094c796cb8d83c19376491f065e946d8de025d6be7c63c1407ccee23271a9a0` |
+| `nema-access-{1,2}.norm` | `baa1d074499e58d8a24af6caca7a9fddc84aaa378378a1df1e4f29c846363406` |
+| `nema-hello-1/probe.resc` | `e3f65b3c4a0f7fdb58439bc7b6d366120000d4ab62036260d06d2e6ddc0addc3` |
+| `nema-hello-2/probe.resc` | `d42ce81fea28c480b88a92a12ed87bd95eec1df63f641dec4e30011f98af6840` |
+| `nema-hello-1/renode.log` | `c5515c31c2bdf049a89d3a8c168b3f94e91798f993cf1c7eb92ad2a78172e064` |
+| `nema-hello-2/renode.log` | `65ed8b5e228221e2f949513c25d805fd14f8a8fa980c4198b7a1de02aa61fc7f` |
+| `nema-band-{1,2}.norm` | `5634c9d36724905f03250e528d4561f26731346f7b885b77761929154605cf63` |
+| `probe-nema-machine.c` | `f1787cfdf54b09e74140e63974986ea135d90215f7849c3b0e260ca0df5a4277` |
+| `nema-standalone-{1,2}.log` | `3d3fb6b43e718a99ebb1259252ad7fe3952c689782086102f358904e36ec1d96` |
+| `probe-iom2.py` | `e5c0a6e265eed1945027bbb1fa93ba0e77d860da38e327852f37d05d8cfb6fb9` |
+| `iom2-access-{1,2}.norm` | `92b243b0a2906be1644896a7c802c1e74a8df8030aece7a926eea0432f770cec` |
+| `iom2-hello-1/probe.resc` | `2eb6d738bf95959bdef85676352527409e732fc6519bcb10a54e3d5fe0f56e95` |
+| `iom2-hello-2/probe.resc` | `519449d131f95ae78d5a7a612307fc0a1b2818832e8cd10bbb858d2452781472` |
+| `iom2-hello-1/renode.log` | `4df88150bf68d9f7dd2ecf722683d8271e26ea8de084cec849e8587391c46d6f` |
+| `iom2-hello-2/renode.log` | `f89140604db97785ad37e3813ecd744b96123429a39173e383ac1830efbb5fe8` |

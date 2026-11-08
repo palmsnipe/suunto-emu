@@ -65,33 +65,7 @@
  * window (lane probe: 0x00000004 at 1 s and after completion). */
 #define IOM4_MODULE_STATUS_IDLE UINT32_C(0x00000004)
 
-typedef struct {
-    uint32_t fifo_threshold;   /* +0x104: FIFORTHR[5:0], FIFOWTHR[13:8] */
-    uint32_t io_clock;         /* +0x118: reserved bits drop, rest stores */
-    uint32_t submodule;        /* +0x11C: SMOD0EN bit 0, SMOD1EN bit 4   */
-    uint32_t interrupts_enable; /* +0x200: INTENi[14:0]                  */
-    uint32_t dma_trigger;      /* +0x210: store & 0x3 (wrapper masked)   */
-    uint32_t i2c_config;       /* +0x2C0: 0x0000F373 field mask          */
-    uint32_t module_err;       /* +0x248 bit 0 ERR (tagged flag stores)  */
-    uint32_t offset_high;      /* +0x128: OFFSETHI full 32-bit value     */
-    uint32_t dcx_control;      /* +0x124: DCXEN bit 4 (tag DCXSEL no)   */
-    uint32_t command;          /* +0x120: CMD|OFFSETCNT|CONT|TSIZE|
-                                *         CMDSEL|OFFSETLO (no [22,24))  */
-    uint32_t i2c_device;       /* +0x2C4: DEVADDR[6:0] (7-bit truncated) */
-    uint32_t dma_config;       /* +0x218: DMAEN|DMADIR|DMAPRI|DPWROFF 0x303 */
-    uint32_t dma_total;        /* +0x21C: TOTCOUNT[11:0]                */
-    uint32_t dma_target;       /* +0x220: TARGADDR[28:0]                */
-    uint32_t dma_status;       /* +0x224 mirror: never read in the
-                                * observed window (refused)           */
-    uint32_t interrupt_status; /* INTSTAT bits, set by completions;
-                                * +0x204 stays refused (unobserved)   */
-    semu_bus *bus;             /* self-reference for DMA payloads     */
-    semu_apollo4_irq_fn irq_sink;   /* machine line sink (IRQ 10)   */
-    void *irq_context;              /* sink context                 */
-    unsigned irq_level;             /* last driven line level       */
-} iom4_state;
-
-static iom4_state iom4_instance;
+static semu_ulsan_iom4 iom4_instance;
 
 #define IOM4_FIFO_THRESHOLD_MASK UINT32_C(0x00003F3F)
 /* DIV3 is a tagged flag: the register collection still stores it. Only
@@ -130,13 +104,15 @@ static int iom4_is_storeless_read_zero(uint32_t offset)
 #define IOM4_SRAM_END 0x10267000u
 #define IOM4_FLASH_START 0x00010000u
 #define IOM4_FLASH_END 0x00200000u
+#define IOM4_INTSTAT_FIFO_THRESHOLD (UINT32_C(1) << 1)
+#define IOM4_FIFO_CAPACITY 32u
 #define IOM4_INTSTAT_COMMAND_COMPLETE (UINT32_C(1) << 0)
 #define IOM4_INTSTAT_DMA_COMPLETE (UINT32_C(1) << 10)
 #define IOM4_INTSTAT_DMA_ERROR (UINT32_C(1) << 11)
 #define IOM4_DMA_STATUS_COMPLETE 2u
 #define IOM4_DMA_STATUS_ERROR 4u
 
-static int iom4_target_allowed(iom4_state *s, uint32_t command,
+static int iom4_target_allowed(semu_ulsan_iom4 *s, uint32_t command,
                                uint32_t count, int *to_device)
 {
     uint64_t end = (uint64_t)s->dma_target + count;
@@ -157,7 +133,7 @@ static int iom4_target_allowed(iom4_state *s, uint32_t command,
 /* Upstream drives the line as OR(status & enable); the lane trace
  * (E-ULS-0030) shows assert at completion and deassert inside the
  * handler's INTCLR write. Transitions are edge-only notifications. */
-static void iom4_update_irq(iom4_state *s)
+static void iom4_update_irq(semu_ulsan_iom4 *s)
 {
     unsigned level = (s->interrupt_status & s->interrupts_enable) != 0u;
     if (level == s->irq_level) {
@@ -169,14 +145,14 @@ static void iom4_update_irq(iom4_state *s)
     }
 }
 
-static void iom4_dma_mark_error(iom4_state *s)
+static void iom4_dma_mark_error(semu_ulsan_iom4 *s)
 {
     s->dma_status = IOM4_DMA_STATUS_ERROR;
     s->interrupt_status |= IOM4_INTSTAT_DMA_ERROR;
     iom4_update_irq(s);
 }
 
-static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
+static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
 {
     uint32_t kind = command & 0xFu;
     uint32_t size = (command >> 8) & 0xFFFu;
@@ -194,11 +170,26 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
         iom4_dma_mark_error(s); /* wrapper DmaError path */
         return;
     }
+    if (s->race_s_244 && (count > IOM4_FIFO_CAPACITY ||
+                         to_device != (kind == 1u))) {
+        iom4_dma_mark_error(s);
+        return;
+    }
     if (!ulsan_iom4_endpoint_known(s->i2c_device)) {
         return; /* endpoint beyond the observed traffic: no transfer */
     }
 
-    if (to_device) {
+    if (to_device && s->race_s_244) {
+        /* Source reads must come from mapped memory, without MMIO callbacks. */
+        for (i = 0u; i < count; ++i) {
+            if (semu_bus_copy_out(s->bus, s->dma_target + i, &payload[i], 1u,
+                                  &error) != SEMU_OK) {
+                iom4_dma_mark_error(s);
+                return;
+            }
+        }
+        ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, payload, count);
+    } else if (to_device) {
         /* Validate the full SRAM source before touching the endpoint. */
         for (i = 0u; i < count; i++) {
             uint32_t byte;
@@ -209,14 +200,16 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
             }
             payload[i] = (uint8_t)byte;
         }
-        ulsan_iom4_endpoint_write(s->i2c_device, payload, count);
+        ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, payload, count);
     } else {
         uint32_t offset_enable = command & 0x10u; /* OFFSETEN bit 4 */
         /* Validate the full destination before writing the endpoint out. */
         for (i = 0u; i < count; i++) {
             uint32_t probe;
-            if (semu_bus_read(s->bus, s->dma_target + i, 1u, &probe,
-                              &error) != SEMU_OK) {
+            semu_status status = s->race_s_244
+                ? semu_bus_validate_write(s->bus, s->dma_target + i, 1u, &error)
+                : semu_bus_read(s->bus, s->dma_target + i, 1u, &probe, &error);
+            if (status != SEMU_OK) {
                 iom4_dma_mark_error(s);
                 return;
             }
@@ -226,9 +219,9 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
              * one-byte write first: the recorder selects on it without
              * storing; the gauge takes it as its register pointer. */
             uint8_t offset_byte = (uint8_t)((command >> 24) & 0xFFu);
-            ulsan_iom4_endpoint_write(s->i2c_device, &offset_byte, 1u);
+            ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, &offset_byte, 1u);
         }
-        ulsan_iom4_endpoint_read(s->i2c_device, payload, count);
+        ulsan_iom4_endpoint_read(&s->endpoints, s->i2c_device, payload, count);
         for (i = 0u; i < count; i++) {
             uint32_t status;
             status = semu_bus_write(s->bus, s->dma_target + i, 1u,
@@ -239,18 +232,22 @@ static void iom4_doorbell_data_phase(iom4_state *s, uint32_t command)
             }
         }
     }
-    ulsan_iom4_endpoint_finish(s->i2c_device);
+    ulsan_iom4_endpoint_finish(&s->endpoints, s->i2c_device);
     s->dma_config &= ~IOM4_DMA_ENABLE; /* wrapper CompleteDma auto-clear */
     s->dma_status = IOM4_DMA_STATUS_COMPLETE;
     s->interrupt_status |= IOM4_INTSTAT_DMA_COMPLETE |
                            IOM4_INTSTAT_COMMAND_COMPLETE;
+    if (s->race_s_244) {
+        /* E-ULS-0067: completed startup FIFO transfers report 0x403. */
+        s->interrupt_status |= IOM4_INTSTAT_FIFO_THRESHOLD;
+    }
     iom4_update_irq(s);
 }
 
 static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
                              uint32_t *value, semu_error *error)
 {
-    (void)context;
+    semu_ulsan_iom4 *s = (semu_ulsan_iom4 *)context;
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan IOM4 read value required");
@@ -263,28 +260,28 @@ static semu_status iom4_read(void *context, uint32_t offset, unsigned width,
         return SEMU_ERR_UNSUPPORTED;
     }
     switch (offset) {
-    case 0x104u: *value = iom4_instance.fifo_threshold; return SEMU_OK;
-    case 0x118u: *value = iom4_instance.io_clock; return SEMU_OK;
+    case 0x104u: *value = s->fifo_threshold; return SEMU_OK;
+    case 0x118u: *value = s->io_clock; return SEMU_OK;
     case 0x11Cu:
-        *value = iom4_instance.submodule | IOM4_SUBMODULE_READ_BITS;
+        *value = s->submodule | IOM4_SUBMODULE_READ_BITS;
         return SEMU_OK;
-    case 0x200u: *value = iom4_instance.interrupts_enable; return SEMU_OK;
+    case 0x200u: *value = s->interrupts_enable; return SEMU_OK;
     /* INTSTAT: read-only status the vector-10 handler polls
      * (E-ULS-0030, helper 0x0015e7a6 reads base+0x204). */
-    case 0x204u: *value = iom4_instance.interrupt_status; return SEMU_OK;
-    case 0x210u: *value = iom4_instance.dma_trigger; return SEMU_OK;
-    case 0x128u: *value = iom4_instance.offset_high; return SEMU_OK;
-    case 0x124u: *value = iom4_instance.dcx_control; return SEMU_OK;
-    case 0x120u: *value = iom4_instance.command; return SEMU_OK;
-    case 0x2C4u: *value = iom4_instance.i2c_device; return SEMU_OK;
-    case 0x218u: *value = iom4_instance.dma_config; return SEMU_OK;
-    case 0x21Cu: *value = iom4_instance.dma_total; return SEMU_OK;
-    case 0x220u: *value = iom4_instance.dma_target; return SEMU_OK;
+    case 0x204u: *value = s->interrupt_status; return SEMU_OK;
+    case 0x210u: *value = s->dma_trigger; return SEMU_OK;
+    case 0x128u: *value = s->offset_high; return SEMU_OK;
+    case 0x124u: *value = s->dcx_control; return SEMU_OK;
+    case 0x120u: *value = s->command; return SEMU_OK;
+    case 0x2C4u: *value = s->i2c_device; return SEMU_OK;
+    case 0x218u: *value = s->dma_config; return SEMU_OK;
+    case 0x21Cu: *value = s->dma_total; return SEMU_OK;
+    case 0x220u: *value = s->dma_target; return SEMU_OK;
     case 0x248u:
-        *value = iom4_instance.module_err | IOM4_MODULE_STATUS_IDLE;
+        *value = s->module_err | IOM4_MODULE_STATUS_IDLE;
         return SEMU_OK;
     case 0x280u: *value = IOM4_SPI_CONFIG_RESET; return SEMU_OK;
-    case 0x2C0u: *value = iom4_instance.i2c_config; return SEMU_OK;
+    case 0x2C0u: *value = s->i2c_config; return SEMU_OK;
     default:
         if (iom4_is_storeless_read_zero(offset)) {
             *value = 0u;
@@ -302,7 +299,7 @@ static semu_status iom4_write(void *context, uint32_t offset,
                               unsigned width, uint32_t value,
                               semu_error *error)
 {
-    (void)context;
+    semu_ulsan_iom4 *s = (semu_ulsan_iom4 *)context;
     if (width != 4u || (offset & 3u) != 0u) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Ulsan IOM4 write at 0x%08x width %u is unsupported",
@@ -311,69 +308,69 @@ static semu_status iom4_write(void *context, uint32_t offset,
     }
     switch (offset) {
     case 0x128u:
-        iom4_instance.offset_high = value; /* full OFFSETHI field */
+        s->offset_high = value; /* full OFFSETHI field */
         return SEMU_OK;
     case 0x124u:
         /* DCXSEL is a plain tag (drops); DCXEN bit 4 stores. */
-        iom4_instance.dcx_control = value & 0x10u;
+        s->dcx_control = value & 0x10u;
         return SEMU_OK;
     case 0x120u:
         /* Transaction doorbell: every field but the reserved pair
          * stores, and the command drives the DMA data phase above
          * (E-ULS-0029). */
-        iom4_instance.command = value & 0xFF3FFFFFu;
-        iom4_doorbell_data_phase(&iom4_instance, value & 0xFF3FFFFFu);
+        s->command = value & 0xFF3FFFFFu;
+        iom4_doorbell_data_phase(s, value & 0xFF3FFFFFu);
         return SEMU_OK;
     case 0x2C4u:
         /* DEVADDR[9:0] with the lane's 7-bit truncation (extended
          * addressing is never enabled in the observed window). */
-        iom4_instance.i2c_device = value & 0x7Fu;
+        s->i2c_device = value & 0x7Fu;
         return SEMU_OK;
     case 0x218u:
         /* Lane wrapper owns this register and stores value & 0x303. */
-        iom4_instance.dma_config = value & 0x303u;
+        s->dma_config = value & 0x303u;
         return SEMU_OK;
     case 0x21Cu:
         /* Lane wrapper owns this register and stores value & 0xfff. */
-        iom4_instance.dma_total = value & 0xFFFu;
+        s->dma_total = value & 0xFFFu;
         return SEMU_OK;
     case 0x220u:
         /* Lane wrapper owns this register; 29-bit TARGADDR field. */
-        iom4_instance.dma_target = value & 0x1FFFFFFFu;
+        s->dma_target = value & 0x1FFFFFFFu;
         return SEMU_OK;
     case 0x248u:
-        iom4_instance.module_err = value & 0x1u; /* ERR only */
+        s->module_err = value & 0x1u; /* ERR only */
         return SEMU_OK;
     case 0x104u:
-        iom4_instance.fifo_threshold = value & IOM4_FIFO_THRESHOLD_MASK;
+        s->fifo_threshold = value & IOM4_FIFO_THRESHOLD_MASK;
         return SEMU_OK;
     case 0x118u:
-        iom4_instance.io_clock = value & IOM4_IO_CLOCK_MASK;
+        s->io_clock = value & IOM4_IO_CLOCK_MASK;
         return SEMU_OK;
     case 0x11Cu:
-        iom4_instance.submodule = value & IOM4_SUBMODULE_WRITE_MASK;
+        s->submodule = value & IOM4_SUBMODULE_WRITE_MASK;
         /* Upstream write callback: enabling both modules clears both. */
-        if ((iom4_instance.submodule & IOM4_SUBMODULE_WRITE_MASK) ==
+        if ((s->submodule & IOM4_SUBMODULE_WRITE_MASK) ==
             IOM4_SUBMODULE_WRITE_MASK) {
-            iom4_instance.submodule = 0u;
+            s->submodule = 0u;
         }
         return SEMU_OK;
     case 0x200u:
-        iom4_instance.interrupts_enable = value & IOM4_INTERRUPTS_MASK;
-        iom4_update_irq(&iom4_instance);
+        s->interrupts_enable = value & IOM4_INTERRUPTS_MASK;
+        iom4_update_irq(s);
         return SEMU_OK;
     case 0x208u:
         /* INTCLR: write-1-clear. The observed window cleared an
          * all-zero status (storeless-equivalent); the lane handler's
          * clear now re-evaluates the line (E-ULS-0030). */
-        iom4_instance.interrupt_status &= ~value;
-        iom4_update_irq(&iom4_instance);
+        s->interrupt_status &= ~value;
+        iom4_update_irq(s);
         return SEMU_OK;
     case 0x210u:
-        iom4_instance.dma_trigger = value & 0x3u;
+        s->dma_trigger = value & 0x3u;
         return SEMU_OK;
     case 0x2C0u:
-        iom4_instance.i2c_config = value & IOM4_I2C_CONFIG_MASK;
+        s->i2c_config = value & IOM4_I2C_CONFIG_MASK;
         return SEMU_OK;
     default:
         if (iom4_is_storeless_read_zero(offset) || offset == 0x280u) {
@@ -390,25 +387,25 @@ static semu_status iom4_write(void *context, uint32_t offset,
 
 static void iom4_reset(void *context)
 {
-    (void)context;
-    iom4_instance.fifo_threshold = 0u;
-    iom4_instance.io_clock = 0u;
-    iom4_instance.submodule = 0u;
-    iom4_instance.interrupts_enable = 0u;
-    iom4_instance.dma_trigger = 0u;
-    iom4_instance.i2c_config = 0u;
-    iom4_instance.module_err = 0u;
-    iom4_instance.offset_high = 0u;
-    iom4_instance.dcx_control = 0u;
-    iom4_instance.command = 0u;
-    iom4_instance.i2c_device = 0u;
-    iom4_instance.dma_config = 0u;
-    iom4_instance.dma_total = 0u;
-    iom4_instance.dma_target = 0u;
-    iom4_instance.dma_status = 0u;
-    iom4_instance.interrupt_status = 0u;
-    ulsan_iom4_endpoints_reset();
-    iom4_update_irq(&iom4_instance);
+    semu_ulsan_iom4 *s = (semu_ulsan_iom4 *)context;
+    s->fifo_threshold = 0u;
+    s->io_clock = 0u;
+    s->submodule = 0u;
+    s->interrupts_enable = 0u;
+    s->dma_trigger = 0u;
+    s->i2c_config = 0u;
+    s->module_err = 0u;
+    s->offset_high = 0u;
+    s->dcx_control = 0u;
+    s->command = 0u;
+    s->i2c_device = 0u;
+    s->dma_config = 0u;
+    s->dma_total = 0u;
+    s->dma_target = 0u;
+    s->dma_status = 0u;
+    s->interrupt_status = 0u;
+    ulsan_iom4_endpoints_reset(&s->endpoints);
+    iom4_update_irq(s);
 }
 
 void semu_ulsan_iom4_set_irq_sink(semu_apollo4_irq_fn sink, void *context)
@@ -430,8 +427,30 @@ semu_status semu_ulsan_iom4_map(semu_bus *bus, semu_error *error)
                        "Ulsan IOM4 needs a bus");
         return SEMU_ERR_ARGUMENT;
     }
-    iom4_reset(NULL);
+    iom4_reset(&iom4_instance);
     iom4_instance.bus = bus;
     return semu_bus_map_device(bus, "ulsan.iom4", IOM4_BASE, IOM4_SIZE,
                                &iom4_ops, &iom4_instance, error);
+}
+
+semu_status semu_ulsan_244_iom4_map(semu_bus *bus, semu_ulsan_iom4 *state,
+                                    semu_apollo4_irq_fn sink, void *context,
+                                    semu_error *error)
+{
+    semu_status status;
+    if (state == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan IOM4 needs state");
+        return SEMU_ERR_ARGUMENT;
+    }
+    status = semu_bus_map_device(bus, "ulsan.iom4", IOM4_BASE, IOM4_SIZE,
+                                 &iom4_ops, state, error);
+    if (status == SEMU_OK) {
+        *state = (semu_ulsan_iom4){0};
+        state->bus = bus;
+        state->irq_sink = sink;
+        state->irq_context = context;
+        state->race_s_244 = 1;
+        iom4_reset(state);
+    }
+    return status;
 }

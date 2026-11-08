@@ -43,15 +43,20 @@ static void wake_sink(void *context, unsigned irq, int level)
     ++g_edge_count;
 }
 
-static void test_compare_wake_edges_and_cancel(semu_test_context *context)
+static void check_compare_wake_edges(semu_test_context *context, int race_s)
 {
+    semu_ulsan_timer0 timer, other_timer;
     semu_scheduler *scheduler;
     semu_bus *bus;
     semu_error error;
-    const uint64_t period_ns = UINT64_C(32) * UINT64_C(61035);
+    /* E-ULS-0070 samples CMP0 0x107 at 32,768 Hz on 2.44.52. */
+    const uint64_t period_ns = race_s ? UINT64_C(8026124)
+                                     : UINT64_C(32) * UINT64_C(61035);
+    const uint32_t compare = race_s ? UINT32_C(0x107) : UINT32_C(0x20);
     const unsigned expect_irq[8] = {14u, 68u, 14u, 68u, 14u, 68u, 14u, 68u};
     const unsigned expect_level[8] = {1u, 1u, 0u, 0u, 1u, 1u, 0u, 0u};
     size_t index;
+    uint32_t value;
 
     g_edge_count = 0u;
     semu_error_clear(&error);
@@ -61,18 +66,52 @@ static void test_compare_wake_edges_and_cancel(semu_test_context *context)
     bus = semu_bus_create(&error);
     SEMU_TEST_ASSERT(context, bus != NULL);
     semu_error_clear(&error);
-    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
-    /* The machine attaches after mapping: device maps reset detach. */
-    semu_ulsan_timer0_attach(scheduler, wake_sink, NULL);
+    if (race_s) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_244_timer0_map(
+            bus, &timer, scheduler, wake_sink, NULL, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(bus, 0x40008010u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0x7ffu, value);
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_read(bus, 0x40008224u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(bus, 0x400082e0u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0u, value);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_write(bus, 0x400082e0u, 4u, 0x122u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(bus, 0x400082e0u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0x120u, value);
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_write(bus, 0x400082e8u, 4u, UINT32_MAX, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_write(bus, 0x400082e0u, 4u, 0x121u, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+            semu_bus_read(bus, 0x400082e4u, 4u, &value, &error));
+    } else {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+        semu_ulsan_timer0_attach(scheduler, wake_sink, NULL);
+    }
 
     semu_error_clear(&error);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-                     semu_bus_write(bus, 0x40008228u, 4u, UINT32_C(0x20),
+                     semu_bus_write(bus, 0x40008228u, 4u, compare,
                                     &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_write(bus, 0x40008220u, 4u, UINT32_C(0xA21),
                                     &error));
-    /* No edge one tick before the first compare. */
+    if (race_s) {
+        semu_bus *other = semu_bus_create(&error);
+        SEMU_TEST_ASSERT(context, other != NULL);
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_244_timer0_map(
+            other, &other_timer, NULL, NULL, NULL, &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(other, 0x40008220u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0u, value);
+        semu_bus_reset(other);
+        semu_bus_destroy(other);
+    }
+    /* No edge one nanosecond before the first compare. */
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_scheduler_advance(scheduler, period_ns - 1u,
                                             &error));
@@ -103,6 +142,9 @@ static void test_compare_wake_edges_and_cancel(semu_test_context *context)
                      semu_bus_write(bus, 0x40008220u, 4u, UINT32_C(0xA22),
                                     &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, 0x40008220u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, race_s ? 0xa20u : 0xa22u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_scheduler_advance(scheduler, UINT64_C(61035),
                                             &error));
     SEMU_TEST_EQ_U64(context, UINT64_C(8), g_edge_count);
@@ -119,12 +161,22 @@ static void test_compare_wake_edges_and_cancel(semu_test_context *context)
     semu_scheduler_destroy(scheduler);
 }
 
+static void test_compare_wake_edges_and_cancel(semu_test_context *context)
+{
+    check_compare_wake_edges(context, 0);
+}
+
+static void test_race_s_timer1_registers_and_wake(semu_test_context *context)
+{
+    check_compare_wake_edges(context, 1);
+}
 
 int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_compare_wake_edges_and_cancel",
-          test_compare_wake_edges_and_cancel }
+          test_compare_wake_edges_and_cancel },
+        SEMU_TEST_CASE(test_race_s_timer1_registers_and_wake)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

@@ -21,17 +21,35 @@
  * beyond the observed traffic and transfer nothing (lane refusal shape). */
 int ulsan_iom4_endpoint_known(unsigned device);
 
-void ulsan_iom4_endpoints_reset(void);
+typedef struct {
+    uint8_t selected;
+    uint8_t regs[256];
+} ulsan_iom4_recorder;
+
+typedef struct {
+    uint16_t regs[256];
+    uint8_t register_pointer;
+    unsigned read_byte_index;
+    unsigned write_byte_index;
+    int expecting_register;
+} ulsan_iom4_gauge;
+
+typedef struct {
+    ulsan_iom4_recorder recorder;
+    ulsan_iom4_gauge gauge;
+} ulsan_iom4_endpoints;
+
+void ulsan_iom4_endpoints_reset(ulsan_iom4_endpoints *state);
 
 /* Whole-block write phase (length >= 1; a length of 0 does nothing). */
-void ulsan_iom4_endpoint_write(unsigned device, const uint8_t *data,
+void ulsan_iom4_endpoint_write(ulsan_iom4_endpoints *state, unsigned device, const uint8_t *data,
                                unsigned length);
 
 /* Read phase: fills out[0..count) from the endpoint. */
-void ulsan_iom4_endpoint_read(unsigned device, uint8_t *out,
+void ulsan_iom4_endpoint_read(ulsan_iom4_endpoints *state, unsigned device, uint8_t *out,
                               unsigned count);
 
 /* I2C FinishTransmission for the transaction that just ended. */
-void ulsan_iom4_endpoint_finish(unsigned device);
+void ulsan_iom4_endpoint_finish(ulsan_iom4_endpoints *state, unsigned device);
 
 #endif /* SEMU_DEVICES_ULSAN_IOM4_ENDPOINTS_H */

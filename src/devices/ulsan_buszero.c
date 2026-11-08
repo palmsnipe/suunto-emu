@@ -20,6 +20,7 @@
 
 #include "ulsan_buszero.h"
 
+#include "../core/bus_internal.h"
 #include "semu/types.h"
 #include <stddef.h>
 
@@ -108,18 +109,13 @@ static const zero_window zero_windows[] = {
       "ulsan.buszero.periph_400b2024" }
 };
 
-typedef struct {
-    const zero_window *window;
-} buszero_context;
-
-static const zero_access *buszero_find(const buszero_context *ctx,
+static const zero_access *buszero_find(const zero_window *window,
                                        uint32_t offset, unsigned width,
-                                       int is_write, uint32_t value,
-                                       unsigned start)
+                                       int is_write, uint32_t value)
 {
     unsigned index;
-    for (index = start; index < ctx->window->count; ++index) {
-        const zero_access *acc = &ctx->window->accesses[index];
+    for (index = 0u; index < window->count; ++index) {
+        const zero_access *acc = &window->accesses[index];
         if (acc->offset == offset && acc->width == width &&
             acc->is_write == is_write &&
             (!is_write || acc->value == value)) {
@@ -133,7 +129,7 @@ static semu_status buszero_read(void *context, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error)
 {
-    const buszero_context *ctx = (const buszero_context *)context;
+    const zero_window *window = (const zero_window *)context;
     const zero_access *acc;
 
     if (value == NULL) {
@@ -141,14 +137,14 @@ static semu_status buszero_read(void *context, uint32_t offset,
                        "Ulsan bus-zero read value required");
         return SEMU_ERR_ARGUMENT;
     }
-    acc = buszero_find(ctx, offset, width, 0, 0u, 0u);
+    acc = buszero_find(window, offset, width, 0, 0u);
     if (acc != NULL) {
         *value = acc->value; /* the lane fallback returned 0 */
         return SEMU_OK;
     }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "Ulsan bus-zero read at 0x%08x+%x width %u is "
-                   "unsupported", ctx->window->base, offset, width);
+                   "unsupported", window->base, offset, width);
     return SEMU_ERR_UNSUPPORTED;
 }
 
@@ -156,15 +152,15 @@ static semu_status buszero_write(void *context, uint32_t offset,
                                  unsigned width, uint32_t value,
                                  semu_error *error)
 {
-    const buszero_context *ctx = (const buszero_context *)context;
+    const zero_window *window = (const zero_window *)context;
 
-    if (buszero_find(ctx, offset, width, 1, value, 0u) != NULL) {
+    if (buszero_find(window, offset, width, 1, value) != NULL) {
         return SEMU_OK; /* the lane sysbus logged and discarded this one */
     }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "Ulsan bus-zero write at 0x%08x+%x width %u value "
                    "0x%08x is unsupported",
-                   ctx->window->base, offset, width, value);
+                   window->base, offset, width, value);
     return SEMU_ERR_UNSUPPORTED;
 }
 
@@ -179,10 +175,6 @@ static const semu_bus_device_ops buszero_ops = {
     buszero_reset
 };
 
-/* Stable storage for one context pointer per window (one per lane block). */
-static buszero_context buszero_contexts[sizeof(zero_windows) /
-                                        sizeof(zero_windows[0])];
-
 semu_status semu_ulsan_buszero_map(semu_bus *bus, semu_error *error)
 {
     size_t index;
@@ -192,15 +184,39 @@ semu_status semu_ulsan_buszero_map(semu_bus *bus, semu_error *error)
                        "Ulsan bus-zero needs a bus");
         return SEMU_ERR_ARGUMENT;
     }
-    for (index = 0u; index < sizeof(zero_windows) / sizeof(zero_windows[0]);
-         ++index) {
-        buszero_contexts[index].window = &zero_windows[index];
+    for (index = 0u; index < SEMU_ARRAY_LEN(zero_windows); ++index) {
+        /* Every callback treats the mapping context as read-only. */
         if (semu_bus_map_device(bus, zero_windows[index].name,
                                 zero_windows[index].base,
                                 zero_windows[index].size, &buszero_ops,
-                                &buszero_contexts[index], error) != SEMU_OK) {
+                                (void *)&zero_windows[index], error) != SEMU_OK) {
             return error != NULL ? error->code : SEMU_ERR_STATE;
         }
     }
     return SEMU_OK;
+}
+
+semu_status semu_ulsan_244_buszero_map(semu_bus *bus, semu_error *error)
+{
+    /* E-ULS-0058 covers CRYPTO and logger. E-ULS-0073 covers every
+     * post-storage 0x400B tuple in the same table. */
+    return semu_ulsan_buszero_map(bus, error);
+}
+
+semu_status semu_ulsan_244_sd_pad_map(semu_bus *bus, semu_error *error)
+{
+    static const zero_access accesses[] = {
+        { 0u, 4u, 0, 0u },
+        { 0u, 4u, 1, 0x4bu },
+        { 0u, 4u, 1, 0x4a00u },
+        { 0u, 4u, 1, 0x7fu },
+        { 0u, 4u, 1, 0x7f00u }
+    };
+    static const zero_window window = {
+        0x40010294u, 4u, accesses, SEMU_ARRAY_LEN(accesses), "ulsan.sd-pad"
+    };
+
+    /* E-ULS-0080: the lane tags this register but discards its writes. */
+    return semu_bus_map_overlay(bus, window.name, window.base, window.size,
+                                &buszero_ops, (void *)&window, error);
 }

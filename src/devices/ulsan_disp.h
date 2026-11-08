@@ -19,6 +19,28 @@
 
 #include "semu/apollo4.h"
 #include "semu/bus.h"
+#include "semu/frame.h"
+
+#define SEMU_ULSAN_DISP_WORDS (0x9000u / 4u)
+
+struct ulsan_disp_scanout;
+
+typedef struct semu_ulsan_disp {
+    uint32_t registers[SEMU_ULSAN_DISP_WORDS];
+    semu_apollo4_irq_fn irq_sink;
+    void *irq_context;
+    unsigned line_high;
+    semu_bus *bus;
+    semu_frame_callback frame_callback;
+    void *frame_context;
+    struct ulsan_disp_scanout *scanout;
+} semu_ulsan_disp;
+
+semu_status semu_ulsan_244_disp_map(semu_bus *bus, semu_ulsan_disp *state,
+                                    semu_apollo4_irq_fn irq, void *irq_context,
+                                    semu_frame_callback frame,
+                                    void *frame_context, semu_error *error);
+void semu_ulsan_disp_destroy_state(semu_ulsan_disp *state);
 
 semu_status semu_ulsan_disp_map(semu_bus *bus, semu_error *error);
 

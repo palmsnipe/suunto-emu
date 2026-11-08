@@ -262,12 +262,80 @@ static void test_boot_passes_crypto_read(semu_test_context *context)
     semu_machine_destroy(machine);
 }
 
+static void test_244_only_accepts_observed_tuples(semu_test_context *context)
+{
+    semu_error error;
+    semu_bus *bus = semu_bus_create(&error);
+    uint32_t value = 0xdeadbeefu;
+
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_ulsan_244_buszero_map(bus, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x400c0fe0u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    value = 0xdeadbeefu;
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x40000000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_write(bus, 0x40000000u, 4u, 2u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_write(bus, 0x40000000u, 4u, 3u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(bus, 0x400c0fe0u, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, 0x400b2024u, 4u, 0x80000000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x400b2000u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, 0x400b0002u, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(bus, 0x400b2024u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_write(bus, 0x400b2024u, 4u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_read(bus, 0x400b0002u, 1u, &value, &error));
+    semu_bus_destroy(bus);
+}
+
+static void test_244_sd_pad(semu_test_context *context)
+{
+    static const uint32_t writes[] = {0x4bu, 0x4a00u, 0x7fu, 0x7f00u};
+    semu_error error;
+    semu_bus *bus = semu_bus_create(&error);
+    uint32_t value;
+    size_t i;
+
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_board_map(bus, &error));
+    SEMU_TEST_ASSERT(context,
+        semu_bus_read(bus, 0x40010294u, 4u, &value, &error) != SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_ulsan_244_sd_pad_map(bus, &error));
+    for (i = 0u; i < SEMU_ARRAY_LEN(writes); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_write(bus, 0x40010294u, 4u, writes[i], &error));
+        SEMU_TEST_EQ_U64(context, SEMU_OK,
+            semu_bus_read(bus, 0x40010294u, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, 0u, value);
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_write(bus, 0x40010294u, 4u, 0x4a4bu, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_read(bus, 0x40010294u, 2u, &value, &error));
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_logged_offset_reads_zero", test_logged_offset_reads_zero },
         { "test_unobserved_offsets_refused",
           test_unobserved_offsets_refused },
+        SEMU_TEST_CASE(test_244_only_accepts_observed_tuples),
+        SEMU_TEST_CASE(test_244_sd_pad),
         { "test_boot_passes_crypto_read", test_boot_passes_crypto_read }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));

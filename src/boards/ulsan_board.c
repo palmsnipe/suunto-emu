@@ -1,5 +1,5 @@
 /*
- * Ulsan 2.35.36 reset memory map (ticket 725).
+ * Ulsan reset memory map (tickets 725 and 808).
  *
  * Region evidence, all rows of E-ULS-0006 in docs/migration-evidence.md:
  *   mcu_mram, mcu_tcm, shared_sram  reference platform base mapping
@@ -13,7 +13,10 @@
  *       MSPI1 XIP base 0x18000000 plus the logical offset 0x00040000 and
  *       extending to the end of the 32 MiB aperture (ulsan-storage.repl).
  *
- * Attached controllers (ticket 730):
+ * The 2.44.52 lane explicitly loads the same platform and places its
+ * components in the same regions (E-ULS-0052).
+ *
+ * Shared reset GPIO (E-ULS-0007/0052):
  *   0x40010000 GPIO bank     the boot image's pad-setup sequence stores the
  *       PADKEY value 0x73 and PINCFG words through this block while the
  *       application table runs (first precise bus fault observed at
@@ -22,7 +25,9 @@
  *       (bank IRQs 56..63, upstream ambiq-apollo4 platform description) and
  *       never refuses them; the same in-tree Apollo4 GPIO controller serves
  *       that block for Sapporo. No GPIO interrupt sink is attached: the
- *       Ulsan boot evidence shows pad configuration only, no bank IRQ.
+ *       reset contract covers pad configuration.
+ *
+ * Attached 2.35.36 controllers (ticket 730):
  *   0x40021000 power control  the boot phase reads DEVICE_POWER_STATUS
  *       (bit 20 sampled at 0x00096b66 by the reader called from 0x0009d20a)
  *       and performs enable writes the reference lane logged as fully
@@ -99,13 +104,13 @@ int semu_ulsan_board_accepted(const char *board, const char *profile_id)
 {
     return board != NULL && profile_id != NULL &&
            strcmp(board, "ulsan") == 0 &&
-           strcmp(profile_id, "ulsan-2.35.36") == 0;
+           (strcmp(profile_id, "ulsan-2.35.36") == 0 ||
+            strcmp(profile_id, "ulsan-2.44.52") == 0);
 }
 
-semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
+static semu_status ulsan_board_map_reset(semu_bus *bus, semu_error *error)
 {
     size_t index;
-    semu_status attach_status;
 
     if (bus == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT, "ulsan board needs a bus");
@@ -122,6 +127,85 @@ semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
     }
     if (semu_apollo4_gpio_create(bus, NULL, NULL, error) == NULL) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    return SEMU_OK;
+}
+
+semu_status semu_ulsan_244_board_map(semu_bus *bus,
+                                    semu_ulsan_244_board *board,
+                                    semu_scheduler *scheduler,
+                                    semu_apollo4_irq_fn sink, void *context,
+                                    semu_error *error)
+{
+    semu_status status;
+
+    if (board == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan 2.44 needs board state");
+        return SEMU_ERR_ARGUMENT;
+    }
+    status = ulsan_board_map_reset(bus, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_244_pwrctrl_map(bus, &board->power, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    /* The 2.44 lane executes the same stub and clock script (E-ULS-0056). */
+    status = semu_ulsan_bootrom_map(bus, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_clkgen_map_state(bus, &board->clock, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    /* The 2.44 startup observes the same DAXI, INFO1 and early bus tuples. */
+    status = semu_ulsan_daxi_map(bus, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_otpinfo_map(bus, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_244_buszero_map(bus, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    /* E-ULS-0060 confirms the shared timer and watchdog startup laws. */
+    status = semu_ulsan_stimer_map_state(bus, &board->stimer, scheduler, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_wdt_map_state(bus, &board->watchdog, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    /* E-ULS-0061/0063 confirm the counter and alarm on IRQ 2. */
+    status = semu_ulsan_rtc_map_state(bus, &board->rtc, scheduler, sink, context,
+                                      error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_244_timer0_map(bus, &board->timer, scheduler, sink, context,
+                                       error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    status = semu_ulsan_244_iom4_map(bus, &board->iom4, sink, context, error);
+    if (status != SEMU_OK) {
+        return status;
+    }
+    return semu_ulsan_mspi1_map_state(bus, &board->mspi1, sink, context, error);
+}
+
+semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
+{
+    semu_status attach_status = ulsan_board_map_reset(bus, error);
+
+    if (attach_status != SEMU_OK) {
+        return attach_status;
     }
     attach_status = semu_ulsan_pwrctrl_map(bus, error);
     if (attach_status != SEMU_OK) {
