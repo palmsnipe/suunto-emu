@@ -76,7 +76,7 @@ static void test_race_s_bands_and_mask(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_map_ram(bus, "native-lists", LIST, 1024u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
-        semu_bus_map_ram(bus, "native-source", SOURCE, 4u, &error));
+        semu_bus_map_ram(bus, "native-source", SOURCE, 64u, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_bus_map_ram(bus, "native-target", TARGET, FRAME_BYTES, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, TARGET, 2u, 0xffffu, &error));
@@ -137,6 +137,44 @@ static void test_race_s_bands_and_mask(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 2u, frames.count);
     SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, TARGET, 2u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0xffffu, value);
+
+    /* The native black A8 ramp blends over the previous white A2 draw. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, SOURCE, 1u, 128u, &error));
+    list.address = LIST;
+    begin_draw(&list, 0x01d201d2u, 0u, 156u);
+    emit(&list, NEMA_REG_TEX1_FSTRIDE, 0x08010001u);
+    emit(&list, NEMA_REG_TEX1_RESXY, 0x00290001u);
+    emit(&list, NEMA_REG_TEX_COLOR, 0xff000000u);
+    emit(&list, NEMA_REG_CODEPTR, 0x941e8000u);
+    points(&list, 466u, 0u, 141u);
+    emit(&list, NEMA_REG_DRAW_CMD, 5u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, LIST, (list.address - LIST) / 4u,
+                                 0u, frame_callback, &frames, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, TARGET, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x7befu, value);
+
+    list.address = LIST;
+    emit(&list, NEMA_REG_TEX1_RESXY, 0x00280001u);
+    emit(&list, NEMA_REG_DRAW_CMD, 5u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_REFUSE,
+        semu_nema_backend_submit(backend, bus, LIST, (list.address - LIST) / 4u,
+                                 0u, frame_callback, &frames, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, TARGET, 2u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x7befu, value);
+
+    list.address = LIST;
+    emit(&list, NEMA_REG_TEX1_FSTRIDE, 0x28010001u);
+    emit(&list, NEMA_REG_TEX1_RESXY, 0x00010001u);
+    emit(&list, NEMA_REG_MATMULT, 0x90000000u);
+    emit(&list, NEMA_REG_CODEPTR, 0x941eb400u);
+    emit(&list, NEMA_REG_DRAW_COLOR, 0xff000000u);
+    points(&list, 1u, 0u, 1u);
+    emit(&list, NEMA_REG_DRAW_CMD, 0x03800004u);
+    SEMU_TEST_EQ_U64(context, SEMU_TRANSACTION_OK,
+        semu_nema_backend_submit(backend, bus, LIST, (list.address - LIST) / 4u,
+                                 0u, frame_callback, &frames, &error));
+
     semu_nema_backend_destroy(backend);
     semu_bus_destroy(bus);
 }

@@ -9,6 +9,7 @@ enum {
     PAD_KEY = 0x200u,
     INPUT_READ0 = 0x204u,
     INPUT_READ1 = 0x208u,
+    INPUT_READ3 = 0x210u,
     OUTPUT_VALUE1 = 0x218u,
     OUTPUT_SET0 = 0x224u,
     OUTPUT_CLEAR0 = 0x234u,
@@ -194,6 +195,15 @@ semu_status semu_apollo4_gpio_read(void *context, uint32_t offset,
         }
         return SEMU_OK;
     }
+    if (offset == INPUT_READ3 && gpio->race_s_inputs) {
+        /* E-ULS-0096: bank 3 samples the enabled touch and crown input pads. */
+        *value = 0u;
+        if ((gpio->pin_configuration[100u] & 0x10u) != 0u && gpio->input[100u])
+            *value |= UINT32_C(1) << 4u;
+        if ((gpio->pin_configuration[104u] & 0x10u) != 0u && gpio->input[104u])
+            *value |= UINT32_C(1) << 8u;
+        return SEMU_OK;
+    }
     if (offset == OUTPUT_VALUE1) {
         *value = gpio->output[1u];
         return SEMU_OK;
@@ -346,6 +356,19 @@ int semu_apollo4_gpio_get_input(const semu_apollo4_gpio *gpio, unsigned pin)
 {
     return gpio != NULL && pin < SEMU_APOLLO4_GPIO_COUNT
                ? gpio->input[pin] != 0u : -1;
+}
+
+void semu_apollo4_gpio_enable_race_s_inputs(semu_apollo4_gpio *gpio)
+{
+    gpio->race_s_inputs = 1;
+}
+
+int semu_apollo4_gpio_falling_input_armed(const semu_apollo4_gpio *gpio, unsigned pin)
+{
+    return gpio != NULL && pin < SEMU_APOLLO4_GPIO_COUNT &&
+           (gpio->edge[pin] == SEMU_APOLLO4_GPIO_EDGE_FALLING ||
+            gpio->edge[pin] == SEMU_APOLLO4_GPIO_EDGE_BOTH) &&
+           (gpio->interrupt_enable[pin / 32u] & (UINT32_C(1) << (pin % 32u))) != 0u;
 }
 
 semu_status semu_apollo4_gpio_configure_pin(

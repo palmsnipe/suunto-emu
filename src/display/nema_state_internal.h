@@ -7,5 +7,6 @@ struct nema_state {
     uint64_t presence;
     uint32_t list_id;
     size_t snapshot_count;
+    int race_s;
 };
 #endif

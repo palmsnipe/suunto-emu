@@ -42,7 +42,7 @@ static semu_status iom_write(semu_bus *bus, uint32_t offset, uint32_t value)
 
 static void test_race_s_als_and_crown(semu_test_context *context)
 {
-    semu_ulsan_crown crown;
+    semu_ulsan_crown crown = {0};
     semu_error error;
     uint8_t bytes[2] = {0x64u, 0u};
     uint8_t out[2] = {0xffu, 0xffu};

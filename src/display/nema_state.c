@@ -101,6 +101,13 @@ static int is_supported_draw_cmd(uint32_t cmd)
            cmd == NEMA_DRAW_TSC6A_RESOLVE;
 }
 
+/* E-ULS-0097: native Race S vector transitions. */
+int nema_state_race_s_vector(uint32_t command)
+{
+    return command == 0x01800004u || command == 0x02000004u ||
+           command == 0x03800004u || command == 0x04000004u;
+}
+
 static void build_snapshot(const nema_state *st, nema_draw_snapshot *s)
 {
     uint32_t fstride, resxy;
@@ -168,8 +175,9 @@ static int validate_draw(const nema_state *st, semu_error *error)
     uint64_t req = BIT(P_TEX0_BASE) | BIT(P_TEX0_FSTRIDE) |
                    BIT(P_TEX0_RESXY) | BIT(P_CLIPMIN) | BIT(P_CLIPMAX);
     uint32_t cmd = st->values[P_DRAW_CMD];
+    int race_s_vector = st->race_s && nema_state_race_s_vector(cmd);
 
-    if (!is_supported_draw_cmd(cmd)) {
+    if (!is_supported_draw_cmd(cmd) && !race_s_vector) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "nema_state: unsupported draw cmd 0x%08x", cmd);
         return 0;
@@ -214,7 +222,7 @@ static int validate_draw(const nema_state *st, semu_error *error)
             return 0;
         }
     }
-    if (cmd == NEMA_DRAW_TRI_SOLID || cmd == NEMA_DRAW_TRI_AA) {
+    if (cmd == NEMA_DRAW_TRI_SOLID || cmd == NEMA_DRAW_TRI_AA || race_s_vector) {
         uint64_t geo = BIT(P_POINT0_X) | BIT(P_POINT0_Y) |
                        BIT(P_POINT1_X) | BIT(P_POINT1_Y) |
                        BIT(P_POINT2_X) | BIT(P_POINT2_Y);
@@ -256,6 +264,11 @@ semu_status nema_state_create(nema_state **out, semu_error *error)
 void nema_state_destroy(nema_state *st)
 {
     free(st);
+}
+
+void nema_state_enable_race_s(nema_state *st)
+{
+    st->race_s = 1;
 }
 
 void nema_state_reset(nema_state *st)

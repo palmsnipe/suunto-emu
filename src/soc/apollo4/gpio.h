@@ -49,6 +49,8 @@ semu_status semu_apollo4_gpio_set_input(semu_apollo4_gpio *gpio,
                                         unsigned pin, int level,
                                         semu_error *error);
 int semu_apollo4_gpio_get_input(const semu_apollo4_gpio *gpio, unsigned pin);
+void semu_apollo4_gpio_enable_race_s_inputs(semu_apollo4_gpio *gpio);
+int semu_apollo4_gpio_falling_input_armed(const semu_apollo4_gpio *gpio, unsigned pin);
 semu_status semu_apollo4_gpio_configure_pin(
     semu_apollo4_gpio *gpio, unsigned pin,
     semu_apollo4_gpio_direction direction, semu_apollo4_gpio_edge edge,

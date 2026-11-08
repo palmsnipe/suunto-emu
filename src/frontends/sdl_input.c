@@ -6,6 +6,9 @@
 struct semu_sdl_input_adapter {
     uint32_t sequence;
     uint32_t viewport_height;
+    uint32_t race_s_scale;
+    int touching;
+    int32_t touch_x, touch_y;
 };
 
 static const struct {
@@ -42,6 +45,62 @@ void semu_sdl_input_set_viewport_height(semu_sdl_input_adapter *adapter,
     if (adapter != NULL) {
         adapter->viewport_height = height;
     }
+}
+
+void semu_sdl_input_enable_race_s(semu_sdl_input_adapter *adapter, uint32_t scale)
+{
+    adapter->race_s_scale = scale;
+}
+
+int semu_sdl_input_race_s_event(semu_sdl_input_adapter *adapter,
+    const SDL_Event *event, semu_input_event *input)
+{
+    float x, y;
+    float extent = (float)adapter->viewport_height;
+    if (adapter->race_s_scale == 0u || extent == 0.0f) return 0;
+
+    *input = (semu_input_event){0};
+    if (event->type == SDL_EVENT_MOUSE_WHEEL) {
+        const float step = event->wheel.y;
+        if (!(step < 0.0f || step > 0.0f)) return 0;
+        input->kind = SEMU_INPUT_CROWN_ROTATE;
+        input->value = step > 0.0f ? -24 : 24;
+        if (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+            input->value = -input->value;
+        return 1;
+    }
+    if (event->type == SDL_EVENT_KEY_DOWN &&
+        (event->key.scancode == SDL_SCANCODE_UP || event->key.scancode == SDL_SCANCODE_DOWN)) {
+        input->kind = SEMU_INPUT_CROWN_ROTATE;
+        input->value = event->key.scancode == SDL_SCANCODE_UP ? -24 : 24;
+        return 1;
+    }
+    if ((event->type == SDL_EVENT_MOUSE_BUTTON_UP &&
+         event->button.button == SDL_BUTTON_LEFT) ||
+        event->type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        if (!adapter->touching) return 0;
+        adapter->touching = 0;
+    } else {
+        if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+            event->button.button == SDL_BUTTON_LEFT && !adapter->touching) {
+            x = event->button.x;
+            y = event->button.y;
+        } else if (event->type == SDL_EVENT_MOUSE_MOTION && adapter->touching) {
+            x = event->motion.x;
+            y = event->motion.y;
+        } else {
+            return 0;
+        }
+        if (!(x >= 0.0f && x < extent && y >= 0.0f && y < extent)) return 0;
+        adapter->touch_x = (int32_t)(x / adapter->race_s_scale);
+        adapter->touch_y = (int32_t)(y / adapter->race_s_scale);
+        adapter->touching = 1;
+        input->value = 100;
+    }
+    input->kind = SEMU_INPUT_TOUCH;
+    input->x = adapter->touch_x;
+    input->y = adapter->touch_y;
+    return 1;
 }
 
 static int mouse_button_key(const semu_sdl_input_adapter *adapter,
@@ -87,7 +146,7 @@ int semu_sdl_input_process(semu_sdl_input_adapter *adapter,
         return 0;
     }
 
-    if (mouse_button_key(adapter, event, &mouse_key)) {
+    if (adapter->race_s_scale == 0u && mouse_button_key(adapter, event, &mouse_key)) {
         out_key->key = mouse_key;
         out_key->down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
         out_key->sequence = adapter->sequence++;
@@ -99,6 +158,26 @@ int semu_sdl_input_process(semu_sdl_input_adapter *adapter,
         return 0;
     }
 
+    if (adapter->race_s_scale != 0u) {
+        switch (event->key.scancode) {
+        case SDL_SCANCODE_UP: case SDL_SCANCODE_DOWN:
+            return 0;
+        case SDL_SCANCODE_PAGEUP:
+            out_key->key = SEMU_INPUT_KEY_UPPER;
+            break;
+        case SDL_SCANCODE_PAGEDOWN: case SDL_SCANCODE_BACKSPACE: case SDL_SCANCODE_LEFT:
+            out_key->key = SEMU_INPUT_KEY_LOWER;
+            break;
+        default:
+            goto default_key;
+        }
+        out_key->down = event->key.down ? 1 : 0;
+        out_key->repeat = (int)event->key.repeat;
+        out_key->sequence = adapter->sequence++;
+        return 1;
+    }
+
+default_key:
     for (i = 0u; i < sizeof(default_scan) / sizeof(default_scan[0]); ++i) {
         if (event->key.scancode == default_scan[i].scancode) {
             out_key->key = default_scan[i].key;

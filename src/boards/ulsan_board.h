@@ -17,6 +17,7 @@
 #include "../devices/ulsan_sdio.h"
 #include "../devices/ulsan_stimer.h"
 #include "../devices/ulsan_timer0.h"
+#include "../devices/ulsan_touch.h"
 #include "../devices/ulsan_wdt.h"
 
 typedef struct semu_ulsan_244_board {
@@ -25,9 +26,10 @@ typedef struct semu_ulsan_244_board {
     semu_apollo4_iom *iom1;
     semu_apollo4_iom *iom3;
     semu_apollo4_iom *iom6;
-    semu_serial_endpoint als_endpoint;
+    semu_serial_endpoint iom3_endpoint;
     semu_serial_endpoint crown_endpoint;
     semu_ulsan_crown crown;
+    semu_ulsan_touch touch;
     semu_ulsan_pwrctrl power;
     semu_ulsan_clkgen clock;
     semu_ulsan_stimer stimer;

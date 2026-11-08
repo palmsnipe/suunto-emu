@@ -22,6 +22,11 @@ void semu_sdl_input_destroy(semu_sdl_input_adapter *adapter);
  */
 void semu_sdl_input_set_viewport_height(semu_sdl_input_adapter *adapter,
     uint32_t height);
+void semu_sdl_input_enable_race_s(semu_sdl_input_adapter *adapter, uint32_t scale);
+
+/* Maps Race S wheel, arrow and pointer events to native crown/touch input. */
+int semu_sdl_input_race_s_event(semu_sdl_input_adapter *adapter,
+    const SDL_Event *event, semu_input_event *input);
 
 /*
  * Process one SDL_Event.

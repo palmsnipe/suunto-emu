@@ -27,6 +27,8 @@ typedef struct sdl_frontend {
     semu_input_mapper *input_mapper;
     semu_live_frame_gate live_checkpoint;
     semu_sdl_button_hold button_hold;
+    semu_input_event pending_race_s_input;
+    int has_pending_race_s_input;
     semu_machine *machine;
     unsigned long frame_count;
     uint64_t last_frame_generation;
@@ -169,6 +171,7 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
 {
     sdl_frontend *frontend = (sdl_frontend *)context;
     SDL_Event event;
+    semu_input_event input;
     int wait_for_button;
     uint64_t now_ns;
 
@@ -198,6 +201,24 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
     if (flush_button_releases(frontend, machine, now_ns, error) !=
         SEMU_STOP_NONE) {
         return SEMU_STOP_DEVICE_REFUSED;
+    }
+    if (frontend->has_pending_race_s_input) {
+        semu_status status = semu_machine_input(machine, &frontend->pending_race_s_input, error);
+        if (status == SEMU_ERR_STATE) {
+            semu_error_clear(error);
+            /* Keep input ordered while the sensor is busy, but let the
+             * user close the window even if firmware stops reading it. */
+            SDL_PumpEvents();
+            if (SDL_HasEvent(SDL_EVENT_QUIT) ||
+                SDL_HasEvent(SDL_EVENT_WINDOW_CLOSE_REQUESTED)) {
+                frontend->window_closed = 1;
+                return SEMU_STOP_USER;
+            }
+            return SEMU_STOP_NONE;
+        }
+        if (status == SEMU_ERR_CONFLICT) semu_error_clear(error);
+        else if (status != SEMU_OK) return SEMU_STOP_DEVICE_REFUSED;
+        frontend->has_pending_race_s_input = 0;
     }
     wait_for_button = semu_live_frame_gate_waiting(
                           &frontend->live_checkpoint,
@@ -248,6 +269,17 @@ static semu_stop_reason poll_input(void *context, semu_machine *machine,
                 }
             }
             semu_sdl_button_hold_reset(&frontend->button_hold);
+        }
+        if (semu_sdl_input_race_s_event(frontend->input_adapter, &event, &input)) {
+            semu_status status = semu_machine_input(machine, &input, error);
+            if (status == SEMU_ERR_STATE) {
+                frontend->pending_race_s_input = input;
+                frontend->has_pending_race_s_input = 1;
+                semu_error_clear(error);
+                return SEMU_STOP_NONE;
+            }
+            if (status == SEMU_ERR_CONFLICT) semu_error_clear(error);
+            else if (status != SEMU_OK) return SEMU_STOP_DEVICE_REFUSED;
             continue;
         }
         has_key = semu_sdl_input_process(frontend->input_adapter, &event,
@@ -435,6 +467,11 @@ int main(int argc, char **argv)
         semu_input_mapper_destroy(frontend.input_mapper);
         SDL_Quit();
         return 2;
+    }
+    for (int i = 1; i + 1 < filtered_argc; ++i) {
+        if (strcmp(filtered_argv[i], "--layer") == 0 &&
+            strcmp(filtered_argv[i + 1], "ulsan-2.44-gps-startup") == 0)
+            semu_sdl_input_enable_race_s(frontend.input_adapter, scale);
     }
     frontend.presenter = sdl_presenter_create(scale, &error);
     if (frontend.presenter == NULL) {

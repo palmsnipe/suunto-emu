@@ -180,7 +180,7 @@ static int race_s_write_allowed(const semu_apollo4_iom *iom, uint32_t offset,
                                 uint32_t value)
 {
     const int motion = iom->irq == SEMU_APOLLO4_IOM0_IRQ;
-    const int als = iom->irq == SEMU_APOLLO4_IOM3_IRQ;
+    const int iom3 = iom->irq == SEMU_APOLLO4_IOM3_IRQ;
     const int crown = iom->irq == SEMU_APOLLO4_IOM6_IRQ;
     const int late = iom->race_s_late;
     if (iom->irq == SEMU_APOLLO4_IOM1_IRQ)
@@ -193,13 +193,16 @@ static int race_s_write_allowed(const semu_apollo4_iom *iom, uint32_t offset,
         if (motion) return value == 1u || value == 0xe20u || value == 0xe21u;
         return value == 0x10u || value == 0xe20u || value == 0xe30u;
     case REG_COMMAND:
-        if (als) return value == 0x201u || value == 0x64000212u ||
-                        value == 0x66004012u;
+        if (iom3) {
+            if (iom->device_config == 0x24u)
+                return value == 0x202u || value == 0xd02u;
+            return value == 0x201u || value == 0x64000212u || value == 0x66004012u;
+        }
         if (crown) {
             uint32_t reg = value >> 24u;
             return value == 0x201u || ((value & 0xffffffu) == 0x112u &&
-                (reg == 0u || reg == 0x05u || reg == 0x09u || reg == 0x0du ||
-                 reg == 0x0eu || reg == 0x19u || reg == 0x2bu || reg == 0x2du ||
+                ((reg <= 0x05u && reg != 1u) || reg == 0x09u || reg == 0x0du ||
+                 reg == 0x0eu || reg == 0x12u || reg == 0x19u || reg == 0x2bu || reg == 0x2du ||
                  reg == 0x4bu || reg == 0x7cu));
         }
         if (motion) {
@@ -217,13 +220,13 @@ static int race_s_write_allowed(const semu_apollo4_iom *iom, uint32_t offset,
     case REG_DMA_TRIG_EN: return value == 0u || value == 2u;
     case REG_DMA_CONFIG: return value == 0u || value == 0x101u || value == 0x103u;
     case REG_DMA_COUNT:
-        if (als) return value == 2u || value == 64u;
+        if (iom3) return value == 2u || value == 13u || value == 64u;
         if (crown) return value == 1u || value == 2u;
         if (late && (value == 3u || value == 59u)) return 1;
         return value == 1u || value == 2u || value == (motion ? 6u : 23u);
     case REG_DMA_TARGET: return value <= DMA_TARGET_MASK;
     case REG_DEVICE_CONFIG:
-        if (als) return value == 0x48u;
+        if (iom3) return value == 0x24u || value == 0x48u;
         if (crown) return value == 0x75u;
         if (motion) return value == 0u;
         if (late && value == 0x10u) return 1;

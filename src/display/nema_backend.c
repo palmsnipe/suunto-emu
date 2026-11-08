@@ -46,6 +46,8 @@ static semu_nema_backend *backend_create(int race_s, semu_error *error)
             semu_nema_backend_destroy(b);
             return NULL;
         }
+        nema_state_enable_race_s(b->state);
+        nema_state_enable_race_s(b->pending_state);
     }
     return b;
 }

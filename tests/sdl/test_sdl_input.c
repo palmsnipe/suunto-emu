@@ -102,6 +102,42 @@ static void test_mouse_mapping_fails_closed(semu_test_context *context)
     semu_sdl_input_destroy(adapter);
 }
 
+static void test_race_s_input_mapping(semu_test_context *context)
+{
+    semu_error error;
+    semu_sdl_input_adapter *adapter = semu_sdl_input_create(&error);
+    SDL_Event event;
+    semu_input_event input;
+    semu_normalized_key key;
+    int quit;
+
+    SEMU_TEST_ASSERT(context, adapter != NULL);
+    semu_sdl_input_enable_race_s(adapter, 2u);
+    semu_sdl_input_set_viewport_height(adapter, 932u);
+    memset(&event, 0, sizeof(event));
+    event.type = SDL_EVENT_MOUSE_WHEEL;
+    event.wheel.y = -1.0f;
+    SEMU_TEST_EQ_U64(context, 1u, semu_sdl_input_race_s_event(adapter, &event, &input));
+    SEMU_TEST_EQ_U64(context, SEMU_INPUT_CROWN_ROTATE, input.kind);
+    SEMU_TEST_EQ_U64(context, 24u, input.value);
+    memset(&event, 0, sizeof(event));
+    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+    event.button.button = SDL_BUTTON_LEFT;
+    event.button.x = 466.0f;
+    event.button.y = 660.0f;
+    SEMU_TEST_EQ_U64(context, 0u, semu_sdl_input_process(adapter, &event, &key, &quit, &error));
+    SEMU_TEST_EQ_U64(context, 1u, semu_sdl_input_race_s_event(adapter, &event, &input));
+    SEMU_TEST_EQ_U64(context, SEMU_INPUT_TOUCH, input.kind);
+    SEMU_TEST_EQ_U64(context, 233u, input.x);
+    SEMU_TEST_EQ_U64(context, 330u, input.y);
+    SEMU_TEST_EQ_U64(context, 100u, input.value);
+    event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+    SEMU_TEST_EQ_U64(context, 1u, semu_sdl_input_race_s_event(adapter, &event, &input));
+    SEMU_TEST_EQ_U64(context, 0u, input.value);
+    SEMU_TEST_EQ_U64(context, 0u, semu_sdl_input_race_s_event(adapter, &event, &input));
+    semu_sdl_input_destroy(adapter);
+}
+
 static void test_setup_walk_timeline_parse(semu_test_context *context)
 {
     semu_sdl_live_test test;
@@ -174,6 +210,7 @@ int main(void)
         SEMU_TEST_CASE(test_keyboard_mapping),
         SEMU_TEST_CASE(test_mouse_thirds_and_release),
         SEMU_TEST_CASE(test_mouse_mapping_fails_closed),
+        SEMU_TEST_CASE(test_race_s_input_mapping),
         SEMU_TEST_CASE(test_setup_walk_timeline_parse),
         SEMU_TEST_CASE(test_setup_walk_timeline_parse_fails_closed)
     };

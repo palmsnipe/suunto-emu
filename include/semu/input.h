@@ -18,6 +18,8 @@ typedef enum semu_button_id {
 typedef struct semu_input_event {
     semu_input_kind kind;
     uint32_t code;
+    /* Buttons use electrical level. Race S crown rotation uses signed
+     * logical delta and touch uses pressure (zero for release). */
     int32_t value;
     int32_t x;
     int32_t y;

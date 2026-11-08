@@ -8,6 +8,7 @@
 #define SRAM_BASE UINT32_C(0x10000000)
 #define SRAM_END UINT32_C(0x10267000)
 #define PANEL_BYTES (NEMA_ULSAN_PIXELS * 2u)
+#define A8_FORMAT 0x08u
 
 typedef struct { float x, y; } point;
 typedef struct { int x0, y0, x1, y1; } rect;
@@ -116,7 +117,8 @@ static semu_status draw_triangle(nema_ulsan *panel, uint8_t *pixels,
     };
     const float area = edge(p[0], p[1], p[2].x, p[2].y);
     rect r = {floor_int(p[0].x), floor_int(p[0].y), ceil_int(p[0].x), ceil_int(p[0].y)};
-    int opaque_band = d->draw_color == UINT32_C(0xff000000) &&
+    int opaque_band = d->draw_cmd == NEMA_DRAW_TRI_SOLID &&
+        d->draw_color == UINT32_C(0xff000000) &&
         d->clip_min_x == 0u && d->clip_max_x == NEMA_ULSAN_SIDE;
     unsigned i;
     int x, y;
@@ -157,10 +159,12 @@ static semu_status draw_triangle(nema_ulsan *panel, uint8_t *pixels,
     return SEMU_OK;
 }
 
-static unsigned sample_a2(const uint8_t *source, const nema_draw_snapshot *d, int x, int y)
+static unsigned sample_alpha(const uint8_t *source, const nema_draw_snapshot *d, int x, int y)
 {
     if (x < 0 || y < 0 || x >= (int)d->src_width || y >= (int)d->src_height)
         return 0u;
+    if (d->src_format == A8_FORMAT)
+        return source[(size_t)y * d->src_stride + (unsigned)x];
     return ((source[(size_t)y * d->src_stride + (unsigned)x / 4u] >>
             ((unsigned)x % 4u * 2u)) & 3u) * 85u;
 }
@@ -175,11 +179,33 @@ static unsigned bilinear(const uint8_t *source, const nema_draw_snapshot *d, flo
     y = floor_int(v);
     fx = u - x;
     fy = v - y;
-    a = sample_a2(source, d, x, y) * (1.0f - fx) * (1.0f - fy) +
-        sample_a2(source, d, x + 1, y) * fx * (1.0f - fy) +
-        sample_a2(source, d, x, y + 1) * (1.0f - fx) * fy +
-        sample_a2(source, d, x + 1, y + 1) * fx * fy;
+    a = sample_alpha(source, d, x, y) * (1.0f - fx) * (1.0f - fy) +
+        sample_alpha(source, d, x + 1, y) * fx * (1.0f - fy) +
+        sample_alpha(source, d, x, y + 1) * (1.0f - fx) * fy +
+        sample_alpha(source, d, x + 1, y + 1) * fx * fy;
     return (unsigned)minimum(255, (int)(a + 0.5f));
+}
+
+/* E-ULS-0097. The onboarding transition draws a black 1×41 alpha ramp. */
+static int a8_transition(const nema_draw_snapshot *d)
+{
+    const float left = fixed16(d->point0_x);
+    const float right = fixed16(d->point1_x);
+    const int anchored = (left >= 0.0f && left < SIDE && right == SIDE) ||
+        (left == 0.0f && right > 0.0f && right <= SIDE);
+    const int translated = left >= -SIDE && left < SIDE && right == left + SIDE &&
+        right > 0.0f && right <= SIDE * 2;
+    const int band = d->point0_y == 0u && (anchored || translated) &&
+        ((d->clip_min_y == 0u && d->clip_max_y == 156u) ||
+         (d->clip_min_y == 156u && d->clip_max_y == 312u) ||
+         (d->clip_min_y == 312u && d->clip_max_y == NEMA_ULSAN_SIDE));
+    const int shifted = d->clip_min_y < 141u && d->clip_max_y == d->clip_min_y + 156u &&
+        d->point0_y == (d->clip_min_y << 16u) && left == 0.0f && right == SIDE;
+    return d->src_present && d->src_format == A8_FORMAT && d->src_sampling == 1u &&
+        d->src_width == 1u && d->src_height == 41u && d->src_stride == 1u &&
+        in_sram(d->src_base, 41u) && d->tex_color == UINT32_C(0xff000000) &&
+        d->codeptr == UINT32_C(0x941e8000) && d->point2_y == (141u << 16u) &&
+        d->clip_min_x == 0u && d->clip_max_x == NEMA_ULSAN_SIDE && (band || shifted);
 }
 
 static semu_status draw_mask(nema_ulsan *panel, semu_bus *bus, uint8_t *pixels,
@@ -194,24 +220,24 @@ static semu_status draw_mask(nema_ulsan *panel, semu_bus *bus, uint8_t *pixels,
     int x, y;
     semu_status status;
 
-    if (!a2_source(d) || d->matmult != 0u || !d->matrix_present ||
+    if ((!a2_source(d) && !a8_transition(d)) || d->matmult != 0u || !d->matrix_present ||
         (d->codeptr != UINT32_C(0x941d8000) && d->codeptr != UINT32_C(0x941e8000)) ||
         r.x0 < -1024 || r.y0 < -1024 || r.x1 > 1024 || r.y1 > 1024 ||
         r.x0 >= r.x1 || r.y0 >= r.y1 || d->point1_x != d->point2_x ||
         d->point1_y != d->point0_y || d->point3_x != d->point0_x || d->point3_y != d->point2_y)
-        return refuse(error, "A2 mask shape or program is unobserved");
+        return refuse(error, "alpha mask shape or program is unobserved");
     if (sizeof(float) != sizeof(uint32_t) || FLT_RADIX != 2 || FLT_MANT_DIG != 24)
-        return refuse(error, "A2 mask requires IEEE binary32");
+        return refuse(error, "alpha mask requires IEEE binary32");
     memcpy(m, words, sizeof(m));
     for (i = 0u; i < SEMU_ARRAY_LEN(m); ++i)
         if (!(m[i] >= -65536.0f && m[i] <= 65536.0f))
-            return refuse(error, "A2 transform is nonfinite or out of range");
+            return refuse(error, "alpha transform is nonfinite or out of range");
     clip_rect(&r, d);
     if (r.x0 >= r.x1 || r.y0 >= r.y1) return SEMU_OK;
     size = (size_t)d->src_stride * d->src_height;
     source = malloc(size);
     if (source == NULL) {
-        semu_error_set(error, SEMU_ERR_NOMEM, "Race S Nema: cannot stage A2 texture");
+        semu_error_set(error, SEMU_ERR_NOMEM, "Race S Nema: cannot stage alpha texture");
         return SEMU_ERR_NOMEM;
     }
     status = semu_bus_copy_out(bus, d->src_base, source, size, error);
@@ -264,7 +290,7 @@ semu_status nema_ulsan_draw(nema_ulsan *panel, semu_bus *bus, uint8_t *pixels,
     panel->list_y0 = draw->clip_min_y;
     panel->list_x1 = draw->clip_max_x;
     panel->list_y1 = draw->clip_max_y;
-    if (draw->draw_cmd == NEMA_DRAW_TRI_SOLID)
+    if (draw->draw_cmd == NEMA_DRAW_TRI_SOLID || nema_state_race_s_vector(draw->draw_cmd))
         return draw_triangle(panel, pixels, draw, error);
     if (draw->draw_cmd == NEMA_DRAW_QUAD)
         return draw_mask(panel, bus, pixels, draw, error);

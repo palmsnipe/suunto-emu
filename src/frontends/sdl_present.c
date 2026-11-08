@@ -74,7 +74,8 @@ static int ensure_resources(sdl_presenter *p, uint32_t w, uint32_t h,
         p->window = NULL;
     }
     if (!SDL_CreateWindowAndRenderer(
-        "suunto-emu | Up / Enter / Down | click screen thirds",
+        w == 466u ? "suunto-emu | wheel / Enter / Backspace | click or drag"
+                  : "suunto-emu | Up / Enter / Down | click screen thirds",
         (int)w * (int)p->scale, (int)h * (int)p->scale, 0,
         &p->window, &p->renderer)) {
         semu_error_set(error, SEMU_ERR_IO,

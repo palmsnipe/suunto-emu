@@ -335,6 +335,14 @@ static semu_status bind_ulsan_startup_iom(semu_machine *machine,
     return endpoint == NULL ? SEMU_OK : semu_apollo4_iom_attach_endpoint(*iom, endpoint, error);
 }
 
+static semu_transaction_result ulsan_iom3_transfer(void *context,
+    semu_serial_transaction *transaction, semu_error *error)
+{
+    if (transaction->address == 0x24u)
+        return semu_ulsan_touch_transfer(context, transaction, error);
+    return semu_ulsan_als_transfer(NULL, transaction, error);
+}
+
 static semu_status bind_ulsan_gps(semu_machine *machine, semu_error *error)
 {
     semu_ulsan_244_board *board = &machine->ulsan_244;
@@ -354,14 +362,17 @@ static semu_status bind_ulsan_gps(semu_machine *machine, semu_error *error)
                        "Ulsan GPS requires the production-data and eMMC layers");
         return SEMU_ERR_CONFLICT;
     }
-    board->als_endpoint = (semu_serial_endpoint){
-        "ulsan.als", semu_ulsan_als_transfer, NULL};
+    board->touch.gpio = board->gpio;
+    board->crown.gpio = board->gpio;
+    semu_apollo4_gpio_enable_race_s_inputs(board->gpio);
+    board->iom3_endpoint = (semu_serial_endpoint){
+        "ulsan.iom3", ulsan_iom3_transfer, &board->touch};
     board->crown_endpoint = (semu_serial_endpoint){
         "ulsan.crown", semu_ulsan_crown_transfer, &board->crown};
     if (bind_ulsan_startup_iom(machine, &board->iom1, SEMU_APOLLO4_IOM1_BASE,
             SEMU_APOLLO4_IOM1_IRQ, NULL, error) != SEMU_OK ||
         bind_ulsan_startup_iom(machine, &board->iom3, SEMU_APOLLO4_IOM3_BASE,
-            SEMU_APOLLO4_IOM3_IRQ, &board->als_endpoint, error) != SEMU_OK ||
+            SEMU_APOLLO4_IOM3_IRQ, &board->iom3_endpoint, error) != SEMU_OK ||
         bind_ulsan_startup_iom(machine, &board->iom6, SEMU_APOLLO4_IOM6_BASE,
             SEMU_APOLLO4_IOM6_IRQ, &board->crown_endpoint, error) != SEMU_OK)
         return error != NULL ? error->code : SEMU_ERR_STATE;
@@ -563,6 +574,7 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
     semu_apollo4_iom_reset(machine->ulsan_244.iom3);
     semu_apollo4_iom_reset(machine->ulsan_244.iom6);
     semu_ulsan_crown_reset(&machine->ulsan_244.crown);
+    semu_ulsan_touch_reset(&machine->ulsan_244.touch);
     semu_ulsan_244_iom2_reset(&machine->ulsan_244.iom2);
     if (machine->ulsan_244.motion.controller != NULL)
         semu_ulsan_244_motion_reset(&machine->ulsan_244.motion);
@@ -703,6 +715,20 @@ semu_status semu_machine_reset(semu_machine *machine, semu_error *error)
         machine, machine->profile.vector_table, 0, error);
 }
 
+static semu_status ulsan_pointer_input(semu_ulsan_244_board *board,
+    const semu_input_event *event, semu_error *error)
+{
+    unsigned pin = event->kind == SEMU_INPUT_TOUCH ? 100u : 104u;
+    if (!semu_apollo4_gpio_falling_input_armed(board->gpio, pin)) {
+        semu_error_set(error, SEMU_ERR_CONFLICT, "Race S input IRQ is not armed");
+        return SEMU_ERR_CONFLICT;
+    }
+    if (event->kind == SEMU_INPUT_TOUCH)
+        return semu_ulsan_touch_point(&board->touch, event->x, event->y,
+                                     event->value, error);
+    return semu_ulsan_crown_rotate(&board->crown, event->value, error);
+}
+
 semu_status semu_machine_input(semu_machine *machine,
                                const semu_input_event *event,
                                semu_error *error)
@@ -712,16 +738,26 @@ semu_status semu_machine_input(semu_machine *machine,
      * GPIO58 = middle, GPIO59 = lower/next. Semantic IDs stay spatial, so the
      * semantic LOWER button drives the physical next/skip button (pin 59). */
     static const unsigned pins[] = { 57u, 58u, 59u };
-    if (machine == NULL || event == NULL || event->kind != SEMU_INPUT_BUTTON ||
-        event->code >= SEMU_ARRAY_LEN(pins)) {
+    if (machine == NULL || event == NULL) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unsupported board input");
         return SEMU_ERR_UNSUPPORTED;
     }
     if (known_ulsan_profile(&machine->profile)) {
-        /* E-ULS-0005/E-ULS-0006: no Ulsan evidence names a button, crown, or
-         * touch pin at reset, so every semantic input refuses fail-closed. */
+        semu_ulsan_244_board *board = &machine->ulsan_244;
+        if (board->iom6 != NULL) {
+            if (event->kind == SEMU_INPUT_CROWN_ROTATE || event->kind == SEMU_INPUT_TOUCH)
+                return ulsan_pointer_input(board, event, error);
+            if (event->kind == SEMU_INPUT_BUTTON &&
+                event->code < SEMU_ARRAY_LEN(pins))
+                return semu_apollo4_gpio_set_input(board->gpio, pins[event->code],
+                                                   event->value != 0, error);
+        }
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "ulsan board input is not wired");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    if (event->kind != SEMU_INPUT_BUTTON || event->code >= SEMU_ARRAY_LEN(pins)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED, "unsupported board input");
         return SEMU_ERR_UNSUPPORTED;
     }
     return semu_apollo4_set_gpio_input(machine->soc, pins[event->code],

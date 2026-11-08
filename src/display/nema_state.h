@@ -111,6 +111,8 @@ typedef struct {
 typedef struct nema_state nema_state;
 /* Shared opcode boundary check; register values are never ring opcodes. */
 int nema_state_register_supported(uint32_t offset);
+int nema_state_race_s_vector(uint32_t command);
+void nema_state_enable_race_s(nema_state *state);
 
 typedef void (*nema_draw_fn)(void *context,
                               const nema_draw_snapshot *snapshot);

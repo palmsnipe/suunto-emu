@@ -18722,3 +18722,281 @@ by E-ULS-0077.
 | `ulsan-private-final.log` | `8ef434d6c6d5cdc58b098af885d9331200e19c5db40a92438a544a172c17326c` |
 | `private-frames.norm` | `6a5e6d1547ab4b9666ec4f0c495ee15b047acb1edcb1e9e9a30e3f67b5763ab1` |
 | `ulsan-era-final.log` | `fb68f1e3cc2c4fce0db36120eb2c4a8230060bbe5f8bae2abe1844dac88e5315` |
+
+## E-ULS-0096 — 2.44.52 native crown and touch input
+
+2026-11-08. Two cold reference boots use the E-ULS-0088 firmware,
+production, storage and Renode identities. The Race S endpoints
+are in `emulator/renode/iom/Apollo4IomDma.cs` (SHA-256
+`89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd`).
+The native middle button holds GPIO58 low for 150 ms, then
+releases it high. The probe starts with 25 s of idle time,
+waits 1.2 s after release, then turns the crown by +24 and
+−24 with 1 s after each turn. It sends a tap at (233,233)
+and a swipe with points (230,330), (230,195), (230,100).
+The touch steps have 80 ms between reports, with pressure 100
+for contact and zero for release. The complete probe is
+bounded at 30.890 virtual seconds.
+
+The 45 normalized input and DMA lines compare byte for byte.
+The IOM6 address `0x75` accepts the existing one-byte register
+read framing `0x112 | (selector << 24)`. The native order is
+`02,03,04,12`, followed by four idle status polls. The +24 and
+−24 reports are respectively `80 e8 00 f0` and `80 18 00 00`.
+The endpoint encodes a signed 12-bit sensor X value equal to the
+negated logical delta. GPIO104 stays low until register 0x12
+is read, then the endpoint clears the motion registers.
+
+The five touch reports use IOM3 address `0x24` with no register
+selector. Native commands `0x202` and `0xd02` read the two-byte
+length `0d 00` and the 13-byte report. The report has type 1 at
+byte 2, a little-endian 16-bit timestamp at 3, contact count 1 at 5,
+tip bit 0x80 or zero at 8, and little-endian X and Y at 9 and 11.
+The counter advances by 50 ms per report. GPIO100 stays low until
+the full report is read. A new report while pending is refused.
+ALS uses its original address `0x48` and transaction shapes.
+
+Two independent GPIO probes reproduce 21 normalized access rows.
+The guest reads `0x40010210` and `0x400102f4` and clears
+`0x400102f8` in IRQ59. The crown reads `0x10` on the input
+register with status and clear `0x100`. Touch reads `0x100`
+with status and clear `0x10`. The active input pad words are
+`0xe053` at GPIO104 and `0x53` at GPIO100. The standalone
+diagnostic first entered IRQ59 with a precise bus fault at the
+native input-read instruction, PC `0x0007b486`, before the bank 3
+input register was mapped.
+
+The reference language frames at entry, after the crown turn,
+and after the touch swipe are distinct. Their matched digests
+are respectively `ad412882b84b14f8d814e4cfdf359900a6ec0e58bb4a829bf36d639e734d1033`,
+`daaa6839ca5701807c9911bc34f0ac24f21a6d192f8a95fda77803c8b9ca3652`,
+and `92a8981d35b2a528b7c5c2297303be37b38bf78195e428b2dbb7f1c1ddc08e9c`.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe.py` | `31dde7b752bc92c3909819be3e6ad6a51199613d8db158cab86fa36f3e013154` |
+| `initial-1/probe.resc` | `9785eb3b0844feb74b38b74d79c72e76f22c0f84d6fa6855ad05b9f9d8bc78aa` |
+| `initial-2/probe.resc` | `0373cca51dfe0cd40df3fb5d145ff976fd40ee394cff3f796d94979e0f44b9da` |
+| `initial-1/renode.log` | `30c4660acd49139decd599378e30c16141e62633f67f1d1f77be6283d4f24362` |
+| `initial-2/renode.log` | `9891c3e73002046f5d49d5a8a32d6b9fa7f8f85767377fb9a466cc219424d908` |
+| `input-{1,2}.norm` | `42435da19ec6c30a03b4289348c8f773e1aa613536d91b894a89217b7d7e6e56` |
+| `probe-gpio.py` | `1b241d0b764f2c004df5d0d985bfe342076b263514aedaa2a2b55651a438d74f` |
+| `gpio-1/probe.resc` | `91a492927384e22f44775a3bf78fafe810c648725fb694f62d0756042a56c6b7` |
+| `gpio-2/probe.resc` | `c397d0fea72c8cc140d73be26144d36e2f607e6ce0ff46a276a99c7517d4a6d5` |
+| `gpio-1/renode.log` | `08caa4445a37a35c6ce68896f1bd40cd5da456465ef47ee6e3f7e6c02e66c721` |
+| `gpio-2/renode.log` | `a10a2882a83b610c601c85c46ddc28559bba725d4c2cb339a45cfdb9e4076f87` |
+| `gpio-{1,2}.norm` | `b38f200a5025fb8d86ccb7880ae336929456ba4cc6e9f3ae14938dcb2699cf95` |
+| `diag-run.c` | `bf6cafe6782e315652c4c29337125ee4fb267886bc484fcb395ce03684836ad1` |
+| `diag-walk.c` | `84a2e6dbb0ff94d0fd4b12e18b5d5a9b8ea2acd9228aef277c35e2dc951b63f2` |
+| `fault.log` | `f27f17ae9d6c33982546330e62f5a3866c3e63c148a049a18266a0f5b5d7fae7` |
+
+## E-ULS-0097 — 2.44.52 Nema onboarding alpha and vector draws
+
+2026-11-08. The E-ULS-0088 lane inputs and native input sequence
+produce a black alpha mask with quad command `5`,
+TEX1 format/sampling/stride `0x08010001`, resolution
+`0x00290001` (1×41), and code pointer `0x941e8000`.
+The repeated normalized draw tuple uses the established
+466×466 RGB565 target, matrix control 0 and the E-ULS-0084
+instruction words. The lane source
+`emulator/renode/graphics/SapporoNemaP.cs` (SHA-256
+`a304a577ad5bcd551ec4c764727f82b661892d03585f648394020d4b4ddfa165`)
+defines the A8 bilinear law and the band/rectangle predicate.
+It reads each alpha sample as one byte and applies transparent
+out-of-range samples using the same blend as the A2 mask.
+The transition rectangle ends at row 141. The sampled alternate
+stripes use full width, height 156 and rectangle start at clip
+start. Twelve normalized alternate stripe tuples match in both
+runs. The lane declines these shifted clips in its shape gate.
+The standalone renderer applies the same bounded mask and clip
+law to these native requests.
+
+Two additional runs reproduce eight draw tuples pairing
+commands `0x01800004`, `0x02000004`, `0x03800004`,
+and `0x04000004` with A2LE strides 2 and 31. The lane executes
+them with the same RGB565 vector law and four coverage samples,
+using matrix control `0x90000000` and code `0x941eb400`.
+The first standalone submission refusal after the touch transition
+is `0x03800004`, from ring `0x10149fb8` at stop word
+`0x1014a13c`. The new opcodes are admitted only in the Race S
+backend with the existing target, clip, geometry and shader checks.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe-setup.py` | `47317243eb1518a369894d143aa81df78ee0d99fe75c2f11452df3b3ec133805` |
+| `setup-1/probe.resc` | `b6570b8aa7df410f913e79a95940a8fef0661c154fda3c23f593f05fd27856b8` |
+| `setup-2/probe.resc` | `5f9d8f88602018a10f2ae06319a285b66b1c89a4c81c27b5c8ff3c9e8b5d0111` |
+| `setup-1/renode.log` | `650ec8fe0f86898bffebb76b7a60d79e0672a99bda9d2cfda5c3251692906e3b` |
+| `setup-2/renode.log` | `f93d08a4261eb5e05b43591f16a12b8d0d96ce78b483f3665660e21398c538b3` |
+| `setup-a8-{1,2}.norm` | `aa5be47f77c7c577d768f124d6f1281c8d4581f5a30e62d1cbac05f7dc2071f1` |
+| `stripes-{1,2}.norm` | `40c692a3b47ab70907a0c2ab222412de24d3c90449385b6a1b320b156ce750eb` |
+| `probe-touch-walk.py` | `25cb0a53c9fc61ff7f14b88efa287b5d73cd038f20d0daa0ff9016c44ae08fae` |
+| `touch-walk-1/probe.resc` | `2175d9e9f0eab2da12b9a2ca2596ae5df69e9e4482503dbf15432f98aebd7da9` |
+| `touch-walk-2/probe.resc` | `7e895cfa95391e1dac341de337290bd446f6272eef732f5cee0f3392e22ab227` |
+| `touch-walk-1/renode.log` | `aa9e6cbdc63a9c39445230cceae815a20841a29942256a02f6581fc88dbe6592` |
+| `touch-walk-2/renode.log` | `fac63e22aed78a4a4ef6bc78a908c69cdef607d6f47118fbd95e1c2c528e6622` |
+| `vectors-{1,2}.norm` | `de85ed84cb6a1bde78c67b5fd26167038118fd674a7b1f6eba956e89790e8e2d` |
+| `diag-gpu.c` | `e2acdd259b81731e0fd18dc992b94abcd1953a271a0ad86831b9358808f02683` |
+| `diag-nema/log` | `25a0f6a0afc65be57d4389e4b1938ed19792b2b9bcbb0dcc074d770a9bc330f0` |
+
+## E-ULS-0098 — 2.44.52 native onboarding sequence
+
+2026-11-08. Two fresh reference boots used the E-ULS-0088 lane
+and E-ULS-0079 storage, with the E-ULS-0096 input endpoints.
+The probe advances Renode in fixed virtual-time intervals, presses
+GPIO58 low for 150 ms then releases it, and advances through the
+ordered 466×466 RGB565 frame checkpoints below. It waits 450 ms
+before each profile confirmation, sends groups of eight +24 crown
+detents 100 ms apart for pairing navigation, and runs no longer
+than 100 virtual seconds. No device, CPU, or render refusals
+occur in these two walks. The pairing guidance bottom is the
+documented reference boundary; the lane supplies no real BLE peer.
+
+| Native screen | Reference virtual ms | SHA-256 |
+| --- | ---: | --- |
+| hello | 12500 | `9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76` |
+| language | 13050 | `c36ca7042f5a4b67c67eac41c400054749a53859d33298b0e517effdaedc9972` |
+| define | 18200 | `233aa486b330e5531a32ad752e4a08a4e04d4355d0efa60b83e0c7b79ac32d38` |
+| purpose | 19300 | `e0db0fa1a3ffc80b75fd4541f64f3d5281839c3777ea5e27a98808c9f4e42c58` |
+| gender | 20400 | `a3ea323f3daaf424e1a3ab2f72261d150437590226134c4aa377b0ef4e148d5a` |
+| birth | 21500 | `cb22e6e8140b0a9585332ca37d942ce470220d09761dcdb33f6acd71f679ff90` |
+| units | 22600 | `1fb75497658bbc503b943a21460e74f60c81326da3c9eb32f952edadbe214c1a` |
+| time | 23700 | `adf7afd6580f36e617a6f6851c8067ba50daf1db19e4d21591e6899b95a08992` |
+| weight | 24800 | `a43d98d4b3142c9c1457dcf64a0775368b6c7151e97a6bf2dab149917ae650c4` |
+| height | 25900 | `e42a03599bfd58c48c395135b8aa2c012acc0e79cd98be44c7fdb41d42e6bafa` |
+| pairing | 27000 | `4142652463adabae9d874faa34f57a61f010249e013f04e376058cfc19e85ec4` |
+| guidance | 28900 | `7a29d4351f23e6e0cc7be0985b224a5da0e700f16946091273005356c5a9efdd` |
+| scrolled | 29950 | `075d2337ca69338649a146f76d81f8d5bbd0d0d6f07b4cbcf251ffcde8527e59` |
+| bottom | 31000 | `d3014e708de945e59f5a41e226fd89156bb9ba9467c676ed4eef634229346ae4` |
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe-guided2.py` | `03e1cfdb1fc46745f611bcee8861ee479e0edd86729d2eb693b22e06797b9bfa` |
+| `guided2-1/probe.resc` | `6645fa5df64265a4b276f44653357a57d775f523af442bfa9b381600bb03bca8` |
+| `guided2-2/probe.resc` | `d77ac5ccea7b82fa29f151dfa62d326a397cf7ad854684b81a64e50521fb6461` |
+| `guided2-1/renode.log` | `f77745b71359f8239bcb71424127d1111e4100ff11b6f76242817a1bcae7c610` |
+| `guided2-2/renode.log` | `26f0d9adf140e0753c3a1bb357cb4b07c651cf0ebcae12c29d6dbc79bb85b6f4` |
+| `guided2-1.norm` | `76fef5b69463fd39a4fb6383d556767d639ba7d329a3f4e6b2be4b8d92aa1d99` |
+| `guided2-2.norm` | `76fef5b69463fd39a4fb6383d556767d639ba7d329a3f4e6b2be4b8d92aa1d99` |
+
+A separate pair of cold reference runs repeats the same checkpoints
+and then swipes downward from the pairing guidance bottom. After
+450 ms of settling it sends `(230,100,100)`, `(230,195,100)`,
+`(230,330,100)`, and `(230,330,0)` 80 ms apart. Both runs consume
+all four IOM3 reports and return to the scrolled checkpoint
+`075d2337ca69338649a146f76d81f8d5bbd0d0d6f07b4cbcf251ffcde8527e59`
+at 32,220 virtual ms.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe-guided-touch.py` | `125def76e829a046582a51ee74bafb12aabd0eae3732595a19eb32c12c13f2da` |
+| `guidedtouch-1/probe.resc` | `43cc166c8afe6076b5a5a967377e5215c02831ca7b57ffd8da8d70e36627b4ac` |
+| `guidedtouch-2/probe.resc` | `ff732915529fd441bb3b30f5abe2aaa0198968a1035e85249143901b4c87de85` |
+| `guidedtouch-1/renode.log` | `0846c369440080d8017b78b685518e61a1697f9ed326c54f1d408353cf11d2ad` |
+| `guidedtouch-2/renode.log` | `2c83af6a019f3c60b94472e1c6cb0660c2cb11b3bd113ff51273d6b296219f67` |
+| `guidedtouch-1.norm` | `135039912d4e86a6ce58eb3b08425fce11590d1b95e2cdff786d0735ef91e928` |
+| `guidedtouch-2.norm` | `135039912d4e86a6ce58eb3b08425fce11590d1b95e2cdff786d0735ef91e928` |
+
+In two more cold reference runs the same downward gesture and its
+reverse are exercised in sequence. At the scrolled checkpoint the
+reverse starts at (230,330) and ends at (230,100), with the same
+80 ms report spacing. Both runs hit the bottom at 30,970 ms and
+return to the scrolled frame at 32,190 ms.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe-guided-swipe.py` | `7f3b3e69aaa14837d399a0234f95bc3f02367b9838aee4525ae4ce38b483ac24` |
+| `guidedswipe-1/probe.resc` | `6426a7a056b1bfa88d81c262b8fa9eb1c7766ab1d9538058de50c1115374d953` |
+| `guidedswipe-2/probe.resc` | `c1ece1b5a4159f42082e078bb9cf149dd251e99ea274369f7ed71282c270ab15` |
+| `guidedswipe-1/renode.log` | `b403ec704f38f47657266b27867004a297498f18b9e53e43b3d7eb56b9532bd1` |
+| `guidedswipe-2/renode.log` | `8d1d16a3b3616fb6ccb7fad70fafd17f00328d501f57813e906a41e92ad61689` |
+| `guidedswipe-1.norm` | `1d96c24a10ce684b25068bbed62acc8a6ddf283306ee7eb231a9977174a69e80` |
+| `guidedswipe-2.norm` | `1d96c24a10ce684b25068bbed62acc8a6ddf283306ee7eb231a9977174a69e80` |
+
+Two reference boots also use the same order as the standalone gate:
+an upward swipe from the first guidance frame, then clockwise detents
+from the scrolled frame. Both consume four touch reports and sixteen
+crown reports. Guidance, scrolled, and bottom match the table above;
+the last reference frame in this input order is at 30,970 virtual ms.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `probe-guided-touch-first.py` | `c144a3f1f33e25dfdade9dc148f7bd04d0fbc123582516e73ab448ba2587d134` |
+| `guidedtouchfirst-1/probe.resc` | `e76619faf946fda259d91eb9ac914b7e0355e27b616a8222ad211cdcfc5baf9f` |
+| `guidedtouchfirst-1/renode.log` | `b099f579f114edf57d7f83e73b001c623981faa696cd4bb6ac321112407872f3` |
+| `guidedtouchfirst-1.norm` | `8b391d39a6c9a5a44192ae7d22a6be591c3dec3968e4cb44bb09267a21ac493b` |
+| `guidedtouchfirst-2/probe.resc` | `db4c8d2a7b42813afe641bc7853e15eb72986752e486680e4fd2939292737c74` |
+| `guidedtouchfirst-2/renode.log` | `9e96a88bf4581fb478ffc45ae606e79dad79bc5220ad63b5bea9131b4d0e782a` |
+| `guidedtouchfirst-2.norm` | `8b391d39a6c9a5a44192ae7d22a6be591c3dec3968e4cb44bb09267a21ac493b` |
+
+The in-tree onboarding gate follows that same mixed input order on two
+new standalone machines. The private component manifest and E-ULS-0079
+eMMC image are validated before execution. The run limits are 65
+virtual seconds and 8,000,000,000 instructions per boot. Each machine
+reports the same fourteen ordered frame checkpoints, with a new
+466×466 RGB565 frame at each. The pairing stages are byte-identical
+to the reference. Both boots finish at 52,538,537,483 ns and
+4,325,812,021 instructions with 245 published frames and no renderer
+refusal or machine reset.
+
+| Stage | Standalone generation | Virtual ns |
+| --- | ---: | ---: |
+| Hello | 2 | 24,194,517,733 |
+| English | 15 | 25,045,900,301 |
+| Pairing connect | 111 | 44,901,536,924 |
+| Pairing guidance | 125 | 48,485,542,989 |
+| After the upward touch swipe | 188 | 49,919,563,141 |
+| Bottom after turning the crown | 245 | 52,538,537,483 |
+
+The native numeric selectors have separate standalone layout pins:
+birth year `87a078641f7c3dea669d80cc702a6145521f1361d61f6ce959e810705b6f5b74`,
+weight `63f74351ed53f1ff206bc914224423e9fefe1bfd1c6aab8bde54643a2c778cfc`,
+and height `f12cb4dac6021762daac33da0a1454a97f515d54238c5e76ff6efb2b23cd0c86`.
+Height commits at generation 100 as the firmware begins the next
+view's transition. The independent Hello and Service Mode regressions
+preserve all original pins on two cold boots each.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `ulsan-final.log` | `1a676d3a0fa86e6d02b737f01cb05ba2d066c74b0f8c138464c0899e3a933666` |
+| `standalone-final-1.norm` | `40d4d176bf68f3a41c89f1b24e5b98b041d457c7b606a17ff5a8cf82e91819c4` |
+| `standalone-final-2.norm` | `40d4d176bf68f3a41c89f1b24e5b98b041d457c7b606a17ff5a8cf82e91819c4` |
+
+## E-ULS-0099 — crown-only pairing scroll can stall native RTOS work
+
+2026-11-08. Two cold standalone probes follow the same initial
+onboarding checkpoints as E-ULS-0098. After entering guidance, they
+send six +24 detents, 125 ms apart. The sixth begins the scroll
+animation. Both reach the reference scrolled frame at 50,251,207,264 ns,
+generation 203. Neither probe sends a touch report. A further idle run
+ends at 51,801,207,264 ns with the same frame and PC `0x000999f0`.
+Two more 50 ms samples stay at the same PC and register values and
+advance exactly 50,000,000 instructions each. The read-only register
+and SRAM census is byte-identical across the cold runs.
+
+The application is
+`artifacts/analysis/ulsan-2.44.52/component-04-type-4-v2.raw`
+(SHA-256 `64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef`).
+GNU `arm-none-eabi-objdump` (SHA-256
+`7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda`)
+decodes it as Thumb at load base `0x00030000`. Two disassemblies each
+for `0x999b0..0x99a4c` and `0x828a8..0x828e8` match. The loop at
+`0x999f0..0x999f8` follows the node pointer at offset four and loops
+while the insertion key is at least the next node key. The call at
+`0x828be` enters that list insertion routine. The sampled container
+is `0x1002a4cc`; R1, R3, R4, and the next pointer all equal
+`0x10034558`; the node key, R2, and R5 equal 3. LR is `0x000828c3`.
+The loop walks a node linked to itself, as in the analogous
+E-SAP-0092 signature. This establishes the stalled list and call site.
+The writer that created the self-link and the reason this standalone
+timeline diverges from the lane remain unproven. The mixed input route
+in E-ULS-0098 avoids this case. No guest code or list state is patched.
+
+| Files below `/tmp/semu-race-input.R7PNru` | SHA-256 |
+| --- | --- |
+| `walk-stall.c` | `babf395ed4996d3a2fbd7e83c2c4ea41a77e747da3bd76a1b8997493df98db11` |
+| `walk-stall` | `51a188678f6a4336a7c215ab14fc98499d294eade67bb1a574d697c53b51b121` |
+| `guided-stall.txt` | `065fda306675fda42063b08e9b8243f7a97ea2a51b945ec3d02571ad76585561` |
+| `standalone-stall-{1,2}/log` | `98c978518a05683fdfc303bbac1906de690ef6452933ab4a3971c8d78f2525ae` |
+| `stall-disassembly-{1,2}.txt` | `1343e2ddea77c01b18ee30f2239bc77b4674dc1c6c4856b9363eef37fddee7f1` |
+| `stall-caller-{1,2}.txt` | `7cbfb95574ddc1b88974c57ef2a575099cedca7eae3a2b57511adc6e003e9233` |
