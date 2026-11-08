@@ -135,7 +135,7 @@ static semu_status sdio_read(void *context, uint32_t offset, unsigned width,
     switch (offset) {
     case BLOCK: case RESPONSE: case RESPONSE + 4u: case RESPONSE + 8u:
     case RESPONSE + 12u: case PRESENT: case HOST: case CLOCK: case STATUS:
-    case CAPABILITIES: case VERSION:
+    case STATUS_ENABLE: case CAPABILITIES: case VERSION:
         *value = s->registers[offset / 4u];
         return SEMU_OK;
     case DATA:

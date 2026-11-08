@@ -32,6 +32,11 @@ static void test_244_sdio_sector_transactions(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_ulsan_sdio_map(bus, &sdio, media, sizeof(media), &error));
     SEMU_TEST_EQ_U64(context, 0x10000u, rd(bus, 0x24u));
+    SEMU_TEST_EQ_U64(context, 0u, rd(bus, 0x34u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x34u, 0x037f0033u));
+    SEMU_TEST_EQ_U64(context, 0x037f0033u, rd(bus, 0x34u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_read(bus, BASE + 0x34u, 2u, &(uint32_t){0u}, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x2cu, 0x01000001u));
     SEMU_TEST_EQ_U64(context, 3u, rd(bus, 0x2cu));
     SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x08u, 0x1a5u));

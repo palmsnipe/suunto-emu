@@ -18397,3 +18397,70 @@ request reset at 289,872,617 instructions and 10,942,690,193 ns.
 | `timer8-hello-2/renode.log` | `12aec1ca370abfd6efc3026d8dbd6d046defc9fbca6547dc15c077211125e716` |
 | `timer8-{1,2}.norm` | `d986b15c03bce98edc0fc0ed8c8e94c7deb49be7468f668797d13dceaaef393e` |
 | `timer8-boot-{1,2}.log` | `e411e238c05f70f80dd03f130bdd1c0121f239bf9ae218151e3dc7d6c801116c` |
+
+## E-ULS-0087 — 2.44.52 late SDIO readback and UART1 startup frontier
+
+2026-11-08. Two matching standalone bus diagnostics identify the access in
+E-ULS-0086 as an aligned 32-bit read of SDIO interrupt status enable
+at `0x40070034`. Two passive instruction probes record the faulting
+PC `0x000aeb56` at instruction 289,872,538, with `r1=0x40070034`.
+Two cold 5 s reference probes read the retained register directly
+through the monitor after the guest runs. Both return `0x037f0033`,
+the value written by the guest at PCs `0x000ae9ba` and
+`0x000aefce` in the longer control trace. The standalone SDIO
+device now serves that stored word and still refuses a short read.
+
+With the readback admitted, two cold standalone boots reach
+327,430,360 retired instructions and 16,014,847,988 ns at PC
+`0x000d47f0`, with no reset requests. With 2B instructions and
+65 s caps and the real machine frame callback attached, both reach
+the first UART1 fault at `0x4001d030`. The first guest reset
+request is at 421,007,566 instructions and 20,702,816,931 ns.
+Both runs emit zero frames before the budget, including the English
+Hello target `9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76`.
+
+Two 5 s cold UART1 lane runs reproduce 106 ordered word accesses
+and 23 ordered fixture/byte log rows. The first transaction is
+`W32 0x4001d030=0` at PC `0x00186206`; subsequent control writes
+store `8` and `0x18`. The first integer/fractional divisor words
+are `1` and `0x28`. The E-ULS-0080 fixture arms an asynchronous
+`$PSS0000\r\n` line 10 ms after native driver-open state 0 at
+`0x0012c128`, then answers the native `@VER\r\n` request with the
+same line after 10 ms. The next integration needs the UART1
+attachment, an exact-hash opt-in lifecycle fixture with finite
+event budgets, and GPIO24 interrupt routing for later startup.
+These interfaces are outside the NemaGPU and IOM integration.
+
+A separate pair of 22 s lane captures identifies 31 late SDIO
+multi-block write/stop pairs. Each CMD25 word `0x193a0022` has
+block word `0x00020200`; each CMD12 word `0x0c1a0000` has argument
+zero and the same block word. These transactions were observed in
+the lane and remain outside the standalone SDIO command set.
+
+| Files below `/tmp/semu-ulsan-820.9P8t2G` | SHA-256 |
+| --- | --- |
+| `sdio-diag.c` | `0e7ef261c181663e0ce6a2668855bea92ddb45273111e0a23f819cd9d7788eb1` |
+| `sdio-diag.log`, `sdio-diag-repeat.log` | `690f041fc9c6fd43375bb24b1c106404f33be145ff758626d3df61903e9e53ad` |
+| `fault-run.c` | `77d07afb7645ba867041566e54e708b82a79245d0a19579d5b4563738ee10d5b` |
+| `sdio-fault-pc.log`, `sdio-fault-pc-repeat.log` | `b19932e7553e5ff80d2f415cd0cec0478947ec00321fcd6c61ea0a4d0b8105c7` |
+| `probe-sdio-retained.py` | `8255692aba68880e8e7309e046d01adf0c603518902bc1c6184985ff4ff92e10` |
+| `sdio-retained-hello-1/probe.resc` | `0baa73d5e102aa9835ee85a3fa400879d6ffa47a31940615d22951776c920cb9` |
+| `sdio-retained-hello-2/probe.resc` | `89f527c4109f410acefafaa29918232014543b556547b39cf29a59ec5852db93` |
+| `sdio-retained-hello-1/renode.log` | `7006835d60e531770f5a88e99b2ec823aee17b4c16a03c122785d78259550ee1` |
+| `sdio-retained-hello-2/renode.log` | `13178f89032153257652b5b420524a36160814c869d55535499bf7dccdf65154` |
+| `sdio-late-boot-{1,2}.log` | `ffa7e38d779649d5c33d9a9869f912418e645131e4e3abd925cbaf5764b7a7dd` |
+| `hello-frame.c` | `592c09b7bb7e0de8e1829aac32c6b8cc81280ce0d93cf0dffa48ed7bc54b4a30` |
+| `hello-frame-{1,2}.log` | `00afb85ba0ec9968a9678f81e14504060c87d4a1988285489b3373e47f30f9fc` |
+| `probe-uart1.py` | `6eebd14d444d106e27455c4cb5bbdcf3e336472b151dfb4a88d274dac78a3941` |
+| `uart1-hello-1/probe.resc` | `7edb21342de663a2e8663f9569e07ddc57cbb40fa83c68a3a9be077ef7a1bb7f` |
+| `uart1-hello-2/probe.resc` | `6e6901c9b285ee3cac9b576488905cf7391ec4b422c685c2bf5e4012aeb65dad` |
+| `uart1-hello-1/renode.log` | `4c905d365b140e31a04e7dc8bbf72ad1a8a91408d30979c825d99f07b3a1bc48` |
+| `uart1-hello-2/renode.log` | `74b660ae6616195caed1945c32c519d3ac991d1c22144bdc4a0d583cd214f4b6` |
+| `uart1-{1,2}.norm` | `12dd8595b4bafc3fc74d38ea50613740689569e8af6b1e9cd91a0297babed028` |
+| `gps-{1,2}.norm` | `a2a3cb9603dd338fa56815d41c5e8fa2172728b5800cdcbcb3081d04bbfa2bb8` |
+| `probe-sdio-multi.py` | `447f698d1ed9a11757bfa856dd9607e6a3cb8ffaf51e8e349cd919c6487dddac` |
+| `sdio-multi-hello-1/probe.resc` | `9ea3d4f69687483d74f70a4be5dc3cfce8a99a6f5792f2857d5c7cdb92fb4694` |
+| `sdio-multi-hello-2/probe.resc` | `fb320a26fda64234d1e8e3e71b68206f0dc716f8ecf5ed8591cbcd9e3729eed7` |
+| `sdio-multi-hello-1/renode.log` | `d973d5961c88171202483a2e2dc7cc4d3006f95b267f3f2b31d9c00d271cccbb` |
+| `sdio-multi-hello-2/renode.log` | `7a8d29ade909346ad71b105d1cd5561b78bbcf6645676e7bae813ee277d2287c` |
+| `sdio-multi-{1,2}.norm` | `318097eff347bb20e3363147b3f7c5f4f369451677908794b8fbcf3cef63b2d1` |

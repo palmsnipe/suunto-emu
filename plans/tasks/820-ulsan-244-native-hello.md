@@ -133,13 +133,18 @@ refuses on the SHA-256 check before execution.
 The continuation wires the Race S GPU register window and IOM2
 through the shared controllers, adds the 466×466 retained renderer,
 and models the observed IOM0 motion and TIMER8 startup. The two
-standalone runs now reach late SDIO at `0x40070034` after
-289,872,617 instructions and 10,942,690,193 ns. See E-ULS-0083
-through E-ULS-0086. The focused tests are
+standalone runs pass late SDIO and hit UART1 control at
+`0x4001d030`. The expanded private gate retains the original pin
+and also verifies two cold starts at 327,430,360 instructions and
+16,014,847,988 ns. See E-ULS-0083 through E-ULS-0087. The focused tests are
 `make test TEST_FILTER=ulsan_244_hello_io`,
 `make test TEST_FILTER=ulsan_244_nema`, and
-`make test TEST_FILTER=ulsan_timer0wake`. The native Hello
-acceptance still requires two standalone frame matches.
+`make test TEST_FILTER=ulsan_timer0wake`. Both real frame-callback
+probes produced zero frames, with the first UART1 reset request at
+421,007,566 instructions and 20,702,816,931 ns. The next integration
+needs UART1, the lifecycle-bound CXD5610 startup fixture, and its
+GPIO24 readiness signal. The native Hello acceptance still requires
+two standalone frame matches.
 
 Files changed for this ticket
 
