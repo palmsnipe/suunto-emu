@@ -27,6 +27,7 @@ struct semu_apollo4_iom {
     int irq_level;
     int pressure235; /* immutable profile gate; 2.35 snapshots refuse */
     int race_s;
+    int race_s_late;
     struct semu_sapporo_iom4 *live235;
     uint32_t observed_registers[SEMU_APOLLO4_IOM_OBSERVED_REGISTER_COUNT];
 };

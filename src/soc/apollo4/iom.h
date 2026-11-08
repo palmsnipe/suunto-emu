@@ -12,6 +12,8 @@
 
 #define SEMU_APOLLO4_IOM0_BASE 0x40050000u
 #define SEMU_APOLLO4_IOM0_IRQ 6u
+#define SEMU_APOLLO4_IOM1_BASE 0x40051000u
+#define SEMU_APOLLO4_IOM1_IRQ 7u
 #define SEMU_APOLLO4_IOM2_BASE 0x40052000u
 #define SEMU_APOLLO4_IOM2_IRQ 8u
 #define SEMU_APOLLO4_IOM3_BASE 0x40053000u
@@ -41,8 +43,9 @@ void semu_apollo4_iom_set_live235(semu_apollo4_iom *iom,
                                   struct semu_sapporo_iom4 *live);
 /* E-SAP-0039: exact negative pressure probes, gated to the 2.35 IOM2. */
 void semu_apollo4_iom_set_pressure235(semu_apollo4_iom *iom, int enabled);
-/* Select the E-ULS-0083 IOM2 word/command contract before guest access. */
+/* Select the observed Race S IOM word/command contract before guest access. */
 void semu_apollo4_iom_select_race_s(semu_apollo4_iom *iom);
+void semu_apollo4_iom_enable_race_s_iom2_startup(semu_apollo4_iom *iom);
 
 semu_status semu_apollo4_iom_attach_endpoint(
     semu_apollo4_iom *iom, const semu_serial_endpoint *endpoint,

@@ -38,3 +38,8 @@ max_hits=1
 kind=synthetic-state
 evidence=E-ULS-0079
 max_hits=1
+
+[layer ulsan-2.44-gps-startup]
+kind=device-fixture
+evidence=E-ULS-0088/E-ULS-0090
+max_hits=36

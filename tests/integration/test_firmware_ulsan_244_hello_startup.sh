@@ -38,6 +38,8 @@ expect_refusal()
 missing='run: Ulsan eMMC requires both the named layer and --ulsan-emmc'
 expect_refusal "$missing" --layer ulsan-2.44-emmc
 expect_refusal "$missing" --ulsan-emmc "$image"
+expect_refusal 'run: Ulsan GPS requires the production-data and eMMC layers' \
+    --layer ulsan-2.44-gps-startup
 printf x > "$work/short"
 expect_refusal 'run: Ulsan eMMC fixture size mismatch' \
     --layer ulsan-2.44-emmc --ulsan-emmc "$work/short"

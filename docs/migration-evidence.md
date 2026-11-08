@@ -18464,3 +18464,261 @@ the lane and remain outside the standalone SDIO command set.
 | `sdio-multi-hello-1/renode.log` | `d973d5961c88171202483a2e2dc7cc4d3006f95b267f3f2b31d9c00d271cccbb` |
 | `sdio-multi-hello-2/renode.log` | `7a8d29ade909346ad71b105d1cd5561b78bbcf6645676e7bae813ee277d2287c` |
 | `sdio-multi-{1,2}.norm` | `318097eff347bb20e3363147b3f7c5f4f369451677908794b8fbcf3cef63b2d1` |
+
+## E-ULS-0088 — 2.44.52 CXD5610 open, reopen and awake
+
+2026-11-08. Two cold 28 s Renode runs use the firmware, production
+page, card and flash identities from E-ULS-0078 through E-ULS-0080.
+The Renode executable has SHA-256
+`8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab`.
+The inputs include `emulator/renode/gps/ulsan-2.44-gps-first-boot-fixture.resc`
+(SHA-256
+`79922b2dba25c580bd1265007825ed0c4ed68b3583f38a46ac1dd511c9b85a4e`)
+and `emulator/renode/gps/SapporoCxd5610Transport.cs` (SHA-256
+`3132d27471a88c72842d4b7059dcc03eb6ffff59ebd090262badb28154aef99a`).
+The normalized trace retains 239,682 rows in order. It covers
+UART1 word accesses, lifecycle and probe PCs, and GPIO24 writes.
+
+| Boundary | Observed behavior in each run |
+| --- | --- |
+| Driver open `0x0012c128` | `r4=0x1003e03c`, state byte at `+0x6a2` is 0, UART object at `+0x650` is `0x10055f80` |
+| First exchange | Synthetic `$PSS0000\r\n` 10 ms after open, then `@VER\r\n` from the guest and the same reply after 10 ms |
+| Driver reopen `0x0012c128` | Same driver, state 19, UART object `0x10055fd0`, same status followed by `@GSR\r\n` and the same 10 ms reply |
+| Awake registration `0x0012c628` | GPIO24 configuration `0x93` and interrupt enable bit 24, then one low/high/low pulse with 100 ms delay and 1 ms high time |
+| Watchdog `0x0012c79c` | Three entries with `r0=13` after registration, one identical pulse per entry, IRQ acknowledged by guest W1C |
+
+The reference supplies synthetic status only. The standalone layer
+requires the pinned firmware, production-data and eMMC opt-ins. It
+delivers the exact bytes through the shared UART1 FIFO and raises
+the awake input through the shared GPIO controller. Its 36-hit
+aggregate ceiling is a bounded run policy. Unsupported frames and
+invalid lifecycle boundaries are refused. Before IOM3 was mapped,
+the first standalone open queued status at 20,702,817,301 ns and
+the boot reset on the first IOM3 configuration write before RX.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `gps-probe.py` | `b728eb34ebfee0689b2e4d6e77b73167ee456d19231b37186980e3a0c77a31f9` |
+| `gps-hello-1/probe.resc` | `2db7d01e1f08a05bb870f703d8290fc49cdee4c0f58492f9a14bb07c5c4f8f6d` |
+| `gps-hello-2/probe.resc` | `6c1865e076b483b80b2d87809ded35992bb75cf78496b543684554a34b7bcb7f` |
+| `gps-hello-1/renode.log` | `0e3db24cf07c14967e0b6ee3bb5f545195d6c87a77b146361e3e568d463d2d69` |
+| `gps-hello-2/renode.log` | `97a29396a46f2e170e51f3a30f68457f88e0c389cb7658a39b3fcea6ebaec785` |
+| `gps-{1,2}.norm` | `aef7b920eded7a370550b3fa31a0ed5c8a847f9565aec041892ac441dd166d9f` |
+
+## E-ULS-0089 — 2.44.52 IOM3 ambient-light startup
+
+2026-11-08. Two 24 s runs use the E-ULS-0088 inputs and log IOM3
+word accesses and payloads through the Renode IOM DMA wrapper
+(SHA-256 `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd`).
+The 3,378 normalized rows match. IOM3 starts with clock word
+`0x1010`, timing words `0x0103f270` and `0x1d0e1301`, and
+submodule control `0x10` with readback `0xe30`. All 58 DMA
+transfers use I²C address `0x48` and complete with `0x403`,
+clearing `0x401`.
+
+- 28 two-byte writes with command `0x00000201`. The register/value
+  pairs are `80:99 02:00 03:20 05:00 06:00 17:e0 3d:01 60:20
+  61:00 69:30 69:00 6a:80 6b:00 6c:0c 6d:0a a4:07 00:02 00:00`
+  once each and `68:01` ten times.
+- Ten two-byte reads at register `0x64`, command `0x64000212`,
+  returning `80 00`. Twenty 64-byte reads at `0x66`, command
+  `0x66004012`, return the lane's zero-light sample.
+- No touch transfers occur. The native touch endpoint requires a
+  separate report and remains unsupported in this startup path.
+
+With the IOM3 configuration admitted, two capped standalone boots
+reach the first IOM2 address `0x10` access at `0x400522c4`,
+434,680,674 instructions and 20,716,490,039 ns.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-iom3.py` | `5c8df360ed45ee64d037e221d0fffbd5aa55efb23531c92e2aceda89d94df6a4` |
+| `iom3-hello-1/probe.resc` | `3445d644411cf517f7ec5461f83649ecbdd1d665418df6ca55145dcd9bb181e5` |
+| `iom3-hello-2/probe.resc` | `4211da92376f3d9d05c53da7f8fe18ea4f8a69eaa5cee4fef0fd26c0fe5da9f8` |
+| `iom3-hello-1/renode.log` | `c55213234b7eb6244c20de604f19d62c79063c73e9293c42d85bd2de45a8e228` |
+| `iom3-hello-2/renode.log` | `884606ca8255f592bfc1fd8887ca49684d34ea4c8869d723256b2e3a1168a89f` |
+| `iom3-{1,2}.norm` | `ff5d6b5fe514cc6ff16d3e9ecbfa2870fbc9c68ad790a1fb58cbdd3b2459f138` |
+| `before-ohr-{1,2}.log` | `1a9851f32edbf6e7c5a6a73ff69bd7f0a4fb8eca7ac994c4dd9fe8767da622a5` |
+
+## E-ULS-0090 — 2.44.52 IOM2 pressure sampling and OHR2 startup
+
+2026-11-08. Two 24 s IOM2 traces reuse the E-ULS-0088 inputs and
+produce 2,708 identical normalized word/payload rows. In addition to
+E-ULS-0083, the native driver at address `0x49` reads register
+`0x03` as `11` once, reads `0x04` as `f8 41 00` sixteen
+times and reads `0x09` as `00 19` sixteen times. The IOM command
+words are `0x03000112`, `0x04000312` and `0x09000212`.
+
+Two additional 30 s runs passively inspect the guest DMA buffer
+on writes to IOM2 COMMAND for address `0x10`. Each captures two
+identical `0x00003b01` writes from `0x100343c4`, each completing
+with interrupt status `0x401`. The 59-byte request is prefix
+`00 10 00 00 00 01`, 49 bytes of `ff`, and CRC bytes
+`5d 08 d0 67`. The lane OHR2 endpoint (SHA-256
+`f35e6a69c86fba8142d94c835db4958d238b7cc042f58e67a0606d5a0d2b96f0`)
+queues a zero body with the echoed header and CRC and asserts
+GPIO62. It queues the same bytes on the identical retry. No OHR2
+read is present in either 30 s trace. The standalone startup
+implements only the observed request and idempotent retry. It
+records each under the same bounded first-boot opt-in.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-iom2-late.py` | `bc2375c7a53def6537e9e121863093c615bc89a26ff213f81975f05940bf44ae` |
+| `iom2-late-hello-1/probe.resc` | `322399e50767af61a841c3b57cdc2369b97e6bfdbf1989ca7056dc2097af36c6` |
+| `iom2-late-hello-2/probe.resc` | `1ef3ba8fe4d4272cf55ba3b7de5d244f978e7338eb0926a508362d609c58d5a2` |
+| `iom2-late-hello-1/renode.log` | `6d925e79aa0ec7ad2dc9e20d146eeec318eb268ecb41bc13fb4e9d2071e2a8c4` |
+| `iom2-late-hello-2/renode.log` | `81ac06dfd1d4bca52519f92c7ecc1b1ff98b2b98bf191a2f7a473a29cf11c493` |
+| `iom2-late-{1,2}.norm` | `5cdf5dacc7e5476c2e9e93e72279cd400921915281eacb5b355d9be42e6fa5e9` |
+| `probe-ohr.py` | `f325c3bc4753c0f821a43916747149a92f88e1afc4f9cd62ff6cc3a7e4db7277` |
+| `ohr-watchpoint.resc` | `d8037b03c693e5944e28e6d83f3d5928952dbc43f13112a748cc2485826685e8` |
+| `ohr-hello-1/probe.resc` | `e8d18512288fc77214dd4b67daeae108e827d9f7736ca0323695db5529e1dbca` |
+| `ohr-hello-2/probe.resc` | `2175bee4e9c7a635f2b859fdeb670759052e8db71f901ad4bc632e3921162bfd` |
+| `ohr-hello-1/renode.log` | `043f842db7b19dfdd1ce6e035f817a96469aded6e979e509670c0095f752a31b` |
+| `ohr-hello-2/renode.log` | `dfe9e23a5937041d679d3d5e38a45c2a027005c80e0abf12008e15696972ff8f` |
+| `ohr-{1,2}.norm` | `c9c5e4e57cb9584cf8895e968928bcbcdde7bd17346598d20b5db5a9ca19ff00` |
+
+## E-ULS-0091 — 2.44.52 IOM6 idle crown startup
+
+2026-11-08. Two 35 s cold reference runs with E-ULS-0088 inputs
+and IOM6 word/payload logging produce 1,418 identical normalized
+rows. The 24 transactions use address `0x75`. Interrupt status
+is `0x403` before W1C `0x401`. Thirteen command `0x201` writes
+store `05:b8 06:97 06:17 09:00 09:5a 0d:80 0e:ff 19:04
+2b:6d 2d:00 4b:04 7c:82 7f:00`. Eleven one-byte reads with
+`0x112 | (register << 24)` return `00:31 05:b8 09:00 09:5a
+0d:80 0e:ff 19:04 2b:6d 2d:00 4b:04 7c:82`. GPIO104 is
+idle high, as specified by the lane endpoint. No motion is injected.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-later.py` | `6bb5640997d2acede5ad2c2059027fa280c1dfdde60d463abe470cbe50d0d639` |
+| `later-hello-1/probe.resc` | `b3adff643c5ac088442b23378e22822afe8976776b5e81e55a040ffa30cb2e57` |
+| `later-hello-2/probe.resc` | `d88fb56934e28d8cecca7dd7ec3287b9bc2d40f4a6e22272dbd88947ce4d16f3` |
+| `later-hello-1/renode.log` | `3125d6415990b93282bbafee3ff5447926c4744307e8f2ba05fcbdd08e23bab2` |
+| `later-hello-2/renode.log` | `769abc065feda9f467784ef43c6246b830dca061cd06bf6036a8fa6d1e0d7765` |
+| `iom6-{1,2}.norm` | `3229c570a4a3ee4930ad6002ffaf79bf926a0b93d471fe434871be4eeb13aaec` |
+
+## E-ULS-0092 — 2.44.52 SDIO write-stop status and IOM1 configuration
+
+2026-11-08. Two 22 s traces with E-ULS-0088 inputs and passive
+SDIO hooks reproduce 221 logged command rows with block word
+`0x00020200`, including 159 CMD13 rows and the 31 CMD25/CMD12
+pairs from E-ULS-0087.
+Each CMD25 is followed by the native CMD13 status poll with
+argument `0x00010000` before CMD12 with argument zero. The
+standalone controller validates the two-block write span, stages
+all 1024 bytes, and commits them to the session overlay on data
+completion. It accepts the intervening CMD13 and the observed
+CMD12 sequence after data completion.
+
+Two 30 s traces reproduce 59 IOM1 word accesses. The first
+write is `0x40051104=0x1010` at `0x0015c9e0`. The clock
+configuration is `0x301`, SPI configuration reads `0x200000`,
+I²C configuration is zero and submodule control transitions from
+`0xe20` to `0xe21` and back. No IOM1 command or endpoint
+transfer is observed. The standalone controller admits the
+configuration sequence and refuses commands.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-sdio-status.py` | `9cbbdfb0a81af417b8639a97131ba538d74289ad3174bd3b2840cb2ac3b5f9c5` |
+| `sdio-status-hello-1/probe.resc` | `0269e0725b5fdcb5b16ffb82e9461d573b9c53e60ea50219efd2e16869a9b924` |
+| `sdio-status-hello-2/probe.resc` | `d44995870088e935fbb05650fa7d3f64f3bc6943086588098d448c79d61d1ffa` |
+| `sdio-status-hello-1/renode.log` | `edae70337a710aef0fef58b711af913588c59fc67bacc2fa803bf36154d2c4d5` |
+| `sdio-status-hello-2/renode.log` | `96372efdb6309395d309386bbeb48de6d4f4f41a22a74812460202813c1382e6` |
+| `sdio-status-{1,2}.norm` | `903fe030722a261a86edc967b77b558a07f466c397ca317b65ddef61d90b9227` |
+| `probe-iom1.py` | `6cc28f137ef0a36c5e4d299a6cc29969161b4ba81665a691d7166ec5554d649d` |
+| `iom1-hello-1/probe.resc` | `a417c69243a33cca98285eacbd47b6c3c5649e694fcd5e794094532722a89dd9` |
+| `iom1-hello-2/probe.resc` | `5ed00b134723515b65331c847fb6081adf1ecf4bd9178e33daa34d1782aa3010` |
+| `iom1-hello-1/renode.log` | `2d4591875431b4d3e6cfbf96bd29c085d7bc8d454421efb4f446cd16877610f5` |
+| `iom1-hello-2/renode.log` | `2ab4c88f57cefd0d4ab70d87cca830e0ac943a680433e71d1078f6c1b7d51495` |
+| `iom1-{1,2}.norm` | `4d84554b108f5a2cd51d45594846d0de568426241b4b662a4a20aeb00296f0ed` |
+
+## E-ULS-0093 — 2.44.52 late power status sampler
+
+2026-11-08. Two 30 s runs use the E-ULS-0088 inputs with the
+2.44.52 power-controller word trace enabled. The first ten ordered
+reads from the native sampler at PCs `0x00076e8c` through
+`0x00076eb8` match after removing timestamps. The offset/value
+sequence is `08:1e00 10:0 18:3f 20:0f 28:3 5c:0 7c:0 108:0
+194:3f 198:3f`. After IOM1 configuration, the standalone first
+faults on `0x40021010` at 973,441,203 instructions and
+23,582,419,822 ns. The 2.44 profile admits the four previously
+unavailable reads with the observed values and continues to
+refuse writes to those status words.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-power-late.py` | `718216f0ac493f553ffd6ccec60652fa87fe98b8ce7e949420f00bfcc83feb72` |
+| `power-late-hello-1/probe.resc` | `460fa4d48dbfe1d86831e6f51c5b13bbb2541ec027a8c1eebfb5d69daabad599` |
+| `power-late-hello-2/probe.resc` | `994dc86c96a4a6e080e9478c918fe48b0139ba8d52d29050faa1dd3c867c5191` |
+| `power-late-hello-1/renode.log` | `2eecf31c9761764e5b2fc77f7d1c92af936f3bbaf535e2fc2e1b30ed86bbe6ff` |
+| `power-late-hello-2/renode.log` | `f111858f9dc24c5cff755efe9434b9e95fdc8392d67fd5a0b82d306966eb93a8` |
+| `power-sampler-{1,2}.norm` | `d0082574817a05dbb905caef79b093c32d2de3673bdb8745a66cef52218703eb` |
+
+## E-ULS-0094 — 2.44.52 late IOM0 FIFO setup and readback
+
+2026-11-08. Two 30 s cold lane runs use the E-ULS-0088 inputs with
+IOM0 DMA logging. Their first 639 payload rows match after stripping
+host timestamps. The two-byte writes `07:04 08:00 09:03 0a:06
+10:0c 10:3c 12:45 58:80 5b:01 5e:20` extend E-ULS-0085 at
+SPI chip select 0 with the same command `0x201`. CTRL3_C software
+reset self-clears, so `12:45` stores `44`. The additional
+one-byte reads use `0x112 | (selector << 24)` and return
+`88:00 89:00 89:03 ba:00 bb:10 db:00`. Register `0x3b` reports
+bit 4 set for the empty FIFO. No motion samples are supplied.
+
+A standalone diagnostic shows the next refusal after the GPS
+reopen was `12 45` at IOM0 COMMAND, with DMA configuration
+`0x103`, count 2 and target `0x10034198`. The first reset is at
+1,044,398,177 instructions and 24,026,823,073 ns. Admitting the
+observed tuples lets the standalone guest proceed to `@GSR`
+and its native Hello rendering.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `probe-iom0-late.py` | `748879d79595c18247d007848d208b100f709b3bbfcccb360f4d5850dfb58b24` |
+| `iom0-late-hello-1/probe.resc` | `c35dca0bed2124f062ea71763be8fcd09cb097aa401f0545d72153c209ea29c5` |
+| `iom0-late-hello-2/probe.resc` | `d78cffa741562ce64b9a542736718235473e5b464635a9d4e0e538a69c75acda` |
+| `iom0-late-hello-1/renode.log` | `5241bdb5ca22f8bc07396f4beedf403f80d0b840918d7b7a16858c56d719e4cd` |
+| `iom0-late-hello-2/renode.log` | `2d318b215b438245363213649a59b4cabf09209447d5760f19f6e8d4f56c7199` |
+| `iom0-first-{1,2}.norm` | `bc8f35b1d2c75fe4caf591025a89822061f3e4e4e75b42e0a1db48659987b2d1` |
+| `iom-diag.c` | `db051e3284d3e86681249a6ae53bdf3ee043bbee1c0ed5c36ce5d772d54bf8df` |
+| `iom-diag.log` | `31b5533869a9a521f651be5a03499fa4336eb83529f044a7bcc7d408535468f9` |
+
+## E-ULS-0095 — 2.44.52 native Hello from two cold standalone boots
+
+2026-11-08. Two cold in-tree interpreter runs use the hash-validated
+E-ULS-0078 firmware and production records, the E-ULS-0079 eMMC
+image and the E-ULS-0088 GPS startup layer. The runs use independent
+card overlays and the real frame callback. Both log `@VER` and
+`@GSR` status responses, schedule the initial GPIO24 awake pulse
+at 24,664,824,887 ns and publish the same first two frames.
+
+| Generation | Format and dimensions | SHA-256 |
+| --- | --- | --- |
+| 1, native clear | RGB565 little-endian, 466×466, 434,312 bytes | `6cc911ec30cb65f8bd344e37320439eed8e62fcb79c6010ec125dd4ee959ee2a` |
+| 2, Hello | RGB565 little-endian, 466×466, 434,312 bytes | `9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76` |
+
+Generation 2 matches the E-ULS-0080 English Hello reference. Both
+probe runs stop on the time budget at PC `0x000d47f0`,
+1,144,692,529 instructions and 25,014,847,988 ns, with no reset or
+draw refusal. The callback did not retain the frames on disk.
+
+The in-tree private `ulsan_244_hello_frame` gate repeats the
+two cold boots with a 31 s cap and observes 185 native
+publications per boot. Generations 2, 4 and 6 match the reference.
+Both runs stop at PC `0x0009d150`, 1,730,190,171 instructions and
+31,000,000,000 ns, with eight matching layer events in order,
+including the first GPIO24 watchdog pulse. The separate Service
+Mode frame and reset gates pass, with the frame hash pinned
+by E-ULS-0077.
+
+| Files below `/tmp/semu-ulsan-gps.Ndjcw2` | SHA-256 |
+| --- | --- |
+| `hello-25.c` | `b941e32561b637d2f73629a26fd40a2b1ebb4e8dea34d31c200e51191d0c3ee8` |
+| `hello-25-{1,2}.log` | `f5900fce012896eb2aa4bf7a56f263bfa4bcc498254df6848a3fb6bffa40daf3` |
+| `ulsan-private-final.log` | `8ef434d6c6d5cdc58b098af885d9331200e19c5db40a92438a544a172c17326c` |
+| `private-frames.norm` | `6a5e6d1547ab4b9666ec4f0c495ee15b047acb1edcb1e9e9a30e3f67b5763ab1` |
+| `ulsan-era-final.log` | `fb68f1e3cc2c4fce0db36120eb2c4a8230060bbe5f8bae2abe1844dac88e5315` |

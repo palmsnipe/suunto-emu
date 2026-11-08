@@ -90,8 +90,30 @@ static void test_244_sdio_sector_transactions(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, i < 128u ? 0u : 0x12345678u, rd(bus, 0x20u));
     SEMU_TEST_EQ_U64(context, 3u, rd(bus, 0x30u));
 
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x30u, 0xffffffffu));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, wr(bus, 0x0cu, 0x0c1a0000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x0cu, 0x193a0022u));
+    SEMU_TEST_EQ_U64(context, 0x10400u, rd(bus, 0x24u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x20u, 0x88776655u));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, wr(bus, 0x0cu, 0x0c1a0000u));
+    SEMU_TEST_EQ_U64(context, 0u, media[0]);
+    for (i = 1u; i < 256u; ++i)
+        SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x20u, 0x88776655u));
+    SEMU_TEST_EQ_U64(context, 3u, rd(bus, 0x30u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x30u, 0xffffffffu));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED, wr(bus, 0x0cu, 0x123a0036u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x08u, 0x10000u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x0cu, 0x0d1a0000u));
+    SEMU_TEST_EQ_U64(context, 0x900u, rd(bus, 0x10u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x08u, 0u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, wr(bus, 0x0cu, 0x0c1a0000u));
+    SEMU_TEST_EQ_U64(context, 1u, rd(bus, 0x30u));
+    SEMU_TEST_EQ_U64(context, 0u, rd(bus, 0x10u));
+    SEMU_TEST_EQ_U64(context, 0x55u, media[0]);
+    SEMU_TEST_EQ_U64(context, 0x88u, media[1023u]);
+
     semu_bus_reset(bus);
-    SEMU_TEST_EQ_U64(context, 0x78u, media[512u]);
+    SEMU_TEST_EQ_U64(context, 0x55u, media[512u]);
     SEMU_TEST_EQ_U64(context, 0u, rd(bus, 0x30u));
     semu_bus_destroy(bus);
 }

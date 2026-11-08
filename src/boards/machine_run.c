@@ -291,6 +291,15 @@ semu_stop_reason semu_machine_run(semu_machine *machine,
                 machine->input_poll_context, machine, error);
             if (machine->stop_reason != SEMU_STOP_NONE) break;
         }
+        if (machine->ulsan_244.gps.layer != NULL &&
+            (machine->ulsan_244.gps.refusal.code != SEMU_OK ||
+             (semu_ulsan_244_gps_hook_pc(state->r[15]) &&
+              semu_ulsan_244_gps_observe(&machine->ulsan_244.gps, machine->bus,
+                                        state, error) != SEMU_OK))) {
+            if (error != NULL) *error = machine->ulsan_244.gps.refusal;
+            machine->stop_reason = SEMU_STOP_COMPAT_REFUSED;
+            break;
+        }
         if (gates.any &&
             ((gates.device_235 &&
               (!gates.bindings_ok ||

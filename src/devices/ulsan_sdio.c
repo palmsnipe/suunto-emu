@@ -24,6 +24,9 @@ enum {
 #define TRANSFER_COMPLETE 2u
 #define COMMAND_TIMEOUT 0x10000u
 #define HOST_RESET_MASK 0x07000000u
+#define WRITE_MULTIPLE 0x193a0022u
+#define STOP_TRANSMISSION 0x0c1a0000u
+#define SEND_STATUS 0x0d1a0000u
 
 static semu_status refuse(semu_error *error, const char *reason)
 {
@@ -59,6 +62,8 @@ static semu_status issue_command(semu_ulsan_sdio *s, uint32_t command,
 
     if (s->transfer_size != 0u)
         return refuse(error, "command during active transfer");
+    if (s->multi_write_stop && command != STOP_TRANSMISSION && command != SEND_STATUS)
+        return refuse(error, "multi-block write needs CMD12");
     switch (command) {
     case 0u: /* CMD0 */
         if (argument != 0u) return refuse(error, "CMD0 argument");
@@ -83,7 +88,7 @@ static semu_status issue_command(semu_ulsan_sdio *s, uint32_t command,
         break;
     case 0x071b0000u: /* CMD7 */
     case 0x031a0000u: /* CMD3 */
-    case 0x0d1a0000u: /* CMD13 */
+    case SEND_STATUS: /* CMD13 */
         if (argument != 0x10000u || !ready) return refuse(error, "card address");
         if (command == 0x071b0000u) selected = 1;
         response[0] = 0x900u;
@@ -94,11 +99,12 @@ static semu_status issue_command(semu_ulsan_sdio *s, uint32_t command,
         response[0] = 0x900u;
         break;
     case 0x183a0002u: /* CMD24 */
+    case WRITE_MULTIPLE: /* CMD25, E-ULS-0087 */
         writing = 1;
         /* fall through */
     case 0x113a0012u: /* CMD17 */
     case 0x123a0036u: /* CMD18 */
-        count = command == 0x123a0036u ? 2u : 1u;
+        count = (command == 0x123a0036u || command == WRITE_MULTIPLE) ? 2u : 1u;
         if (!selected || block != (count << 16u) + BLOCK_SIZE)
             return refuse(error, "block command state or size");
         if (start > s->media_size ||
@@ -106,6 +112,12 @@ static semu_status issue_command(semu_ulsan_sdio *s, uint32_t command,
             semu_error_set(error, SEMU_ERR_RANGE, "Ulsan SDIO sector out of range");
             return SEMU_ERR_RANGE;
         }
+        break;
+    case STOP_TRANSMISSION: /* CMD12, after the two data blocks */
+        if (!s->multi_write_stop || argument != 0u ||
+            block != (2u << 16u) + BLOCK_SIZE)
+            return refuse(error, "CMD12 state or argument");
+        s->multi_write_stop = 0;
         break;
     default:
         return refuse(error, "command word is unsupported");
@@ -170,8 +182,10 @@ static semu_status sdio_write(void *context, uint32_t offset, unsigned width,
     case CLOCK:
         s->registers[CLOCK / 4u] = (value & ~HOST_RESET_MASK) |
                                     ((value & 1u) != 0u ? 2u : 0u);
-        if ((value & HOST_RESET_MASK) != 0u)
+        if ((value & HOST_RESET_MASK) != 0u) {
             end_transfer(s);
+            s->multi_write_stop = 0;
+        }
         return SEMU_OK;
     case STATUS:
         s->registers[STATUS / 4u] &= ~value;
@@ -187,6 +201,7 @@ static semu_status sdio_write(void *context, uint32_t offset, unsigned width,
         if (s->transferred == s->transfer_size) {
             memcpy(s->media + s->transfer_start, s->pending_write,
                    s->transfer_size);
+            s->multi_write_stop = s->registers[COMMAND / 4u] == WRITE_MULTIPLE;
             end_transfer(s);
             s->registers[STATUS / 4u] |= TRANSFER_COMPLETE;
         }
@@ -202,6 +217,7 @@ static void sdio_reset(void *context)
     memset(s->registers, 0, sizeof(s->registers));
     s->registers[PRESENT / 4u] = CARD_INSERTED;
     s->selected = s->ready = 0;
+    s->multi_write_stop = 0;
     end_transfer(s);
 }
 

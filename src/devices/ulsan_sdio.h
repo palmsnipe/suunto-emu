@@ -10,8 +10,9 @@ typedef struct {
     size_t transfer_start;
     size_t transfer_size;
     size_t transferred;
-    uint8_t pending_write[512];
+    uint8_t pending_write[1024];
     int writing;
+    int multi_write_stop;
     int ready;
     int selected;
 } semu_ulsan_sdio;

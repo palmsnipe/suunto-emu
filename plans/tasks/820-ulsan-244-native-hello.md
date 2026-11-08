@@ -47,8 +47,9 @@ synthetic first-boot fixture and further device coverage.
   `src/display/nema_{backend,backend_internal,backend_draw,backend_transaction,framing,state}*.{c,h}`,
   and `src/display/nema_ulsan*.{c,h}` for the shared GPU integration and
   native Race S frame composition
-- `src/soc/apollo4/iom{,_internal}.{c,h}` for Race S IOM2 and the observed
-  IOM0 motion startup transactions through the shared DMA controller
+- `src/soc/apollo4/iom{,_internal}.{c,h}` for the observed Race S
+  startup transactions through the shared controller and DMA
+- `src/boards/machine_run.c` for the Race S CXD5610 lifecycle
 
 ## Frozen Interfaces
 
@@ -69,8 +70,8 @@ Introduce only reproduced native hardware behavior and explicit,
 identity-pinned compatibility inputs required by the observed startup
 path. Keep compatibility opt-in, logged and hit-bounded. Obtain
 onboarding pixels from the real firmware through the frame callback.
-The owner authorized the shared NemaGPU and IOM2 integration in the
-continuation of this ticket. Keep the Race S additions profile-scoped.
+The owner authorized the shared NemaGPU and IOM2 integration and the
+UART1/GPIO24 CXD5610 continuation. Keep the Race S additions profile-scoped.
 Use a separate component ticket if a further required interface is out
 of scope.
 
@@ -78,6 +79,7 @@ of scope.
 
 - `make test TEST_FILTER=ulsan`
 - `SEMU_ULSAN_244_FIRMWARE_MANIFEST=/path/to/firmware.semu make test TEST_FILTER=ulsan_244_service_frame`
+- `SEMU_ULSAN_244_FIRMWARE_MANIFEST=/path/to/firmware.semu SEMU_ULSAN_244_EMMC_IMAGE=/path/to/emmc.img make test TEST_FILTER=ulsan_244_hello_frame`
 - `SEMU_FIRMWARE_MANIFEST=/path/to/firmware.semu make test-firmware TEST_PROFILE=ulsan-2.44.52 TEST_FILTER=ulsan_244_reset`
 - `SEMU_ULSAN_244_EMMC_IMAGE=/path/to/emmc.img SEMU_FIRMWARE_MANIFEST=/path/to/firmware.semu make test-firmware TEST_PROFILE=ulsan-2.44.52 TEST_FILTER=ulsan_244_hello_startup`
 - `make check-task-contracts && make check-lines && make check && make sanitize`
@@ -97,54 +99,38 @@ fallbacks, and tracked firmware, fixture images or proprietary pixels.
 
 ## Handoff
 
-E-ULS-0078 traces mode 2 with the OTA-only inputs and mode 5 with the
-synthetic ProductionData page as the sole change. Enable the in-tree
-production-data encoder using `--layer ulsan-2.44-production-data`.
-Enable the separately verified synthetic card using
-`--layer ulsan-2.44-emmc --ulsan-emmc /path/to/emmc.img`. Use the
-reference lane's `tools/build_ulsan_synthetic_ui_fat.py` command in
-`emulator/devices/ulsan/run-2.44-full-ui.sh` to generate the image in
-a private scratch directory. Its SHA-256 must be
-`62b711d026fa42cbcade59e5de6b1f9fb14397dba828a392e993991298c4d962`.
-E-ULS-0079 through E-ULS-0081 cover SDIO, the pad selector, and TIMER7.
+E-ULS-0078 traces mode 2 with the OTA-only inputs and mode 5 with
+the synthetic ProductionData page as the sole change. The native
+Hello boot uses `--layer ulsan-2.44-production-data`,
+`--layer ulsan-2.44-emmc --ulsan-emmc /path/to/emmc.img`, and
+`--layer ulsan-2.44-gps-startup`. Generate the eMMC image in a
+private directory using the reference lane's
+`tools/build_ulsan_synthetic_ui_fat.py` command in
+`emulator/devices/ulsan/run-2.44-full-ui.sh`. The eMMC image
+SHA-256 is `62b711d026fa42cbcade59e5de6b1f9fb14397dba828a392e993991298c4d962`.
 
-The two cold pre-GPU runs stop at `0x000b22cc` after 85,000,000
-instructions at 558,718,255 ns. The first fault with a larger budget
-is NemaGPU `0x40090094`. A scratch attachment of the existing GPU
-reaches IOM2 `0x40052104`. E-ULS-0082 records both boundaries.
-The integrator needs to extend the shared GPU interface with
-Race S register admission and 466×466 retained-frame support, and
-bind the observed IOM2 startup endpoints through the shared IOM
-controller. Continue checking later device boundaries after wiring
-those paths.
+E-ULS-0079 through E-ULS-0087 cover the early SDIO, timer, shared
+NemaGPU and sensor milestones. E-ULS-0088 through E-ULS-0094
+record the CXD5610 UART1 and GPIO24 sequence, the late SDIO
+write/stop, sensor startup and power readbacks. The opt-in GPS
+layer requires the verified card and production data. It
+also bounds and logs the observed optical heart-rate startup
+query. Touch reports, crown input and GPS navigation data are
+outside this boot path.
 
-Two lane boots reproduce the E-ULS-0080 English Hello frame SHA-256
+Two cold standalone boots publish native RGB565 generation 2 at
+466×466. Its SHA-256 matches the E-ULS-0080 English Hello reference,
 `9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76`.
-The corresponding standalone frame acceptance remains open. Both
-existing private Service Mode gates pass. The frame gate still
-publishes SHA-256
+The private frame gate captures three matching publications per
+boot and observes the startup and watchdog awake events before
+31 virtual seconds. Both Service Mode gates pass. The default
+frame gate publishes SHA-256
 `bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526`
-on both cold boots.
+on both cold boots. E-ULS-0095 records the checkpoints.
 
-The private Hello startup gate also exercises missing path/layer and
-wrong-size image refusals. A separate CLI run with a 256 MiB zero image
-refuses on the SHA-256 check before execution.
-
-The continuation wires the Race S GPU register window and IOM2
-through the shared controllers, adds the 466×466 retained renderer,
-and models the observed IOM0 motion and TIMER8 startup. The two
-standalone runs pass late SDIO and hit UART1 control at
-`0x4001d030`. The expanded private gate retains the original pin
-and also verifies two cold starts at 327,430,360 instructions and
-16,014,847,988 ns. See E-ULS-0083 through E-ULS-0087. The focused tests are
-`make test TEST_FILTER=ulsan_244_hello_io`,
-`make test TEST_FILTER=ulsan_244_nema`, and
-`make test TEST_FILTER=ulsan_timer0wake`. Both real frame-callback
-probes produced zero frames, with the first UART1 reset request at
-421,007,566 instructions and 20,702,816,931 ns. The next integration
-needs UART1, the lifecycle-bound CXD5610 startup fixture, and its
-GPIO24 readiness signal. The native Hello acceptance still requires
-two standalone frame matches.
+The Hello startup gate also exercises missing media, missing
+layers and the wrong-size refusal. A 256 MiB zero image is refused
+on the SHA-256 check before execution.
 
 Files changed for this ticket
 
@@ -161,3 +147,11 @@ Files changed for this ticket
   `tests/devices/test_ulsan_244_sdio.c`, `tests/devices/test_ulsan_buszero.c`,
   `tests/devices/test_ulsan_timer0wake.c`, `tests/devices/test_ulsan_pwrctrl.c`,
   and `tests/integration/test_firmware_ulsan_244_hello_startup.sh`
+- `src/boards/machine_run.c`, `src/boards/ulsan_board.c`,
+  `src/compat/ulsan_244_gps.{c,h}`, and the shared Apollo4 IOM
+  controller and headers
+- `src/devices/ulsan_als.{c,h}`, `src/devices/ulsan_crown.{c,h}`,
+  `src/devices/ulsan_iom2.{c,h}`, and `src/devices/ulsan_motion.c`
+- `tests/devices/test_ulsan_244_gps.c`,
+  `tests/devices/test_ulsan_244_hello_io.c`, and
+  `tests/integration/test_ulsan_244_hello_frame.c`

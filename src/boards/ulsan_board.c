@@ -108,8 +108,10 @@ int semu_ulsan_board_accepted(const char *board, const char *profile_id)
             strcmp(profile_id, "ulsan-2.44.52") == 0);
 }
 
-static semu_status ulsan_board_map_reset(semu_bus *bus, semu_error *error)
+static semu_status ulsan_board_map_reset(semu_bus *bus, semu_apollo4_gpio **owned,
+                                        semu_error *error)
 {
+    semu_apollo4_gpio *gpio;
     size_t index;
 
     if (bus == NULL) {
@@ -125,9 +127,11 @@ static semu_status ulsan_board_map_reset(semu_bus *bus, semu_error *error)
             return status;
         }
     }
-    if (semu_apollo4_gpio_create(bus, NULL, NULL, error) == NULL) {
+    gpio = semu_apollo4_gpio_create(bus, NULL, NULL, error);
+    if (gpio == NULL) {
         return error != NULL ? error->code : SEMU_ERR_STATE;
     }
+    if (owned != NULL) *owned = gpio;
     return SEMU_OK;
 }
 
@@ -143,7 +147,7 @@ semu_status semu_ulsan_244_board_map(semu_bus *bus,
         semu_error_set(error, SEMU_ERR_ARGUMENT, "Ulsan 2.44 needs board state");
         return SEMU_ERR_ARGUMENT;
     }
-    status = ulsan_board_map_reset(bus, error);
+    status = ulsan_board_map_reset(bus, &board->gpio, error);
     if (status != SEMU_OK) {
         return status;
     }
@@ -202,7 +206,7 @@ semu_status semu_ulsan_244_board_map(semu_bus *bus,
 
 semu_status semu_ulsan_board_map(semu_bus *bus, semu_error *error)
 {
-    semu_status attach_status = ulsan_board_map_reset(bus, error);
+    semu_status attach_status = ulsan_board_map_reset(bus, NULL, error);
 
     if (attach_status != SEMU_OK) {
         return attach_status;

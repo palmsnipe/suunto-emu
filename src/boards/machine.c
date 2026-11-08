@@ -27,6 +27,7 @@
 #include "../compat/ulsan_244_production.h"
 #include "../devices/sapporo_devices.h"
 #include "../devices/sapporo_flash.h"
+#include "../devices/ulsan_als.h"
 #include "../devices/sapporo_info1.h"
 #include "../devices/sapporo_nema_gpu.h"
 #include "../devices/ulsan_buszero.h"
@@ -256,9 +257,14 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
     }
     state = &machine->layers[machine->layer_count];
     if (strcmp(id, semu_ulsan_244_production_layer.id) == 0 ||
-        strcmp(id, semu_ulsan_244_emmc_layer.id) == 0) {
-        descriptor = strcmp(id, semu_ulsan_244_production_layer.id) == 0
-            ? &semu_ulsan_244_production_layer : &semu_ulsan_244_emmc_layer;
+        strcmp(id, semu_ulsan_244_emmc_layer.id) == 0 ||
+        strcmp(id, semu_ulsan_244_gps_layer.id) == 0) {
+        if (strcmp(id, semu_ulsan_244_production_layer.id) == 0)
+            descriptor = &semu_ulsan_244_production_layer;
+        else if (strcmp(id, semu_ulsan_244_emmc_layer.id) == 0)
+            descriptor = &semu_ulsan_244_emmc_layer;
+        else
+            descriptor = &semu_ulsan_244_gps_layer;
         for (i = 0u; i < machine->layer_count; ++i) {
             if (machine->layers[i].descriptor == descriptor) {
                 semu_error_set(error, SEMU_ERR_CONFLICT, "duplicate Ulsan layer %s", id);
@@ -316,6 +322,55 @@ static semu_status enable_layer(semu_machine *machine, const char *id,
     }
     machine->layer_count++;
     return SEMU_OK;
+}
+
+static semu_status bind_ulsan_startup_iom(semu_machine *machine,
+    semu_apollo4_iom **iom, uint32_t base, unsigned irq,
+    const semu_serial_endpoint *endpoint, semu_error *error)
+{
+    *iom = semu_apollo4_iom_create(machine->bus, base, irq, irq_sink, machine,
+        semu_apollo4_dma_execute, machine->ulsan_244.iom2.dma, machine->scheduler, error);
+    if (*iom == NULL) return error != NULL ? error->code : SEMU_ERR_STATE;
+    semu_apollo4_iom_select_race_s(*iom);
+    return endpoint == NULL ? SEMU_OK : semu_apollo4_iom_attach_endpoint(*iom, endpoint, error);
+}
+
+static semu_status bind_ulsan_gps(semu_machine *machine, semu_error *error)
+{
+    semu_ulsan_244_board *board = &machine->ulsan_244;
+    size_t i;
+    semu_layer_state *gps = NULL;
+    int production = 0;
+
+    for (i = 0u; i < machine->layer_count; ++i) {
+        if (machine->layers[i].descriptor == &semu_ulsan_244_gps_layer)
+            gps = &machine->layers[i];
+        if (machine->layers[i].descriptor == &semu_ulsan_244_production_layer)
+            production = 1;
+    }
+    if (gps == NULL) return SEMU_OK;
+    if (!production || machine->ulsan_244.emmc_media == NULL) {
+        semu_error_set(error, SEMU_ERR_CONFLICT,
+                       "Ulsan GPS requires the production-data and eMMC layers");
+        return SEMU_ERR_CONFLICT;
+    }
+    board->als_endpoint = (semu_serial_endpoint){
+        "ulsan.als", semu_ulsan_als_transfer, NULL};
+    board->crown_endpoint = (semu_serial_endpoint){
+        "ulsan.crown", semu_ulsan_crown_transfer, &board->crown};
+    if (bind_ulsan_startup_iom(machine, &board->iom1, SEMU_APOLLO4_IOM1_BASE,
+            SEMU_APOLLO4_IOM1_IRQ, NULL, error) != SEMU_OK ||
+        bind_ulsan_startup_iom(machine, &board->iom3, SEMU_APOLLO4_IOM3_BASE,
+            SEMU_APOLLO4_IOM3_IRQ, &board->als_endpoint, error) != SEMU_OK ||
+        bind_ulsan_startup_iom(machine, &board->iom6, SEMU_APOLLO4_IOM6_BASE,
+            SEMU_APOLLO4_IOM6_IRQ, &board->crown_endpoint, error) != SEMU_OK)
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    if (semu_ulsan_244_iom2_enable_startup(&board->iom2, board->gpio, gps,
+            machine->logger, error) != SEMU_OK)
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    return semu_ulsan_244_gps_bind(&board->gps, machine->bus,
+        board->gpio, machine->scheduler, irq_sink, machine,
+        gps, machine->logger, error);
 }
 
 static semu_status bind_ulsan_emmc(semu_machine *machine, const char *path,
@@ -427,7 +482,8 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
             return NULL;
         }
     }
-    if (bind_ulsan_emmc(machine, options->ulsan_emmc_path, error) != SEMU_OK) {
+    if (bind_ulsan_emmc(machine, options->ulsan_emmc_path, error) != SEMU_OK ||
+        bind_ulsan_gps(machine, error) != SEMU_OK) {
         semu_machine_destroy(machine);
         return NULL;
     }
@@ -442,6 +498,7 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
 void semu_machine_destroy(semu_machine *machine)
 {
     if (machine != NULL) {
+        semu_ulsan_244_gps_destroy(&machine->ulsan_244.gps);
         semu_cpu_destroy(machine->cpu);
         semu_nema_gpu_destroy(machine->nema_gpu);
         semu_nema_backend_destroy(machine->race_s_backend);
@@ -449,9 +506,13 @@ void semu_machine_destroy(semu_machine *machine)
         semu_storage_destroy(machine->flash_storage);
         semu_apollo4_destroy(machine->soc);
         semu_apollo4_iom_destroy(machine->ulsan_244.motion.controller);
+        semu_apollo4_iom_destroy(machine->ulsan_244.iom1);
+        semu_apollo4_iom_destroy(machine->ulsan_244.iom3);
+        semu_apollo4_iom_destroy(machine->ulsan_244.iom6);
         semu_ulsan_244_iom2_destroy(&machine->ulsan_244.iom2);
         semu_scheduler_destroy(machine->scheduler);
         semu_bus_destroy(machine->bus);
+        semu_apollo4_gpio_destroy(machine->ulsan_244.gpio);
         semu_ulsan_disp_destroy_state(&machine->ulsan_244.display);
         free(machine->ulsan_244.emmc_media);
         semu_sapporo_239_files_destroy(machine->sapporo_239_files);
@@ -497,6 +558,11 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
     }
     semu_apollo4_reset(machine->soc);
     semu_sapporo_devices_reset(machine->devices);
+    semu_ulsan_244_gps_reset(&machine->ulsan_244.gps);
+    semu_apollo4_iom_reset(machine->ulsan_244.iom1);
+    semu_apollo4_iom_reset(machine->ulsan_244.iom3);
+    semu_apollo4_iom_reset(machine->ulsan_244.iom6);
+    semu_ulsan_crown_reset(&machine->ulsan_244.crown);
     semu_ulsan_244_iom2_reset(&machine->ulsan_244.iom2);
     if (machine->ulsan_244.motion.controller != NULL)
         semu_ulsan_244_motion_reset(&machine->ulsan_244.motion);

@@ -382,6 +382,17 @@ static void test_244_display_power_and_refusals(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
                      semu_bus_read(bus, PWR_BASE + 0x2cu, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x10u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x20u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x0fu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     semu_bus_read(bus, PWR_BASE + 0x194u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x3fu, value);
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+                     semu_bus_write(bus, PWR_BASE + 0x194u, 4u, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
                      semu_bus_read(bus, PWR_BASE + 0x08u, 4u, &value, &error));
     SEMU_TEST_EQ_U64(context, 0x000c01e0u, value);
     SEMU_TEST_EQ_U64(context, SEMU_OK,

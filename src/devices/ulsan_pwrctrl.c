@@ -207,6 +207,14 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
                        "Ulsan 2.44 power control requires 32-bit reads");
         return SEMU_ERR_UNSUPPORTED;
     }
+    /* E-ULS-0093: native 2.44 late power status sampler. */
+    if (state->display_mask != 0u) {
+        switch (word_offset) {
+        case 0x20u: *value = 0x0fu; return SEMU_OK;
+        case 0x194u: case 0x198u: *value = 0x3fu; return SEMU_OK;
+        default: break;
+        }
+    }
     if (word_offset == OFFSET_DEVICE_POWER_ENABLE ||
         word_offset == OFFSET_DEVICE_POWER_STATUS) {
         const uint32_t word =
@@ -225,8 +233,7 @@ static semu_status pwrctrl_read(void *context, uint32_t offset,
         if (observed_reads[index].offset == word_offset) {
             /* Only the older profile observed these constant reads. */
             if (state->display_mask != 0u &&
-                (word_offset == 0x0cu || word_offset == 0x10u ||
-                 word_offset == 0x2cu)) {
+                (word_offset == 0x0cu || word_offset == 0x2cu)) {
                 break;
             }
             const uint32_t shift = (offset & 3u) * 8u;
