@@ -184,4 +184,4 @@ id	phase	title	status	dependencies	ticket
 819	7	Ulsan 2.44.52 Service Mode Frame	done	818	plans/tasks/819-ulsan-244-service-mode-frame.md
 820	7	Ulsan 2.44.52 Native Hello	done	819	plans/tasks/820-ulsan-244-native-hello.md
 821	7	Ulsan 2.44.52 Native Onboarding Input	done	820	plans/tasks/821-ulsan-244-native-onboarding.md
-822	7	Ulsan 2.44.52 Crown-Only Pairing Guidance	ready	821	plans/tasks/822-ulsan-244-crown-only-pairing.md
+822	7	Ulsan 2.44.52 Crown-Only Pairing Guidance	done	821	plans/tasks/822-ulsan-244-crown-only-pairing.md

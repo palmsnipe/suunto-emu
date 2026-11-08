@@ -1,6 +1,6 @@
 # 822 — Ulsan 2.44.52 Crown-Only Pairing Guidance
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 821
 
@@ -99,6 +99,12 @@ Both end at generation 265, 40,863,500,172 virtual ns, and
 The mixed route also reaches that frame on two cold boots. Hello and
 Service Mode preserve their exact reference hashes. Hello timing and
 the three standalone numeric selector pins were rederived in E-ULS-0100.
+
+The private `make test TEST_FILTER=ulsan` passed all 89 cases.
+Both opt-in scripts passed under
+`make test-firmware TEST_PROFILE=ulsan-2.44.52 TEST_FILTER=ulsan_244_`.
+`make check-task-contracts`, `make check-lines`, `make check`,
+`make sanitize`, and `make check-sdl` also passed.
 
 The verified walk ends at the last pairing guidance screen. BLE
 pairing remains outside this ticket.
