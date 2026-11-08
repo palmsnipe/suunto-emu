@@ -1,6 +1,6 @@
 # 820 — Ulsan 2.44.52 Native Hello
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 819
 

@@ -182,4 +182,4 @@ id	phase	title	status	dependencies	ticket
 817	7	Ulsan 2.44.52 MSPI1 Startup	done	816	plans/tasks/817-ulsan-244-mspi1-startup.md
 818	7	Ulsan 2.44.52 Post-Storage MMIO	done	817	plans/tasks/818-ulsan-244-post-storage-mmio.md
 819	7	Ulsan 2.44.52 Service Mode Frame	done	818	plans/tasks/819-ulsan-244-service-mode-frame.md
-820	7	Ulsan 2.44.52 Native Hello	ready	819	plans/tasks/820-ulsan-244-native-hello.md
+820	7	Ulsan 2.44.52 Native Hello	done	819	plans/tasks/820-ulsan-244-native-hello.md
