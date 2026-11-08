@@ -30,6 +30,7 @@ typedef struct semu_ulsan_iom4 {
     unsigned irq_level;             /* last driven line level       */
     ulsan_iom4_endpoints endpoints;
     int race_s_244;
+    int actuator_enabled;           /* enabled by the Race S full UI boot */
 } semu_ulsan_iom4;
 
 semu_status semu_ulsan_244_iom4_map(semu_bus *bus, semu_ulsan_iom4 *state,

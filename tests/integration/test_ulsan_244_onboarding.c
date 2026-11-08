@@ -25,7 +25,7 @@ typedef struct {
 } capture;
 
 static const char height_sha[] =
-    "f12cb4dac6021762daac33da0a1454a97f515d54238c5e76ff6efb2b23cd0c86";
+    "0524d291bd3bd1719f38beadf31c6aff655ea74d8579b26477cc6791d3e527c3";
 
 static void capture_frame(void *context, const semu_frame *frame)
 {
@@ -98,12 +98,12 @@ static int send(semu_machine *machine, semu_input_event event, semu_status expec
     return 0;
 }
 
-static int click(semu_machine *machine, capture *result, unsigned settle)
+static int click(semu_machine *machine, capture *result, unsigned settle, unsigned hold)
 {
     semu_input_event middle = {.kind = SEMU_INPUT_BUTTON, .code = SEMU_BUTTON_MIDDLE, .value = 0};
     if ((settle != 0u && !run(machine, result, settle, NULL)) ||
         !send(machine, middle, SEMU_OK) ||
-        !run(machine, result, 250u, NULL))
+        !run(machine, result, hold, NULL))
         return 0;
     middle.value = 1;
     return send(machine, middle, SEMU_OK);
@@ -153,21 +153,23 @@ static int swipe_up(semu_machine *machine, capture *result)
     }, SEMU_OK);
 }
 
-static int walk(semu_machine *machine, capture *result)
+static int walk(semu_machine *machine, capture *result, int crown_only)
 {
-    /* E-ULS-0098: native frame checkpoints; numeric selectors have separate
-     * standalone pins where the reference layout differs. */
+    /* E-ULS-0098 and E-ULS-0100: native frames, with standalone pins for
+     * numeric selectors where the reference layout differs. */
     static const checkpoint setup[] = {
         {"hello", "9d02076e5fe66dad7ceccf7b4b86c1c59ab5e5f2948906868ba87a1df7ff9c76", 35000u},
         {"language-english", "c36ca7042f5a4b67c67eac41c400054749a53859d33298b0e517effdaedc9972", 5000u},
         {"define-profile", "233aa486b330e5531a32ad752e4a08a4e04d4355d0efa60b83e0c7b79ac32d38", 8000u},
         {"profile-purpose", "e0db0fa1a3ffc80b75fd4541f64f3d5281839c3777ea5e27a98808c9f4e42c58", 6000u},
         {"gender-female", "a3ea323f3daaf424e1a3ab2f72261d150437590226134c4aa377b0ef4e148d5a", 6000u},
-        {"birth-year-1990", "87a078641f7c3dea669d80cc702a6145521f1361d61f6ce959e810705b6f5b74", 6000u},
-        {"unit-metric", "1fb75497658bbc503b943a21460e74f60c81326da3c9eb32f952edadbe214c1a", 6000u},
-        {"time-format-24h", "adf7afd6580f36e617a6f6851c8067ba50daf1db19e4d21591e6899b95a08992", 6000u},
-        {"weight-70kg", "63f74351ed53f1ff206bc914224423e9fefe1bfd1c6aab8bde54643a2c778cfc", 6000u},
     };
+    static const checkpoint time_format = {
+        "time-format-24h", "adf7afd6580f36e617a6f6851c8067ba50daf1db19e4d21591e6899b95a08992", 6000u
+    };
+    static const char birth[] = "05e3252405bb9124443df6f340f3d112eec6a010dcc1d2bd641820a4e6aa6b21";
+    static const char units[] = "1fb75497658bbc503b943a21460e74f60c81326da3c9eb32f952edadbe214c1a";
+    static const char weight[] = "8e1622377668c5bd8ccf7f3a6372aed929a3a659a6e3ddb28348f06739504547";
     static const char pairing[] = "4142652463adabae9d874faa34f57a61f010249e013f04e376058cfc19e85ec4";
     static const char guidance[] = "7a29d4351f23e6e0cc7be0985b224a5da0e700f16946091273005356c5a9efdd";
     static const char scrolled[] = "075d2337ca69338649a146f76d81f8d5bbd0d0d6f07b4cbcf251ffcde8527e59";
@@ -179,23 +181,48 @@ static int walk(semu_machine *machine, capture *result)
     if (!send(machine, detent, SEMU_ERR_CONFLICT) || !send(machine, contact, SEMU_ERR_CONFLICT))
         return 0;
     for (i = 0u; i < SEMU_ARRAY_LEN(setup); ++i) {
-        if (i != 0u && !click(machine, result, i == 1u ? 250u : 800u))
+        if (i != 0u && !click(machine, result, i == 1u ? 250u : 800u, 250u))
             return 0;
         if (!run(machine, result, setup[i].budget_ms, &setup[i]))
             return 0;
     }
-    /* The height frame can commit during the next view's transition. */
-    if (!click(machine, result, 800u) || !run(machine, result, 2300u, NULL) ||
-        !click(machine, result, 800u) || !run(machine, result, 1200u, NULL) ||
-        result->height == 0u || result->height >= result->frames)
+    /* With native actuator completion, shorter presses select Gender and Birth Year. */
+    if (!click(machine, result, 800u, 150u) || !run(machine, result, 2000u, NULL) ||
+        !at_checkpoint(machine, result, "birth-year-1990", birth) ||
+        !click(machine, result, 0u, 150u) || !run(machine, result, 2000u, NULL) ||
+        !at_checkpoint(machine, result, "unit-metric", units) ||
+        !click(machine, result, 800u, 250u) ||
+        !run(machine, result, time_format.budget_ms, &time_format) ||
+        !click(machine, result, 800u, 250u) || !run(machine, result, 1300u, NULL) ||
+        !at_checkpoint(machine, result, "weight-70kg", weight))
         return 0;
+    /* The height frame can commit during the next view's transition. */
+    if (!click(machine, result, 800u, 250u) || !run(machine, result, 2300u, NULL) ||
+        !click(machine, result, 800u, 250u) || !run(machine, result, 1200u, NULL))
+        return 0;
+    if (result->height == 0u || result->height >= result->frames) {
+        fprintf(stderr, "missing height before pairing: last frame=%s generation=%llu\n",
+                result->sha, (unsigned long long)result->frames);
+        return 0;
+    }
     printf("stage=height-170cm generation=%llu sha256=%s\n",
            (unsigned long long)result->height, height_sha);
     if (!at_checkpoint(machine, result, "pairing-connect", pairing) ||
         !run(machine, result, 800u, NULL) || !rotate(machine, result, 8u) ||
-        !click(machine, result, 0u) || !run(machine, result, 1200u, NULL) ||
+        !click(machine, result, 0u, 250u) || !run(machine, result, 1200u, NULL) ||
         !at_checkpoint(machine, result, "pairing-guidance", guidance))
         return 0;
+    if (crown_only) {
+        /* E-ULS-0099: keep the idle interval that exposed the stalled list
+         * before asking the guest to consume another crown burst. */
+        return rotate(machine, result, 6u) && run(machine, result, 650u, NULL) &&
+               at_checkpoint(machine, result, "crown-scroll", scrolled) &&
+               run(machine, result, 1650u, NULL) &&
+               at_checkpoint(machine, result, "crown-scroll-after-idle", scrolled) &&
+               rotate(machine, result, 6u) &&
+               run(machine, result, 650u, NULL) &&
+               at_checkpoint(machine, result, "crown-scroll-bottom", bottom);
+    }
     return run(machine, result, 450u, NULL) && swipe_up(machine, result) &&
            run(machine, result, 600u, NULL) &&
            at_checkpoint(machine, result, "touch-scroll", scrolled) &&
@@ -217,7 +244,7 @@ static int check_log(FILE *log)
     return !ferror(log);
 }
 
-static void test_ulsan_244_onboarding(semu_test_context *context)
+static void verify_onboarding(semu_test_context *context, int crown_only)
 {
     static const char *const layers[] = {
         "ulsan-2.44-production-data", "ulsan-2.44-emmc", "ulsan-2.44-gps-startup"
@@ -270,7 +297,7 @@ static void test_ulsan_244_onboarding(semu_test_context *context)
         SEMU_TEST_ASSERT(context, machine != NULL);
 
         printf("cold boot %u\n", boot);
-        passed = walk(machine, &result);
+        passed = walk(machine, &result, crown_only);
         time_ns = semu_machine_virtual_time(machine);
         instructions = semu_machine_instructions(machine);
         semu_machine_destroy(machine);
@@ -293,9 +320,20 @@ static void test_ulsan_244_onboarding(semu_test_context *context)
     }
 }
 
+static void test_ulsan_244_crown_only(semu_test_context *context)
+{
+    verify_onboarding(context, 1);
+}
+
+static void test_ulsan_244_onboarding(semu_test_context *context)
+{
+    verify_onboarding(context, 0);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
+        SEMU_TEST_CASE(test_ulsan_244_crown_only),
         SEMU_TEST_CASE(test_ulsan_244_onboarding)
     };
     (void)setvbuf(stdout, NULL, _IOLBF, 0u);

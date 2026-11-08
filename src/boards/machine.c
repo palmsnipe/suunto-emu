@@ -364,6 +364,8 @@ static semu_status bind_ulsan_gps(semu_machine *machine, semu_error *error)
     }
     board->touch.gpio = board->gpio;
     board->crown.gpio = board->gpio;
+    /* The reference lane attaches the actuator for the full UI boot. */
+    board->iom4.actuator_enabled = 1;
     semu_apollo4_gpio_enable_race_s_inputs(board->gpio);
     board->iom3_endpoint = (semu_serial_endpoint){
         "ulsan.iom3", ulsan_iom3_transfer, &board->touch};

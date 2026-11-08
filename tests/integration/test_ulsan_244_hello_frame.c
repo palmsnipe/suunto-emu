@@ -45,7 +45,7 @@ static void check_transcript(semu_test_context *context, FILE *log)
     static const char *const expected[] = {
         "trigger=first-open-status", "trigger=ohr2-boot-mode", "trigger=ver-status",
         "trigger=reopen-status", "trigger=ohr2-boot-mode", "trigger=gsr-status",
-        "trigger=gps-awake", "trigger=gps-awake"
+        "trigger=gps-awake", "trigger=gps-awake", "trigger=gps-awake", "trigger=gps-awake"
     };
     char line[512];
     size_t hits = 0u;
@@ -74,7 +74,7 @@ static void test_ulsan_244_hello_frame(semu_test_context *context)
     };
     const char *manifest = getenv("SEMU_ULSAN_244_FIRMWARE_MANIFEST");
     const char *image = getenv("SEMU_ULSAN_244_EMMC_IMAGE");
-    const semu_run_limits limits = {UINT64_C(2000000000), UINT64_C(31000000000)};
+    const semu_run_limits limits = {UINT64_C(8000000000), UINT64_C(31000000000)};
     semu_profile profile;
     semu_firmware_manifest firmware;
     semu_machine_options options = {0};
@@ -126,10 +126,11 @@ static void test_ulsan_244_hello_frame(semu_test_context *context)
         SEMU_TEST_EQ_U64(context, 0u, result.invalid);
         SEMU_TEST_EQ_U64(context, 2u, result.first_match);
         SEMU_TEST_EQ_U64(context, 3u, result.matches);
-        SEMU_TEST_EQ_U64(context, 185u, result.frames);
-        SEMU_TEST_EQ_U64(context, 0x0009d150u, pc);
-        SEMU_TEST_EQ_U64(context, UINT64_C(1730190171), instructions);
-        SEMU_TEST_EQ_U64(context, UINT64_C(31000000000), time_ns);
+        /* E-ULS-0100: native actuator completion removes startup timeouts. */
+        SEMU_TEST_EQ_U64(context, 191u, result.frames);
+        SEMU_TEST_EQ_U64(context, 0x000d47f0u, pc);
+        SEMU_TEST_EQ_U64(context, UINT64_C(7288627512), instructions);
+        SEMU_TEST_EQ_U64(context, UINT64_C(31014847988), time_ns);
         printf("boot=%u generation=%llu size=466x466 sha256=%s matches=%u frames=%u "
                "pc=%08x instructions=%llu time_ns=%llu\n",
                boot, (unsigned long long)result.first_match, hello_hash,

@@ -329,13 +329,70 @@ static void test_244_dma_completion_and_refusal(semu_test_context *context)
     semu_bus_destroy(bus);
 }
 
+static void test_244_actuator(semu_test_context *context)
+{
+    semu_ulsan_iom4 controller;
+    semu_error error;
+    semu_bus *bus = semu_bus_create(&error);
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, bus != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_map_ram(bus, "waveform", BUFFER, 5u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_ulsan_244_iom4_map(bus, &controller, NULL, NULL, &error));
+    wr(context, bus, 0x2c4u, 0x50u);
+    wr(context, bus, 0x220u, BUFFER);
+
+    /* The IOM presents the waveform as a four-byte FIFO word and a tail. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, BUFFER, 4u, 0xfc7f0240u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, BUFFER + 4u, 1u, 1u, &error));
+    wr(context, bus, 0x218u, 0x103u);
+    wr(context, bus, 0x21cu, 5u);
+    wr(context, bus, 0x120u, 0x501u);
+    SEMU_TEST_EQ_U64(context, 0u, rd(context, bus, 0x204u));
+    controller.actuator_enabled = 1;
+    wr(context, bus, 0x120u, 0x501u);
+    SEMU_TEST_EQ_U64(context, 0x403u, rd(context, bus, 0x204u));
+    SEMU_TEST_EQ_U64(context, 0x102u, rd(context, bus, 0x218u));
+
+    wr(context, bus, 0x208u, 0xffffffffu);
+    wr(context, bus, 0x218u, 0x101u);
+    wr(context, bus, 0x21cu, 1u);
+    wr(context, bus, 0x120u, 0x01000112u);
+    SEMU_TEST_EQ_U64(context, 0x403u, rd(context, bus, 0x204u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, BUFFER, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_write(bus, BUFFER, 1u, 0x5au, &error));
+    wr(context, bus, 0x208u, 0xffffffffu);
+    wr(context, bus, 0x218u, 0x101u);
+    wr(context, bus, 0x120u, 0x02000112u);
+    SEMU_TEST_EQ_U64(context, 0x800u, rd(context, bus, 0x204u));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_bus_read(bus, BUFFER, 1u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x5au, value);
+
+    wr(context, bus, 0x208u, 0xffffffffu);
+    wr(context, bus, 0x218u, 0x103u);
+    wr(context, bus, 0x21cu, 5u);
+    wr(context, bus, 0x120u, 0x501u);
+    SEMU_TEST_EQ_U64(context, 0x800u, rd(context, bus, 0x204u));
+    semu_bus_destroy(bus);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
         { "test_doorbell_write_read_cycle", test_doorbell_write_read_cycle },
         { "test_doorbell_refusal_paths", test_doorbell_refusal_paths },
         { "test_irq_line_and_status", test_irq_line_and_status },
-        { "test_244_dma_completion_and_refusal", test_244_dma_completion_and_refusal }
+        { "test_244_dma_completion_and_refusal", test_244_dma_completion_and_refusal },
+        { "test_244_actuator", test_244_actuator }
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

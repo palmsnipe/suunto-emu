@@ -111,6 +111,33 @@ static int iom4_is_storeless_read_zero(uint32_t offset)
 #define IOM4_INTSTAT_DMA_ERROR (UINT32_C(1) << 11)
 #define IOM4_DMA_STATUS_COMPLETE 2u
 #define IOM4_DMA_STATUS_ERROR 4u
+#define IOM4_RACE_S_ACTUATOR 0x50u
+
+/* E-ULS-0100: IOM4 delivers a waveform as one four-byte FIFO word
+ * followed by a one-byte selector. Register 0x01 stays at its reset value
+ * because none of the admitted writes modify it. */
+static int iom4_actuator_write_allowed(uint32_t command, const uint8_t *data)
+{
+    switch (command) {
+    case 0x501u:
+        return data[0] == 0x40u && data[1] <= 0x20u &&
+               (data[4] == 0u || data[4] == 1u || data[4] == 3u ||
+                data[4] == 9u || data[4] == 0x0au || data[4] == 0x0du);
+    case 0x201u:
+        switch (data[0]) {
+        case 0x09u:
+            return data[1] == 0u || data[1] == 0x12u || data[1] == 0x32u ||
+                   data[1] == 0x40u || data[1] == 0xb2u;
+        case 0x0bu: return data[1] == 0x1au;
+        case 0x0du: return data[1] == 1u;
+        case 0x11u: return data[1] == 2u;
+        case 0x12u: return data[1] == 0x6fu;
+        case 0x13u: return data[1] == 0xa3u;
+        default: return 0;
+        }
+    default: return 0;
+    }
+}
 
 static int iom4_target_allowed(semu_ulsan_iom4 *s, uint32_t command,
                                uint32_t count, int *to_device)
@@ -158,6 +185,8 @@ static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
     uint32_t size = (command >> 8) & 0xFFFu;
     uint32_t count = s->dma_total < size ? s->dma_total : size;
     uint8_t payload[4096];
+    const int actuator = s->race_s_244 && s->actuator_enabled &&
+                         s->i2c_device == IOM4_RACE_S_ACTUATOR;
     int to_device = 0;
     unsigned i;
     semu_error error;
@@ -175,7 +204,12 @@ static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
         iom4_dma_mark_error(s);
         return;
     }
-    if (!ulsan_iom4_endpoint_known(s->i2c_device)) {
+    if (actuator && (count != size || count != s->dma_total ||
+                     (!to_device && command != 0x01000112u))) {
+        iom4_dma_mark_error(s);
+        return;
+    }
+    if (!actuator && !ulsan_iom4_endpoint_known(s->i2c_device)) {
         return; /* endpoint beyond the observed traffic: no transfer */
     }
 
@@ -188,7 +222,14 @@ static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
                 return;
             }
         }
-        ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, payload, count);
+        if (actuator) {
+            if (!iom4_actuator_write_allowed(command, payload)) {
+                iom4_dma_mark_error(s);
+                return;
+            }
+        } else {
+            ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, payload, count);
+        }
     } else if (to_device) {
         /* Validate the full SRAM source before touching the endpoint. */
         for (i = 0u; i < count; i++) {
@@ -214,14 +255,17 @@ static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
                 return;
             }
         }
-        if (offset_enable != 0u) {
-            /* Upstream sends the OFFSETLO byte to the endpoint as a
-             * one-byte write first: the recorder selects on it without
-             * storing; the gauge takes it as its register pointer. */
-            uint8_t offset_byte = (uint8_t)((command >> 24) & 0xFFu);
-            ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, &offset_byte, 1u);
+        if (actuator) {
+            payload[0] = 0u;
+        } else {
+            if (offset_enable != 0u) {
+                /* Upstream sends OFFSETLO first. The recorder selects it
+                 * and the gauge takes it as its register pointer. */
+                uint8_t offset_byte = (uint8_t)((command >> 24) & 0xFFu);
+                ulsan_iom4_endpoint_write(&s->endpoints, s->i2c_device, &offset_byte, 1u);
+            }
+            ulsan_iom4_endpoint_read(&s->endpoints, s->i2c_device, payload, count);
         }
-        ulsan_iom4_endpoint_read(&s->endpoints, s->i2c_device, payload, count);
         for (i = 0u; i < count; i++) {
             uint32_t status;
             status = semu_bus_write(s->bus, s->dma_target + i, 1u,
@@ -232,7 +276,7 @@ static void iom4_doorbell_data_phase(semu_ulsan_iom4 *s, uint32_t command)
             }
         }
     }
-    ulsan_iom4_endpoint_finish(&s->endpoints, s->i2c_device);
+    if (!actuator) ulsan_iom4_endpoint_finish(&s->endpoints, s->i2c_device);
     s->dma_config &= ~IOM4_DMA_ENABLE; /* wrapper CompleteDma auto-clear */
     s->dma_status = IOM4_DMA_STATUS_COMPLETE;
     s->interrupt_status |= IOM4_INTSTAT_DMA_COMPLETE |

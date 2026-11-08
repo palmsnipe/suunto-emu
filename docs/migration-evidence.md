@@ -19000,3 +19000,163 @@ in E-ULS-0098 avoids this case. No guest code or list state is patched.
 | `standalone-stall-{1,2}/log` | `98c978518a05683fdfc303bbac1906de690ef6452933ab4a3971c8d78f2525ae` |
 | `stall-disassembly-{1,2}.txt` | `1343e2ddea77c01b18ee30f2239bc77b4674dc1c6c4856b9363eef37fddee7f1` |
 | `stall-caller-{1,2}.txt` | `7cbfb95574ddc1b88974c57ef2a575099cedca7eae3a2b57511adc6e003e9233` |
+
+## E-ULS-0100 — Race S IOM4 actuator initialization and crown feedback
+
+2026-11-08. The E-ULS-0099 list stall follows a native assertion.
+Two cold standalone probes show 15 waveform uploads timing out at
+IOM4 device 0x50. The first five-byte write is `40 00 20 00 00`,
+command `0x501`, DMA configuration `0x103`, count 5. Native code
+at `0x12e550` receives zero from the timed-out transfer and returns
+`0xffffffff` at `0x12e592`. The selection of effect `0x37` later
+reads that invalid index at `0x12e29c` from the actuator table rooted
+at `0x1005b52c`. This trips line 219 of `VibraPmicDriver.cpp`.
+The assertion sets PRIMASK at `0x4df96` at 50,303,955,066 ns.
+The CPU then executes the guest's PendSV request with interrupts
+masked. Three inserts at 50,303,956,562, 50,303,957,013, and
+50,303,957,462 ns have item owners 0, `0x1002a4cc`, and
+`0x1002a4cc`, respectively. The middle insert creates the self-link.
+The probes neither change guest state nor force the firmware path.
+With the original actuator behavior, the regression using the
+E-ULS-0099 setup timing reaches scrolled generation 203, then
+refuses a detent after idle because earlier crown motion is still
+pending. The focused IOM4 test also fails before the fix because
+the first waveform write never sets completion bits `0x403`.
+
+The pinned application component and GNU Thumb disassembler are
+the E-ULS-0099 inputs. Two runs of the bounded instruction trace
+(1,060 instructions covering the repeated insert) and mask census
+match byte for byte. The flash decode at load base `0x30000` shows
+the check for an index below 256 and the assertion branch at
+`0x12e29c..0x12e2ac`.
+
+Two cold Renode lane runs start from the E-ULS-0098 fixtures. They
+send six clockwise detents at 125 ms intervals after the guidance
+frame, settle for 650 ms, idle for 1,550 ms and send eight more
+detents at the same interval. No touch reports occur. Both publish
+the same guidance, scrolled and bottom hashes from E-ULS-0098, with
+the latter at 32,850 virtual ms. The 204 captured calls through
+`0x828be` always see a cleared item owner. The second pair repeats
+this input with IOM4 tracing and shows 117 identical DMA rows at
+address 0x50, with no actuator refusals:
+
+- 66 five-byte writes, command `0x501`, covering waveform slots
+  `0x00..0x20` twice. The first four bytes form a FIFO word starting
+  with `0x40`. The last byte is a separate one-byte selector from
+  `00,01,03,09,0a,0d`.
+- 49 two-byte writes, command `0x201`. The admitted pairs are
+  `09:00,09:12,09:32,09:40,09:b2,0b:1a,0d:01,11:02,12:6f,13:a3`.
+- Two one-byte reads, command `0x01000112`, both return the unmodified
+  status register `0x01` value of zero. Write and read completions
+  use the existing Race S IOM4 completion bits `0x403`.
+
+The lane implementation is `emulator/renode/iom/Apollo4IomDma.cs`
+(SHA-256 `89cdf5b73533498d3cad8cd397f9b02e6387e70b5ef8b731289138bdbd58e8bd`).
+Its `AuxI2cDevice` validates the two FIFO portions independently.
+The accepted write set leaves status register `0x01` at reset.
+The standalone implements the same observed command shapes on the
+2.44 IOM4, validates the whole DMA operation, and uses the existing
+completion and error paths. The lane attaches the actuator in
+`emulator/devices/ulsan/ulsan-2.44.52-native-ui-trace.resc`
+(SHA-256 `abce9cc8b54cc8a8c4aaae99201ff3b7af3c2e195d62e98139cfa8d922eb259b`)
+via `UlsanActuatorAuxI2c true`. The standalone binds it alongside
+crown and touch in the manifest-validated production-data, eMMC,
+and GPS session. Its scope is DMA completion and the observed status
+read.
+
+| Files below `/tmp/semu-822.SwGQ7F` | SHA-256 |
+| --- | --- |
+| `probe-lane.py` | `10d9df39d18ff93efe5ed208812d36b65c892c4fc9001e296da6d830d554fb9f` |
+| `probe-vibra.py` | `03e17ed868867014cbefdd7a7e81b8047a32c22a432047501e90f46b27d92444` |
+| `lane-1/probe.resc` | `53fc555fd376aa24d87c8eaa8695880dc39d800c09a0bcdf386d9b47f07f4d95` |
+| `lane-2/probe.resc` | `9d73b40c772f1ebb224d83abb9510fb20ca8ff11b3b2b4372bc93ac8355c3d38` |
+| `lane-1/renode.log` | `7cd60e84f06dbc6b0a9f88c7c5d7f6ac5b34d4c939c65c9c6560579ea2ddceff` |
+| `lane-2/renode.log` | `854f4495dbb58b26df07080895a4685d3cbd12c5c1254c5d6606d98144029953` |
+| `lane-{1,2}.norm` | `b9169e1e367dbbeba9c885269fd4e22f29c573106f28384d3a9a3e48237aa9ef` |
+| `vibra-lane-1/probe.resc` | `3a8d1aa74fb562a0d3d324435060a7db5b0739560b5965e769a2069836b8f7ff` |
+| `vibra-lane-2/probe.resc` | `991df5135b6693665f18e14ae0abbed7fe8883027cc9914a2b87c642b3678da8` |
+| `vibra-lane-1/renode.log` | `c60dd2ee4dab5b0927b617855dc12ec1a21a25f73189051ed55d1d9d92cf860e` |
+| `vibra-lane-2/renode.log` | `f5f9b760a4246ad3ef7ddaac993b74d52256d66f9aaecfc82db9e2af5ccf11eb` |
+| `vibra-lane-{1,2}.norm` | `29d651a6af639264c13d32a155f3444105cca9adcc7bf6657ab171c2d5fb2702` |
+| `walk-stall.c` | `babf395ed4996d3a2fbd7e83c2c4ea41a77e747da3bd76a1b8997493df98db11` |
+| `guided-stall.txt` | `065fda306675fda42063b08e9b8243f7a97ea2a51b945ec3d02571ad76585561` |
+| `guided-mask.txt` | `4d5f0bd872ffd9318ebe567151bfebf056bb9885ad68c1bc8454ce7df7579e45` |
+| `observe-bus.c` | `20403550038e431725eda28eec7d105f7cb68c8e87d23ef9c76889dd3ab4171c` |
+| `cycle-run.c` | `96412d8d7f323ed9d2d22468aa6d0fa763ec80ec3fc0c8f6f2b73a41922a910d` |
+| `mask-run.c` | `a04ce0224670a9bb67b7b13b0128e6e53ea197dd12a804af626c7b333ad41ae1` |
+| `vibra-run.c` | `56222a07713919dda2c9ab9db65d988f5a077b5c00ae53d93069433ba5a3d4d8` |
+| `vibra-iom4.c` | `7486c22317b2e7bc8fa6c07448f87a432cde569b48047c04e2a2001180fc5156` |
+| `assert.dis` | `de29f5d1ef0ef777ede277c21c4eceb296cf5763ed18143314932a462b5d4966` |
+| `test-red.c` | `70aef9d35e261786fd34d3af1e64fb53ce047a32bc163c667e22ad1019698ce3` |
+| `red.log` | `2bc39ef4dca49339d4e0970e1a82a6474b5dfddac89785793ef637be51317b23` |
+| `iom4-red.log` | `fffffded5c745102b6e30fb6619c611d124c4c3bc3a75b13ed6867f73d072b1c` |
+| `cycle-{1,2}/log` | `e811985e197f0a267ac73cb6f80661f3bbd7d2ff44df823a705dd78e001c4cf3` |
+| `mask-{1,2}/log` | `dd20e2c0e5216fb1a080e367f31656f9fdbaa3733a72d16b2aa56421ccbf94a2` |
+| `vibra-{1,2}/log` | `24c9ea030f2632aa08e7d40dd6a17ec9e3b213e5837b48ddf1ce5f0045f0aedb` |
+
+With the actuator enabled, the standalone publishes the same Hello
+hash at generation 2 at 8,075,628,400 ns when seeking the frame.
+Two no-input boots, each with an 8,000,000,000 instruction ceiling
+and 31,000,000,000 ns virtual-time budget, stop at the same idle
+boundary, PC `0x000d47f0` after 7,288,627,512 instructions and
+31,014,847,988 ns. Both publish 191 frames and match Hello three
+times. The GPS transcript retains the initial six triggers and
+records four periodic awake transitions within the longer idle
+window after startup, compared with two before actuator completion.
+Two independent Service Mode boots still publish the three original
+frames, ending at generation 3 with SHA-256
+`bc071732e63081b938b4d98e74cdb693a5781365e92abc14bcff99fa924ce526`.
+The two opt-in Race S 2.44 era scripts also retain their startup and
+reset checkpoints.
+
+The setup fixture uses 150 ms presses to advance from Gender and
+Birth Year on the corrected timeline. The native selectors still
+show 1990, 70 kg, and 170 cm. Their new standalone fingerprints are
+listed below. Height commits on the first frame of the transition
+to the pairing prompt, as in E-ULS-0098. The Hello, English,
+Define Profile, Purpose, Gender, Units, Time Format, Pairing Connect
+and all three pairing guidance hashes still match E-ULS-0098.
+
+| Numeric selector | Standalone generation | SHA-256 |
+| --- | ---: | --- |
+| Birth Year 1990 | 78 | `05e3252405bb9124443df6f340f3d112eec6a010dcc1d2bd641820a4e6aa6b21` |
+| Weight 70 kg | 104 | `8e1622377668c5bd8ccf7f3a6372aed929a3a659a6e3ddb28348f06739504547` |
+| Height 170 cm | 105 | `0524d291bd3bd1719f38beadf31c6aff655ea74d8579b26477cc6791d3e527c3` |
+
+The standalone crown-only regression starts with the E-ULS-0099
+burst of six +24 detents spaced 125 ms apart and settles for
+650 ms. It preserves the 1,650 ms total idle interval, requires the
+scrolled frame to remain visible, then sends six further detents.
+The test's only touch attempt is a refusal check before the first
+guest instruction. The mixed route still swipes upward and then
+rotates the crown to the bottom.
+
+The two cold crown-only stage transcripts match byte for byte.
+Both runs finish at 40,863,500,172 ns and 5,766,925,599
+instructions, with 265 published frames and no renderer refusal or
+machine reset. The reference hashes at guidance, scrolled, and
+bottom are the E-ULS-0098 pins.
+
+| Crown-only stage | Standalone generation | Virtual ns |
+| --- | ---: | ---: |
+| Pairing guidance | 130 | 36,014,847,988 |
+| After the opening burst | 208 | 37,587,944,542 |
+| After idle | 208 | 39,327,529,506 |
+| After the second burst | 265 | 40,863,500,172 |
+
+The mixed route also reproduces the reference scrolled hash at
+generation 193 and 37,382,766,726 ns. Its two byte-identical runs
+reach the same reference bottom at generation 250 and
+39,839,509,124 ns after 5,703,721,234 instructions.
+
+| Files below `/tmp/semu-822.SwGQ7F` | SHA-256 |
+| --- | --- |
+| `hello-pins.c` | `4a7f9f009b46d4cad04987678d847cb8cded6d6f23bb53d757d351d6c3aa8e5e` |
+| `hello-pins.log` | `0c94a1ef04eb727ab7a52b6663e7f7e3bb341d0668ffc4c6cb738dd89df922e9` |
+| `hello-final.log` | `88d0327f08594dca541dbceae7f90c1f6723591cbacbe767d2c0d87ae785f4f0` |
+| `onboard-final.log` | `b603e828ce8efde8b873ea9c77996222d010181506a3d1c52889eff07337e04b` |
+| `service.log` | `bab40b56bf4dc1e7f6020413a5f54825aab98905304f3d282076c69a0120e69a` |
+| `firmware-final.log` | `fb68f1e3cc2c4fce0db36120eb2c4a8230060bbe5f8bae2abe1844dac88e5315` |
+| `normalize-final.py` | `3142ceca5341419c9e72a638ba85ae69825ac0c3f2b87c8ad5aac1a3e58a698e` |
+| `crown-only-{1,2}.norm` | `e83c9eab1829f5abac5791da822487a8d9b8a40c93403632171e6b2d903d612e` |
+| `mixed-{1,2}.norm` | `4e0d87ee44e613e15db9503fc72b2aa9370b46a1e435cf98c223a46e7da4c49e` |
