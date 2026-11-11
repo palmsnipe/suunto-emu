@@ -20154,3 +20154,79 @@ requires the first frame and arrival timing from a cold radio boot.
 | `tag-b-2.log` | `c66f2ece45fbdb5723bf9aab4e154642bf941b06327cc26942c509b6d60331dd` |
 | `tag-b-response-{1,2}.bin` | `b4534248505974f6f29b1700d47efb242fd22794b0afb4a56e5dccffcbbfff87` |
 | `tag-b-decoded-{1,2}.bin` | `ecca010223cb21bfa039ff0f20e90d9b103c5ac051b8f092f9c59e6f06be8924` |
+
+## E-ULS-0112 — Race S reaches BLE ON with the labeled radio reply
+
+2026-11-11. Two cold Race S Renode boots replay the E-ULS-0111
+pattern A response after the E-ULS-0110 startup exchange.
+Two cold controls omit only the subtype-2 response. All four
+use the pinned E-ULS-0104 application, lane, media and crown-only
+route, with a 60,000-virtual-ms stop and six-minute host timeout.
+The harness changes UART inputs and interrupts in the temporary
+wrapper. The firmware owns the parser, pending request and
+adapter state.
+
+The 22-byte startup and 18-byte acknowledgement have the hashes
+in E-ULS-0110. The 68-byte subtype-2 frame, SHA-256
+`8cf0c32b0ddfc9fc3f370145aa5e28fed5741f374cb2085b4c3b2ae75ce24442`,
+is the native radio output with E-ULS-0111's labeled FICR
+pattern A. It includes two escaped bytes and CRC-32
+`0x9332526e`. It contains test values for factory fields.
+
+The temporary UART wrapper holds CTS as in E-ULS-0110.
+It admits the acknowledgement after the exact 58-byte watch
+response. It admits the subtype-2 frame only after the next
+18-byte watch request matches the E-ULS-0110 capture, both
+transmit-complete interrupts have been cleared and the driver
+has returned to state 4. The two imposed TX completion delays
+are 600 and 200 microseconds after each verified frame's last
+TX write. The wrapper supplies no further completion event.
+The controls have the same two events and use the same budgets.
+
+| Boundary | Observation in both subtype-2 replays |
+| --- | --- |
+| UART readiness | Open returns 1 at tick `11492358369`. TX completions occur at `11501073994` and `11502568369` and the guest clears both. |
+| Final ingress | The 68 bytes arrive at ticks `11504099744..11504769744` at 10 microseconds per byte. All 108 ingress bytes from the three frames match at UARTDR and the native parser. |
+| Reply acceptance | The CRC-pass call `0xff586` and handler `0xda4d0` receive 60 decoded bytes at tick `11504827994`. The native subtype-2 path `0xdab50` matches pending sequence 1, status 0 and a 48-byte payload. |
+| Adapter ON | The callback `0xd7ba0` sees status 0 and context `0x10043a7c` at tick `11678146369`. The native ON path `0xd7728` runs and `0xd7858` stores state 3 at `11678580994`. |
+| Next request | The watch transmits 28 bytes at ticks `11678662869..11678666869`. Header `140b0400000002000a000000` identifies opcode `0x14`, subtype `0x0b`, sequence 2 and a 10-byte payload. Its wire SHA-256 is `73023ba762eb6aadd5527ed28e54cf95a0cae7fe335d9e3857abc17ed8ce2a30`. |
+| Return to START | A later dispatch at `0xda9c0` from the timeout path carries status 3 at tick `13726550744`. State 3 lasts 2,048,499,250 ticks before DISABLED, then OFF and START. Pairing readiness is zero later in the route. |
+
+The diagnostic delivers no reply to the sequence-2 command.
+It demonstrates a native ON transition under the labeled
+replay conditions and records the later return to START.
+The actual first frame and timing from a cold radio boot remain
+unverified. Ticket 826 stays blocked.
+
+The no-reply controls receive and parse 40 bytes, retry the
+sequence-1 request, and never store ON. They see status 3 at
+the same registered callback. The subtype-2 pair receives and
+parses 108 bytes and transmits 130 bytes in four frames. Its
+fourth frame is opcode `0x14`, subtype `0x0a`, sequence 3,
+with eight payload bytes. The control pair transmits 94 bytes
+in three frames. The two normalized traces match byte for byte
+within each pair. All four boots finish in START at 60,000
+virtual ms and match the pinned Hello, guidance and bottom frames.
+
+The post-ON timeout occurs while the harness withholds any
+further peer reply and TX completion. This run leaves their
+individual effects on sustained ON unresolved.
+
+| File below `/tmp/semu-826-watch-info.FATvD2` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `c24a44bad5939d878f8e3646e16c79ba979fc9055c05ff754727160b693ec8df` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `observe.hooks` | `3098c98644b4e10083595d410cc8a9196cc678c25b4abacaa06aa81379aa2238` |
+| `run.py` | `47b655044a0e4438c6658e14ef541156f633caad88884037caceeb23d9e7d0ad` |
+| `census.py` | `8d70d07f8ead373853291afaebb2e6202ebe4bd1c2e6624f5b6b59e2425c7686` |
+| `census.log` | `e459194a21c54163e16737c8c18d8c42dd5982526cfe18a5759316271481de12` |
+| `control-{1,2}/boot.norm` | `8d18564d7ea3c7621d8b31faa194cb398092acbaa3fcc105ec04fe85327d8608` |
+| `control-1/probe.resc` | `b89ec2e80c2a116b2623fb4824db3c7bc9eb09ac143dbdaaac2b3c2501f31ed8` |
+| `control-1/renode.log` | `7e186ef1b9b8fdf0ed378d4128e749bd0b875ec1bf5a9afa2264407f9e3d3c67` |
+| `control-2/probe.resc` | `ed51c6aaed68b43734a586e998cd9fcc6d6620d9307082e1da01f715b1cd0b64` |
+| `control-2/renode.log` | `134f6bec30ec209002332ec1cd6e2c97b55a2231df904587d771a7ae0cfdf6f7` |
+| `info-{1,2}/boot.norm` | `a30c1f89ea372f37165c44eaf36cc98a16470c7d7b4790d9ff4a148ebf359191` |
+| `info-1/probe.resc` | `c014ca2060ac0346c61475feb97f89e301fcfcf92746f0c3acfe0b9f819d88bf` |
+| `info-1/renode.log` | `b1152c0deedf87a44b92bad7ee102e05c5a7abbbbe45bad7dd0436b642681bc6` |
+| `info-2/probe.resc` | `5eef00ee3a46581f9615ed2cef1d91f7cf852927d05a1f58d1bef4d4e495efb9` |
+| `info-2/renode.log` | `7395980d806ea3869b06f103093cebdd150c1e0e331c6d3a748099ab97c05353` |
