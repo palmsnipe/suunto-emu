@@ -133,3 +133,20 @@ Nordic revision predicate allowed two bounded direct-entry probes
 past the first factory reads. They stop at the BambiTL clock status
 and application trim table. Status remains blocked on the installed
 reset path and the first timed UART3 capture.
+
+E-ULS-0108 ran the native radio startup encoder twice in isolation.
+Both runs produced the same 22-byte frame with the retained-data
+default and sequence 0. Two cold watch replays accepted those bytes
+at an imposed arrival time and emitted the same 58-byte reply.
+The adapter was still in START at the stop. The replay does not
+supply the actual radio cold-boot frame or its arrival time.
+Status remains blocked.
+
+The repeated private Race S suite passed all 89 cases, including
+two cold standalone boots each for Hello, Service Mode, crown-only
+guidance and mixed-input guidance. Both firmware-era scripts,
+task contracts, line checks and `make check` passed. The regression
+logs below `/tmp/semu-826-encoder.gWhYaO` reproduce the previous digests:
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
