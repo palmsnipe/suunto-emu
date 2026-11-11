@@ -1,6 +1,6 @@
 # 825 — Ulsan 2.44.52 Controlled UART3 CTS Probe
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 824
 
@@ -82,3 +82,13 @@ The normalized asserted trace SHA-256 is
 `841e5c4ade07248894e2f8096e2a158be0d5059c6092def64002913b98f39ef9`.
 The normalized control trace SHA-256 is
 `1a0be816f73133c314da71e6aa01fbd9e9e7e8c0160c4185bc2dc94262df6f11`.
+
+All 89 cases in `make test TEST_FILTER=ulsan` passed, including
+two cold boots each for Hello, Service Mode, crown-only guidance,
+and mixed-input guidance. Both selected firmware-era scripts passed.
+Task contracts, line checks, and `make check` passed.
+
+The private test logs under `/tmp/semu-825.vRuVjs` have these SHA-256 values.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
