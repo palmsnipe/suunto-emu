@@ -165,3 +165,20 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0110 replays the radio's 18-byte acknowledgement in two cold
+watch boots. The original lane drains its bytes from UARTDR while
+waiting for the transmit-complete interrupt. A separate pair with
+one diagnostic Apollo4 TX completion parses and matches the
+acknowledgement, then sends an opcode 0, subtype 0, sequence 1
+request. Neither path reaches ON, and native pairing readiness
+remains zero. Status stays blocked on the first cold radio frame
+and arrival time.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are below `/tmp/semu-826-watch-ack.JgvBuE`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`

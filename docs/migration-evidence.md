@@ -19931,3 +19931,113 @@ radio boot.
 | `crc-1.log` | `435392c487b5558f8d6bd56934faaa48881e25c937f9cd76fb25bff050823c6c` |
 | `crc-2.resc` | `fe1fb57a043b5d473e391e3eed7f4a8b75ac79d6a13bb81ab6e90df268d8f672` |
 | `crc-2.log` | `d412b452691be6ffd4325028952d0f79d0d94f0a68ccd16d9db925d7640f1ca3` |
+
+## E-ULS-0110 — Race S UART3 startup acknowledgement replay
+
+2026-11-11. The E-ULS-0108 startup frame and E-ULS-0109
+acknowledgement were replayed into the watch's UART3. Each of four
+conditions uses two cold Renode boots of the E-ULS-0104 lane,
+application, media and crown-only setup route. Each boot has a
+60,000-virtual-ms stop and a six-minute host limit. All conditions
+use the E-ULS-0108 CTS assertion and feed the 22-byte startup frame
+after native UART3 open. The probe admits the 18-byte follow-up
+only after observing the exact 58-byte watch response from which
+it was derived. No probe writes the guest parser or adapter state.
+
+The two firmware-generated input frames have SHA-256
+`00411af0059436f2cbc67c222e99f07387458e67cd0103caa5f6c2d53877d674`
+and `495529c11605c4a46821422512c5529fa9ac2432490f2804d470cd6d21c9d0f2`.
+The 58-byte admission gate uses
+`b3df5a8c4cb85945aac55b2332622248a7cb045654b67139b33d51fc7512a3c9`.
+Its bytes are extracted from the corresponding E-ULS-0108 normalized
+trace. UART3 opens at tick `11492358369`. The imposed ingress
+windows are `11500099744..11500309744` for startup and
+`11502099744..11502269744` for the acknowledgement, at 10
+microseconds per byte. The acknowledgement starts 1,625,750 ticks
+after the final write of the 58-byte watch reply.
+
+In the original PL011 wrapper, all 18 acknowledgement bytes reach
+UARTDR but none reach the byte parser. The watch driver moves into
+state 3 after its TX writes and enables bit 0 in the UART interrupt
+mask at `0xffc12`. It is still in state 3 with mask `0x51` at
+11,540 ms. The driver is waiting for its native completion path at `0xffd82`.
+The Apollo4 Plus SDK identifies bit 0 as the transmit-complete
+interrupt in the enable, raw status, masked status and clear
+registers. The Renode platform supplies a PL011 for UART3.
+[Ambiq UART register definitions](https://github.com/zephyrproject-rtos/hal_ambiq/blob/61b293a49db34030c545f99101f7ebf6a3050314/CMSIS/AmbiqMicro/Include/apollo4p.h#L45989),
+[Renode Apollo4 platform](https://github.com/renode/renode/blob/master/platforms/cpus/ambiq-apollo4.repl).
+
+A separate temporary wrapper exposes that bit and its IRQ once,
+600 microseconds after the final TX write of the verified 58-byte
+frame. This imposed event is observed at tick `11501073994`.
+The native interrupt handler clears it at `11501076369`, then
+takes `0xffd82` at `11501076869` and returns the driver to
+receive state 4. The wrapper supplies one event per boot and
+does not model subsequent TX completion or serial timing.
+
+With that event, all 40 ingress bytes reach UARTDR and the
+native byte parser. Both frames pass CRC. The acknowledgement
+reaches `0xff586` and `0xda4d0` at tick `11502277494` with
+decoded header `010008000a00000000000000`. It matches the
+pending opcode 1, subtype 0, sequence 0 entry at `0xdaaa8`,
+then reaches completion dispatch `0xda9c0` with status 0
+at tick `11502292869`. The watch sends its next 18-byte request
+at ticks `11502365869..11502368369`. Its decoded header
+`000000000000010000000000` has opcode 0, subtype 0, sequence 1
+and zero payload bytes. The frame SHA-256 is
+`1d8211db2969d2520dd93ed9f8df727c1813ac68d8b8c4cefb5d059d50eb5b9a`.
+
+No run supplies a reply to this next request. The E-ULS-0103
+opcode 0, subtype 2 path at `0xdab50` is never entered. No
+adapter ON store occurs. The adapter retries through DISABLED
+and OFF and returns to START. Native pairing readiness is zero,
+and the final state at 60,000 virtual ms is START in all four
+conditions. Ticket 826 still requires the actual first frame
+and arrival timing from a cold radio boot.
+
+The two normalized traces match byte for byte within each condition.
+The paired controls isolate the effect of the acknowledgement from
+the effect of the diagnostic TX completion. All eight boots match
+the Hello, pairing guidance and bottom frame hashes at 12,540,
+28,840 and 32,790 virtual ms, respectively.
+
+| Wrapper | Peer acknowledgement | RX/DR/parser bytes | TX frame lengths | First opcode 0 request tick |
+| --- | --- | --- | --- | ---: |
+| Original | Omitted | 22/22/22 | 58, 18 | 13549761619 |
+| Original | Replayed | 40/40/22 | 58, 18 | 13549759869 |
+| TX completion | Omitted | 22/22/22 | 58, 58, 18 | 15598672494 |
+| TX completion | Replayed | 40/40/40 | 58, 18 | 11502365869 |
+
+| File below `/tmp/semu-826-watch-ack.JgvBuE` | SHA-256 |
+| --- | --- |
+| `apollo4p.h` | `e7019c16ad81ae1938064f1bc65eed8be79a36aa4af09c749af88ab65d1e1411` |
+| `census.py` | `e1f08d45f8bfd0c723a1cf062b16344f7b3f782464db5c72f95b6543e11b2b1f` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `CtsProbeUart.cs` | `8f36cf3a83854e0fa01c0b535332353038833019c24ebcbc7b73c7866e6c04a9` |
+| `observe.hooks` | `e836a5fd394c8a48727a80e3947f663c4868c69633d7058a378d6f7c9d26b239` |
+| `run.py` | `de234ffce5ef1931357f388e8f03e5d9d7f5ee125732b6e35ae533f3fe4c4b1c` |
+| `census.log` | `a65442b26e37eaf3575b5581f9328ba7737e1b7b337417122ad9702226e9b23e` |
+| `control-{1,2}/boot.norm` | `f9b30a8c79bb3126b8f737fe5d8aa2dd5a5dbf06aaf44eada7de212d29615b0c` |
+| `control-1/probe.resc` | `a1a374f15f84bae351ed75a63eb0a295e7e46a5022f51e62925f016d59f1a823` |
+| `control-1/renode.log` | `2986bb0e994362602d579ff42a88f98387117976d86dbc2b79fddcbd303e32c3` |
+| `control-2/probe.resc` | `a7884150862a25856ef219a3508067e0fb37bc6701fa1451d08fcfbe0a12af15` |
+| `control-2/renode.log` | `e8b5fdae24e75ebc1740534fb6610f044c93d69b8792811b6f4b082b08847b81` |
+| `ack-{1,2}/boot.norm` | `6d7a9637bd3e690f81e6508fc254cf03264d71781046d54610a50ce37dada60a` |
+| `ack-1/probe.resc` | `cc25c6512bdb79baf1f614c80f69c09d09355347ef7c8b4cc98b550b8a65583b` |
+| `ack-1/renode.log` | `356d029418319501e963c47b3ec32654fb09b112edcac4fe0e9203272a9d070d` |
+| `ack-2/probe.resc` | `a0a885ca67086f25f1ba576eb57110be430b4e03540dc1eb29d607c6a1cab969` |
+| `ack-2/renode.log` | `3f0be92b3b2deab994415da8a20cc0638a0dcd99f8c78ffd7f65a57f4b0e9ffe` |
+| `txcomplete/CtsProbeUart.cs` | `b25d3186e28c4110eade406c3504a5dfdae519b55e642ab97fc5dd60b924ea11` |
+| `txcomplete/observe.hooks` | `8327e65c99855d4fb4dbd960e15e6958079090836e9a74a5dfaa1a9b64874c54` |
+| `txcomplete/run.py` | `14b3224ae952c0f3e95789ec3a026bea787e7cbb9506ddf69d7cdc45e7e020e8` |
+| `txcomplete/census.log` | `0c9824b936a5cdd48dfdada2768c37981f71ff78b5774c89a5ed69e45474b445` |
+| `txcomplete/control-{1,2}/boot.norm` | `e28cf591bcaced00280c1de72fd12f6a1c38e3372114efe7ebb8a659f8f47442` |
+| `txcomplete/control-1/probe.resc` | `b61d61e52c80e9b9092325704f2ecc94ca9c79dcf2ad57692841384192044250` |
+| `txcomplete/control-1/renode.log` | `50e997d06d43580a01aedba909169a0e31bb88009035290ddb24a4d37a3baab8` |
+| `txcomplete/control-2/probe.resc` | `4ff36d069c5f35010e09448ba17bcb9172a81338799ef53a074438620636c9db` |
+| `txcomplete/control-2/renode.log` | `43429cdfa86a979088c3bb628583de4434c2b4647fcaaa45cb0d60a538275ca9` |
+| `txcomplete/ack-{1,2}/boot.norm` | `1115f7a9023ae94f202a7a9148207a697474794db679d927d95dbd1aea7919d1` |
+| `txcomplete/ack-1/probe.resc` | `085ee3585085ea6bfbb58623806636d76c3a4705b1df0f773c7ef764002bb9ff` |
+| `txcomplete/ack-1/renode.log` | `8279250a46e7246566b0a09a4343313af07a92eb7ae1881a2f083cc47f24a163` |
+| `txcomplete/ack-2/probe.resc` | `253496f83bc29278f4fbd5a765d87885d97aa68c8d6f6eaccf5e2ee11b41ea5e` |
+| `txcomplete/ack-2/renode.log` | `af9fbc6385a0c8133e0b76f9ba337028a3a9884178d45a5197b237e890c281a8` |
