@@ -20624,3 +20624,95 @@ times out at `32687652494`. Both runs finish in START at
 | `lower-2/probe.resc` | `3c7e63f3e99ad444e878c15823310d66ba8da1566129ce37c982e8e610622a2a` |
 | `lower-2/renode.log` | `5da94b60f81bd79e8d26a6eb36fb91b3e103879c44866376a81f4fc46fb4069b` |
 | `lower-2/boot.norm` | `61c2d7f2a114920eacacdf64856d33e71cea9fffe98c2bffd23448d2357460c2` |
+
+## E-ULS-0118 — Race S sequence-6 pairing request receives a radio refusal
+
+2026-11-11. The probe independently extracts the 25-byte
+opcode `0x14`, subtype `0x00`, sequence-6 request from both
+E-ULS-0117 `lower-{1,2}/boot.norm` traces. The first transmission
+and retry are byte-identical in each trace. Both source traces have
+SHA-256 `61c2d7f2a114920eacacdf64856d33e71cea9fffe98c2bffd23448d2357460c2`.
+The wire frame is
+`7e1400040000000600070000004d00000000f0040b23f9ec7e`, SHA-256
+`bb4d594bdbd751e1f436d8d45698cbed4f7b701b055efc5199dbbebc244822da`.
+It has a seven-byte payload and CRC-32 `0xecf9230b`.
+
+Each run uses a fresh Cortex-M33 in the E-ULS-0115 direct-entry
+harness. It uses the E-ULS-0106 radio application flash
+(`/tmp/semu-826-reset.9VHs29/image-1/app.bin`, SHA-256
+`eb415e3ed4af021a9eba6f25c929d67342ba963cbb20cbfc28b55b2d46284ac1`)
+and E-ULS-0103 Renode 1.16.1 executable (SHA-256
+`8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab`).
+The stub delivers the frame to the native buffer callback at
+`0x331c2`. TX uses the Renode EasyDMA UART model at UARTE1.
+Each run has a 200-microsecond virtual budget and 35-second host
+timeout. The disassembly uses GNU `arm-none-eabi-objdump`, SHA-256
+`7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda`.
+
+Both runs using the previous harness pass the CRC at tick
+`13720` and enter the subtype-0 handler at `0x149c8`. The handler
+selects instance `0x4d` and service key `0xf000`. The native
+timer allocator reads a zero head from `0x200079b4`, returns
+zero, and reaches the `mBoostTimer` assertion via the call at
+`0x136e6`. The probe stops at the assertion entry `0x3345c`,
+after 3,714 instructions at tick `37140`. Both runs emit zero
+bytes.
+
+The second pair calls the firmware's timer-pool initializer
+`0x271b0` before the transport setup. The initializer itself
+calls `0x333b4` to populate six 80-byte slots. The diagnostic
+makes no writes to the pool or BLE startup flags.
+
+| Boundary | Observation in both timer-initialized runs |
+| --- | --- |
+| Receive | 25 byte-parser calls. The CRC matches at tick `14840`. The native handler sees 19 decoded bytes, `1400040000000600070000004d00000000f004`. |
+| Service setup | Lookup at `0x11ffc` succeeds for instance `0x4d` and service key `0xf000`. The three timer allocations see pool heads `0x200079c4`, `0x20007a14`, and `0x20007a64`. The handler continues into `0x11e70`. |
+| Advertising refusal | The advertising-data byte at `0x200086eb` is 1. The advertising routine reads zero Bluetooth flags from `0x2000012c` at tick `57420`. With bit 2 clear it takes `0x19a24` and returns `-11`. The radio reports this through the `bt_le_adv_start` error path. The service helper returns 0 and the command reports status 1 at tick `71930`. |
+| Response | The encoder queues 18 bytes at tick `76210`. EasyDMA points to `0x2000769c`, length 18, and the native STARTTX store executes at tick `78050`. The encoder, EasyDMA buffer, and UART model produce the same bytes. |
+| Stop | The callback returns 1. The stub halts at `0x20010128` after 7,832 instructions at tick `78320`. |
+
+The radio emits `7e140008010a000600000000008ebbfe377e`.
+The decoded header is `140008010a00060000000000`, with flag
+`0x08`, status `1`, sequence 6 and an empty payload. The CRC-32
+is `0x37febb8e` and the wire SHA-256 is
+`a965f3abfecf9629fbf4b0ffe152f734747442bf8c0ca8d2afe725c39d3a3bee`.
+Two one-bit CRC controls feed the same command with CRC
+`0xedf9230b`. They return after 1,381 instructions and never
+dispatch the command or emit any bytes. All three pairs match
+byte-for-byte after normalization.
+
+This is the observed response from an isolated radio with
+the timer pool initialized and the Bluetooth readiness bit clear.
+Pairing and the response with an initialized Bluetooth controller
+remain unverified. Ticket 826 stays blocked on the actual first
+frame and arrival timing from a cold radio boot.
+
+| File below `/tmp/semu-826-radio-pair.kmN8f4` | SHA-256 |
+| --- | --- |
+| `run.py` | `55c330dc1bef06c34602497797733c79a3df05be9471df77fe2af6da6d7e2e55` |
+| `trace.py` | `7151ddbc6f658de784f6ee3facf366ed78a2dcb56fe879f0c9b86290ede6c8cc` |
+| `radio.repl` | `382e1780d61ce105023434437a26447936d22063e8ec847232b46b6a6c34d4f3` |
+| `call.S` | `c66157bc2d3434e45226c6430e22de8a8b5814596540e158271db4f54dc90a59` |
+| `call.bin` | `ace95a7b3531ddd27441849a27d12eea6f102ec2acfdc9215d1cc2c4bf427cc3` |
+| `timer.S` | `5553b989e5238777ff0c8779d421f6a2a651d20cf8485cedf5522228d6d8b3d9` |
+| `timer.bin` | `dca183eac5ff0da412bb9b27ccec9e4014cae3680c46abc95fa32c11a16c407b` |
+| `radio.dis` | `5f93c7714f50055933d9b55528cc218ada9ddea4c86638658f04a0fb1c773ae6` |
+| `valid-{1,2}.norm` | `97b7eaa8591458dab4b24d1beb12860e64048f1eaafedb3c251bbf1b82980510` |
+| `valid-{1,2}.bin` | `bb4d594bdbd751e1f436d8d45698cbed4f7b701b055efc5199dbbebc244822da` |
+| `valid-1.resc` | `8e782577e3c57490cfca91f22586ea3349cc5d630a98997e7756d71c83d6512c` |
+| `valid-1.log` | `66d81ff6d5135ecebe89b553361f6061e8f01db0ffa127ffff8e8b61ef612702` |
+| `valid-2.resc` | `9717c72223e8c4d0360b42146b70db2fbbed3f6df0e45bcc463a4a32712e2f73` |
+| `valid-2.log` | `7c851a3af0afe19e30427198b70bdeeddf4fed6c74c4736cdf2acfa9106ebab4` |
+| `timer-{1,2}.norm` | `4e19d7698dcf682b1beee97772fecf3ba1a18b41b53cc4750df055fd5c62ae59` |
+| `timer-{1,2}.bin` | `bb4d594bdbd751e1f436d8d45698cbed4f7b701b055efc5199dbbebc244822da` |
+| `timer-{1,2}.reply` | `a965f3abfecf9629fbf4b0ffe152f734747442bf8c0ca8d2afe725c39d3a3bee` |
+| `timer-1.resc` | `b36bebd3c21cf3a33f0c2f3e14d0965082548377e69f44cb5b6f1166bb8c16e9` |
+| `timer-1.log` | `a574548d1e3284ccf984def420946018e1a91c176fa16ff996eae657df84825b` |
+| `timer-2.resc` | `4862f9951a004a1594aac8e689a8f5382e666e195045ca3975e3ebb5f0da443e` |
+| `timer-2.log` | `a66d4c7c3f2fe26700d795621dfb1d04a11580cb37b2ce57fe37ded9acf44d08` |
+| `crc-{1,2}.norm` | `3455550ed6bf526f9b47ae9915310cd04e49b36256dd5c9627c1a6c38d43260f` |
+| `crc-{1,2}.bin` | `bc18b613caa27f8625af96c262f69530a86bbe6a7d19133b5e8c466df2fc9611` |
+| `crc-1.resc` | `07e9b6f98c013998e6b3c2deccf327ca446988724d3e497af66a94b86ed4b966` |
+| `crc-1.log` | `5314661478b25f5e3a5678a5fb8d0841182474536a7f58fa6ada433d8cfa67c8` |
+| `crc-2.resc` | `5ac52395e81860e46e77299500cfa483c4741f6a0e3530fea160a9544852bc73` |
+| `crc-2.log` | `96e7f158c3319de01d196fde308cbf43a666317e15a467bcd1e1f11db2267f19` |

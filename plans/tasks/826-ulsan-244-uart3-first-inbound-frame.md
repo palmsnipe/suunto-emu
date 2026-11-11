@@ -290,3 +290,20 @@ returns to guidance while that request is pending. With no peer
 reply to sequence 6, the guest retransmits it and times out.
 The radio's actual first cold-start frame and timing remain
 unverified. Ticket 826 stays blocked.
+
+E-ULS-0118 feeds the 25-byte sequence-6 pairing request into the
+native radio parser. The original isolated harness passes CRC
+validation and stops at the `mBoostTimer` assertion. Calling the
+native timer-pool initializer lets two fresh runs emit the same
+18-byte acknowledgement with status 1. The native advertising
+start returns `-11` with the Bluetooth readiness bit clear.
+Both bad-CRC controls emit no bytes. Ticket 826 stays blocked on
+the actual first cold radio frame and its timing.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are under `/tmp/semu-826-radio-pair.kmN8f4`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
