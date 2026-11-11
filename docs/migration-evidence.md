@@ -19450,3 +19450,117 @@ SHA-256 `96f28cbbb475ca81cb4f9d3a8ea804bcf308d7a3046d063bb0351da5589fc7c2`.
 | `run-1/renode.log` | `4439626993992ceed10a68fa3752aea6852be338483c5fd8f87ba02cd1849aca` |
 | `run-2/renode.log` | `33c13fd41f7001dfcdfa0cc8b25f47aad5df7a9a061b3fe80741506798a11a4f` |
 | `run-{1,2}/boot.norm` | `f021fb69ea7ae80300dd61fa3fde1c7e29754c1c12e72b8511a035d8e97a493e` |
+
+## E-ULS-0105 — Race S BambiTL updater input and radio image
+
+2026-11-11. Offline inspection of the E-ULS-0101 application and the
+eight retained Ulsan SOFs identifies the UART3 updater input. The
+application enumerates `firmware` and `dynfw` via `0x103ef8` and
+`0x104004`. It checks the BLE slot's `ble` prefix at `0x104072`,
+builds the directory and filename at `0x1040e8`, and sends the path
+with resource `0x1236000f` at `0x104566`. The provider branch at
+`0xb66ec` passes the same string through `0xd712e` and backend
+vtable slot `+0xc` to `0xdbd20`. The backend opens it in mode 1 at
+`0xdbd44`. The open routine accepts a `BLE\0` wrapper whose three
+little-endian lengths sum to the file size minus 16. It also accepts
+a raw `SFI3` input. The backend checks the `BambiTL` prefix at
+`0xdc150` and reads and sends the selected 40-byte SFI3 header
+through `0xdc0e0` and `0xda5d4`. This path is statically derived.
+It does not establish an updater open on the normal cold boot.
+
+The 2.44.52 expanded component 5 contains a FAT16 `firmware` root
+entry at `0x105d9e0`. Its directory at `0x1232800` contains
+`ble_3_0_44_moqr.bin` at `0x12329e0` with valid long filename
+ordinals and checksum, cluster `0x9645`, and size 386,726. This
+retained directory snapshot establishes the path. A separate
+directory copy lacks the BLE entry, so the extraction does not
+establish which copy a running filesystem selects.
+
+The SOF parser checks the stored and expanded CRCs for all 40
+components. Each expanded component 5 has one wrapper and three
+40-byte `BambiTL_nRF53` SFI3 headers. All 24 headers pass CRC-16
+(CCITT, initial value `0xffff`) over bytes 0 through 37. Each tail
+also has one incidental `SFI3` hit inside a payload, and each
+application has one magic constant.
+
+| Ulsan release | SOF SHA-256 | Wrapper offset in expanded component 5 | Retained BLE filename |
+| --- | --- | --- | --- |
+| 2.35.36.10731 | `52cea276bd7982aafb7c6052b94135a6ee6d0bf8541382e97cc993f636b592ff` | `0x1226800` | `ble_3_0_36_moqr.bin` |
+| 2.37.48.11829 | `a874c0fcd45b257db87492eca8ca8bfb4d0f2aa0592ff78c408678c601ea43dc` | `0x12fda00` | `ble_3_0_38_moqr.bin` |
+| 2.39.44.14150 | `1eb400c5c4cf861ef08ef839b3f9f0da32817145945e31c4e971bb507aab52ba` | `0xba1e00` | `ble_3_0_38_moqr.bin` |
+| 2.40.38.15520 | `662e52980e8767d73fcf43ce42bbb2f35a8f570fa53bc88c3ad4332feb580853` | `0x1139e00` | `ble_3_0_38_moqr.bin` |
+| 2.40.44.16817 | `548655a874f765922aed23e8bbfb7fa578b8dcbe9bfed8c5e8e4ae73ba79d40c` | `0x113a000` | `ble_3_0_38_moqr.bin` |
+| 2.43.12.18016 | `6a48dcf904d319ce6a07f444117ce8705db61f2c1f3bbc075a6aa8f30bb5c740` | `0x1364e00` | `ble_3_0_38_moqr.bin` |
+| 2.44.46.19820 | `bc291c29f6e84b4d9ab67b986866dda6fe62b968f8d833f9703e182822ceb890` | `0x1291c00` | `ble_3_0_44_moqr.bin` |
+| 2.44.52.20521 | `276ca7e6bbec83f2e08945e89b67859b090027810e2d314237e0abc25fb15a25` | `0x1295600` | `ble_3_0_44_moqr.bin` |
+
+To recover the full file from 2.44.46 and 2.44.52, the probe maps
+each 512-byte physical slot using its 16-byte metadata at
+`block_base + 0xf800 + 16 * physical_slot`. It admits records with
+marker `0xff0f` at `+4`, logical slot below 124 at `+6`, and
+logical block below 512 at `+8`. The logical sector is
+`124 * logical_block + logical_slot`. For file and FAT reads the
+probe selects the greatest observed sequence word at `+0` and
+requires byte equality among tied sectors. It requires both FAT
+copies to agree for every link, follows 756 clusters to end of
+chain, and uses the directory size and wrapper lengths. This is a
+bounded extraction rule for those two copies of the file. Complete
+payloads from the six older packages remain unverified.
+
+Both releases yield the same 386,726-byte file, SHA-256
+`0cfab67c4632604459a70446fcc99436b62c3c64bef59566dfbe728cbf3cac11`.
+The payload lengths at SFI3 header offset `+30` match their wrapper
+segments. All three payload CRC-32 values at `+34` validate. Two
+independent invocations reproduce the extracted files and logs.
+
+| Segment | 2.44.52 header offset | Bytes with header | Payload CRC-32 | Segment SHA-256 |
+| --- | --- | --- | --- | --- |
+| 1 | `0x1295610` | 13,978 | `50680fd0` | `d84a4712c134d2aeeb11b057d0969e33fb8b10bc50d8c2bfc185b53f76bb7f79` |
+| 2 | `0x1298caa` | 199,572 | `2af62e97` | `33417de073740e8e6ff91e3894f2814974dda25a7e519aa411a6847ced513d7c` |
+| 3 | `0x12ab03e` | 173,160 | `8304b435` | `8311b58c5da83027960834cb1cd519784d916df796cbdabd81c856fe904040d9` |
+
+The bundle contains 377 `FLII` write records whose CRC-16 values
+also pass. The first segment has a Thumb reset vector at `0x44dd`
+in the image at `0x1000`, the second at `0x010264f5` in the image
+at `0x01001000`, and the third at `0x17899` in the image at
+`0x10000`. The second image lies in the nRF5340 network-core flash
+range. The records leave both flash bases, `0x00000000` and
+`0x01000000`, unwritten. The installed cold reset path and boot
+configuration still need evidence.
+[Nordic network-core memory](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/memory_network/netmem.html)
+
+The OW233 internal photographs, FCC exhibit 7327550, PDF page 5,
+figure 9, show `N5340` and `CLAAD0` on one IC and `DA16200` on
+another. The marking and `BambiTL_nRF53` image identify the Nordic
+nRF5340 family. The BLE test report, exhibit 7327565, page 6, lists
+DVT2.2 and firmware 2.32.2. These exhibits do not expose UART3 wiring
+or startup data. The photographs and extracted figure were
+reproduced byte-identically.
+[FCC internal photographs](https://fccid.io/document/7327550),
+[FCC BLE report](https://fccid.io/RYPOW233/Test-Report/LCSA03014208EA-BT-LE-7327565),
+[Nordic package markings](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/ordering_info/doc/ordering_info.html)
+
+The verified radio update bundle supersedes E-ULS-0104's initial
+artifact inventory result. The bundle has not produced a cold-boot
+UART3 frame in Renode. Ticket 826 remains blocked on executing the
+peer's startup path and observing its first bytes and timing.
+
+The package parser `../suunto-firmware/tools/sof_extract.py` has
+SHA-256 `78f9c98e633095451c787870ba0c8614bbc80dc6e3d7bf8eb1960c320cbd720e`.
+The inputs and disassembly for the updater trace match E-ULS-0104.
+
+| Probe source or output | SHA-256 |
+| --- | --- |
+| `/tmp/semu-826-source.HFpxuW/scan.py` | `28cf3811856319c196a0f2975ff71a3f34fdbba9ee6ada84bb1123f4f511d03d` |
+| `/tmp/semu-826-source.HFpxuW/scan-{1,2}.log` | `e58e13d2979688b80283b9f77a4bb954552c341252234516460135c52f5e64cb` |
+| `/tmp/semu-826-source.HFpxuW/segments.py` | `86f1e64ab3e2a40c6ef1db3c30549b2a57ddfde96da80f05354fc39c2b8995c9` |
+| `/tmp/semu-826-source.HFpxuW/segments-{1,2}.log` | `f32b08ae41c2ca020657cc50bbf5efcb12e99870327398c1cff40ebcbcd1f42a` |
+| `/tmp/semu-826-source.HFpxuW/recover.py` | `79ce094ccc1755ee944af0c14eb3a07813d5589dd3dc51b7e9dff740468ed240` |
+| `/tmp/semu-826-source.HFpxuW/recover-{1,2}.log` | `22be98b4f5a559c09429119d4b90d7e81c2465fd65fa0b727fc8aeb03f84d042` |
+| `/tmp/semu-bambi-updater.fmyWS0/trace.py` | `bf1ae76f2848f5223bbe31df8a5b9ea1fdf4d34966bf8da856b4308e8832b5c7` |
+| `/tmp/semu-bambi-updater.fmyWS0/trace-{1,2}.log` | `3581ae8a6fc44f895cd59ceb041e763d318bb40257732de275f035920eda77b6` |
+| `/tmp/semu-826-fcc.3noMUC/peer-layout.py` | `37514aac879956584122c53f215818ef13b3c2ee448965af3e53e7b73f51101d` |
+| `/tmp/semu-826-fcc.3noMUC/peer-layout-{1,2}.log` | `9d17afe4d79e4e6db5a733b745df8eb1526c9682fff309d31671ee08535c8094` |
+| FCC exhibit 7327550 PDF | `fc1b401d60e0d008cf2d0ebe10832b8b862bf7efd9e77285975f374d4d4118b0` |
+| FCC exhibit 7327550 Fig. 9 JPEG, extracted by Poppler 26.10.0 `pdfimages -j` | `12ea64b7fed50f11ea54b652dece73579094844d2aea7ba21141db15c61ce875` |
+| FCC exhibit 7327565 PDF | `79a3fbe29f0f143111640b26a3a27cdbfeea9317df5a0dae26af8c6538a19baa` |

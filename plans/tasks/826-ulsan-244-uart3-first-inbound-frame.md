@@ -92,3 +92,15 @@ The private regression logs under `/tmp/semu-826.KrYfyJ` have these SHA-256 valu
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0105 traces the updater to `firmware/ble_3_0_44_moqr.bin`.
+All eight retained packages contain `BambiTL_nRF53` headers.
+Reconstruction from 2.44.46 and 2.44.52 yields the same 386,726-byte
+bundle with three valid SFI3 headers and payload CRCs. Bundle SHA-256
+is `0cfab67c4632604459a70446fcc99436b62c3c64bef59566dfbe728cbf3cac11`.
+The FCC internal photos show an nRF5340 marking on the OW233 board.
+
+The bundle is an update image with no write records at either core's
+flash base. Establish the installed reset path, then boot the peer
+and capture its UART3 bytes and timing in two cold Renode runs. The
+ticket remains blocked on that observation.
