@@ -19236,3 +19236,56 @@ IOM4 and UART3 write counts. Raw logs include host timestamps.
 | `transport-{1,2}/boot.norm` | `0e9ec54aa64ae2594e6ae7338eaea42f7eefc626e6979f757245af9a02cce052` |
 | `era.log` | `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81` |
 | `test-ulsan.log` | `826562c74bb7da2284a2b0af55e2749ae298d6db83a77b785079e0eaf053910d` |
+
+## E-ULS-0102 — Race S UART3 CTS readiness loop
+
+2026-11-11. Two cold Renode boots use the E-ULS-0101 firmware and
+fixtures. The passive trace stops at 11,500 virtual ms, after the
+first UART3 open and the repeating close and reopen sequence. It records the first
+four visits per selected instruction or event key and keeps counts
+for the complete window. The probe derives from the E-ULS-0101
+runner and the E-ULS-0100 base script
+`/tmp/semu-822.SwGQ7F/lane-1/probe.resc` (SHA-256
+`53fc555fd376aa24d87c8eaa8695880dc39d800c09a0bcdf386d9b47f07f4d95`).
+The firmware image and GNU `arm-none-eabi-objdump` match the hashes
+in E-ULS-0101. Two Thumb disassemblies of `0xff828..0xffe40`
+match with load base `0x30000`.
+
+| Decision | Observation |
+| --- | --- |
+| UART3 open | The BLE adapter enters START. The UART3 driver initializes through `0xffb38` with control `0x8318`. The native load at `0xffb3a` reads back `0x0318`, so the next write at `0xffb40` is `0x0319`. Renode reports that control bit 15 (CTS enable) is unsupported. |
+| Initial CTS check | Software event 3 arms the driver byte at `0x1001dfd4+0x28`. In driver state 4, the clear CTS bit in the flag register at `0x4001f018` takes the state 1 branch through `0xffd28`. |
+| Close and reopen | The state 1 path clears UART3 control at `0xff8f0`, configures GPIO19 for input, and reads it at `0xaa332`. The result is low. That takes the `0xffbd6` path, which posts event 4 and reopens the UART. |
+| Repeating timer sequence | Timer index 7 calls `0xffe30`, which posts event 9 to the UART3 ISR at `0xffc48`. With the driver in state 4 and RX FIFO empty, the event takes it to state 5 and rearms timer 7 with argument `0x78`. The next event 9 reads `0x90` at `0xffd06`. At `0xffd08`, bit 0 is clear and the native branch selects state 1 again. |
+| Adapter and data boundary | UART open returns 1 at `0xdbf3a`, but the adapter state at `0x10043a7c+0x4d` remains 2 (START). The trace records no UART3 data-register access and no execution of the native TX store at `0xffdc4`. |
+
+UART read watchpoints identify accesses. The register values above
+come from CPU hooks after the native loads. This establishes the
+clear CTS status as the condition that sends the driver back to
+state 1 on the reference lane. The trace supplies no observed CTS
+assertion or radio response. The later pairing request still
+encounters START in the 37,850 ms E-ULS-0101 runs.
+
+In each boot, the driver writes each of `0x18,0x8318,0x0319` to
+UART3 control 20 times and clears it 19 times. The GPIO19 input
+read executes 20 times and returns low in every sample. The 36
+timer callbacks produce 18 state 4 to 5
+transitions and 18 state 5 to 1 transitions. The first state 5
+CTS decision at `0xffd08` occurs at Renode tick `11492771369`
+and the next at `11493184619`. The driver ends in state 4, with
+the gate byte set and the UART open. The adapter remains in
+START. The two 80-line normalized traces match byte for byte.
+
+| Files below `/tmp/semu-824.4R5J6t` | SHA-256 |
+| --- | --- |
+| `initial.py` | `46f6399646fb3001e3436ac8bf5c8d3d55d0b58bc7a6abb6032b4320f24bdfbc` |
+| `ready.hooks` | `f071c4b304aaa713e8c899d83f34f6d650cfe9bf8e26cd1d8fb77b9eec7de23f` |
+| `normalize.py` | `7b5d0b65333edf5d89c27b2d74315dab0c92c55c3c3733f91dbad7241feb01c8` |
+| `uart-{1,2}.dis` | `5bf8936b036a51a9e247dd724f789f478aa03b75fbdf86cdd61153cacba71bc8` |
+| `initial-1/probe.resc` | `c6d0b53cbbc0b0ce8be80059ce96c8db679fc86393345fa75880a17a6b98ca5a` |
+| `initial-2/probe.resc` | `9a0faadb8e58b3c630030c45659c3f55710bacf86d9397a87b86d7c6699b8e97` |
+| `initial-1/renode.log` | `4319d82cdfb0cdf2038e44e743c516e3e56202d1d5d3a16772453ce0e93c427c` |
+| `initial-2/renode.log` | `632bf16f019eeebdb64d6554b990688f4a30f78c73d8ec8e9508451c9be22637` |
+| `initial-{1,2}/boot.norm` | `f845adcbbf98654ee078c2890b72ecf26036d46e8c7d615d0eade0e9e35220ef` |
+| `era.log` | `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81` |
+| `test-ulsan.log` | `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96` |
