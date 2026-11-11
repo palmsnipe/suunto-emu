@@ -20374,3 +20374,69 @@ frame checkpoints.
 | `ack-1/renode.log` | `99b062436340765c7d5ba696b36a6e98d0bda457adf2e4c42fa145683d487ffe` |
 | `ack-2/probe.resc` | `006baf6f634484d85cbfe29550bb3200ed4973b91f5dbbe4772695282e69bf3c` |
 | `ack-2/renode.log` | `accc75d59311b47ae338645ecbedc213740d5fa990287dfd19ac327d78a0fbd6` |
+
+## E-ULS-0115 — Race S sequence-3 request through the native radio parser
+
+2026-11-11. The probe independently extracts the last UART3
+TX frame from both E-ULS-0114 `ack-{1,2}/boot.norm` traces.
+The 26-byte opcode `0x14`, subtype `0x0a`, sequence-3 request
+is `7e140a04000000030008000000000000000f18320049f2080a7e`.
+Its SHA-256 is
+`b9064030577118ec328f6319f3764b223dc197ad19e0b92d3e403c3ec490f3a3`.
+
+Each run uses the E-ULS-0113 direct-entry harness with the
+same pinned radio application flash and Renode 1.16.1 executable.
+The native pool and protocol constructors run in a fresh Cortex-M33
+machine with an idle TX queue, the retained-data default, an inactive
+startup timer and zero-initialized service state. The stub passes
+the 26 bytes to the native buffer callback at `0x331c2` in one call.
+The TX model is Renode's `NRF52840_UART` in EasyDMA mode at the radio
+UARTE1 address. The virtual budget is 200 microseconds and the
+host timeout is 35 seconds.
+
+| Boundary | Observation in both valid runs |
+| --- | --- |
+| Receive | 26 native byte-parser calls. The calculated and received CRC-32 match at `0x26daa` (tick `14060`), with value `0x0a08f249`. The protocol handler receives 20 decoded bytes. |
+| Dispatch | Opcode `0x14` enters `0x32ec6`. Subtype `0x0a` reaches `0x29784`, checks the little-endian `0x180f` at payload offset 4 and passes `0x32` (50) to `0x121f0`. |
+| Battery service path | The first-use path constructs entries with `0x180f` and `0x2a19`. The update helper `0x24da4` receives a zero context, a zero handle and the value `0x32`. The run reaches its store at `0x24dba` and calls `0x1d53c`. At return, both radio RAM bytes at `0x20000675` and `0x20008679` hold `0x32`. |
+| Acknowledgement | The command returns status 0 at `0x26398`, then `0x32ff8` emits an opcode `0x14`, subtype `0x0a`, sequence-3 acknowledgement with flags `0x08`, status 0 and an empty payload. The decoded header is `140a08000a00030000000000`. |
+| Transmit | Encoder queue at tick `25400`. EasyDMA uses pointer `0x2000769c` and length 18. The native STARTTX store at `0x266c4` occurs at tick `27240`. The encoder, DMA buffer and model output agree byte for byte. |
+| Stop | The native buffer callback returns 1. The stub halts at `0x20010124` after 2,751 instructions at tick `27510`. |
+
+The `0x180f` and `0x2a19` constants identify the Battery Service
+and Battery Level characteristic. The observed effect is a local
+radio value update in the isolated harness. An over-the-air
+notification remains unverified. [Bluetooth SIG assigned numbers](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Assigned_Numbers/out/en/index-en.html)
+
+The emitted wire frame is `7e140a08000a00030000000000fa66e7927e`
+with little-endian CRC-32 `0x92e766fa` and no escapes. Its SHA-256
+is `cc414f4d8657236cdd7200211888c8954184237549d62bdbd40ef1a032a8ccd2`.
+An independent CRC calculation matches. Two CRC controls change
+the received value to `0x0b08f249`. Both return after 1,415
+instructions with the two battery bytes still zero and no
+protocol dispatch or UART output. The normalized traces match
+byte for byte within each pair.
+
+Ticket 826 stays blocked on the first frame and arrival timing
+from a cold radio boot.
+
+| File below `/tmp/semu-826-radio-seq3.4xMy9G` | SHA-256 |
+| --- | --- |
+| `call.S` | `81ba6393d5cea0dc4493f029f44325832521d3cc923bebcc0b0c589fe3c17ec1` |
+| `call.bin` | `17764f163fbb2f9f937f56b92dc7fb1102e02ecc12627ffbf81e4ef18fe3bf00` |
+| `trace.py` | `b510b229bc3c7178854a870274fb08a8783d75757dabc3ecae816f4ac47c8912` |
+| `radio.repl` | `382e1780d61ce105023434437a26447936d22063e8ec847232b46b6a6c34d4f3` |
+| `run.py` | `fcb8c43c6439c1eacd81c506ae0cafcfaf55f64f1cfc373600c4279c09eb4cbc` |
+| `request-{1,2}.bin` | `b9064030577118ec328f6319f3764b223dc197ad19e0b92d3e403c3ec490f3a3` |
+| `crc-{1,2}.bin` | `bca0274b07605322d2818f839731ea06506d1e2bf7e15242ea6c8dce055fd526` |
+| `response-{1,2}.bin` | `cc414f4d8657236cdd7200211888c8954184237549d62bdbd40ef1a032a8ccd2` |
+| `valid-{1,2}.norm` | `b9ed7316ff44bc0ebe36a8a7851336510f6c99c98e94bd28d3c46eb94ff0f5a9` |
+| `valid-1.resc` | `944bd6c4606d15c6de23e4e76d29ab75721e7d8ae494f50076120b6bb8b6c054` |
+| `valid-1.log` | `fde5d02a354d091f43be933c91a352c30faba0c956d9107d9e68658b25f8ac20` |
+| `valid-2.resc` | `6fbc8d44a6728337fa024ad85acd1fe9cf9def49b7f9758a4b248b700f274b70` |
+| `valid-2.log` | `b3ff62e2e9493edd63c41a66d138cc74f328c50458793c602045db026f4c0740` |
+| `crc-{1,2}.norm` | `7988e59101702ef709b5a25658170de50e52b899293b905c9f495c50ebf2dd69` |
+| `crc-1.resc` | `f94194e6880f7715309800c2dda7d294cffb00e9983a10b75db3866c34bdfff8` |
+| `crc-1.log` | `ff472a6a535f540606afc8e7d932b2c60f2394b79abe56729036f29566b43950` |
+| `crc-2.resc` | `59ffc62e258b693a600826a2dae3650a04055643094d05e55ff9a76f05ecf1ba` |
+| `crc-2.log` | `59371a227f3296d0caadc24620231c49a009605f41379dec61d36e1d30c54ae4` |
