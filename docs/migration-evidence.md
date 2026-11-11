@@ -20041,3 +20041,116 @@ the Hello, pairing guidance and bottom frame hashes at 12,540,
 | `txcomplete/ack-1/renode.log` | `8279250a46e7246566b0a09a4343313af07a92eb7ae1881a2f083cc47f24a163` |
 | `txcomplete/ack-2/probe.resc` | `253496f83bc29278f4fbd5a765d87885d97aa68c8d6f6eaccf5e2ee11b41ea5e` |
 | `txcomplete/ack-2/renode.log` | `af9fbc6385a0c8133e0b76f9ba337028a3a9884178d45a5197b237e890c281a8` |
+
+## E-ULS-0111 — Race S sequence-1 request through the native radio parser
+
+2026-11-11. The probe independently extracts the second UART3
+TX frame from both E-ULS-0110 `txcomplete/ack-{1,2}/boot.norm`
+traces. The 18-byte request
+`7e000000000000010000000000ca1589b07e` has SHA-256
+`1d8211db2969d2520dd93ed9f8df727c1813ac68d8b8c4cefb5d059d50eb5b9a`.
+It is opcode 0, subtype 0, sequence 1 with an empty payload.
+The input body passes the native CRC comparison at `0x26daa`
+with CRC-32 `0xb08915ca`.
+
+The E-ULS-0109 harness uses a fresh Renode Cortex-M33 machine
+for each run, the same pinned application flash and Renode 1.16.1
+executable, the native transport pool and protocol constructor,
+the retained-data default, an inactive startup timer, and an
+idle transmit queue. The stub calls the radio's native byte-buffer
+callback at `0x331c2` once with the request. The transmit model is
+Renode's `NRF52840_UART` in EasyDMA mode at the radio's UARTE1
+address. Each run has a 200-microsecond virtual and 35-second
+host budget. The input bypasses radio boot and UART RX timing.
+
+Two strict runs reach opcode 0 dispatch `0x32e4e` and stop
+before the first unbacked factory read. It is the read of
+`0x00ff0210` at `0x3343a`, after 1,617 instructions at tick
+`16170`. No encoder, STARTTX, or UART emission occurs.
+Two CRC controls flip one checksum bit, then return after
+1,143 instructions with zero factory reads, handler calls or
+TX bytes.
+
+Two additional pairs map only four FICR words for an isolated
+diagnostic. The inputs are distinct test patterns. Nordic's
+register definitions identify the words as CONFIGID, the two
+DEVICEID halves and VARIANT. Neither pattern represents a
+verified OW233 factory image. [Nordic FICR definitions](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/ficr/doc/ficr.html)
+
+| Pattern | CONFIGID | DEVICEID[0] | DEVICEID[1] | VARIANT |
+| --- | --- | --- | --- | --- |
+| A | `0x89ab1357` | `0x01234567` | `0x89abcdef` | `0x11227d7e` |
+| B | `0x76542468` | `0xfedcba98` | `0x76543210` | `0x33445678` |
+
+Both patterns record five factory loads in this order. VARIANT
+is read at `0x3343a` and `0x33448`, CONFIGID at `0x33454`,
+DEVICEID[1] at `0x27630` and DEVICEID[0] at `0x27652`.
+The handler returns 2 at `0x26398` and the native response path
+`0x33010` encodes opcode 0, subtype 2, sequence 1, status byte 0
+and 48 payload bytes. The header is `000200000a00010030000000`.
+The encoder, DMA buffer and UART model agree on every emitted byte.
+
+| Decoded payload offsets | Verified source |
+| --- | --- |
+| 0–15 | Application descriptor at `0xeffd0`, containing `Aura` followed by 12 zero bytes |
+| 16–31 | Uppercase hexadecimal DEVICEID[1] followed by DEVICEID[0] |
+| 32–35 | Application descriptor bytes `03 00 2c 00` at `0xeffc4` |
+| 36–37 | VARIANT bits 15:8 followed by bits 7:0 |
+| 38–39 | Low 16 bits of CONFIGID in little-endian order |
+| 40–43 | BambiTL descriptor bytes `01 02 08 00` at `0x7fc4` |
+| 44–47 | Native constant `3c 00 00 00` |
+
+| Pattern | Encoded length | CRC-32 | Encoder queue tick | STARTTX tick | Instructions at return |
+| --- | ---: | --- | ---: | ---: | ---: |
+| A | 68 | `0x9332526e` | 32710 | 36550 | 3682 |
+| B | 66 | `0x0f08aff1` | 32570 | 36330 | 3660 |
+
+Pattern A exercises two escape pairs, `7d 5d` and `7d 5e`,
+from the VARIANT bytes. Pattern B needs no escapes. Each pair
+matches its normalized transcript byte for byte. The independent
+audit reconstructs the payload from the pinned descriptors and
+test inputs and verifies both complete encoded frames and CRCs.
+Only payload offsets 16–31 and 36–39 change between patterns.
+The STARTTX ticks describe the isolated model.
+
+The native response layout and its factory dependencies are
+verified. The full response from an OW233 remains unverified
+because those factory words are unavailable. Ticket 826 still
+requires the first frame and arrival timing from a cold radio boot.
+
+| File below `/tmp/semu-826-radio-info.GBaP9b` | SHA-256 |
+| --- | --- |
+| `call.S` | `76ca9aebe6182b418f745e563e1b4a3ac16f164c0dc951f7c7d478e54bdd8be8` |
+| `call.bin` | `5b55ef91b8519afc67d8dd36543fdbc6161ea08e7a24fb0edc5afa8783461e04` |
+| `trace.py` | `ba485607de5fe9140cb681e9876c570a24247d89fbdfd539364351edb03409a4` |
+| `radio.repl` | `382e1780d61ce105023434437a26447936d22063e8ec847232b46b6a6c34d4f3` |
+| `ficr.repl` | `3109e60c112536930902702eb9aae648999e798997af4c4522f15c1dd4b0024c` |
+| `run.py` | `fd3b302e34da81f3fc112aa5eb4e418f04eb3bcc0ee90ee2e012eef6584278ea` |
+| `audit.py` | `2611c6e580b6ff700689f51acfd452a4219e298abc1349cbeb411f2da66310df` |
+| `audit.log` | `d1dd76ae39ba050756449dc9519a85bebf924b9d2ccd3b22e818bc1281e3b12d` |
+| `request-{1,2}.bin` | `1d8211db2969d2520dd93ed9f8df727c1813ac68d8b8c4cefb5d059d50eb5b9a` |
+| `crc-{1,2}.bin` | `17bca1bbed39e1c4916f475f1fd711a10256092a9b9099c60a63a5b52809b59a` |
+| `strict-{1,2}.norm` | `01446c175ef65cf2749f699a3d9d2dab19d5af689d058562793209f9b97aec0c` |
+| `strict-1.resc` | `41de64200a11f4cf4eb25bf5c8d80805b43f8dc4b14702adc6d6075991e9d992` |
+| `strict-1.log` | `f117f91ffecb0e385f9e700763071e2a4a22be14f8d3c2e48321b6b2cbe83ea6` |
+| `strict-2.resc` | `aaa1759aa8e2f9f8305d5a2d0a6920e5feeb4d2e8ee202ce7abda139b1b30e8c` |
+| `strict-2.log` | `76e83ddf5c29c59ab25e9638d0ea9b90ea0f78f30525917c6744d72400a8de99` |
+| `crc-{1,2}.norm` | `ed2037bcf4386403a20456ebf1229041a6e31040f6d7af0c574562210ee755d8` |
+| `crc-1.resc` | `70452d89c98136b3ba7da54dbd11de9be02778a4ce68b59a8b4346d5e9bce265` |
+| `crc-1.log` | `a9b43b9ea8c9b33a89f7d316f27f19821258b739ffe2a6724b9e1383762ace8b` |
+| `crc-2.resc` | `ad19268224db93ae7037e4147adc02882b6e4e67ee1de1b8cb513844e242972d` |
+| `crc-2.log` | `e1719ad429277c6d35251e9fe4db80c98156c9d6a7593044d84cd938a88fae66` |
+| `tag-a-{1,2}.norm` | `8afc81fec054149f8a5ccacd2946e564fef2226bcb8532e6870c5cdcbaf05ee0` |
+| `tag-a-1.resc` | `0675f700cb5b5ecaa0f7a0b775cbcda490ba4391827dd42d565bec95e35fddbc` |
+| `tag-a-1.log` | `e9c91fbdb639682ae44885c9fe7d9bb02944826fc54bc91ea403439497684907` |
+| `tag-a-2.resc` | `51e5bca9ee83195611f289c0b42e744a4f00e612b2d88dbcce745041a6eb5e47` |
+| `tag-a-2.log` | `4f110ca8bb0b8572e30f379f887d16e2f3f5bdcfb1b0b1b076c8f02b5cc910d6` |
+| `tag-a-response-{1,2}.bin` | `8cf0c32b0ddfc9fc3f370145aa5e28fed5741f374cb2085b4c3b2ae75ce24442` |
+| `tag-a-decoded-{1,2}.bin` | `b5cf0ad439b57d1b4ea98aa040bac5ea8754645ae50f96a30522d1e966f3b42a` |
+| `tag-b-{1,2}.norm` | `72a09b15a7bea74440dcee4bd5b2ec296c417c16d07d2acf757ea20a6110ba25` |
+| `tag-b-1.resc` | `dfe1d9d5ec5451c4a710b848bb9b08bd5410ec0d95c009bfbd8632a285043e28` |
+| `tag-b-1.log` | `6449ca4f8e44bade734bb1063278a80526fcefecd136cbe7a6eb184c2a10cf74` |
+| `tag-b-2.resc` | `63c4db72d536a2a29b31c4342f17d8edd76bf52146c4099be0f0c6cbe879c0cd` |
+| `tag-b-2.log` | `c66f2ece45fbdb5723bf9aab4e154642bf941b06327cc26942c509b6d60331dd` |
+| `tag-b-response-{1,2}.bin` | `b4534248505974f6f29b1700d47efb242fd22794b0afb4a56e5dccffcbbfff87` |
+| `tag-b-decoded-{1,2}.bin` | `ecca010223cb21bfa039ff0f20e90d9b103c5ac051b8f092f9c59e6f06be8924` |

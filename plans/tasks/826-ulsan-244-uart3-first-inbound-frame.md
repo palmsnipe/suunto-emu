@@ -182,3 +182,20 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0111 feeds the watch's opcode 0, subtype 0, sequence 1
+request through the native radio parser. Two strict runs stop
+before the first factory read at `0x00ff0210` and emit no bytes.
+With explicitly labeled FICR inputs, two pairs produce an opcode 0,
+subtype 2, sequence 1 reply with 48 payload bytes. The two patterns
+isolate the 20 factory-dependent payload bytes. The actual device
+values and cold radio startup timing remain unavailable. Status
+stays blocked.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are below `/tmp/semu-826-radio-info.GBaP9b`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
