@@ -20440,3 +20440,77 @@ from a cold radio boot.
 | `crc-1.log` | `ff472a6a535f540606afc8e7d932b2c60f2394b79abe56729036f29566b43950` |
 | `crc-2.resc` | `59ffc62e258b693a600826a2dae3650a04055643094d05e55ff9a76f05ecf1ba` |
 | `crc-2.log` | `59371a227f3296d0caadc24620231c49a009605f41379dec61d36e1d30c54ae4` |
+
+## E-ULS-0116 — Race S accepts sequence 3 and later restarts BLE without another UART3 request
+
+2026-11-11. Two cold Race S Renode boots replay the native
+E-ULS-0115 acknowledgement after the E-ULS-0114 exchange. Two
+cold controls omit only that acknowledgement. All four use the
+pinned E-ULS-0104 lane, firmware and media, the E-ULS-0100 crown
+route, and the E-ULS-0111 labeled factory pattern A. Each stops
+at 60,000 virtual ms with a six-minute host timeout.
+
+The UART wrapper checks the exact watch TX bytes before providing
+diagnostic completion events at cumulative counts 58, 76, 104 and
+130. The fourth event occurs 300 microseconds after the last
+sequence-3 TX byte. The replay admits the 18-byte acknowledgement
+only after the native driver clears that event and returns to
+receive state 4. Ingress starts 100 microseconds after the replay
+schedules it, with 10 microseconds between bytes. All four runs
+use the same completion schedule. The probe never writes guest
+adapter, pending-request or parser state. After sequence 3 it
+supplies no further completion events or radio bytes.
+
+| Boundary | Observation in both acknowledgement replays |
+| --- | --- |
+| Initial ON | The native adapter stores ON at tick `11678580994`. The first UART3 open returned 1 at tick `11492358369`. |
+| Sequence-3 request | The watch sends the same 26-byte E-ULS-0114 request at ticks `11690742494..11690746119`. The fourth TX completion and its native clear both occur at `11691046119`. |
+| Sequence-3 acknowledgement | The wire frame is `7e140a08000a00030000000000fa66e7927e` (SHA-256 `cc414f4d8657236cdd7200211888c8954184237549d62bdbd40ef1a032a8ccd2`). The bytes arrive at `11692099744..11692269744` and are read at UARTDR at `11692100244..11692270244`. The native CRC-pass and frame-handler calls see header `140a08000a00030000000000` at `11692696369`. |
+| Pending request | At tick `11693611994`, the completion path at `0xda9d2` returns status 0 for opcode `0x14`, subtype `0x0a`, sequence 3. The adapter is still ON. |
+| Later transition | The native adapter enters TIMER at tick `21530910119`, after 9,852,329,125 ns in ON. It enters OFF at `26650273119` and START again at `28562943744`. |
+| Pairing and reopen | The native pairing readiness check returns zero at `28562953494`. The backend reopens UART3 at tick `28584362619`. No bytes arrive after the reopen and the watch emits zero further UART3 bytes through 60,000 ms. |
+
+The replay pairs receive 144 bytes across five frames at the UART
+model, data register and native parser. Total TX is 130 bytes
+across four frames. No next request follows sequence 3 within the
+observed interval. In the control pairs, the watch retransmits the
+same 26-byte request at ticks `13739257869..13739261494`, reports
+status 3 at `15787639744`, and leaves ON for DISABLED at
+`15788169869` after 4,109,588,875 ns in ON. Both controls then
+pass through OFF and return to START. They receive 126 bytes across
+four frames and transmit 156 bytes across five frames.
+
+The state table at `0xd7c74` in the E-ULS-0101 application names
+state 4 TIMER. The observed transition caller `0xd726b` follows
+a decrement at `0xd7262`. The paired E-ULS-0104 disassemblies
+(SHA-256 `187c4115bc5c3717390496b6ae5f4b733075eeedc8532e998ec9e3d698e93f31`)
+show `0xd7884` checks for ON, zero at adapter `+0x4c` and clear
+low flag bits on the list entries before requesting TIMER at
+`0xd78ae`. The TIMER branch arms event 7 with argument 5000.
+This path differs from the sequence-3 timeout in the controls.
+
+All four runs finish in START with UART3 receive state 4. Hello,
+pairing Connect, guidance, and guidance bottom match the recorded
+frame checkpoints. The normalized logs match byte for byte within
+each pair. The arrival schedule is imposed by the diagnostic.
+Ticket 826 remains blocked on the first frame and arrival timing
+from a cold radio boot.
+
+| File below `/tmp/semu-826-watch-seq3.AOK5YP` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `765f2ce4a3d7b25a2a53bffdae419409096798d8c8b707fd8a52a0717224e6bd` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `observe.hooks` | `19c9c052411c09eb435605a0044dc9838a88d592cd0d686e98133ade70a7321f` |
+| `run.py` | `f42ffef2224511cdb926375ba7f635112b61043e43f39ddf76ed3cfc930d1272` |
+| `census.py` | `3314c4e3572d74a94b25d4f5f4ac4270699efc20839eb955693297a96fdd65af` |
+| `census.log` | `99f6f47357f34a9aa275fd7d39dfe1b9253d6d1d8d9c89e27eaf5e33ae81adf7` |
+| `ack-{1,2}/boot.norm` | `fc7c687d127c5fcec8bd983723e0f78407ce65b135dfb6d09af8699584305827` |
+| `ack-1/probe.resc` | `87c04c80a1ed1a7dfcde908cd8979acc6f8d9373767e1f4b221379bf748299c4` |
+| `ack-2/probe.resc` | `4eceaee70a72aeed6ab66bc9b49461ad6a7df63b1a558d7bd840a1c8905e9a93` |
+| `ack-1/renode.log` | `d5da4bf1508df029feab4434541e8fddd788d6b5d3833b2d7a132e7a9b5ea2a1` |
+| `ack-2/renode.log` | `3826a4e046c5be999119e939605a3d28ce4c00e92372256afb421bab2d3160ef` |
+| `control-{1,2}/boot.norm` | `c2987bb40f1b5bdecd268c259fb12ab2298fe2d71623f2f0128ba0672523aa0e` |
+| `control-1/probe.resc` | `513d11c6929c280acc089f8ea45104655508e44408b77a6301c2bd14a882d3c5` |
+| `control-2/probe.resc` | `a9e9e28eb691e5a963b682c45c4d12aa81a45c077347922a1ffaa740faa61762` |
+| `control-1/renode.log` | `e79382fc02c4a0dbe0537ff1c8274aef0bf66db7848f4b31327e371c5fc8042d` |
+| `control-2/renode.log` | `7c2dde028513fc21c5514dcdf342f925fc78c4d78c48b87981712d8c930e941c` |

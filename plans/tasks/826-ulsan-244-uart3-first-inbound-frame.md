@@ -264,3 +264,20 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0116 replays the native 18-byte sequence-3 acknowledgement
+in two cold watch boots. Both accept it with status 0 and send no
+further UART3 bytes through 60,000 virtual ms. ON lasts
+9,852,329,125 ns before TIMER, OFF and START. The watch reopens
+UART3 during pairing and receives no traffic on that second open.
+Two controls omit the acknowledgement, retry sequence 3, and
+leave ON for DISABLED after the request times out. Ticket 826
+remains blocked on the first cold radio frame and its timing.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. Private logs are under `/tmp/semu-826-watch-seq3.AOK5YP`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
