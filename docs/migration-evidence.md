@@ -19161,3 +19161,78 @@ reach the same reference bottom at generation 250 and
 | `normalize-final.py` | `3142ceca5341419c9e72a638ba85ae69825ac0c3f2b87c8ad5aac1a3e58a698e` |
 | `crown-only-{1,2}.norm` | `e83c9eab1829f5abac5791da822487a8d9b8a40c93403632171e6b2d903d612e` |
 | `mixed-{1,2}.norm` | `4e0d87ee44e613e15db9503fc72b2aa9370b46a1e435cf98c223a46e7da4c49e` |
+
+## E-ULS-0101 — Race S BLE provider startup and adapter request
+
+2026-11-11. Two cold Renode boots use the E-ULS-0078 production page,
+E-ULS-0079 flash and eMMC, and E-ULS-0088 GPS fixture with the E-ULS-0100
+crown-only route. The first native Hello frame matches E-ULS-0098 at
+12,500 virtual ms. Pairing Connect, guidance, and guidance bottom match
+at 27,000, 28,900, and 32,850 ms. The probe waits another 5,000 ms and
+ends at the same bottom hash
+`d3014e708de945e59f5a41e226fd89156bb9ba9467c676ed4eef634229346ae4`.
+The probes use read-only CPU hooks and bus watchpoints. The firmware,
+reference repository, and source media are immutable.
+
+The application component is the E-ULS-0099 image, SHA-256
+`64827b1c4653464e5d15de9b3efd01243193604b24891b651f28f5c6da6d34ef`.
+GNU `arm-none-eabi-objdump` (SHA-256
+`7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda`)
+decodes it as Thumb at load base `0x30000` twice with identical
+output. The Renode executable and the synthetic media match the
+earlier evidence hashes. The probe extends the E-ULS-0100 base
+`/tmp/semu-822.SwGQ7F/lane-1/probe.resc` (SHA-256
+`53fc555fd376aa24d87c8eaa8695880dc39d800c09a0bcdf386d9b47f07f4d95`).
+
+| Boundary | Observed in both cold boots |
+| --- | --- |
+| Provider construction | `0xb5694` constructs `BleP` at `0x10043868`. At `0xb57c6`, its primary vtable is `0x1b7614` and the callback vtable at object +8 is `0x1b7674`. Native startup commands 0 and 1 each return 200. |
+| Initial BLE settings | The first two opens of `settings/ble/device` at `0x69ba0` use mode 1 and return zero to `0x8d5d6`. Bytes at offsets 4, 5, 6, 7, `0x38`, and `0x39` are `0,1,1,1,0,0`. At `0x8d5fe`, the zero byte at `+0x38` takes the branch around loading. |
+| Provider activation | The initial `0x0d03` notification takes `0xb7818` with value 0. The state handler at `0xb7558` moves from 1 through the request for 4 to state 5 and calls `0xd9c54` with 0. A second notification before Hello arrives with value 1, moves from 5 to 2 and calls the same function with 1. |
+| Early enable gate | With the provider still in state 2, the lookup for `0x4d00f000` returns zero at `0xd9c7a`. The fallback at `0xd9c94` also returns zero because provider byte `+0x1f39` is `0x0e` and the helper `0xb5b1a` tests bit 0. Execution returns at `0xd9caa`. |
+| Settings during pairing | A native mode 2 open later succeeds at `0x8d60a`. Two `0x3b07` callbacks recalculate the flag byte, first retaining `0x0e`, then setting `0x0f`. The second invokes `0xd7550` from `0xb7884` with `(0x10043a7c,0x4d00f000,1,0)`. |
+| Request dispatch | The request finds entry `0x100443ec` with flags `0x0c`. The adapter readiness helper `0xd785e` returns zero to `0xd75c8`. The branch to `0xd7648` skips `0xdb6b8` and returns zero at `0xd7650`. |
+| IOM4 census | Both boots record 1,316 word writes to `SUBMODCTRL` and 219 word writes to `CMD`. The command targets are I2C `0x28` (63), `0x36` (39), and `0x50` (117). Every command has submodule bit 4 set and SPI-enable bit 0 clear. No SPI command occurs through 37,850 ms. |
+
+The adapter state names are taken from the application's table at
+`0xd7c74`. It moves from DISABLED to OFF and then START at
+`0xd7798`. The START branch enqueues backend mode 2. The backend
+worker at `0xdbe9c` consumes the request and calls `0xdbec2` with
+mode 1. The adapter never records an ON transition in the bounded
+run. The provider state at `BleP+0x1f3a` is a separate byte and is
+2 at the pairing request. The early settings gate and the later
+adapter readiness gate are distinct native decisions.
+
+The backend's call at `0xdbf38` resolves to `0xf2105` on object
+`0x10043504`. The Thumb body at `0xf2104` calls the UART open
+routine `0xff87a`, and the backend observes return value 1 at
+`0xdbf3a`. The lane maps UART3 at `0x4001f000` in
+`platforms/cpus/ambiq-apollo4.repl` (SHA-256
+`e1f8560bd32f82fb2aaf7e9a8877b1b1c4aff7bd0a35821f8761a76243b74376`).
+Both traces record the first UART3 control writes at `0x4001f030`
+as `0xffb1c:0x18`, `0xffb38:0x8318`, `0xffb40:0x319`, and
+`0xff8f0:0`. These sites account for 63,831, 63,831, 63,831 and
+63,830 writes respectively by the end of each run. The watchpoint
+on the UART3 data register records zero word writes. The lane
+reports the existing unsupported CTS-enable bit on the control
+write at `0xffb38`. The trace establishes a UART3 startup path and
+the adapter's failure to reach ON during this window. The UART
+exchange and the cause of the missing ON transition remain open.
+
+The normalized 210-line traces are byte-identical. They retain the
+ordered provider and adapter hooks, all frame checkpoints, and the
+IOM4 and UART3 write counts. Raw logs include host timestamps.
+
+| Files below `/tmp/semu-823.k9HjB5` | SHA-256 |
+| --- | --- |
+| `observe.py` | `7f26123eb8b35f1bcbd28947c16168bbeb7fa434d70ecb3f3f5cdf6239dc7c24` |
+| `transport.hooks` | `d735011c33dd0b7740b170165185c3b560cc1917fca555eb5fe4661d8686ed18` |
+| `normalize.py` | `3ad60db5ed985a220baecb57d6de6c428debb8b059f1ce3870d3d90510474493` |
+| `app{,-repeat}.dis` | `187c4115bc5c3717390496b6ae5f4b733075eeedc8532e998ec9e3d698e93f31` |
+| `transport-1/probe.resc` | `184410b1cef7e5840cb654bba5029fa32e3ee6fbd7f1edd2dbf3069350c59ec2` |
+| `transport-2/probe.resc` | `a193074db027309c70d35fff2ee99d209cd8396dc42c87fdbef978f5e4b2856e` |
+| `transport-1/renode.log` | `69619df78eddf7d9d6a4503f0de025576777dce508c1ec4b1ffe344e491bd77d` |
+| `transport-2/renode.log` | `5743472b6c88fa8866e9c10198e0a7816f973e1577f6b4dea78e0b9cd8828f4f` |
+| `transport-{1,2}/boot.norm` | `0e9ec54aa64ae2594e6ae7338eaea42f7eefc626e6979f757245af9a02cce052` |
+| `era.log` | `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81` |
+| `test-ulsan.log` | `826562c74bb7da2284a2b0af55e2749ae298d6db83a77b785079e0eaf053910d` |
