@@ -231,3 +231,20 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0114 replays the native 18-byte sequence-2 acknowledgement
+in two cold watch boots. The adapter stays ON through its acceptance
+and emits an opcode `0x14`, subtype `0x0a`, sequence-3 request
+with eight payload bytes. It leaves ON when that request times out,
+after 2,060,443,250 virtual ns in ON. Two controls omit the
+acknowledgement and retry sequence 2. All four boots finish in
+START. Ticket 826 remains blocked on the first frame and arrival
+timing from a cold radio boot.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are below `/tmp/semu-826-watch-seq2.qzhANv`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`

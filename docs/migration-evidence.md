@@ -20297,3 +20297,80 @@ frame and arrival timing from a cold radio boot.
 | `crc-1.log` | `9b82d6b894b85caa7afd90820e729d51f5683ff305bf591d8bb06a94e9e9edd3` |
 | `crc-2.resc` | `a79d4c7a062a6e1c125d4671a0d7674af64766b43a53a360581167008cbc2c9f` |
 | `crc-2.log` | `5318d8fa9c63ed2bc0d1d1f525f92bd68cc1cef8c6983d63c7e994ad1f3e8bd9` |
+
+## E-ULS-0114 — Race S accepts the sequence-2 acknowledgement while BLE is ON
+
+2026-11-11. Two cold Race S Renode boots replay the E-ULS-0113
+sequence-2 acknowledgement after the E-ULS-0112 startup exchange.
+Two cold controls omit only the sequence-2 acknowledgement. The
+four runs use the pinned E-ULS-0104 application, lane, media and
+crown-only route. Each has a 60,000-virtual-ms stop and six-minute
+host timeout. The initial exchange includes E-ULS-0111's labeled
+factory pattern A. The guest owns the parser, pending requests and
+adapter state.
+
+The 18-byte acknowledgement is the native radio output
+`7e140b08000a000200000000009f6a35987e`, SHA-256
+`b0f5df67fc1ac38c8014c199173117752f02ce152043691432ddfbefecfb4cc6`.
+The temporary UART wrapper verifies the first three watch frames
+against E-ULS-0112 before supplying three diagnostic TX completion
+interrupts. It schedules each completion 600, 200 or 300 microseconds
+after the corresponding frame's last TX write. It admits the
+acknowledgement only after the exact sequence-2 request has been
+observed and the native driver has cleared the third interrupt
+and returned to receive state 4. Both conditions use the same
+completion events and timing. No further peer response or TX
+completion is supplied.
+
+| Boundary | Observation in both sequence-2 acknowledgement replays |
+| --- | --- |
+| Initial ON | The native adapter stores ON at tick `11678580994`. The watch sends the verified opcode `0x14`, subtype `0x0b`, sequence-2 request at ticks `11678662869..11678666869`. |
+| Third TX completion | The diagnostic event and native clear both occur at tick `11678966869`. |
+| Acknowledgement ingress | The 18 bytes arrive at ticks `11689099744..11689269744`, spaced by 10 microseconds. All 126 input bytes match at UARTDR and the native parser. The CRC-pass call and frame handler receive the 12 decoded bytes at tick `11689715869`. |
+| Pending request | The completion path at `0xda9d2` records status 0 for the opcode `0x14`, subtype `0x0b`, sequence-2 request at tick `11690682369`. The adapter is ON. |
+| Next request | The watch emits a 26-byte frame at ticks `11690742494..11690746119`, while the adapter is ON. Opcode `0x14`, subtype `0x0a`, sequence 3, flags `0x04` and eight payload bytes. |
+| Later timeout | The same completion path reports status 3 for the pending sequence-3 request at tick `13738493869`. The adapter leaves ON at tick `13739024244`, after 2,060,443,250 ticks in ON, then returns to START. |
+
+The next request decodes to header `140a04000000030008000000`
+and payload `000000000f183200`. Its complete wire frame is
+`7e140a04000000030008000000000000000f18320049f2080a7e`
+with CRC-32 `0x0a08f249` and no escapes. Its SHA-256 is
+`b9064030577118ec328f6319f3764b223dc197ad19e0b92d3e403c3ec490f3a3`.
+
+The controls also reach ON during startup. They retry sequence 2
+and report status 3 for that pending request at tick `15776672619`,
+then leave ON at `15777202744`. The acknowledgement advances the
+native request queue while ON. Both conditions still reach a
+timeout within this bounded replay. The actual first frame and
+arrival timing from a cold radio boot remain unverified, and
+ticket 826 stays blocked.
+
+The controls parse 108 bytes and transmit 158 bytes across five
+frames. They remain ON for 4,098,621,750 ticks through the
+sequence-2 retry. They send the same sequence-3 bytes only after
+returning to START, at ticks `15777744494..15777748119`. The
+acknowledgement pair transmits 130 bytes across four frames.
+The two normalized traces match byte for byte within each pair.
+All four finish in START at 60,000 virtual ms, report zero native
+pairing readiness and match the Hello, guidance and bottom
+frame checkpoints.
+
+| File below `/tmp/semu-826-watch-seq2.qzhANv` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `db5730d558e5e14a9e624ca70c7beb6071fb9b7cc38f3293e8e7b69f7b2bb70e` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `observe.hooks` | `19c9c052411c09eb435605a0044dc9838a88d592cd0d686e98133ade70a7321f` |
+| `run.py` | `048360ea0d101a495600e8129024f8c6a4d08772d30a5cf2115c421fd5015458` |
+| `census.py` | `383396dd72b2ff5879d3d01254b93e7e6137485d7753da51e37df5935ff54961` |
+| `census.log` | `b81464646c83276e0582a2bdb88cf4cb9776c5346bbad296345e1672f094188e` |
+| `next-request.bin` | `b9064030577118ec328f6319f3764b223dc197ad19e0b92d3e403c3ec490f3a3` |
+| `control-{1,2}/boot.norm` | `8f1e8619957194779474bfe6937f012cfe9831471415fa5709a250974bd32689` |
+| `control-1/probe.resc` | `30bafaeefb32a5a68878fb381345deeca837a96591c198038f9f456e4b95e163` |
+| `control-1/renode.log` | `370bff7d6a091a35943560f55292cb72b2d161e364116f43028cd58015daa631` |
+| `control-2/probe.resc` | `148191289ee1d5e13ef9f24df7251f2cc787633d4955769376efc0119c2fb4c7` |
+| `control-2/renode.log` | `8fc0536c7f5f384f2b80a3486ff7301bcf2d683fb14c56de8716ed9e1e74bee6` |
+| `ack-{1,2}/boot.norm` | `58f7c70b388ee1c7935d3bb564274a7b8905ee3131da4ffe7f635d9053ecb4c3` |
+| `ack-1/probe.resc` | `4dec2bb7ed268f1ce8abbe39baebcf9988a19cd46f636c50c0ef9b4be2014eaa` |
+| `ack-1/renode.log` | `99b062436340765c7d5ba696b36a6e98d0bda457adf2e4c42fa145683d487ffe` |
+| `ack-2/probe.resc` | `006baf6f634484d85cbfe29550bb3200ed4973b91f5dbbe4772695282e69bf3c` |
+| `ack-2/renode.log` | `accc75d59311b47ae338645ecbedc213740d5fa990287dfd19ac327d78a0fbd6` |
