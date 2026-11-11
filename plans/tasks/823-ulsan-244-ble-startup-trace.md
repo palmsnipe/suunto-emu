@@ -1,6 +1,6 @@
 # 823 — Ulsan 2.44.52 Native BLE Startup Trace
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 822
 
