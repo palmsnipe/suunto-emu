@@ -216,3 +216,18 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0113 feeds the watch's opcode `0x14`, subtype `0x0b`,
+sequence-2 request through the native radio parser. Both
+isolated Renode runs take the pairing-removal path and emit
+the same 18-byte acknowledgement with an empty payload. Both
+bad-CRC controls emit zero bytes. The radio's cold-boot first
+frame and arrival time remain unverified. Status stays blocked.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are below `/tmp/semu-826-radio-seq2.YRKgnP`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`

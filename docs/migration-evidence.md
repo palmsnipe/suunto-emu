@@ -20230,3 +20230,70 @@ individual effects on sustained ON unresolved.
 | `info-1/renode.log` | `b1152c0deedf87a44b92bad7ee102e05c5a7abbbbe45bad7dd0436b642681bc6` |
 | `info-2/probe.resc` | `5eef00ee3a46581f9615ed2cef1d91f7cf852927d05a1f58d1bef4d4e495efb9` |
 | `info-2/renode.log` | `7395980d806ea3869b06f103093cebdd150c1e0e331c6d3a748099ab97c05353` |
+
+## E-ULS-0113 — Race S sequence-2 request through the native radio parser
+
+2026-11-11. The probe independently extracts the 28-byte
+opcode `0x14`, subtype `0x0b`, sequence-2 request from the two
+E-ULS-0112 `info-{1,2}/boot.norm` traces. It is the frame the
+watch sends after reaching ON, with flags `0x04` and ten
+zero payload bytes. Its SHA-256 is
+`73023ba762eb6aadd5527ed28e54cf95a0cae7fe335d9e3857abc17ed8ce2a30`.
+
+Each run uses the E-ULS-0111 Cortex-M33 harness, its pinned
+radio application flash and Renode 1.16.1 executable. The
+diagnostic calls the native transport pool and protocol
+constructors, initializes retained data through its native
+helper, and starts with an idle transmit queue, inactive
+startup timer and empty pairing records. No FICR words are
+mapped. The stub feeds the exact watch frame to the radio's
+native byte-buffer callback at `0x331c2` in one call. The
+transmit model is Renode's `NRF52840_UART` in EasyDMA mode at
+the radio UARTE1 address. Each run uses a fresh machine with
+a 200-microsecond virtual budget and a 35-second host timeout.
+
+| Boundary | Observation in both valid runs |
+| --- | --- |
+| Receive | 28 native byte-parser calls. At `0x26daa` (tick `14740`), the calculated and received CRC-32 are both `0x18e9f795`. The command handler receives 22 decoded bytes. |
+| Dispatch | Opcode `0x14` selects `0x32ec6`. The subtype `0x0b` table slot reaches `0x2979e`, then `0x24a1c` consumes the six zero address bytes at payload offset 4. |
+| Pairing removal | The pinned firmware labels the path `gap_RemovePairing` and `bt_unpair`. The native call at `0x18a58` receives arguments 0 and 0. Its record scan at `0x1f760` reaches no per-record callback at `0x1f788`. The native helper returns 1, and the protocol handler returns 0 at `0x26398`. |
+| Acknowledgement | The native `0x32ff8` path emits opcode `0x14`, subtype `0x0b`, sequence 2, flag byte `0x08`, status 0 and an empty payload. Decoded header `140b08000a00020000000000`. |
+| Transmit | Encoder queue at tick `62650`. EasyDMA points at `0x2000769c` with length 18 and executes STARTTX at `0x266c4`, tick `64490`. The encoder, DMA buffer and model output agree byte for byte. |
+| Stop | The native receive callback returns 1. The stub halts at `0x20010124` after 6,476 instructions at tick `64760`. |
+
+The emitted wire frame is `7e140b08000a000200000000009f6a35987e`
+with CRC-32 `0x98356a9f` in little-endian order and no escaped
+bytes. Its SHA-256 is
+`b0f5df67fc1ac38c8014c199173117752f02ce152043691432ddfbefecfb4cc6`.
+An independent CRC calculation matches. In two CRC controls,
+the calculated value `0x18e9f795` differs from the supplied
+`0x19e9f795`. Both controls return after 1,483 instructions
+without dispatching the command or emitting bytes. Each pair
+matches its normalized transcript byte for byte.
+
+The acknowledgement is observed for the isolated radio's empty
+pairing state. Behavior with populated pairing records and
+physical UART timing remain unverified. The probe stops after
+capturing the reply. Ticket 826 remains blocked on the first
+frame and arrival timing from a cold radio boot.
+
+| File below `/tmp/semu-826-radio-seq2.YRKgnP` | SHA-256 |
+| --- | --- |
+| `call.S` | `78d9b8360f9f926c484fca794a6e79131a9ac092b7114ddd2b067f13c567990a` |
+| `call.bin` | `27f572f84944397d920eb8b48579a30f24f02acc9b74a1bd616a1b07f01033e1` |
+| `trace.py` | `d1e62630c2d6135a8cb9693ee12e83a29de01ba8acc1062af4c1b94d12c0219e` |
+| `radio.repl` | `382e1780d61ce105023434437a26447936d22063e8ec847232b46b6a6c34d4f3` |
+| `run.py` | `fb36957443c36d8b7c429411ba5ebe2f8c84b227c291ce3a10391519750cfe93` |
+| `request-{1,2}.bin` | `73023ba762eb6aadd5527ed28e54cf95a0cae7fe335d9e3857abc17ed8ce2a30` |
+| `crc-{1,2}.bin` | `38795ffbe370b8749ba9d85504cd9675c3baeba810e49a37a73984ea9a1c39a4` |
+| `response-{1,2}.bin` | `b0f5df67fc1ac38c8014c199173117752f02ce152043691432ddfbefecfb4cc6` |
+| `valid-{1,2}.norm` | `8dd064f2351961f7b7986c090cf94112d97f0f1bcd69a33758ec99e140e35b1d` |
+| `valid-1.resc` | `41fd3faa310a1a61b1d22a4899f62409cceb05c9e965785156a860634772b173` |
+| `valid-1.log` | `c24aa2c8fba20deb2b7a9451f9bfb6bea41c23a13086cb8c4957855f9350b5ec` |
+| `valid-2.resc` | `7daae329c485712ecd769238b0cff9b85a291710385be67b49f69a710e3609dc` |
+| `valid-2.log` | `c1e6875241b627c752bdefb0457fde92c3f00b9d5a52547d8c8666ac5d443b72` |
+| `crc-{1,2}.norm` | `84c81e88c559ee82d98afee5b6903c8c7b576f1d30178e5881a5bbe88155f57c` |
+| `crc-1.resc` | `ab0a7dfe635fc7e9ee2ebc623e4e7c33813a78a173ee5bba73f6f226f6d6d520` |
+| `crc-1.log` | `9b82d6b894b85caa7afd90820e729d51f5683ff305bf591d8bb06a94e9e9edd3` |
+| `crc-2.resc` | `a79d4c7a062a6e1c125d4671a0d7674af64766b43a53a360581167008cbc2c9f` |
+| `crc-2.log` | `5318d8fa9c63ed2bc0d1d1f525f92bd68cc1cef8c6983d63c7e994ad1f3e8bd9` |
