@@ -19368,3 +19368,85 @@ radio's actual first frame bytes and timing remain unobserved.
 | `held-fast-2/renode.log` | `71b06961c59ff974f05691c3016bd49777ac6fc280ca9bc13ac1a236a1af27fc` |
 | `low-{1,2}/boot.norm` | `1a0be816f73133c314da71e6aa01fbd9e9e7e8c0160c4185bc2dc94262df6f11` |
 | `held-fast-{1,2}/boot.norm` | `841e5c4ade07248894e2f8096e2a158be0d5059c6092def64002913b98f39ef9` |
+
+## E-ULS-0104 — Race S UART3 receive boundary without a radio peer
+
+2026-11-11. Two cold Renode 1.16.1 runs use the E-ULS-0103
+application, lane, media, and crown-only route. The probe extends
+the E-ULS-0103 temporary PL011 wrapper to timestamp every UART3
+`IUART.WriteChar` call before forwarding it and every emitted TX
+byte. It separately traces the UART data register and the firmware
+receiver. CTS is asserted at 11,400 virtual ms. The instrumented
+lane has no radio peer and the CTS stimulus supplies no data.
+An isolated monitor smoke test without guest firmware delivered one
+marker byte at tick 0 and read the same byte from UARTDR.
+
+| Boundary | Observation in each cold run |
+| --- | --- |
+| Normal backend start | `0xdbec2` takes mode 1 at tick `11472939119`. GPIO19 is configured at `0xdbf0c`; the pin-list calls at `0xdbf20` and `0xdbf2c` occur at ticks `11476262869` and `11492346369`. |
+| Receive readiness | UART3 opens once. The native store of RX and receive-timeout mask `0x50` at `0xffd34` occurs at tick `11492358244`. Backend open returns 1 at `0xdbf3a`, tick `11492358369`. |
+| Pairing | Hello matches at 12,500 ms and the guidance bottom matches at 32,750 ms. At pairing readiness return `0xd75c8` (tick `28469005869`), the result is zero and the adapter is in START. |
+| Receive and transmit | Through 60,000 virtual ms, the ingress byte count, UARTDR reads and writes, parser calls, validated frames and transmitted bytes all equal zero. UART3 stays open and UARTFR is `0x91` at the final sample. The adapter remains in START. |
+
+Both runs end on the guidance bottom frame
+`d3014e708de945e59f5a41e226fd89156bb9ba9467c676ed4eef634229346ae4`.
+Their normalized 120-line traces match byte for byte. The timing
+above is for the watch-side setup, with no frame arrival to timestamp.
+
+The app's mode 1 path reads the 1,000,000 baud request from the
+literal at `0xff870`. The running firmware programs UARTIBRD `1`,
+UARTFBRD `0x20`, and UARTLCR_H `0x70`, corresponding to 1 Mbaud
+at a 24 MHz UART clock and eight data bits, no parity and one stop bit.
+The local Renode PL011 getter reports 1.5 Mbaud, consistent with the
+integer truncation of the fractional divisor in the
+[Renode PL011 source](https://raw.githubusercontent.com/renode/renode-infrastructure/master/src/Emulator/Peripherals/Peripherals/UART/PL011.cs).
+The registers and native request are the evidence for the configured
+rate. See [ARM DDI 0183G, §§3.3.5–3.3.7](https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5).
+
+Two fresh Thumb disassemblies of the E-ULS-0101 application match
+the prior digest. The receive state machine at `0xff538` resynchronizes
+on `0x7e`, uses `0x7d` escapes and XORs the escaped byte with `0x20`.
+At the closing delimiter it compares the final four decoded bytes
+against the checksum computed through `0x83c2c` before calling the
+frame handler at `0xff586`. That handler reaches the E-ULS-0103
+opcode 1, subtype 0 startup path for a valid startup frame. These
+are host parser constraints. The peer's actual frame content and
+startup delay remain unknown.
+
+The retained SOF package
+`Ulsan-fw_2.44.52.20521-R-fc822bb5.sof` has SHA-256
+`276ca7e6bbec83f2e08945e89b67859b090027810e2d314237e0abc25fb15a25`.
+Two format-aware inventories checked stored and expanded CRCs and
+matched all five expanded components to the retained images. Components
+2, 3 and 4 have the same initial stack pointer `0x1005ffc0` and
+Thumb reset vectors `0x5d799`, `0x191d1` and `0x1da733` within
+their declared load ranges. Component 1 has an unassigned load
+address. Component 5 is the E-ULS-0079 external flash tail. Its
+retained 220-entry carve index yielded no firmware filename extension
+matches, and the non-vendor artifact tree yielded no capture filename
+extension matches. This inventory identifies no verified radio
+executable or trace. The capture gate requires a pinned peer source
+that produces the frame in the lane.
+
+The SOF parser `../suunto-firmware/tools/sof_extract.py` has SHA-256
+`78f9c98e633095451c787870ba0c8614bbc80dc6e3d7bf8eb1960c320cbd720e`.
+The `filesystem-carve/carved-files.csv` index for this package has
+SHA-256 `96f28cbbb475ca81cb4f9d3a8ea804bcf308d7a3046d063bb0351da5589fc7c2`.
+
+| Files below `/tmp/semu-826.KrYfyJ` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `8e0863386470feb5bb7f9d6bbd5160b40eba88b947c3f8128bb7824d762ec57c` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `run.py` | `69a4f8ab0fa8cccc00e53a8289b7037442d58022cd73875d429c7b7bead48427` |
+| `observe.hooks` | `58de645e847f4d73fb9569aec102d96422eb158871d2b08812095d9be3191592` |
+| `normalize.py` | `84e804023c5327f5dfb4a24427b6780517d360093e338ce80ba82af6c3059bb6` |
+| `smoke.resc` | `0ff5cce170d36ba6fbdbf8d601303a36aea899b488374c8e53656b6f12fe76ee` |
+| `smoke.log` | `44aaf2f4044ff75f872414f53e96ef3a733b7ddbbd14f05d769a5ff296be5e93` |
+| `inventory.py` | `0b2bfc98a7d0895a33714b15509a42c9613d040e97cb944160df54d35c0e7c22` |
+| `inventory-{1,2}.log` | `85d721d59dd7ea23cf92c0409e67a1b08c2f7467af0c06e9b991485931e7fb40` |
+| `app-{1,2}.dis` | `187c4115bc5c3717390496b6ae5f4b733075eeedc8532e998ec9e3d698e93f31` |
+| `run-1/probe.resc` | `41e2606260097fe8149167f2fe9a8098a3916b8727574e30f8d4e42366725112` |
+| `run-2/probe.resc` | `a38bdbe4975c5e743530ba7645820b1aed9b90d44e5a052928660bc34c85cda7` |
+| `run-1/renode.log` | `4439626993992ceed10a68fa3752aea6852be338483c5fd8f87ba02cd1849aca` |
+| `run-2/renode.log` | `33c13fd41f7001dfcdfa0cc8b25f47aad5df7a9a061b3fe80741506798a11a4f` |
+| `run-{1,2}/boot.norm` | `f021fb69ea7ae80300dd61fa3fde1c7e29754c1c12e72b8511a035d8e97a493e` |
