@@ -1,6 +1,6 @@
 # 824 — Ulsan 2.44.52 UART3 Readiness Trace
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 823
 
