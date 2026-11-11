@@ -19707,3 +19707,64 @@ platform, executable, and materialized inputs.
 | `/tmp/semu-826-nrf-uart.ly5IIe/trace-{1,2}.log` | `862ff013d8d9ca72baf6320096688bbb7b8827410140bef2ce5ab2c7cb0ff177` |
 | `/tmp/semu-826-nrf-uart.ly5IIe/loader.py` | `bef88f0f3883401a5ae90bd2d16ee9d9aab9d74b2b19e85791b3a2b1f42d21c0` |
 | `/tmp/semu-826-nrf-uart.ly5IIe/loader-{1,2}.log` | `28790223590343be2a47de46cb9a83ff14baa2a003820d22c4f3b5b06caf5c6f` |
+
+## E-ULS-0107 — Cross-product radio update census and revision probe
+
+2026-11-11. Two scans of all 24 retained SOFs decode every component
+with the E-ULS-0105 SOF parser and verify each candidate 40-byte SFI3
+header with its CRC-16. Sixteen packages contain 48
+`BambiTL_nRF53` headers, three per package. In addition to the
+eight Ulsan releases, these comprise five Rostock, one Tianjin and
+two Wismar releases. Every set declares FLIE ranges
+`0x1000+0x7000`, `0x10000+0xe0000`, and `0x01001000+0x3f000`.
+The scan also finds nine `BambiTL_S132` headers in Nagano and
+Sapporo. Their FLIE range starts at zero and Nordic identifies
+S132 as an nRF52 SoftDevice. The nRF5340 reset sectors remain
+unavailable from the identified update ranges.
+[Nordic S132](https://www.nordicsemi.com/Products/Development-software/S132)
+
+The pinned radio disassembly compares the factory words at
+`0x00ff0130` and `0x00ff0134` as revision selectors. The first
+BambiTL pair check is at `0x4194..0x41a0`. The normal application
+reads them at `0x20668..0x2066c` and looks up the early workaround
+predicate at `0x20664..0x20682`. Nordic nrfx v3.0.0 checks
+`(7,5)` among the explicit cases for errata 160 and 161. The
+probe uses that pair as a diagnostic input. The exact factory
+words on an OW233 remain unverified.
+[Nordic nrfx revision predicates](https://github.com/NordicSemiconductor/nrfx/blob/v3.0.0/mdk/nrf53_erratas.h#L5498)
+
+The E-ULS-0106 Renode diagnostic maps only the two revision words.
+Each recovered application-core vector is entered twice with a
+100 microsecond virtual window and 35-second host timeout. Each
+pair stops before its next unsupported read and reproduces its
+normalized trace. No UART is reached.
+
+| Recovered vector | Next read boundary | Instructions | Normalized trace SHA-256 |
+| --- | --- | ---: | --- |
+| BambiTL stage at `0x1000` | `0x41ca` reads `0x50032420`, the status word used by Nordic erratum 140 | 24 | `9153421a53d4641394f2ba64c04be5306d1e64de5cea1d15216d88ede9b832b7` |
+| Radio application at `0x10000` | `0x206d0` reads the first trim entry at `0x00ff0300` | 25 | `52b7858372b46b841733dd048be7599770ad8b102a840095d885b26e7a0e0dad` |
+
+Nordic documents the calibration-status test for erratum 140 and
+the trim loop that copies factory address/value pairs. These
+diagnostics narrow the missing inputs for a direct-entry model.
+They leave the installed reset path, first UART3 bytes, and timing
+open under ticket 826.
+[Nordic erratum 140](https://docs.nordicsemi.com/r/bundle/errata_nrf5340_rev1/page/err/nrf5340/rev1/latest/anomaly_340_140.html),
+[Nordic application startup](https://github.com/NordicSemiconductor/nrfx/blob/v3.0.0/mdk/system_nrf5340_application.c#L83)
+
+| Probe input or output below `/tmp/semu-826-offline.5en8jd` | SHA-256 |
+| --- | --- |
+| `all-sfi.py` | `50539807d8e5ceb523f213911ee71ad70e89d0957d9a1b768135e14469c3dd05` |
+| `probe-revision.py` | `544c408f5cc9c32d58324f61a83ad5dded37e8de111c690b8e66eb572e864f0d` |
+| `ficr-revision.repl` | `20ed4cc8b6f47dd73be9c0853e0e9d6b6a648f90fdcd4e6a11bf26ecc4f4a421` |
+| `peer.repl` | `bb111fa116875a063380bd236c78348a162b77bd1bc36184b5030402217f915d` |
+| `nrf53_erratas.h` | `f564bf9a71ce11f8abe3316833b1a2fb3a8409155da16eb7098f5216fb559c3e` |
+| `all-{1,2}.log` | `7b1cabe43c37e90e3ef1de233b3198f19c8505e14e406ca9788e07816a8b961e` |
+| `strict-stage1-1/probe.resc` | `8e3a81e9401e16a827a77cdaef37e95124027215232b5c576470b338dacc7302` |
+| `strict-stage1-1/renode.log` | `bfd83362b38d8ff7b7183a5bede673957f787fae3b8681a9e3f595a09481c53f` |
+| `strict-stage1-2/probe.resc` | `5ca500eedca0742b19e280f452b1a042447457214e6be8feefb685431b5f4749` |
+| `strict-stage1-2/renode.log` | `a8f0f18138d64434f7e9aeb858f55725d3603c75797cd33a9dd404aafbce12bb` |
+| `strict-app-1/probe.resc` | `985b914d5625eb6e3d21c270a2066ef56fa5d4728321aef0c632dbd16fac9608` |
+| `strict-app-1/renode.log` | `5572247c3f157ee2c3ab75d52e084f33f6e49ad413311e817635d2caa5fe1dff` |
+| `strict-app-2/probe.resc` | `5c0f99296a794ab6e3d798ee97cabe5d94b00f5cc8af877c20f2a16892b555b1` |
+| `strict-app-2/renode.log` | `34b361f75d6086c4e3cbbeb5aca24375a700a950f82ebdf872c189263955ac6b` |

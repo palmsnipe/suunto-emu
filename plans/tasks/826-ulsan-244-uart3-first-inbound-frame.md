@@ -126,3 +126,10 @@ The private regression logs under `/tmp/semu-826-reset.9VHs29` have these SHA-25
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0107 adds a 24-package cross-product census. The identified
+nRF5340 update images all omit the flash-base ranges. A public
+Nordic revision predicate allowed two bounded direct-entry probes
+past the first factory reads. They stop at the BambiTL clock status
+and application trim table. Status remains blocked on the installed
+reset path and the first timed UART3 capture.
