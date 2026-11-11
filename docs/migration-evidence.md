@@ -19860,3 +19860,74 @@ that observation.
 | `replay-2/probe.resc` | `8d99995623ceeb8196f0de7b19c6fda4cde0ec3d42b5180429780208deadc538` |
 | `replay-2/renode.log` | `af0b9bfb6be7e601b7eb9620a1986b6a70ec1038fe0f739f1c5d2243265b0095` |
 | `replay-{1,2}/boot.norm` | `e3382ff88fb55c6f3b4aa5c4f674d73e48d696e4066f7c53407d9940c9dba14a` |
+
+## E-ULS-0109 — Race S watch reply through the native radio parser
+
+2026-11-11. The E-ULS-0108 watch-side traces each supply the same
+58 UART3 TX bytes. The probe extracts them independently from
+`replay-{1,2}/boot.norm` under `/tmp/semu-826-peer-replay.y7nTjO`
+and verifies the trace and byte hashes before loading either.
+The radio image is the E-ULS-0106 application flash at
+`/tmp/semu-826-reset.9VHs29/image-1/app.bin`, SHA-256
+`eb415e3ed4af021a9eba6f25c929d67342ba963cbb20cbfc28b55b2d46284ac1`.
+Each run uses a fresh Cortex-M33 machine and the pinned Renode
+1.16.1 executable, with a 100-microsecond virtual budget and a
+35-second host timeout.
+
+The call stub uses the recovered vector's stack pointer. It calls
+the native transport pool initializer `0x26cd0`, protocol
+constructor `0x262d8` and retained-data helper `0x275e4`.
+The encoder and decoder objects use the pointers, buffer sizes
+and initial receive state from `0x14f32..0x14f5e` and the links
+from `0x14ea2..0x14eae`. The outgoing sequence counter starts
+at 1, as at the E-ULS-0108 encoder boundary. The startup retry
+timer has no handle in this direct-entry setup. The probe starts
+with the driver enabled as at `0x26614`, an empty TX queue and
+Renode's `NRF52840_UART` in EasyDMA mode at the radio UARTE1
+address. The 58 bytes enter the native buffer callback
+`0x331c2` in one call, and native code passes each byte to
+`0x26d60`. This diagnostic uses a UART model for TX and a direct
+RX callback for input. Its timestamps are local execution ticks.
+[Renode nRF52840 EasyDMA platform](https://github.com/renode/renode/blob/master/platforms/cpus/nrf52840.repl)
+
+| Boundary | Observation in both valid runs |
+| --- | --- |
+| Native frame check | 58 byte-parser calls. At `0x26daa` (tick `24940`), calculated and received CRC-32 are both `0x36f62595`. `0x262f0` receives 52 decoded bytes, with header `010004000000000028000000`. |
+| Protocol dispatch | `0x32e06` selects the 40-byte startup reply handler at `0x14970`. The retained-data mode read at `0x14880` is 0. The handler returns 0 at `0x26398`, which sends control to `0x32ff8`. |
+| Native encoder | One call to `0x26d34` at tick `35070` supplies 18 bytes. The decoded header is `010008000a00000000000000` with opcode 1, subtype 0, flag byte `0x08`, sequence 0 and zero payload bytes. The wire bytes are `7e010008000a000000000000003cd667627e`, including little-endian CRC-32 `0x6267d63c`. An independent CRC calculation matches. |
+| UART model | The native driver writes TXD.PTR `0x2000769c` and TXD.MAXCNT 18, then reaches the STARTTX store at `0x266c4` (tick `36910`). The UART model emits all 18 bytes, identical to the encoder output. There is one STARTTX and no further emission through the end of the bounded run. |
+| Stop | The native receive callback returns 1. The stub halts at `0x20010124` after 3,718 instructions (tick `37180`). |
+
+Two fresh CRC controls flip the low bit of the last checksum byte,
+leaving the body and delimiters unchanged. Both compare calculated
+`0x36f62595` with received `0x37f62595`, then return from the
+byte loop without invoking the protocol handler, encoder or STARTTX.
+Both emit zero bytes and halt after 2,503 instructions. Each pair
+matches its normalized transcript byte for byte.
+
+The result records the next radio transmission for this captured watch
+reply and this retained-data default. Installed reset, factory data,
+the real startup timer and peer-to-watch arrival remain unobserved.
+Ticket 826 stays blocked on the first frame and timing from a cold
+radio boot.
+
+| File below `/tmp/semu-826-radio-rx.yQPEIt/dma` | SHA-256 |
+| --- | --- |
+| `call.S` | `453227a6edab5a4337900123f00388729adb26c1bf17b1661c2c5c0ed7ec93b7` |
+| `call.bin` | `9dca127f251ff3e3143c1132fe85954f602fd4df9cd8b9e6285a3cecdb36ef1a` |
+| `radio.repl` | `382e1780d61ce105023434437a26447936d22063e8ec847232b46b6a6c34d4f3` |
+| `trace.py` | `11005bc011bb85dc2e80f15bfb9a32f7c4f426e038297fd6ff93e4dddecc030f` |
+| `run.py` | `693f74ace62bbc6340bcb4607e382de96afca86b23e5a19a785b5f8c434751fa` |
+| `reply-{1,2}.bin` | `b3df5a8c4cb85945aac55b2332622248a7cb045654b67139b33d51fc7512a3c9` |
+| `ack-{1,2}.bin` | `495529c11605c4a46821422512c5529fa9ac2432490f2804d470cd6d21c9d0f2` |
+| `crc-{1,2}.bin` | `126ac968629041077d62f16c391ada27d562956553c8381f594f26a2d1a84858` |
+| `valid-{1,2}.norm` | `0509ed1a9d4b5b5f71c7f81e8e49b43f72f57a8fcfc8fae73f9d148d01f2adda` |
+| `crc-{1,2}.norm` | `685719091a7d831d10016e5b6988e89baa0ace84aad1ae7acf7979f4fdbef59d` |
+| `valid-1.resc` | `347115e2c5b10a5e81be6c837186f9b2f4df1c41e0b8a3d1f1fb825c597d4d6f` |
+| `valid-1.log` | `585d981af93696a8c84d025de77da44cdd1c5510435f1a109d9a9eea065f2cac` |
+| `valid-2.resc` | `0aa218e20370e71cafe9ea17bd11f692bc1fd3257e232a444a9f0551e74a5efd` |
+| `valid-2.log` | `e9f22e7fff37060cf98a6237c22c988abfeac05522797459ca0a1c2022e7050c` |
+| `crc-1.resc` | `970cd2e50405e1255c4177a70df5cc41b7a1fbe53206da81f503f491cc588efa` |
+| `crc-1.log` | `435392c487b5558f8d6bd56934faaa48881e25c937f9cd76fb25bff050823c6c` |
+| `crc-2.resc` | `fe1fb57a043b5d473e391e3eed7f4a8b75ac79d6a13bb81ab6e90df268d8f672` |
+| `crc-2.log` | `d412b452691be6ffd4325028952d0f79d0d94f0a68ccd16d9db925d7640f1ca3` |

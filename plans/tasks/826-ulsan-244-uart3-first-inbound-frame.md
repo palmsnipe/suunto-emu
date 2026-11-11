@@ -150,3 +150,18 @@ logs below `/tmp/semu-826-encoder.gWhYaO` reproduce the previous digests:
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0109 fed the captured 58-byte watch reply through the native
+radio parser in two isolated Renode runs. Both passed CRC validation
+and produced the same 18-byte zero-payload response through the
+native encoder and EasyDMA into the UART model. The bad-CRC control
+emitted zero bytes in both runs. Status remains blocked on the
+actual first radio frame and timing from a cold peer boot.
+
+All 89 Race S cases passed, including two cold standalone boots
+each for Hello, Service Mode, crown-only and mixed-input guidance.
+Both firmware-era scripts, task contracts, line checks and
+`make check` passed. The private logs are below `/tmp/semu-826-radio-rx.yQPEIt`.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
