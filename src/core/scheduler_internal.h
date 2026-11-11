@@ -60,6 +60,10 @@ static inline semu_status semu_scheduler_advance_one(
 #define SEMU_SCHED_EVENT_CXD_AWAKE 7u
 #define SEMU_SCHED_EVENT_NEMA_COMPLETION 8u
 #define SEMU_SCHED_EVENT_SAP235_RTC_ALARM 9u
+#define SEMU_SCHED_EVENT_UART3_RX 10u
+#define SEMU_SCHED_EVENT_UART3_TX 11u
+#define SEMU_SCHED_EVENT_UART3_TIMEOUT 12u
+#define SEMU_SCHED_EVENT_LAST SEMU_SCHED_EVENT_UART3_TIMEOUT
 
 semu_status semu_scheduler_schedule_tagged(semu_scheduler *scheduler,
     uint64_t delay_ns, uint32_t kind, uint32_t subject,

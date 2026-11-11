@@ -1,4 +1,4 @@
-#include "../../src/soc/apollo4/uart.h"
+#include "../../src/soc/apollo4/apollo4_internal.h"
 
 #include "semu/scheduler.h"
 #include "test.h"
@@ -239,6 +239,84 @@ static void test_repeatable_transcript(semu_test_context *context)
     semu_scheduler_destroy(scheduler_b);
 }
 
+static void test_race_s_uart3_transport(semu_test_context *context)
+{
+    static const uint8_t rx[] = {0x7eu, 0x52u};
+    semu_error error;
+    semu_scheduler *scheduler = semu_scheduler_create(&error);
+    semu_bus *bus = semu_bus_create(&error);
+    semu_apollo4 *soc = semu_apollo4_create(bus, &error);
+    endpoint_log tx = {0};
+    irq_log interrupt = {0};
+    const semu_apollo4_uart_endpoint endpoint = { "uart3-test", transmit, &tx };
+    const uint32_t base = SEMU_APOLLO4_UART3_BASE;
+    uint32_t value;
+
+    SEMU_TEST_ASSERT(context, scheduler != NULL && bus != NULL && soc != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_init(
+        soc, scheduler, irq, &interrupt, &error));
+    SEMU_TEST_ASSERT(context, semu_bus_read(bus, base + 0x18u, 4u, &value, &error) != SEMU_OK);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_select_profile(
+        soc, "ulsan-2.44.52", &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_write(bus, base + 0x04u, 4u, 0u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_UNSUPPORTED,
+        semu_bus_write(bus, base + 0x28u, 4u, 0x28u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x24u, 4u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x28u, 4u, 0x20u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x2cu, 4u, 0x70u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x30u, 4u, 0x8319u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x30u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x8319u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x38u, 4u, 0x51u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_ERR_STATE, semu_bus_write(bus, base, 4u, 0x41u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_uart_attach_endpoint(soc->uart3, &endpoint, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base, 4u, 0x41u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base, 4u, 0x42u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 20000u, &error));
+    SEMU_TEST_EQ_U64(context, 0u, tx.count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_uart_set_cts(soc->uart3, 1, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x18u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 1u, value & 1u);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 10000u, &error));
+    SEMU_TEST_EQ_U64(context, 1u, tx.count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x40u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 10000u, &error));
+    SEMU_TEST_EQ_U64(context, 2u, tx.count);
+    SEMU_TEST_EQ_U64(context, 0x41u, tx.bytes[0]);
+    SEMU_TEST_EQ_U64(context, 0x42u, tx.bytes[1]);
+    SEMU_TEST_EQ_U64(context, 18u, interrupt.irq);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x40u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 1u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base + 0x44u, 4u, 1u, &error));
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_uart_schedule_rx(soc->uart3, 0u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_uart_schedule_rx(soc->uart3, 10000u, rx + 1u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 41999u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x40u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x40u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x40u, value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, rx[0], value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, rx[1], value);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x3cu, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0u, value);
+
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(bus, base, 4u, 0x43u, &error));
+    semu_apollo4_reset(soc);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(scheduler, 10000u, &error));
+    SEMU_TEST_EQ_U64(context, 2u, tx.count);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(bus, base + 0x18u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x90u, value);
+    semu_apollo4_destroy(soc);
+    semu_bus_destroy(bus);
+    semu_scheduler_destroy(scheduler);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
@@ -246,7 +324,8 @@ int main(void)
         SEMU_TEST_CASE(test_rx_fifo_irq_and_transcript),
         SEMU_TEST_CASE(test_fifo_bounds_and_atomic_refusals),
         SEMU_TEST_CASE(test_tx_wait_completion_and_detach),
-        SEMU_TEST_CASE(test_repeatable_transcript)
+        SEMU_TEST_CASE(test_repeatable_transcript),
+        SEMU_TEST_CASE(test_race_s_uart3_transport)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

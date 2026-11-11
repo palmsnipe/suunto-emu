@@ -363,10 +363,94 @@ static void test_machine_snapshot_resume_and_atomic_refusal(
     (void)remove(path);
 }
 
+static semu_transaction_result capture_uart3(void *context, uint8_t value,
+                                            semu_error *error)
+{
+    uint8_t *out = context;
+    (void)error;
+    *out = value;
+    return SEMU_TRANSACTION_OK;
+}
+
+static void test_uart3_machine_snapshot(semu_test_context *context)
+{
+    static const uint8_t program[] = {0, 1, 0, 0x10, 9, 0, 0, 0, 0, 0xbf};
+    static const uint8_t rx[] = {0x12u, 0x34u};
+    static const uint32_t registers[][2] = {
+        {0x24u, 1u}, {0x28u, 0x20u}, {0x2cu, 0x70u},
+        {0x30u, 0x8319u}, {0x38u, 0x51u}
+    };
+    const uint32_t base = SEMU_APOLLO4_UART3_BASE;
+    const char *path = "build/test-machine-uart3-snapshot.bin";
+    semu_profile profile;
+    semu_firmware_manifest firmware;
+    semu_machine_options options = {0};
+    semu_machine *first, *second;
+    semu_error error;
+    semu_snapshot *image, *legacy;
+    uint8_t first_tx = 0u, second_tx = 0u;
+    const semu_apollo4_uart_endpoint first_endpoint = {"uart3-test", capture_uart3, &first_tx};
+    const semu_apollo4_uart_endpoint second_endpoint = {"uart3-test", capture_uart3, &second_tx};
+    uint32_t value;
+    size_t i;
+
+    SEMU_TEST_ASSERT(context, write_bytes(path, program, sizeof(program)));
+    SEMU_TEST_ASSERT(context, make_contract(path, &profile, &firmware, &error));
+    options.profile = &profile;
+    options.firmware = &firmware;
+    first = semu_machine_create(&options, &error);
+    second = semu_machine_create(&options, &error);
+    image = semu_snapshot_create(&error);
+    legacy = semu_snapshot_create(&error);
+    SEMU_TEST_ASSERT(context, first != NULL && second != NULL &&
+                              image != NULL && legacy != NULL);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_snapshot_save(second, legacy, &error));
+    /* Exercise UART3 snapshot dispatch with the synthetic reset program. */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_select_profile(first->soc, "ulsan-2.44.52", &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_select_profile(second->soc, "ulsan-2.44.52", &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_uart_attach_endpoint(first->soc->uart3, &first_endpoint, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_uart_attach_endpoint(second->soc->uart3, &second_endpoint, &error));
+    for (i = 0u; i < SEMU_ARRAY_LEN(registers); ++i)
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(first->bus,
+            base + registers[i][0], 4u, registers[i][1], &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_apollo4_uart_set_cts(first->soc->uart3, 1, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_write(first->bus, base, 4u, 0xa5u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_uart_schedule_rx(first->soc->uart3, 0u, rx, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+        semu_apollo4_uart_schedule_rx(first->soc->uart3, 20000u, rx + 1u, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(first->scheduler, 1u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_snapshot_save(first, image, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_snapshot_load(second, image, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(first->scheduler, 52000u, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_scheduler_advance(second->scheduler, 52000u, &error));
+    SEMU_TEST_EQ_U64(context, 0xa5u, first_tx);
+    SEMU_TEST_EQ_U64(context, first_tx, second_tx);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(second->bus, base + 0x40u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x41u, value);
+    for (i = 0u; i < sizeof(rx); ++i) {
+        SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(second->bus, base, 4u, &value, &error));
+        SEMU_TEST_EQ_U64(context, rx[i], value);
+    }
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_snapshot_load(second, legacy, &error));
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_bus_read(second->bus, base + 0x18u, 4u, &value, &error));
+    SEMU_TEST_EQ_U64(context, 0x90u, value);
+    semu_snapshot_destroy(legacy);
+    semu_snapshot_destroy(image);
+    semu_machine_destroy(second);
+    semu_machine_destroy(first);
+    (void)remove(path);
+}
+
 int main(void)
 {
     static const semu_test_case cases[] = {
-        SEMU_TEST_CASE(test_machine_snapshot_resume_and_atomic_refusal)
+        SEMU_TEST_CASE(test_machine_snapshot_resume_and_atomic_refusal),
+        SEMU_TEST_CASE(test_uart3_machine_snapshot)
     };
     return semu_test_run(cases, SEMU_ARRAY_LEN(cases));
 }

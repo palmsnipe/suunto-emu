@@ -13,11 +13,37 @@ static int allowed_value(uint32_t value, const uint32_t *values, size_t count)
     return 0;
 }
 
-static size_t rx_threshold(uint32_t fifo_level)
+static int valid_uart3_state(const semu_apollo4_uart *uart)
 {
-    static const size_t thresholds[] = { 2u, 4u, 8u, 12u, 14u };
-    unsigned selection = (fifo_level >> 3u) & 7u;
-    return selection < SEMU_ARRAY_LEN(thresholds) ? thresholds[selection] : 2u;
+    const uint32_t latched = SEMU_APOLLO4_UART_INTERRUPT_TIMEOUT |
+                             SEMU_APOLLO4_UART_INTERRUPT_TX_COMPLETE;
+    int timeout_active = uart->timeout_event != 0u ||
+        (uart->latched_interrupts & SEMU_APOLLO4_UART_INTERRUPT_TIMEOUT) != 0u;
+    return (uart->cts == 0 || uart->cts == 1) &&
+        (uart->latched_interrupts & ~latched) == 0u &&
+        (!timeout_active || (uart->rx_count != 0u &&
+          (uart->control & 0x201u) == 0x201u &&
+          (uart->interrupt_mask & SEMU_APOLLO4_UART_INTERRUPT_TIMEOUT) != 0u)) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_CONTROL, uart->control) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_INTEGER_BAUD, uart->integer_baud) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_FRACTIONAL_BAUD, uart->fractional_baud) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_LINE_CONTROL, uart->line_control) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_FIFO_LEVEL, uart->fifo_level) &&
+        semu_apollo4_uart3_register_valid(SEMU_APOLLO4_UART_INTERRUPT_MASK, uart->interrupt_mask) &&
+        (uart->tx_count == 0u || (uart->control & 0x101u) == 0x101u);
+}
+
+static int valid_uart1_registers(const semu_apollo4_uart *uart)
+{
+    static const uint32_t controls[] = { 0u, 0x8u, 0x18u, 0x19u, 0x219u, 0x319u };
+    static const uint32_t line_controls[] = { 0u, 0x10u, 0x70u };
+    static const uint32_t fifo_levels[] = { 0u, 0x10u, 0x12u };
+    return allowed_value(uart->control, controls, SEMU_ARRAY_LEN(controls)) &&
+        uart->integer_baud <= 1u &&
+        (uart->fractional_baud == 0u || uart->fractional_baud == 0x28u) &&
+        allowed_value(uart->line_control, line_controls, SEMU_ARRAY_LEN(line_controls)) &&
+        allowed_value(uart->fifo_level, fifo_levels, SEMU_ARRAY_LEN(fifo_levels)) &&
+        (uart->interrupt_mask == 0u || uart->interrupt_mask == 0x51u);
 }
 
 static void free_events(rx_event *event)
@@ -56,7 +82,7 @@ semu_status semu_apollo4_uart_snapshot_write(
         return SEMU_ERR_UNSUPPORTED;
     }
     count = event_count(uart->rx_events);
-    if (count > SEMU_APOLLO4_UART_FIFO_CAPACITY) {
+    if (count > uart->capacity) {
         semu_error_set(error, SEMU_ERR_RANGE, "too many UART RX events");
         return SEMU_ERR_RANGE;
     }
@@ -65,10 +91,10 @@ semu_status semu_apollo4_uart_snapshot_write(
         semu_snapshot_writer_u32(writer, (uint32_t)uart->rx_head, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)uart->rx_count, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)uart->rx_reserved, error) != SEMU_OK ||
-        semu_snapshot_writer_bytes(writer, uart->rx_fifo, sizeof(uart->rx_fifo), error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, uart->rx_fifo, uart->capacity, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)uart->tx_head, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)uart->tx_count, error) != SEMU_OK ||
-        semu_snapshot_writer_bytes(writer, uart->tx_fifo, sizeof(uart->tx_fifo), error) != SEMU_OK ||
+        semu_snapshot_writer_bytes(writer, uart->tx_fifo, uart->capacity, error) != SEMU_OK ||
         semu_snapshot_writer_u64(writer, uart->tx_event, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, uart->control, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, uart->integer_baud, error) != SEMU_OK ||
@@ -79,8 +105,13 @@ semu_status semu_apollo4_uart_snapshot_write(
         semu_snapshot_writer_u32(writer, uart->next_rx_slot, error) != SEMU_OK ||
         semu_snapshot_writer_u32(writer, (uint32_t)count, error) != SEMU_OK)
         return error->code;
+    if (uart->irq == SEMU_APOLLO4_UART3_IRQ &&
+        (semu_snapshot_writer_u8(writer, (uint8_t)uart->cts, error) != SEMU_OK ||
+         semu_snapshot_writer_u32(writer, uart->latched_interrupts, error) != SEMU_OK ||
+         semu_snapshot_writer_u64(writer, uart->timeout_event, error) != SEMU_OK))
+        return error->code;
     for (event = uart->rx_events; event != NULL; event = event->next) {
-        if (event->count == 0u || event->count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+        if (event->count == 0u || event->count > uart->capacity ||
             semu_snapshot_writer_u64(writer, event->id, error) != SEMU_OK ||
             semu_snapshot_writer_u32(writer, event->slot, error) != SEMU_OK ||
             semu_snapshot_writer_u32(writer, (uint32_t)event->count, error) != SEMU_OK ||
@@ -102,14 +133,10 @@ semu_status semu_apollo4_uart_snapshot_read(
     rx_event **tail = &head;
     uint8_t attached;
     uint8_t irq_level;
+    uint8_t cts = 0u;
     uint32_t rx_head, rx_count, rx_reserved, tx_head, tx_count, count;
     size_t reserved = 0u;
     size_t index;
-    static const uint32_t controls[] = { 0u, 0x8u, 0x18u, 0x19u,
-                                         0x219u, 0x319u };
-    static const uint32_t line_controls[] = { 0u, 0x10u, 0x70u };
-    static const uint32_t fifo_levels[] = { 0u, 0x10u, 0x12u };
-    static const uint32_t masks[] = { 0u, 0x51u };
     if (uart == NULL || reader == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "UART snapshot arguments are invalid");
@@ -121,10 +148,10 @@ semu_status semu_apollo4_uart_snapshot_read(
         semu_snapshot_reader_u32(reader, &rx_head, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &rx_count, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &rx_reserved, error) != SEMU_OK ||
-        semu_snapshot_reader_bytes(reader, candidate.rx_fifo, sizeof(candidate.rx_fifo), error) != SEMU_OK ||
+        semu_snapshot_reader_bytes(reader, candidate.rx_fifo, uart->capacity, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &tx_head, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &tx_count, error) != SEMU_OK ||
-        semu_snapshot_reader_bytes(reader, candidate.tx_fifo, sizeof(candidate.tx_fifo), error) != SEMU_OK ||
+        semu_snapshot_reader_bytes(reader, candidate.tx_fifo, uart->capacity, error) != SEMU_OK ||
         semu_snapshot_reader_u64(reader, &candidate.tx_event, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &candidate.control, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &candidate.integer_baud, error) != SEMU_OK ||
@@ -135,28 +162,27 @@ semu_status semu_apollo4_uart_snapshot_read(
         semu_snapshot_reader_u32(reader, &candidate.next_rx_slot, error) != SEMU_OK ||
         semu_snapshot_reader_u32(reader, &count, error) != SEMU_OK)
         return error->code;
+    if (uart->irq == SEMU_APOLLO4_UART3_IRQ &&
+        (semu_snapshot_reader_u8(reader, &cts, error) != SEMU_OK ||
+         semu_snapshot_reader_u32(reader, &candidate.latched_interrupts, error) != SEMU_OK ||
+         semu_snapshot_reader_u64(reader, &candidate.timeout_event, error) != SEMU_OK))
+        return error->code;
+    candidate.cts = cts;
+    candidate.rx_count = rx_count;
+    candidate.tx_count = tx_count;
     if (attached > 1u || irq_level > 1u || candidate.next_rx_slot == 0u ||
         (attached != 0u && candidate.endpoint.transmit == NULL) ||
-        rx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        tx_head >= SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        rx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        tx_count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
+        rx_head >= uart->capacity ||
+        tx_head >= uart->capacity ||
+        rx_count > uart->capacity ||
+        tx_count > uart->capacity ||
         (attached == 0u && tx_count != 0u) ||
-        rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        rx_reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY - rx_count ||
-        count > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-        !allowed_value(candidate.control, controls, SEMU_ARRAY_LEN(controls)) ||
-        !allowed_value(candidate.integer_baud, (uint32_t[]){ 0u, 1u }, 2u) ||
-        !allowed_value(candidate.fractional_baud, (uint32_t[]){ 0u, 0x28u }, 2u) ||
-        !allowed_value(candidate.line_control, line_controls,
-                       SEMU_ARRAY_LEN(line_controls)) ||
-        !allowed_value(candidate.fifo_level, fifo_levels,
-                       SEMU_ARRAY_LEN(fifo_levels)) ||
-        !allowed_value(candidate.interrupt_mask, masks, SEMU_ARRAY_LEN(masks)) ||
-        (irq_level != 0u) !=
-            ((candidate.control & 0x201u) == 0x201u &&
-             rx_count >= rx_threshold(candidate.fifo_level) &&
-             (candidate.interrupt_mask & SEMU_APOLLO4_UART_INTERRUPT_RX) != 0u) ||
+        rx_reserved > uart->capacity ||
+        rx_reserved > uart->capacity - rx_count ||
+        count > uart->capacity ||
+        (uart->irq == SEMU_APOLLO4_UART3_IRQ ?
+            !valid_uart3_state(&candidate) : !valid_uart1_registers(&candidate)) ||
+        (irq_level != 0u) != (semu_apollo4_uart_masked_interrupts(&candidate) != 0u) ||
         (candidate.tx_event != 0u &&
          (attached == 0u || tx_count == 0u))) {
         semu_error_set(error, SEMU_ERR_FORMAT, "invalid UART snapshot FIFO state");
@@ -165,10 +191,8 @@ semu_status semu_apollo4_uart_snapshot_read(
     candidate.endpoint_attached = attached;
     candidate.irq_level = irq_level;
     candidate.rx_head = rx_head;
-    candidate.rx_count = rx_count;
     candidate.rx_reserved = rx_reserved;
     candidate.tx_head = tx_head;
-    candidate.tx_count = tx_count;
     candidate.tx_completion = NULL;
     candidate.tx_completion_context = NULL;
     for (index = 0u; index < count; ++index) {
@@ -180,8 +204,8 @@ semu_status semu_apollo4_uart_snapshot_read(
             semu_snapshot_reader_u32(reader, &slot, error) != SEMU_OK ||
             semu_snapshot_reader_u32(reader, &size, error) != SEMU_OK ||
             id == 0u || slot == 0u || slot >= candidate.next_rx_slot ||
-            size == 0u || size > SEMU_APOLLO4_UART_FIFO_CAPACITY ||
-            reserved > SEMU_APOLLO4_UART_FIFO_CAPACITY - size) {
+            size == 0u || size > uart->capacity ||
+            reserved > uart->capacity - size) {
             free_events(head);
             if (error->code == SEMU_OK)
                 semu_error_set(error, SEMU_ERR_FORMAT, "invalid UART RX event");
@@ -236,12 +260,18 @@ semu_status semu_apollo4_uart_snapshot_resolve_event(
                        "UART snapshot event arguments are invalid");
         return SEMU_ERR_ARGUMENT;
     }
-    if (kind == SEMU_SCHED_EVENT_UART_TX && subject == 0u && uart->tx_event != 0u) {
+    if (kind == SEMU_SCHED_EVENT_UART3_TIMEOUT && subject == 0u && uart->timeout_event != 0u) {
+        *callback = semu_apollo4_uart_timeout_event;
+        *context = uart;
+        return SEMU_OK;
+    }
+    if ((kind == SEMU_SCHED_EVENT_UART_TX || kind == SEMU_SCHED_EVENT_UART3_TX) &&
+        subject == 0u && uart->tx_event != 0u) {
         *callback = semu_apollo4_uart_tx_event;
         *context = uart;
         return SEMU_OK;
     }
-    if (kind != SEMU_SCHED_EVENT_UART_RX) {
+    if (kind != SEMU_SCHED_EVENT_UART_RX && kind != SEMU_SCHED_EVENT_UART3_RX) {
         semu_error_set(error, SEMU_ERR_CONFLICT, "UART snapshot event is not present");
         return SEMU_ERR_CONFLICT;
     }

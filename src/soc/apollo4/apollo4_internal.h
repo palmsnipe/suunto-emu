@@ -42,6 +42,7 @@ struct semu_apollo4 {
     semu_apollo4_timer *timer;
     semu_apollo4_stimer *stimer;
     semu_apollo4_uart *uart;
+    semu_apollo4_uart *uart3;
     semu_apollo4_iom *iom0;
     semu_apollo4_iom *iom2;
     semu_apollo4_iom *iom3;

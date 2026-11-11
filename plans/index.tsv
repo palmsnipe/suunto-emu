@@ -189,3 +189,4 @@ id	phase	title	status	dependencies	ticket
 824	7	Ulsan 2.44.52 UART3 Readiness Trace	done	823	plans/tasks/824-ulsan-244-uart3-readiness-trace.md
 825	7	Ulsan 2.44.52 Controlled UART3 CTS Probe	done	824	plans/tasks/825-ulsan-244-controlled-cts-probe.md
 826	7	Ulsan 2.44.52 First Inbound UART3 Radio Frame	blocked	825	plans/tasks/826-ulsan-244-uart3-first-inbound-frame.md
+827	7	Ulsan 2.44.52 UART3 Transport	ready	825	plans/tasks/827-ulsan-244-uart3-transport.md

@@ -124,10 +124,9 @@ static semu_status timer_reset_cb(void *context, semu_error *error)
 
 static semu_status uart_reset_cb(void *context, semu_error *error)
 {
-    semu_apollo4_uart *uart = (semu_apollo4_uart *)context;
-    if (uart != NULL) {
-        semu_apollo4_uart_reset(uart);
-    }
+    semu_apollo4 *soc = context;
+    semu_apollo4_uart_reset(soc->uart);
+    semu_apollo4_uart_reset(soc->uart3);
     semu_error_clear(error);
     return SEMU_OK;
 }
@@ -335,7 +334,7 @@ semu_status semu_apollo4_init(semu_apollo4 *soc, semu_scheduler *scheduler,
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
             stimer_reset_cb, soc->stimer, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
-            uart_reset_cb, soc->uart, error) != SEMU_OK ||
+            uart_reset_cb, soc, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
             iom_reset_cb, soc->iom0, error) != SEMU_OK ||
         semu_apollo4_reset_controller_register(soc->reset_ctrl,
@@ -371,6 +370,7 @@ void semu_apollo4_destroy(semu_apollo4 *soc)
     if (soc == NULL) {
         return;
     }
+    soc->irq_sink = NULL;
     if (soc->initialized) {
         semu_apollo4_mram_destroy(soc->mram);
         semu_apollo4_mspi_destroy(soc->mspi2);
@@ -384,6 +384,7 @@ void semu_apollo4_destroy(semu_apollo4 *soc)
         semu_apollo4_iom_destroy(soc->iom2);
         semu_apollo4_iom_destroy(soc->iom0);
         semu_apollo4_dma_destroy(soc->dma);
+        semu_apollo4_uart_destroy(soc->uart3);
         semu_apollo4_uart_destroy(soc->uart);
         semu_apollo4_stimer_destroy(soc->stimer);
         semu_apollo4_timer_destroy(soc->timer);
@@ -444,6 +445,25 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Apollo4 profile selection requires soc and id");
         return SEMU_ERR_ARGUMENT;
+    }
+    if (strcmp(profile_id, "ulsan-2.44.52") == 0 && soc->uart3 == NULL) {
+        semu_status status;
+        if (!soc->initialized) {
+            semu_error_set(error, SEMU_ERR_STATE, "Race S UART3 requires an initialized SoC");
+            return SEMU_ERR_STATE;
+        }
+        soc->uart3 = semu_apollo4_uart3_create(soc->scheduler, error);
+        if (soc->uart3 == NULL) return error != NULL ? error->code : SEMU_ERR_STATE;
+        status = semu_apollo4_uart_set_irq_sink(soc->uart3, irq_sink_dispatch, soc, error);
+        if (status == SEMU_OK)
+            status = semu_bus_map_device(soc->bus, "apollo4.uart3",
+                SEMU_APOLLO4_UART3_BASE, 0x1000u, semu_apollo4_uart_bus_ops(),
+                soc->uart3, error);
+        if (status != SEMU_OK) {
+            semu_apollo4_uart_destroy(soc->uart3);
+            soc->uart3 = NULL;
+            return status;
+        }
     }
     /* E-SAP-0032/E-SAP-0033: the 2.35.34 startup path arms the one-second
      * RTC alarm before parking.  E-SAP-0052: the 2.33.16 startup path issues

@@ -5,6 +5,9 @@
 
 #include <stddef.h>
 
+#define UART3_FIFO_CAPACITY 32u
+#define UART3_IRQ_MASK 0x51u
+
 typedef struct rx_event rx_event;
 struct rx_event {
     semu_apollo4_uart *uart;
@@ -22,12 +25,17 @@ struct semu_apollo4_uart {
     semu_apollo4_uart_irq_fn irq_sink;
     void *irq_context;
     int irq_level;
-    uint8_t rx_fifo[SEMU_APOLLO4_UART_FIFO_CAPACITY];
+    unsigned irq;
+    size_t capacity;
+    uint32_t latched_interrupts;
+    int cts;
+    semu_event_id timeout_event;
+    uint8_t rx_fifo[UART3_FIFO_CAPACITY];
     size_t rx_head;
     size_t rx_count;
     size_t rx_reserved;
     rx_event *rx_events;
-    uint8_t tx_fifo[SEMU_APOLLO4_UART_FIFO_CAPACITY];
+    uint8_t tx_fifo[UART3_FIFO_CAPACITY];
     size_t tx_head;
     size_t tx_count;
     semu_event_id tx_event;
@@ -43,6 +51,9 @@ struct semu_apollo4_uart {
 };
 
 void semu_apollo4_uart_rx_event(void *context, uint64_t now_ns);
+int semu_apollo4_uart3_register_valid(uint32_t offset, uint32_t value);
+uint32_t semu_apollo4_uart_masked_interrupts(const semu_apollo4_uart *uart);
+void semu_apollo4_uart_timeout_event(void *context, uint64_t now_ns);
 void semu_apollo4_uart_tx_event(void *context, uint64_t now_ns);
 
 #endif

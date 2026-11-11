@@ -9,6 +9,7 @@
 
 #define APOLLO4_SNAPSHOT_MAGIC UINT32_C(0x43533441) /* A4SC */
 #define APOLLO4_SNAPSHOT_VERSION 1u
+#define APOLLO4_UART3_SNAPSHOT_TAG UINT32_C(0x33545255) /* URT3 */
 
 static semu_status write_child(const semu_apollo4 *soc,
                                semu_snapshot_writer *writer, semu_error *error)
@@ -43,6 +44,10 @@ static semu_status write_child(const semu_apollo4 *soc,
         return error->code;
     if (soc->iom4_live != NULL &&
         semu_sapporo_iom4_snapshot_write(soc->iom4_live, writer, error) != SEMU_OK)
+        return error->code;
+    if (soc->uart3 != NULL &&
+        (semu_snapshot_writer_u32(writer, APOLLO4_UART3_SNAPSHOT_TAG, error) != SEMU_OK ||
+         semu_apollo4_uart_snapshot_write(soc->uart3, writer, error) != SEMU_OK))
         return error->code;
     return SEMU_OK;
 }
@@ -116,6 +121,21 @@ static semu_status read_child(
     if (candidate.iom4_live != NULL &&
         semu_sapporo_iom4_snapshot_read(candidate.iom4_live, reader, error) != SEMU_OK)
         return error->code;
+    if (candidate.uart3 != NULL) {
+        if (semu_snapshot_reader_done(reader)) {
+            semu_apollo4_uart_reset(candidate.uart3);
+        } else {
+            uint32_t tag;
+            if (semu_snapshot_reader_u32(reader, &tag, error) != SEMU_OK)
+                return error->code;
+            if (tag != APOLLO4_UART3_SNAPSHOT_TAG) {
+                semu_error_set(error, SEMU_ERR_FORMAT, "invalid Apollo4 UART3 snapshot tag");
+                return SEMU_ERR_FORMAT;
+            }
+            if (semu_apollo4_uart_snapshot_read(candidate.uart3, reader, error) != SEMU_OK)
+                return error->code;
+        }
+    }
     *soc = candidate;
     return SEMU_OK;
 }
@@ -175,6 +195,10 @@ semu_status semu_apollo4_snapshot_resolve_event(
     if (kind == SEMU_SCHED_EVENT_STIMER)
         return semu_apollo4_stimer_snapshot_resolve_event(
             soc->stimer, subject, callback, context, error);
+    if (kind == SEMU_SCHED_EVENT_UART3_RX || kind == SEMU_SCHED_EVENT_UART3_TX ||
+        kind == SEMU_SCHED_EVENT_UART3_TIMEOUT)
+        return semu_apollo4_uart_snapshot_resolve_event(
+            soc->uart3, kind, subject, callback, context, error);
     if (kind == SEMU_SCHED_EVENT_UART_RX || kind == SEMU_SCHED_EVENT_UART_TX)
         return semu_apollo4_uart_snapshot_resolve_event(
             soc->uart, kind, subject, callback, context, error);
@@ -205,6 +229,17 @@ semu_status semu_apollo4_snapshot_event_id_matches(
         soc->stimer->compare[subject].event_valid != 0u &&
         soc->stimer->compare[subject].event == event_id)
         return SEMU_OK;
+    if (soc->uart3 != NULL) {
+        if (kind == SEMU_SCHED_EVENT_UART3_TX && subject == 0u &&
+            soc->uart3->tx_event != 0u && soc->uart3->tx_event == event_id)
+            return SEMU_OK;
+        if (kind == SEMU_SCHED_EVENT_UART3_TIMEOUT && subject == 0u &&
+            soc->uart3->timeout_event != 0u && soc->uart3->timeout_event == event_id)
+            return SEMU_OK;
+        if (kind == SEMU_SCHED_EVENT_UART3_RX)
+            for (rx = soc->uart3->rx_events; rx != NULL; rx = rx->next)
+                if (rx->slot == subject && rx->id == event_id) return SEMU_OK;
+    }
     if (kind == SEMU_SCHED_EVENT_UART_TX && subject == 0u &&
         soc->uart->tx_event == event_id && soc->uart->tx_event != 0u)
         return SEMU_OK;
@@ -271,6 +306,24 @@ semu_status semu_apollo4_snapshot_event_links_match(
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "STIMER state has no scheduler event");
             return SEMU_ERR_FORMAT;
+        }
+    }
+    if (soc->uart3 != NULL) {
+        if ((soc->uart3->tx_event != 0u &&
+             !has_scheduler_event(events, count, SEMU_SCHED_EVENT_UART3_TX, 0u,
+                                  soc->uart3->tx_event)) ||
+            (soc->uart3->timeout_event != 0u &&
+             !has_scheduler_event(events, count, SEMU_SCHED_EVENT_UART3_TIMEOUT, 0u,
+                                  soc->uart3->timeout_event))) {
+            semu_error_set(error, SEMU_ERR_CONFLICT, "UART3 timer has no scheduler event");
+            return SEMU_ERR_CONFLICT;
+        }
+        for (rx = soc->uart3->rx_events; rx != NULL; rx = rx->next) {
+            if (!has_scheduler_event(events, count, SEMU_SCHED_EVENT_UART3_RX,
+                                     rx->slot, rx->id)) {
+                semu_error_set(error, SEMU_ERR_CONFLICT, "UART3 RX has no scheduler event");
+                return SEMU_ERR_CONFLICT;
+            }
         }
     }
     if (soc->uart->tx_event != 0u &&

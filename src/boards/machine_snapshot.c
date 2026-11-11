@@ -65,6 +65,9 @@ static semu_status resolve_event(semu_machine *machine,
         state->kind == SEMU_SCHED_EVENT_STIMER ||
         state->kind == SEMU_SCHED_EVENT_UART_RX ||
         state->kind == SEMU_SCHED_EVENT_UART_TX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_RX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_TX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_TIMEOUT ||
         state->kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM)
         return semu_apollo4_snapshot_resolve_event(machine->soc, state->kind,
                                                    state->subject, callback, context, error);

@@ -17,6 +17,9 @@ semu_status semu_machine_snapshot_validate_event_id(
         state->kind == SEMU_SCHED_EVENT_STIMER ||
         state->kind == SEMU_SCHED_EVENT_UART_RX ||
         state->kind == SEMU_SCHED_EVENT_UART_TX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_RX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_TX ||
+        state->kind == SEMU_SCHED_EVENT_UART3_TIMEOUT ||
         state->kind == SEMU_SCHED_EVENT_SAP235_RTC_ALARM)
         return semu_apollo4_snapshot_event_id_matches(
             machine->soc, state->kind, state->subject, state->id, error);

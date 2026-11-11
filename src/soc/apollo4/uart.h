@@ -8,6 +8,8 @@
 
 #define SEMU_APOLLO4_UART1_BASE 0x4001d000u
 #define SEMU_APOLLO4_UART1_IRQ 16u
+#define SEMU_APOLLO4_UART3_BASE 0x4001f000u
+#define SEMU_APOLLO4_UART3_IRQ 18u
 #define SEMU_APOLLO4_UART_FIFO_CAPACITY 16u
 
 #define SEMU_APOLLO4_UART_DATA 0x00u
@@ -27,6 +29,8 @@
 #define SEMU_APOLLO4_UART_FLAG_RX_FULL 0x40u
 #define SEMU_APOLLO4_UART_FLAG_TX_EMPTY 0x80u
 #define SEMU_APOLLO4_UART_INTERRUPT_RX 0x10u
+#define SEMU_APOLLO4_UART_INTERRUPT_TIMEOUT 0x40u
+#define SEMU_APOLLO4_UART_INTERRUPT_TX_COMPLETE 0x01u
 
 typedef struct semu_apollo4_uart semu_apollo4_uart;
 
@@ -46,6 +50,10 @@ typedef void (*semu_apollo4_uart_tx_completion_fn)(
 
 semu_apollo4_uart *semu_apollo4_uart_create(semu_scheduler *scheduler,
                                              semu_error *error);
+semu_apollo4_uart *semu_apollo4_uart3_create(semu_scheduler *scheduler,
+                                           semu_error *error);
+semu_status semu_apollo4_uart_set_cts(semu_apollo4_uart *uart, int asserted,
+                                     semu_error *error);
 void semu_apollo4_uart_destroy(semu_apollo4_uart *uart);
 void semu_apollo4_uart_reset(semu_apollo4_uart *uart);
 

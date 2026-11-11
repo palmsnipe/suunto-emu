@@ -281,3 +281,12 @@ Both firmware-era scripts, task contracts, line checks and
 
 - `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
+
+E-ULS-0117 replays the second-open exchange in two cold Renode
+boots and confirms it again with the lower-button Connect retry.
+The watch returns to ON and dispatches opcode `0x14`, subtype
+`0x00`, sequence 6 for the pending pairing request. The UI retry
+returns to guidance while that request is pending. With no peer
+reply to sequence 6, the guest retransmits it and times out.
+The radio's actual first cold-start frame and timing remain
+unverified. Ticket 826 stays blocked.

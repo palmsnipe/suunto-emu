@@ -20514,3 +20514,113 @@ from a cold radio boot.
 | `control-2/probe.resc` | `a9e9e28eb691e5a963b682c45c4d12aa81a45c077347922a1ffaa740faa61762` |
 | `control-1/renode.log` | `e79382fc02c4a0dbe0537ff1c8274aef0bf66db7848f4b31327e371c5fc8042d` |
 | `control-2/renode.log` | `7c2dde028513fc21c5514dcdf342f925fc78c4d78c48b87981712d8c930e941c` |
+
+## E-ULS-0117 — Race S resumes the pending pairing request after the second UART3 open
+
+2026-11-11. Two cold Race S Renode boots extend E-ULS-0116
+with a second peer exchange. Each uses the pinned E-ULS-0104
+lane, application and media, the E-ULS-0100 crown route, and
+E-ULS-0111's labeled factory pattern A. Each is bounded to
+60,000 virtual ms and six host minutes. The watch owns its
+parser, request queue, and BLE adapter state.
+
+In a preliminary pair, repeating the 22-byte native startup
+announcement after the second open produced the same 58-byte
+watch response with sequence 4. The first-open response has
+sequence 0. A second preliminary pair established that the
+sequence-5 information reply restarts BLE and produces a new
+opcode `0x14`, subtype `0x00` request. These observations allowed
+the final replay to check the exact transmitted prefixes before
+supplying each diagnostic TX completion or peer reply.
+
+The second-open reply bytes come from the E-ULS-0109 and
+E-ULS-0111 isolated native radio parser harnesses. Each runs
+twice with the same radio image. The sequence-4 watch response
+is checked against the discovery boots. The sequence-5 watch
+request is confirmed byte-for-byte in the final cold pair.
+Both sequences pass the radio parser, and the radio emits an
+18-byte acknowledgement and a 68-byte information reply,
+respectively. Their SHA-256 values are
+`e005f5d79f2f6812f4795d4a395a69288697b209cd967ce973a259fce4ac1720`
+and `c3448f1d22a4208ed306a3bd3c64148d4f3c49efa9375805d6725702e94d8700`.
+
+| Boundary | Observation in both cold boots |
+| --- | --- |
+| First Connect attempt | At tick `28562953494`, `0xd75c8` sees readiness zero and the adapter is in START. The second UART3 open returns 1 at tick `28584362619`. |
+| Second startup | The 22-byte startup frame arrives at `28585099744..28585309744`. The watch emits its sequence-4 response at `28585427994..28585436369`. The native completion reports status 0 at `28587302494` after the 18-byte radio reply. |
+| Radio information | The watch emits the sequence-5 request at `28587359744..28587362244`. It receives the native information reply at `28589099744..28589769744` and reports status 0 at `28590131994`. |
+| Pending pairing dispatch | BLE returns to ON at `28590377119`. The guest calls `0xdb6b8` at `28590386744` with resource `0x4d00f000`, then emits the 25-byte sequence-6 request at `28590461244..28590464744`. This dispatch precedes the second crown press. |
+| UI retry | At 28,604 virtual ms the Connect frame still matches the pinned hash and BLE is ON. A second crown press leads to the guidance frame without a second readiness check. Upper-button and right-swipe attempts leave that frame displayed. |
+| Next limit | The diagnostic supplies no response to sequence 6. The guest resends the identical frame at `30639115619..30639119119`, reports status 3 at `32687653994`, and leaves ON at `32688459119`. It then issues a sequence-7 battery request and finishes in START at 60,000 ms. |
+
+The new sequence-6 request is
+`7e1400040000000600070000004d00000000f0040b23f9ec7e`.
+The decoded header is `140004000000060007000000`, the payload
+is `4d00000000f004` and the CRC-32 is `0xecf9230b`. The wire
+SHA-256 is
+`bb4d594bdbd751e1f436d8d45698cbed4f7b701b055efc5199dbbebc244822da`.
+There are 252 received bytes in eight frames and 283 transmitted
+bytes in nine frames. The normalized traces match byte-for-byte.
+The first-boot radio announcement timing remains imposed by the
+diagnostic, so ticket 826 stays blocked.
+
+A second pair uses the lower-button Back action from the guidance
+page and stops at 40,000 virtual ms. The pairing Connect frame
+returns at 29,804 ms while BLE is ON. Repeating the crown route
+returns to guidance at 31,254 ms. Both runs record one visit
+each to readiness return `0xd75c8` and pairing dispatch
+`0xdb6b8`, so the UI retry does not dispatch a second request
+while sequence 6 is pending. The guest's own sequence-6
+retransmit occurs at `30639099244..30639102744`, before the
+crown selection on the returned Connect page. Sequence 6
+times out at `32687652494`. Both runs finish in START at
+40,000 ms. Their normalized traces also match byte-for-byte.
+[Suunto Race S User Guide §2.1](https://ns.suunto.com/Manuals/Suunto_Race_S/Userguides/Suunto_Race_S_UserGuide_EN.pdf)
+
+| File below `/tmp/semu-827.yXqNuX` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `822405e5c46614443b463111687cca9a2bdf2d325ffbc5a46c4232826b810e3b` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `observe.hooks` | `19c9c052411c09eb435605a0044dc9838a88d592cd0d686e98133ade70a7321f` |
+| `peer.py` | `e9e0f5d786a81e44ebd4b61cc649dce64f947e95daa0ec509319ff0d1ec60c86` |
+| `run.py` | `6927b93a4aff08ada3ac53e2f84817921833eaa32fa2c45e0bd1f178341c8ed0` |
+| `run-complete.py` | `0a7152b79beec7e74d1e3b4884f4e120bdae809aaf5a1723b08cbb7efc1c3ffd` |
+| `census.py` | `b293afc1aa4884009ddeaaa6fe62f4daa42be21fd890bb0ae5990a41dbc4a90e` |
+| `census.log` | `6be6f1fa4e6766fe000595c6f1ffab3e8d2fc482e17818cbec3bca2f996d8f64` |
+| `sequence-6.bin` | `bb4d594bdbd751e1f436d8d45698cbed4f7b701b055efc5199dbbebc244822da` |
+| `peer-4-1.bin` | `0116d747a0be5b79844c67407afa31104c97429837a10e7967de4c3ea6bb7797` |
+| `peer-4-1.reply` | `e005f5d79f2f6812f4795d4a395a69288697b209cd967ce973a259fce4ac1720` |
+| `peer-4-1.resc` | `934827ca6dc0a65ec649e1d53ff8630052d6a57850aca105b32631f4952de083` |
+| `peer-4-1.log` | `c58928f44ce1281564caa3d0524e2a6b18b9998298531798d06af164ebb9ca39` |
+| `peer-4-2.bin` | `0116d747a0be5b79844c67407afa31104c97429837a10e7967de4c3ea6bb7797` |
+| `peer-4-2.reply` | `e005f5d79f2f6812f4795d4a395a69288697b209cd967ce973a259fce4ac1720` |
+| `peer-4-2.resc` | `590d77dc4268d376c8ff1c3fbc8a48e9d93facf0dfe9a077300f0f7af04cd960` |
+| `peer-4-2.log` | `68f2fefdfac55297440f37fcfb07acb5f5dad6bfdcab751afdfb644bf4b981ec` |
+| `peer-5-1.bin` | `01193d031220a64858e240b19c68b560a80e003288e2112685e5077172bfe2ca` |
+| `peer-5-1.reply` | `c3448f1d22a4208ed306a3bd3c64148d4f3c49efa9375805d6725702e94d8700` |
+| `peer-5-1.resc` | `822621599a7c3f3c43b09db56a17c2870e4eed9135cd0c5802b55e7322a967a7` |
+| `peer-5-1.log` | `dae8a725c1a230e5a3523b6d8d20dfd0a4ba29aaca6ef45785e17575ed927ba9` |
+| `peer-5-2.bin` | `01193d031220a64858e240b19c68b560a80e003288e2112685e5077172bfe2ca` |
+| `peer-5-2.reply` | `c3448f1d22a4208ed306a3bd3c64148d4f3c49efa9375805d6725702e94d8700` |
+| `peer-5-2.resc` | `9d265eb689d29b8cc9f1789797ecf811491dd00b3a0b8f90c1723718e85cc75a` |
+| `peer-5-2.log` | `18d957971f63f2e346f49f4ccaff5b0569a3e260b4a7fc5ac2c286c88a473ffa` |
+| `ack-1/probe.resc` | `a59eddba72318d4fefe702413b5b5671e8744e5cee4584559b9b5e65230a0fd3` |
+| `ack-1/renode.log` | `4c71ee5fbf99f3baafeca7ed2f630f4805371be082f81eca06694068c83987e4` |
+| `ack-2/probe.resc` | `f7c751a4896a63a03f9125e77db4d62458ca73b11f0947e901b81d51044b5f93` |
+| `ack-2/renode.log` | `b6725bc149c977b30eff36d9d1ccc5b987e42c7fba48b95516c4ad2c6f675b17` |
+| `retry-1/probe.resc` | `3542c2181bbb4d1611b5716d593ba1742f1b059fb5290cda426ea5f055cb98bf` |
+| `retry-1/renode.log` | `6e60034996eb0b2450eefa81aafd8897c75799710b476db5110ec5bae5f7ef74` |
+| `retry-2/probe.resc` | `e8a94cc607dc68c94300f77134b3031ed97b2a7b043fc89c1467ee158067ebd3` |
+| `retry-2/renode.log` | `acc4df6102c658df3384e7b7b251f4abf055270de866db037afe0f3b01e75847` |
+| `complete-1/probe.resc` | `a8a62a635ffb3c992f2b9993321ee464e2394fa3ce2115dda0428e5f8323d187` |
+| `complete-1/renode.log` | `edeb6fbc461c02a205929d6bd6184aadb6418a17c97eae48f67b3f65ccfb0b2d` |
+| `complete-1/boot.norm` | `656ed166b9dc579bd43f44b632b0e309052f7a0992a0effb6af524b5770e8bc2` |
+| `complete-2/probe.resc` | `0cd390396c33a154e21bbf3fc9223a5e24275080b44758ca0b130e19280ff29c` |
+| `complete-2/renode.log` | `dfede0959007727b3308950e7b2b3c389982e396edca05d02a8df6257c9b500d` |
+| `complete-2/boot.norm` | `656ed166b9dc579bd43f44b632b0e309052f7a0992a0effb6af524b5770e8bc2` |
+| `lower-1/probe.resc` | `c56020e2e1c90186507cad364828b3f3564623043cf3c01c3f2e896fdb6a35f2` |
+| `lower-1/renode.log` | `8108bfc553d5e28c8eea30abe9a18c64249bb1e3e96984323d2947218c34edb0` |
+| `lower-1/boot.norm` | `61c2d7f2a114920eacacdf64856d33e71cea9fffe98c2bffd23448d2357460c2` |
+| `lower-2/probe.resc` | `3c7e63f3e99ad444e878c15823310d66ba8da1566129ce37c982e8e610622a2a` |
+| `lower-2/renode.log` | `5da94b60f81bd79e8d26a6eb36fb91b3e103879c44866376a81f4fc46fb4069b` |
+| `lower-2/boot.norm` | `61c2d7f2a114920eacacdf64856d33e71cea9fffe98c2bffd23448d2357460c2` |
