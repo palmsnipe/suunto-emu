@@ -19289,3 +19289,82 @@ START. The two 80-line normalized traces match byte for byte.
 | `initial-{1,2}/boot.norm` | `f845adcbbf98654ee078c2890b72ecf26036d46e8c7d615d0eade0e9e35220ef` |
 | `era.log` | `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81` |
 | `test-ulsan.log` | `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96` |
+
+## E-ULS-0103 — Race S controlled UART3 CTS probe
+
+2026-11-11. Two cold CTS-asserted Renode boots and two cold clear-CTS
+controls use the E-ULS-0101 firmware and the same E-ULS-0078,
+E-ULS-0079 and E-ULS-0088 fixtures. The base script is
+`/tmp/semu-822.SwGQ7F/lane-1/probe.resc` (SHA-256
+`53fc555fd376aa24d87c8eaa8695880dc39d800c09a0bcdf386d9b47f07f4d95`).
+The Renode 1.16.1 executable has SHA-256
+`8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab`.
+The UART3 platform mapping and pinned inputs match E-ULS-0101.
+
+A temporary wrapper at `0x4001f000` forwards register access and IRQ18
+to the existing PL011 model, retains UARTCR.CTSEn (bit 15), and reflects
+an explicit test input in UARTFR.CTS (bit 0), following
+[ARM DDI 0183G, §§2.6, 3.3.3 and 3.3.8](https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5).
+Each asserted run sets that input at 11,400 virtual ms, before the
+native open, and holds it for the run. The controls use the same
+wrapper with CTS clear. The probe attaches no radio peer and injects
+zero UART3 receive bytes. CTS assertion is a synthetic test input.
+Physical pin timing and wire traffic remain unevidenced.
+
+| Boundary | Clear CTS | Asserted CTS |
+| --- | --- | --- |
+| Control readback | The load before `0xffb3c` sees `0x8318`; the enable write is `0x8319`. | Same readback and enable write. |
+| Software event 3 | `0xffd22` sees flags `0x90` and the driver takes state 1. | `0xffd22` sees `0x91`; the driver stays in state 4 and writes the RX and receive-timeout interrupt mask `0x50` at `0xffd34`. |
+| Timer event 9 | The 18 state-5 CTS checks at `0xffd08` see `0x90` and return to state 1. Each control has 20 opens and 19 closes by 11,500 ms. | The 18 state-5 CTS checks sampled by 11,500 ms see `0x91` and return to state 4. The first check is at Renode tick `11492760744`. Each run has one open and zero closes through the final checkpoint. |
+| UART data | Zero data-register reads and writes, including the open-time FIFO flush and receive handler sites. | Zero data-register reads and writes, zero outgoing PL011 bytes, zero receive parser calls, and zero protocol or driver TX enqueues. |
+| Adapter state | UART open returns 1; adapter stays in state 2 (START). | Same open result and adapter state. The pairing readiness return at `0xd75c8` remains zero. |
+
+The asserted runs follow the E-ULS-0100 crown-only route. Hello,
+Pairing Connect, guidance and guidance bottom match the pinned frames
+at 12,500, 26,900, 28,800 and 32,750 virtual ms. The final
+sample at 37,750 ms shows UARTCR `0x8319`, UARTFR `0x91`, and adapter
+state 2. The bottom frame remains
+`d3014e708de945e59f5a41e226fd89156bb9ba9467c676ed4eef634229346ae4`.
+Detailed timer and driver transition hooks stop at 11,500 ms.
+Open, close, UART data and protocol instrumentation run to the final
+sample. The two traces for each stimulus are byte-identical after
+removing host timestamps. The normalized control trace has 89 lines
+and the asserted trace has 97 lines.
+
+The pinned application from E-ULS-0101 was disassembled twice with
+`arm-none-eabi-objdump -D -b binary -m arm -M force-thumb --adjust-vma=0x30000`
+using the E-ULS-0101 tool binary. The two outputs match. Both asserted
+traces see `0xda516` register callback `0xd7ba1` with adapter context
+`0x10043a7c`.
+The normal receive path hands validated frames through `0xff586`
+to `0xda4d0`. Its opcode 1, subtype 0 startup branch at `0xdac28`
+can queue the startup requests through `0xda704` and `0xda778` when
+the stored sequence byte is at least the incoming sequence field.
+The opcode 0, subtype 2 response path at `0xdab50` checks the pending
+request, matching sequence, status zero and a payload of at least
+48 bytes before dispatching the completion. The registered callback
+at `0xd7ba0` sets ON on a zero completion status. In both asserted runs the receive parser,
+startup enqueue and completion sites all have zero visits. This
+locates the next gate at the peer's initial valid receive frame.
+The firmware gives the receive and completion conditions, while the
+radio's actual first frame bytes and timing remain unobserved.
+
+| Files below `/tmp/semu-825.vRuVjs` | SHA-256 |
+| --- | --- |
+| `CtsProbeUart.cs` | `4ffc15d439051a9fd2a223a1b520b7b6b9000ce337805389ca1bf83087787d91` |
+| `uart3.repl` | `4546d817391b97063177adaa6a42efe7e67132b61473d54ece7ddab04bf28ca0` |
+| `run.py` | `0be0e3982050f5c4db92c5ef26f957dec850f587580d1e077bcf06738d54f2ce` |
+| `run-windowed.py` | `e9a8a397fc5ddc13d6e0ae0d46ead7ab72d583f19d6dbb318f775560cdf873cf` |
+| `observe.hooks` | `4f44e11d6e0f518313586687d5088ec5fe37e8c5f0a4741864e55ae3952c1119` |
+| `normalize.py` | `f8852514285035a6d051b05f61c95580bca1c60880d4bb1595f5d990ff2892e3` |
+| `app{,-repeat}.dis` | `187c4115bc5c3717390496b6ae5f4b733075eeedc8532e998ec9e3d698e93f31` |
+| `low-1/probe.resc` | `8ba9a194c6b77e0c7776e96d75560a171c7866e5056fdbceed6fb83a724d5ef5` |
+| `low-1/renode.log` | `b73655ba5c2ca1e9e3d581a383b04448b91fb6d18c194151064650d7f46dbee3` |
+| `low-2/probe.resc` | `5c94864421a0b74c550028e1e9cadd80195c6ba9b2ec1e3d46b73cef435e088c` |
+| `low-2/renode.log` | `4ad0a6595a09db7ff32e8a7ae285857a8c5cbb21e616623f35c7090db0e3bbd3` |
+| `held-fast-1/probe.resc` | `7c1c7c355e320c29d351b1a5afc03aa4d5822321b65873c9dc5d329c36d3f3a5` |
+| `held-fast-1/renode.log` | `9d117312bc569939d30627b01f33b19c2b792a5f542503a02cfb63ead46f1d2b` |
+| `held-fast-2/probe.resc` | `85c3acd12d57a402825010eee864b7b509c025b48aa1ff348991812d9fe0af6a` |
+| `held-fast-2/renode.log` | `71b06961c59ff974f05691c3016bd49777ac6fc280ca9bc13ac1a236a1af27fc` |
+| `low-{1,2}/boot.norm` | `1a0be816f73133c314da71e6aa01fbd9e9e7e8c0160c4185bc2dc94262df6f11` |
+| `held-fast-{1,2}/boot.norm` | `841e5c4ade07248894e2f8096e2a158be0d5059c6092def64002913b98f39ef9` |
