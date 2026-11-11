@@ -104,3 +104,25 @@ The bundle is an update image with no write records at either core's
 flash base. Establish the installed reset path, then boot the peer
 and capture its UART3 bytes and timing in two cold Renode runs. The
 ticket remains blocked on that observation.
+
+E-ULS-0106 records two radio reset attempts in Renode. The bundle
+supplies neither flash-base vector. Renode halts the application
+core before it executes an instruction. Direct-entry diagnostic
+pairs reach their recovered vectors and stop before the first
+unavailable factory reads, at `0x00ff0130` on the application core
+and `0x01ff0300` on the network core.
+
+The later BambiTL handoff and UARTE1 startup-frame path are
+identified in disassembly. The installed reset stages and the
+factory configuration required by startup remain unavailable.
+The frame and its timing remain unverified, so status stays blocked.
+
+The repeated Race S suite passed all 89 cases, including two cold
+standalone boots each for Hello, Service Mode, crown-only guidance
+and mixed-input guidance. Both firmware-era scripts, task contracts,
+line checks and `make check` passed.
+
+The private regression logs under `/tmp/semu-826-reset.9VHs29` have these SHA-256 values.
+
+- `test-ulsan.log` — `b3ec656ae6eb7024d23cfae34464c95eb5b6d68fd15a2fc92a369d52633acc96`
+- `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`

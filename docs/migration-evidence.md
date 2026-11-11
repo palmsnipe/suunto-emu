@@ -19564,3 +19564,146 @@ The inputs and disassembly for the updater trace match E-ULS-0104.
 | FCC exhibit 7327550 PDF | `fc1b401d60e0d008cf2d0ebe10832b8b862bf7efd9e77285975f374d4d4118b0` |
 | FCC exhibit 7327550 Fig. 9 JPEG, extracted by Poppler 26.10.0 `pdfimages -j` | `12ea64b7fed50f11ea54b652dece73579094844d2aea7ba21141db15c61ce875` |
 | FCC exhibit 7327565 PDF | `79a3fbe29f0f143111640b26a3a27cdbfeea9317df5a0dae26af8c6538a19baa` |
+
+## E-ULS-0106 — nRF5340 reset refusal and UART startup path
+
+2026-11-11. The E-ULS-0105 bundle is the sole image input
+(SHA-256 `0cfab67c4632604459a70446fcc99436b62c3c64bef59566dfbe728cbf3cac11`).
+Two materializations check every wrapper length, header CRC-16,
+payload CRC-32 and FLII record CRC-16. They copy only the 377
+write records to the two Cortex-M33 flash regions. Unwritten
+locations read as erased in these test images. In particular,
+neither core's first 4 KiB is supplied by this bundle. The erase
+census checks 24 CRC-valid SFI3 headers across the eight E-ULS-0105
+SOFs. All declare the same three ranges, `0x1000+0x7000`,
+`0x10000+0xe0000`, and `0x01001000+0x3f000`. These are update
+ranges. The installed contents before those ranges are unknown.
+
+The temporary Renode 1.16.1 platform uses the E-ULS-0103 executable
+and separate NVICs, flash and RAM for the two cores. Its
+power-on configuration uses the application reset vector at
+`0x00000000` and holds the network core off. The recovered network
+flash base is `0x01000000`. Both base vector pairs read
+`ffffffff/ffffffff` in the materialization. The reset topology
+follows Nordic's description of application-core start and network
+Force-OFF after power-on reset.
+[Nordic reset control](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/reset/doc/reset.html),
+[Nordic application memory](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/memory/appmem.html),
+[Nordic network memory](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/memory_network/netmem.html)
+
+Each case is a fresh machine, with a 100 microsecond virtual-time
+window and a 35-second host timeout. The power-on pair halts both
+cores with zero executed instructions. The three direct-vector
+diagnostic pairs explicitly select recovered vectors and halt
+before the first unsupported read. A separate exploratory pair
+per entry identified those read addresses from Renode's unhandled
+access log. No subsequent execution from those exploratory runs
+is used as evidence.
+
+| Case | Vector table | First observed stop | Instructions | Normalized trace SHA-256 |
+| --- | --- | --- | ---: | --- |
+| Power-on reset configuration | `0x00000000` | Renode refuses to start the application core with the absent reset vector | 0 | `a54c8a895857ace9134234d7b9e9c8b8643a02aa1535212a1308c25d6d1a62af` |
+| Direct BambiTL stage entry | `0x00001000` | `0x4194` attempts to read `0x00ff0130` | 4 | `5943dcdcb74cbc3d9b6353ed75ba41f8a21950629e5af569d4332ee7bdfd0666` |
+| Direct normal application entry | `0x00010000` | `0x20668` attempts to read `0x00ff0130` | 11 | `3b61855456cc8de1da83664bf70ca3120ff26f501f8f303ad4518c23fde54419` |
+| Direct network entry | `0x01001000` | `0x010284ec` attempts to read `0x01ff0300` | 12 | `42ff3184d291755cc34b4292eb258ac61650d5bbbf5ac49cb2707e45bfeeaf42` |
+
+The first factory-window value at `0x00ff0130` is absent from the
+bundle. The normal application also reads factory trim pairs at
+`0x00ff0300+8*i` and UICR at `0x00ff8000` and `0x00ff801c`
+before its VTOR write. The network image reads a trim table starting
+at `0x01ff0300` before writing VTOR to `0x01001000`. The diagnostic
+probes establish instruction boundaries in a minimal platform.
+Their ticks describe execution in that platform. Board startup timing
+remains unverified.
+[Nordic factory configuration](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/ficr/doc/ficr.html),
+[Nordic user configuration](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/chapters/uicr/doc/uicr.html)
+
+Two static disassembly audits establish the later handoff. The
+BambiTL stage at `0x4296` checks retained state and an application
+descriptor. Its path through `0x3110` sets a shared-RAM status byte
+to `0xff`, releases the network core at `0x3132`, and waits for
+a response. It holds the network core off again at `0x3146`.
+The handoff at `0x42d8` requires a zero response. The descriptor at
+`0x000effc0` supplies `0x10000` for the MSP and reset-PC loads at
+`0x30f4` and the branch at `0x3100`. The normal application sets
+VTOR at `0x17456` and has a separate network release path at
+`0x27544`, including the documented revision 1 Force-OFF
+workaround. These paths require the network core's actual startup
+state. The base vectors remain absent.
+[Nordic revision 1 erratum 161](https://docs.nordicsemi.com/r/bundle/errata_nrf5340_rev1/page/err/nrf5340/rev1/latest/anomaly_340_161.html)
+
+The radio application configures UARTE1 at `0x50009000`, with
+1,000,000 baud, hardware flow control, P0.20 RXD, P0.22 TXD,
+P0.19 CTS and P0.21 RTS. After IPC setup succeeds, its startup call at `0x14eb0` reaches
+the opcode 1, subtype 0 frame builder at `0x14e14`. Its payload
+includes bits from a validated retained SRAM structure. The serial
+encoder and EasyDMA path reach the `STARTTX` store at `0x266c4`.
+The one-second retry timer is configured after the initial attempt.
+The recovered loader also has a 250,000-baud update branch. Future
+capture needs to distinguish these code paths.
+[Nordic UARTE](https://docs.nordicsemi.com/r/bundle/ps_nrf5340/page/uarte.html)
+
+No paired run reaches a radio UART setup or transmit site. No
+first peer-to-watch UART3 frame or arrival time is verified. The
+capture remains blocked on an evidenced installed reset path and
+the factory configuration needed to execute it.
+
+The Renode executable SHA-256 is
+`8bcefcc46659ebfeb9c759b11c3d5817020b82cd0dddca5fa2db0d9f5de884ab`.
+The paired temporary flash SHA-256 values are
+`eb415e3ed4af021a9eba6f25c929d67342ba963cbb20cbfc28b55b2d46284ac1`
+(application) and
+`053ae8349073f338349a477b5c6f07567835794e699ad41fe4204b956a404b1d`
+(network). The parser and SOF hashes used in the erase census match
+E-ULS-0105. Both static audits use GNU `arm-none-eabi-objdump`,
+SHA-256 `7f7bd6c9797ded8e07b92a896a6df6497793d1de4eb9ec437ada3e8a32faecda`.
+
+| Probe inputs and outputs below `/tmp/semu-826-reset.9VHs29` | SHA-256 |
+| --- | --- |
+| `materialize.py` | `893bf82268dd7f1d0b33095b6aafb9ba9aafbbfd3c19ec8795d56a567166aab1` |
+| `erase-census.py` | `500b1cc30bc2f881cb3ea6b1b1a7cb4f4e35a2a26841409d203437f96fe6d80b` |
+| `peer.repl` | `bb111fa116875a063380bd236c78348a162b77bd1bc36184b5030402217f915d` |
+| `probe.py` | `56e012f02a55caa5ab0133b184f15517eceead849b1ee4b796e549d4d500a915` |
+| `probe-strict.py` | `83cfb0ee4c9dea03cf07cc8783488b1088c2f8e472e92abb7ed7bfd87de9d02a` |
+| `normalize.py` | `be232b6146acd3ddb45d1133ad8f74967eda7fdfb815da41a6aa655e7bbf3207` |
+| `materialize-{1,2}.log` | `d104882837903f599ed359b4e1fbdcb8e9f2511ff7e4c0e136332561bf4cafd9` |
+| `erase-{1,2}.log` | `2ffb376c3549953235a1d74ba7eebad9e343fd7b1cad74ca45658bd2787c574d` |
+| `strict-por-1/renode.log` | `cef2ae3e06db3b8cdebe494b6884deca5ebdec8726fd7e5b5df44196d7a6165a` |
+| `strict-por-2/renode.log` | `3cf89ad6a2df1538cdfbaa78f48620fe25cb93bdf9f5968d6ca359625bc957a0` |
+| `strict-stage1-1/renode.log` | `83df3e0d83faeb0c835ca76faaff2338a89c0150d45659446eca4db1f27951b9` |
+| `strict-stage1-2/renode.log` | `37dc56bd59d4167f95a3d7e7327dd6550e179cea2b20a19fdf2b7c9a20aa065c` |
+| `strict-app-1/renode.log` | `2c529b9a77e9245eeb24056c26832febf56b94d819268e52d023d9409447b5d7` |
+| `strict-app-2/renode.log` | `7d8f69723d78119617e70085bd38d38a012c2fb4cdd31d3868365c7377cbeb3c` |
+| `strict-net-1/renode.log` | `7e2dab582d1a58aca4fd66d780d9d666b58839a3e5a6acded05c81fa28f06ac7` |
+| `strict-net-2/renode.log` | `35b1e7a30bb0bb2a519a955200885a9c5b34c0996763f70a70e430337c34bbf6` |
+| `stage1-1/renode.log` | `b5295f96cc6381031ee77eabf6514fa770feef9be228872f7e096ba2a5b706c7` |
+| `stage1-2/renode.log` | `3c25f4315c6b08ea1546bb01fed71127a639057e16446cd545d3073aa90e1086` |
+| `app-1/renode.log` | `9da095fd38e8e2e28e990beab10dfd9fc2e368c6e83ff1e0be82f97c7c4b79c9` |
+| `app-2/renode.log` | `d54e46faa8a4d0e82fe9b50e5b61950baf0d009217b411c1f0c65bee5f2cfd43` |
+| `net-1/renode.log` | `bbd3671b2576af47e779e8b1c447d5eb3cb6554bf065c7620f0be822d7d8529b` |
+| `net-2/renode.log` | `0bd827303061a507215ed575e2acb49dc25d3558a862773aa04bbdd46b8c443f` |
+| `scout-first.py` | `59f91183473d3e9e6a1dadca82b10f401eed1c5a56acd7ae41fc9490681a6ea8` |
+| `scout-{1,2}.log` | `03ec877e0ad116d6283c582d54ad7944a6cf995341487be0fe3dbcaa7a07e66e` |
+| `strict-por-1/probe.resc` | `c5ff16c135e31389ef2f7d39a31a511b1bfa31e68850d6680d7c43c5ee221088` |
+| `strict-por-2/probe.resc` | `4eff37e1d80cd1bc29f568c59dbb21fdb471b8337821da2659bf3386637ece20` |
+| `strict-stage1-1/probe.resc` | `53e98265745828e8e2a7d9d628ae27ef23b28ee83b335bda395e7ab00a7dc2f4` |
+| `strict-stage1-2/probe.resc` | `1fba8fde12ade43e72a61f013f3a52d0a3c505faa46cf107b3eaec98c9bffa87` |
+| `strict-app-1/probe.resc` | `b2dd5c07d7a2c7ab9fb74cb84fdd198871544cee1c79fc7ba083fae1e7f6bc56` |
+| `strict-app-2/probe.resc` | `c95ab4f3f7f2caf8e7d8c078ea822bd398e5410bb5d2354f854180a1b91f841b` |
+| `strict-net-1/probe.resc` | `1546cae8f8a31847f7d266d658efe85628573591ddd8aea2f374a1a117baffdd` |
+| `strict-net-2/probe.resc` | `99e8ac69609f471e9b9b207115cb7698ac41279e94f29f9110e85f48c6bd3116` |
+
+The probe generator creates each `probe.resc` from the pinned
+platform, executable, and materialized inputs.
+
+| Offline audit source or output | SHA-256 |
+| --- | --- |
+| `/tmp/semu-nrf-static.NPQKAV/extract.py` | `1941a313535c0581bb5f3878a5b8185daaf123c057aabe68368e12abb75e6b81` |
+| `/tmp/semu-nrf-static.NPQKAV/extract-{1,2}.log` | `a61d85f8c9ab12fe59ac645dffbbe5a0739ae2664818a5412b9b8da76b8256d7` |
+| `/tmp/semu-nrf-static.NPQKAV/audit.py` | `637378b54b0b83f6fdadf07e3fde930da1e02a0256fd714f20e42e20b3b80d85` |
+| `/tmp/semu-nrf-static.NPQKAV/audit-{1,2}.log` | `26ca49c6323329ba5e2ec1177a8b7a2ab00059894219ed1d4f2579a9a480c89d` |
+| `/tmp/semu-826-nrf-uart.ly5IIe/extract.py` | `f46ec04d9ecee2832608a0af853fe5fd8f1cceda21fcd7f7048645e39618fa83` |
+| `/tmp/semu-826-nrf-uart.ly5IIe/trace.py` | `ef61eec6a8573370f6fa4d61cdea4299e3f3592d208f685c00c087ad9f6c71bb` |
+| `/tmp/semu-826-nrf-uart.ly5IIe/trace-{1,2}.log` | `862ff013d8d9ca72baf6320096688bbb7b8827410140bef2ce5ab2c7cb0ff177` |
+| `/tmp/semu-826-nrf-uart.ly5IIe/loader.py` | `bef88f0f3883401a5ae90bd2d16ee9d9aab9d74b2b19e85791b3a2b1f42d21c0` |
+| `/tmp/semu-826-nrf-uart.ly5IIe/loader-{1,2}.log` | `28790223590343be2a47de46cb9a83ff14baa2a003820d22c4f3b5b06caf5c6f` |
