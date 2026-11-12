@@ -5255,3 +5255,21 @@ twice byte-identical as a cold CLI pair. `make test TEST_FILTER=wismar`
 (1,114 PASS) all exit 0. Next gap: the display/panel boundary — the
 lane's 2 s display probe faults at the Renode translator artifact before
 any display submission, so ticket 765 needs new lane evidence.
+
+## Wismar stability verification: the 20-second window is fault-free and twice-identical — 2026-11-12
+
+Following E-WIS-0004, the Wismar bounded run was extended past the pinned
+8-second window to 20 seconds of virtual time
+(`--max-instructions 200000000 --max-time 20000000000`): the guest stays
+fault-free (zero refusals, zero AIRCR resets) and parks at the same lane
+1 s BKPT terminal PC `0x51bc82` on a periodic wake cadence (15,868,456
+instructions at the 20 s stop), twice byte-identical. The in-tree MSPI2
+flash law was cross-checked against the Wismar lane's observed JEDEC
+transaction: both answer `0x9f` with `{0x20, 0xbb, 0x19}` byte-for-byte.
+The Wismar profile is at its evidence-bounded endpoint: every lane-
+observed transaction class (INFO1, MCUCTRL, PWRCTRL, CLKGEN, STIMER,
+RTC, GPIO-adjacent, MSPI2 JEDEC) has an in-tree law, and the remaining
+frontiers — display/panel submission (ticket 765) and the MAX20360 bus
+model — require new lane observations under the no-device constraint
+(the sandbox cannot run the Renode lane; see E-WIS-0001's smoke-wrapper
+note).
