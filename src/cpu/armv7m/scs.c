@@ -39,7 +39,20 @@ semu_status armv7m_scs_read(void *context, uint32_t offset, unsigned width,
     } else {
         status = semu_bus_read_below(cpu->bus, ARMV7M_SCS_BASE + offset,
                                      width, value, error);
-        if (status != SEMU_OK) return refuse(offset, error);
+        if (status != SEMU_OK) {
+            if (armv7m_priority_mask(cpu) == ARMV7M_NVIC_PRIORITY_MASK_WIDE) {
+                /* E-WIS-0002 lane fallback law: the untagged SCS range
+                 * answers reads 0 on the Wismar lane (the guest's DSB +
+                 * write/read sync sequences at 0xE000EF50 continue on
+                 * both twice-identical traces). The 0xf0 selector is the
+                 * Wismar profile's CPU binding, so the shared profiles
+                 * keep refusing. */
+                *value = 0u;
+                semu_error_clear(error);
+                return complete(SEMU_OK, error);
+            }
+            return refuse(offset, error);
+        }
     }
     return complete(status, error);
 }
@@ -60,7 +73,15 @@ semu_status armv7m_scs_write(void *context, uint32_t offset, unsigned width,
     } else {
         status = semu_bus_write_below(cpu->bus, ARMV7M_SCS_BASE + offset,
                                       width, value, error);
-        if (status != SEMU_OK) return refuse(offset, error);
+        if (status != SEMU_OK) {
+            if (armv7m_priority_mask(cpu) == ARMV7M_NVIC_PRIORITY_MASK_WIDE) {
+                /* E-WIS-0002 lane fallback law: untagged SCS writes are
+                 * dropped on the Wismar lane. */
+                semu_error_clear(error);
+                return complete(SEMU_OK, error);
+            }
+            return refuse(offset, error);
+        }
     }
     return complete(status, error);
 }

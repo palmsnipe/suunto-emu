@@ -2,6 +2,7 @@
 
 #include "../../devices/sapporo_iom4.h"
 #include "../../devices/sapporo_rtc.h"
+#include "../../devices/ulsan_otpinfo.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -464,6 +465,29 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
         if (status != SEMU_OK) {
             return status;
         }
+        /* E-ULS-0012 law, same on the Wismar lane: the NVM_OTP/INFO1 tag
+         * range has no peripheral, and the boot's two INFO1 reads
+         * (0x42003240/0x42003310) answer 0. The device serves exactly
+         * those words and refuses everything else, so reuse widens
+         * nothing (first Wismar observation 0x42003310). */
+        status = semu_ulsan_otpinfo_map(soc->bus, error);
+        if (status != SEMU_OK) {
+            return status;
+        }
+        semu_ulsan_otpinfo_enable_wismar_extra();
+        /* The shared apollo4.power device (mapped during init) owns
+         * 0x40021000; the Wismar warn+0 flag rides it instead of the
+         * Ulsan pwrctrl device. */
+        semu_apollo4_power_enable_wismar_warn_zero(soc->power);
+        /* E-WIS-0001 records the Wismar lane's CLKGEN reads at
+         * 0x4000400c/0x40004044 as warn-not-stop absences; the shared
+         * apollo4.clock device (mapped during init) owns 0x40004000 and
+         * takes the E-ULS-0010 class dictionary law via the flag. */
+        semu_apollo4_clock_enable_wismar_dictionary(soc->clock);
+        /* E-ULS-0046 class law: STIMER CONFIG is a plain store; the
+         * Wismar guest writes value bits outside the shared evidenced
+         * mask. */
+        semu_apollo4_stimer_enable_wismar_plain_config(soc->stimer);
     }
     if (strcmp(profile_id, "ulsan-2.44.52") == 0 && soc->uart3 == NULL) {
         semu_status status;
@@ -492,7 +516,12 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
      * byte-for-byte.  The live IOM4 law stays 2.35-only: the 2.33 lane
      * census names no IOM4 mirror. */
     soc->rtc_live = strcmp(profile_id, "sapporo-2.35.34") == 0 ||
-                    strcmp(profile_id, "sapporo-2.33.16") == 0
+                    strcmp(profile_id, "sapporo-2.33.16") == 0 ||
+                    /* E-WIS-0002: the Wismar lane RTC model is the same
+                     * AmbiqApollo4_RTC class (upstream wismar-platform.repl
+                     * includes it); the guest touches RTC 0x204 (interrupt
+                     * status) during startup. Same class law, same device. */
+                    strcmp(profile_id, "wismar-2.46.14") == 0
                         ? 1 : 0;
     /* E-SAP-0073: 2.33 issues the same two absent-LPS22 identity probes
      * as E-SAP-0039's 2.35 lane. Keep the existing exact command/state law. */
@@ -507,7 +536,10 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
     /* E-SAP-0036: the 2.35 startup path replaces the shared IOM4 law
      * with the lane-mirror engine at 0x40054000 (IRQ 10); no other
      * profile reaches this seam. */
-    if (soc->rtc_live != 0 && soc->iom4_live == NULL) {
+    /* The live IOM4 mirror stays 2.35-only even when rtc_live covers
+     * Wismar (the Wismar lane names no IOM4 mirror; E-WIS-0001). */
+    if (strcmp(profile_id, "sapporo-2.35.34") == 0 &&
+        soc->iom4_live == NULL) {
         soc->iom4_live = semu_sapporo_iom4_create(
             soc->bus, gpio_irq_adapter, soc, error);
         if (soc->iom4_live == NULL) {

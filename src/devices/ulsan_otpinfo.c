@@ -17,14 +17,24 @@
 
 enum {
     OFFSET_INFO1_3240 = 0x240u,
-    OFFSET_INFO1_3310 = 0x310u
+    OFFSET_INFO1_3310 = 0x310u,
+    /* Wismar-only extra word (E-WIS-0002): the Wismar boot reads the
+     * INFO1 pair 0x310/0x314; the lane sysbus fallback answers 0 for both
+     * (twice-identical traces continue past them). The Ulsan profile
+     * keeps the strict two-word law. */
+    OFFSET_INFO1_3314 = 0x314u
+};
+
+struct semu_ulsan_otpinfo {
+    int wismar_extra;
 };
 
 static semu_status otpinfo_read(void *context, uint32_t offset,
                                 unsigned width, uint32_t *value,
                                 semu_error *error)
 {
-    (void)context;
+    const struct semu_ulsan_otpinfo *state =
+        (const struct semu_ulsan_otpinfo *)context;
     if (value == NULL) {
         semu_error_set(error, SEMU_ERR_ARGUMENT,
                        "Ulsan OTP info read value required");
@@ -36,7 +46,9 @@ static semu_status otpinfo_read(void *context, uint32_t offset,
                        "unsupported", offset, width);
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (offset == OFFSET_INFO1_3240 || offset == OFFSET_INFO1_3310) {
+    if (offset == OFFSET_INFO1_3240 || offset == OFFSET_INFO1_3310 ||
+        (state != NULL && state->wismar_extra &&
+         offset == OFFSET_INFO1_3314)) {
         *value = 0u; /* the value the lane sysbus log records */
         return SEMU_OK;
     }
@@ -68,7 +80,7 @@ static const semu_bus_device_ops otpinfo_ops = {
     otpinfo_reset
 };
 
-static int otpinfo_context;
+static struct semu_ulsan_otpinfo otpinfo_context;
 
 semu_status semu_ulsan_otpinfo_map(semu_bus *bus, semu_error *error)
 {
@@ -77,6 +89,12 @@ semu_status semu_ulsan_otpinfo_map(semu_bus *bus, semu_error *error)
                        "Ulsan OTP info needs a bus");
         return SEMU_ERR_ARGUMENT;
     }
+    otpinfo_context.wismar_extra = 0;
     return semu_bus_map_device(bus, "ulsan.otp_info1", 0x42003000u, 0x400u,
                                &otpinfo_ops, &otpinfo_context, error);
+}
+
+void semu_ulsan_otpinfo_enable_wismar_extra(void)
+{
+    otpinfo_context.wismar_extra = 1;
 }

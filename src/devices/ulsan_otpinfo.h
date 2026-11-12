@@ -19,4 +19,11 @@
 
 semu_status semu_ulsan_otpinfo_map(semu_bus *bus, semu_error *error);
 
+/* Wismar-only extra word (ticket 755, E-WIS-0002): the Wismar boot reads
+ * the INFO1 pair 0x310/0x314; the lane sysbus fallback answers 0 for both
+ * on its twice-identical traces. When enabled, the device also serves
+ * offset 0x314 with the logged zero; the Ulsan profile keeps the strict
+ * two-word law. */
+void semu_ulsan_otpinfo_enable_wismar_extra(void);
+
 #endif

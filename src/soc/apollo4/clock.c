@@ -46,6 +46,8 @@ struct semu_apollo4_clock {
     semu_scheduler *scheduler;
     uint32_t cal;
     uint32_t intr;
+    /* Wismar dictionary law (ticket 755, E-WIS-0002); see clock.h. */
+    int wismar_dictionary;
 };
 
 static const semu_bus_device_ops clock_ops = {
@@ -71,7 +73,8 @@ static semu_status validate_access(void *context, uint32_t offset,
                        "Apollo4 clock supports 32-bit accesses only");
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (!is_known_offset(offset)) {
+    if (!is_known_offset(offset) &&
+        !((semu_apollo4_clock *)context)->wismar_dictionary) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 clock offset 0x%08x is unsupported", offset);
         return SEMU_ERR_UNSUPPORTED;
@@ -153,6 +156,13 @@ semu_status semu_apollo4_clock_read(void *context, uint32_t offset,
         *value = clock->intr;
         break;
     default:
+        if (clock->wismar_dictionary) {
+            /* E-WIS-0002 (E-ULS-0010 class law): reads return the stored
+             * dictionary value or 0. */
+            *value = 0u;
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         return SEMU_ERR_UNSUPPORTED;
     }
     semu_error_clear(error);
@@ -169,7 +179,7 @@ semu_status semu_apollo4_clock_write(void *context, uint32_t offset,
     if (status != SEMU_OK) {
         return status;
     }
-    if (!is_observed_write_value(offset, value)) {
+    if (!is_observed_write_value(offset, value) && !clock->wismar_dictionary) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 clock value 0x%08x is unsupported at 0x%08x",
                        value, offset);
@@ -183,6 +193,13 @@ semu_status semu_apollo4_clock_write(void *context, uint32_t offset,
         clock->intr = value;
         break;
     default:
+        if (clock->wismar_dictionary) {
+            /* E-WIS-0002 (E-ULS-0010 class law): writes store under the
+             * offset; the shared clock has no dictionary table, so the
+             * Wismar law stores nothing (lane writes were tag-only). */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         return SEMU_ERR_UNSUPPORTED;
     }
     semu_error_clear(error);
@@ -231,4 +248,9 @@ semu_status semu_apollo4_clock_snapshot_read(
     }
     *clock = candidate;
     return SEMU_OK;
+}
+
+void semu_apollo4_clock_enable_wismar_dictionary(semu_apollo4_clock *clock)
+{
+    if (clock != NULL) clock->wismar_dictionary = 1;
 }

@@ -27,6 +27,12 @@ semu_apollo4_power *semu_apollo4_power_create(
     semu_apollo4_power_state_callback callback, void *callback_context,
     semu_error *error);
 void semu_apollo4_power_destroy(semu_apollo4_power *power);
+
+/* Wismar warn+0 law (ticket 755, E-WIS-0002): unmodeled in-window offsets
+ * answer reads 0 and drop writes, matching the lane PowerController class
+ * dictionary (unknown offset -> 0). The shared profiles keep the strict
+ * observed-offset law. */
+void semu_apollo4_power_enable_wismar_warn_zero(semu_apollo4_power *power);
 void semu_apollo4_power_reset(void *context);
 
 semu_status semu_apollo4_power_read(void *context, uint32_t offset,

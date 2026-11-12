@@ -73,6 +73,12 @@ typedef struct {
 } wismar_region;
 
 static const wismar_region region_table[] = {
+    /* The lane platform keeps the upstream Apollo4 MRAM window
+     * (mcu_mram @ 0x0, 2 MiB); the Wismar guest's startup dereferences
+     * through it (first observed fault address 0x0 at vt ~58.6 ms, past
+     * the lane's 0.1 s boundary stop, inside the 1 s BKPT probe window
+     * where the lane ran fault-free). */
+    { "wismar.mram", 0x00000000u, 0x00200000u },
     { "wismar.code_window", 0x00400000u, 0x00300000u },
     { "wismar.stack_alias", 0x20000000u, 0x00400000u },
     { "wismar.extended_sram", 0x10160000u, 0x00060000u },

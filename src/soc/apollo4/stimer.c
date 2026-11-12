@@ -237,6 +237,14 @@ semu_status semu_apollo4_stimer_read(void *context, uint32_t offset,
     else if (offset == STIMER_INTERRUPT_ENABLE)
         *value = stimer->interrupt_enable;
     else if (offset == STIMER_INTERRUPT_STATUS) *value = stimer->pending;
+    else if (stimer->wismar_plain_config) {
+        /* E-WIS-0002 (E-ULS-0046 class law): unregistered in-window
+         * STIMER offsets answered warn+0 upstream; the Wismar epoch
+         * touches them (first observed 0x24). */
+        *value = 0u;
+        semu_error_clear(error);
+        return SEMU_OK;
+    }
     else return refuse(offset, error, "offset not evidenced");
     semu_error_clear(error);
     return SEMU_OK;
@@ -253,7 +261,8 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
     if (offset >= STIMER_NVRAM0 && offset <= STIMER_NVRAM3) {
         stimer->nvram[(offset - STIMER_NVRAM0) / 4u] = value;
     } else if (offset == STIMER_CONFIGURATION) {
-        if ((value & ~STIMER_CONFIGURATION_MASK) != 0u)
+        if ((value & ~STIMER_CONFIGURATION_MASK) != 0u &&
+            !stimer->wismar_plain_config)
             return refuse(offset, error, "configuration bits not evidenced");
         stimer->configuration = value;
         for (number = 0u; number < 2u; ++number) {
@@ -261,16 +270,32 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
             if (status != SEMU_OK) return status;
         }
     } else if (offset == STIMER_INTERRUPT_ENABLE) {
-        if ((value & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u)
+        if ((value & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u &&
+            !stimer->wismar_plain_config)
             return refuse(offset, error, "interrupt control not evidenced");
+        if (stimer->wismar_plain_config) {
+            /* E-WIS-0002 (E-ULS-0046 class law): the lane drops STIMER
+             * writes with unevidenced bits; no enable side effects are
+             * modeled for them. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         stimer->interrupt_enable = value;
         for (number = 0u; number < 2u; ++number) {
             status = schedule_compare(stimer, number, error);
             if (status != SEMU_OK) return status;
         }
     } else if (offset == STIMER_INTERRUPT_CLEAR) {
-        if ((value & ~STIMER_IRQ_MASK) != 0u)
+        if ((value & ~STIMER_IRQ_MASK) != 0u &&
+            !stimer->wismar_plain_config)
             return refuse(offset, error, "only IRQA and IRQC are evidenced");
+        if (stimer->wismar_plain_config) {
+            /* E-WIS-0002 (E-ULS-0046 class law): the lane drops STIMER
+             * writes; no clear side effects are modeled for the
+             * unevidenced value bits. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         if ((value & 1u) != 0u) set_irq(stimer, 0u, 0);
         if ((value & 4u) != 0u) set_irq(stimer, 1u, 0);
     } else if (offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_C) {
@@ -289,6 +314,12 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
         status = schedule_compare(stimer, number, error);
         if (status != SEMU_OK) return status;
     } else {
+        if (stimer->wismar_plain_config) {
+            /* E-WIS-0002 (E-ULS-0046 class law): unregistered in-window
+             * STIMER writes are dropped upstream. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         return refuse(offset, error, "offset not evidenced or read-only");
     }
     semu_error_clear(error);
@@ -394,4 +425,10 @@ semu_status semu_apollo4_stimer_snapshot_resolve_event(
     *callback = semu_apollo4_stimer_event;
     *context = &stimer->compare[subject];
     return SEMU_OK;
+}
+
+void semu_apollo4_stimer_enable_wismar_plain_config(
+    semu_apollo4_stimer *stimer)
+{
+    if (stimer != NULL) stimer->wismar_plain_config = 1;
 }

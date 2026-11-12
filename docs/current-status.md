@@ -5198,3 +5198,32 @@ re-pinned to the new layout. Next gaps in evidence order: peripheral
 bit-band aliasing, Timer14 edge-mode semantics, the display contract, and
 board wiring.
 
+
+## Ticket 760 — Wismar instance 2: five frontiers resolved; the bounded run advances to the first IOM4 command write — 2026-11-12
+
+E-WIS-0003 (ticket 760 instance 1): the Wismar bounded run advanced from
+the E-WIS-0002 stop (first unsupported access at instruction 14,518,838)
+to 14,658,314 by admitting five startup frontiers, each with the lane's
+own class law and each scoped to the Wismar profile: the NVM_OTP/INFO1
+pair (`0x42003310`/`0x314`, E-ULS-0012 device plus a `wismar_extra` word),
+MCUCTRL and PWRCTRL unmodeled offsets (`wismar_warn_zero` on the shared
+devices — class-dictionary read-0/drop, including sub-word and
+read-only-offset writes), the CLKGEN dictionary (`wismar_dictionary` on
+the shared clock — E-ULS-0010 law; both offsets are named in E-WIS-0001's
+lane-gap census), the STIMER class law (`wismar_plain_config` — CONFIG is
+a plain store, unregistered offsets warn+0, INT_ENABLE/INT_CLEAR values
+outside the evidenced masks dropped — E-ULS-0046 law), the live RTC
+(same AmbiqApollo4_RTC class as E-SAP-0035; `rtc_live` now covers Wismar
+while the IOM4 mirror stays 2.35-only), the untagged GPIO-adjacent span
+`0x40010400..0x40010fff` on the warn+0 gap device, and the lane MRAM
+window `0x0..0x1fffff`. The first unsupported behavior is now the IOM4
+command write `0x40054120`: the guest cycles five AIRCR resets before the
+budget stop `stop=budget pc=0x0052ac56 instructions=80000000
+virtual_time_ns=80000000` (still the lane's 0.1 s boundary PC), twice
+byte-identical as a cold CLI pair. The twice-identical property moved to
+the CLI pair in the era checkpoint script because the guest's AIRCR
+cycles carry SRAM state a cold in-process reset drops. No IOM4 semantics
+were added — the in-tree IOM4 mirror is the next ticket-760 instance.
+`make test TEST_FILTER=wismar` 5/5; `TEST_FILTER=ulsan` 89/89; both era
+checkpoints PASS; `make check` (1,120 PASS), `check-lines`,
+`check-task-contracts`, `make sanitize` (1,114 PASS) all exit 0.

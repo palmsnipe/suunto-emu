@@ -21350,3 +21350,67 @@ Wismar profile only. Remaining gaps, in evidence order: peripheral bit-band
 aliasing (the first unsupported access, `0x42003310`), Timer14 edge-mode
 semantics (the lane wrapper is a workaround, not a firmware fact), the
 display contract, and board wiring — each requires its own evidence gate.
+
+## E-WIS-0003 — Wismar instance 2: five frontiers resolved; the bounded run advances to the first IOM4 command write (ticket 760)
+
+2026-11-12; ticket 760 instance 1, continuing from the E-WIS-0002 profile.
+Each frontier is an unmodeled block the Wismar boot touches past the
+E-WIS-0002 stop; each admission is the lane's own class law (warn+0 for
+untagged ranges, dictionary for CLKGEN, plain-store STIMER CONFIG, and the
+full AmbiqApollo4_RTC class for the RTC), scoped to the Wismar profile
+only:
+
+1. **NVM_OTP/INFO1 pair** (`0x42003310`/`0x42003314`): the E-ULS-0012
+   device already served `0x310`; the Wismar boot reads the following word
+   too (`0x314`). A `wismar_extra` flag on the shared otpinfo device serves
+   it with the same sysbus-fallback zero; the Ulsan profile keeps the
+   strict two-word law.
+2. **MCUCTRL unmodeled offsets** (first `0x40020250`) and **PWRCTRL**
+   (first `0x40021040`, including sub-word and read-only-offset writes):
+   a `wismar_warn_zero` flag on the shared `apollo4.mcu_control` and
+   `apollo4.power` devices reads 0 and drops writes — the lane
+   PowerController class dictionary law (E-ULS-0008; unknown offset → 0,
+   narrower accesses sliced).
+3. **CLKGEN dictionary** (`0x4000400c`/`0x40004044` — both named in
+   E-WIS-0001's lane-gap census): a `wismar_dictionary` flag on the shared
+   `apollo4.clock` reads stored-or-0 and drops writes (E-ULS-0010 class).
+4. **STIMER** (`0x40008800` CONFIG with bits outside the shared mask,
+   `0x40008824`, INT_ENABLE/INT_CLEAR values outside the evidenced masks):
+   a `wismar_plain_config` flag applies the E-ULS-0046 lane class law —
+   CONFIG is a plain store, unregistered offsets warn+0, writes dropped.
+5. **RTC** (`0x40004a04` = interrupt status): the Wismar lane's RTC is the
+   same AmbiqApollo4_RTC class the E-SAP-0035 law mirrors; the Wismar
+   profile now takes `rtc_live` (creating the existing live RTC device)
+   while the live IOM4 mirror stays 2.35-only. Plus: the untagged
+   GPIO-adjacent span `0x40010400..0x40010fff` (observed stores at
+   `0x40010530`/`0x40010540`) rides the warn+0 `wismar.gpio-gap` device,
+   and the lane MRAM window (`0x0..0x1fffff`, upstream
+   wismar-platform.repl) is mapped — the guest's startup dereferences
+   through it past the 0.1 s boundary.
+
+**Bounded stop (twice identical, cold CLI pair).** The first unsupported
+behavior is now the IOM4 command write `0x40054120` (0x40054000+0x120):
+the guest issues its first IOM4 command at instruction 14,658,314 (first
+epoch; later epochs re-attempt at 14,658,336 after the preserve-RAM
+reset), the fault-handler reset follows, and the guest cycles five times
+before the budget stop
+`stop=budget pc=0x0052ac56 instructions=80000000 virtual_time_ns=80000000`
+— still the lane's 0.1 s boundary PC. The lane models IOM4
+(sapporo-iom4.repl in the Wismar profile include list), so the in-tree
+IOM4 mirror is the next ticket-760 instance; no IOM4 semantics were added
+here.
+
+**Verification.** `make test TEST_FILTER=wismar` 5/5 (the pinned unit
+golden updated to the new stop with the reset-cycles caveat: the
+twice-identical property is proven by the cold CLI pair because the
+guest's AIRCR cycles carry SRAM state a cold in-process reset drops);
+`make test TEST_FILTER=ulsan` 89/89; both era firmware checkpoints PASS
+with pins unchanged; `make check` exit 0 (1,120 PASS); `make check-lines`
+exit 0; `make check-task-contracts` exit 0; `make sanitize` exit 0
+(1,114 PASS). Affected modules: `src/soc/apollo4/{apollo4.c,power.{c,h},
+clock.{c,h},stimer.{c,internal.h,h}}`, `src/cpu/armv7m/scs.c`,
+`src/devices/ulsan_otpinfo.{c,h}`, `src/boards/wismar_board.c`,
+`src/soc/apollo4/gpio.c` (gap span `0xc00`), the two Wismar tests and the
+era checkpoint script. Next instance: the IOM4 command path
+(`0x40054120`), with the lane's SapporoApollo4Iom4 class as the evidence
+source.

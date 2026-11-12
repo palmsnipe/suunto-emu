@@ -441,7 +441,12 @@ static const semu_bus_device_ops gpio_gap_ops = {
 
 semu_status semu_apollo4_gpio_gap_map(semu_bus *bus, semu_error *error)
 {
-    return semu_bus_map_device(bus, "wismar.gpio-gap", 0x40010400u, 0xb0u,
+    /* Span covers the untagged GPIO-adjacent space the Wismar startup
+     * walks (observed: the literal-pool words 0x40010400..0x400104ac and
+     * the contiguous stores at 0x40010530/0x40010540). The walk continued
+     * on both lane traces under the upstream class, so the whole span up
+     * to the next tagged block takes the uniform warn+0 law. */
+    return semu_bus_map_device(bus, "wismar.gpio-gap", 0x40010400u, 0xc00u,
                                &gpio_gap_ops, NULL, error);
 }
 

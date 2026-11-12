@@ -25,6 +25,11 @@ semu_apollo4_stimer *semu_apollo4_stimer_create(
     semu_apollo4_stimer_irq_fn irq, void *irq_context, semu_error *error);
 void semu_apollo4_stimer_destroy(semu_apollo4_stimer *stimer);
 void semu_apollo4_stimer_reset(void *context);
+/* Wismar plain-store CONFIG law (ticket 755, E-WIS-0002, E-ULS-0046
+ * class): CONFIG stores any value; the shared profiles keep the
+ * evidenced-bits mask. */
+void semu_apollo4_stimer_enable_wismar_plain_config(
+    semu_apollo4_stimer *stimer);
 semu_status semu_apollo4_stimer_read(void *context, uint32_t offset,
                                      unsigned width, uint32_t *value,
                                      semu_error *error);

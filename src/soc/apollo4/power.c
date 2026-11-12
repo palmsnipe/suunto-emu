@@ -50,6 +50,8 @@ struct semu_apollo4_power {
     uint32_t dsp0_memory_enable, dsp0_memory_retention;
     uint32_t dsp1_memory_enable, dsp1_memory_retention;
     uint32_t simo_buck_enable;
+    /* Wismar warn+0 law (ticket 755, E-WIS-0002); see power.h. */
+    int wismar_warn_zero;
 };
 
 static const semu_bus_device_ops power_ops = {
@@ -129,11 +131,26 @@ static semu_status validate_access(void *context, uint32_t offset,
         return SEMU_ERR_ARGUMENT;
     }
     if (width != 4u) {
+        semu_apollo4_power *power = (semu_apollo4_power *)context;
+        if (power != NULL && power->wismar_warn_zero) {
+            /* E-WIS-0002: the lane register framework slices narrower
+             * accesses from the word (E-ULS-0008); the Wismar boot uses
+             * them, so sub-word accesses ride the same warn+0 law. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 power supports 32-bit accesses only");
         return SEMU_ERR_UNSUPPORTED;
     }
     if (!is_known_read_offset(offset) && !is_known_write_offset(offset)) {
+        semu_apollo4_power *power = (semu_apollo4_power *)context;
+        if (power != NULL && power->wismar_warn_zero) {
+            /* E-WIS-0002 (lane PowerController class dictionary): unknown
+             * in-window offsets read 0 and drop writes. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 power offset 0x%08x is unsupported", offset);
         return SEMU_ERR_UNSUPPORTED;
@@ -291,6 +308,13 @@ semu_status semu_apollo4_power_read(void *context, uint32_t offset,
         *value = power->simo_buck_enable != 0u ? SIMO_STATUS_MASK : 0u;
         break;
     default:
+        if (power->wismar_warn_zero) {
+            /* E-WIS-0002 (lane PowerController class dictionary):
+             * unknown in-window offsets read 0. */
+            *value = 0u;
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         return SEMU_ERR_UNSUPPORTED;
     }
     semu_error_clear(error);
@@ -311,6 +335,12 @@ semu_status semu_apollo4_power_write(void *context, uint32_t offset,
         return status;
     }
     if (!is_known_write_offset(offset)) {
+        if (power->wismar_warn_zero) {
+            /* E-WIS-0002 (lane PowerController class dictionary):
+             * unknown in-window writes are logged and dropped. */
+            semu_error_clear(error);
+            return SEMU_OK;
+        }
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 power offset 0x%08x is read-only", offset);
         return SEMU_ERR_UNSUPPORTED;
@@ -390,6 +420,12 @@ semu_status semu_apollo4_power_write(void *context, uint32_t offset,
                 return SEMU_ERR_UNSUPPORTED;
             }
             break;
+        }
+        if (power->wismar_warn_zero) {
+            /* E-WIS-0002 (lane PowerController class dictionary):
+             * unknown in-window writes are logged and dropped. */
+            semu_error_clear(error);
+            return SEMU_OK;
         }
         return SEMU_ERR_UNSUPPORTED;
     }
@@ -496,4 +532,9 @@ semu_status semu_apollo4_power_snapshot_read(
     }
     *power = candidate;
     return SEMU_OK;
+}
+
+void semu_apollo4_power_enable_wismar_warn_zero(semu_apollo4_power *power)
+{
+    if (power != NULL) power->wismar_warn_zero = 1;
 }

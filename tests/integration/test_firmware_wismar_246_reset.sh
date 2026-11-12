@@ -26,19 +26,21 @@ run_boot()
 {
     rc=0
     "$emulator" run --profile wismar-2.46.14 --firmware "$manifest" \
-        --max-instructions 20000000 --max-time 8000000000 >"$1" 2>&1 || rc=$?
+        --max-instructions 80000000 --max-time 8000000000 >"$1" 2>&1 || rc=$?
     test "$rc" -eq 3 || { cat "$1" >&2; return 1; }
 }
 
 run_boot "$work/first"
 run_boot "$work/second"
 cmp "$work/first" "$work/second"
-stop='stop=budget pc=0x0052ac56 instructions=20000000 virtual_time_ns=20000000'
+stop='stop=budget pc=0x0052ac56 instructions=80000000 virtual_time_ns=80000000'
 tail -1 "$work/first" >"$work/stop"
 printf '%s\n' "$stop" | cmp - "$work/stop"
-reset=' fault_address=0x42003310'
+reset=' fault_address=0x40054120'
 grep -Fq 'event=machine-reset-request pc=0x0052bfd6' "$work/first"
 grep -Fq "$reset" "$work/first"
-test "$(grep -c 'machine-reset-request' "$work/first")" -eq 1
+# Five guest AIRCR cycles in the 80M window (the guest re-attempts the
+# unsupported IOM4 command after each preserve-RAM reset).
+test "$(grep -c 'machine-reset-request' "$work/first")" -eq 5
 cat "$work/first"
 echo 'PASS wismar-2.46.14 standalone reset and refusal checkpoint'

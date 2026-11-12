@@ -24,6 +24,10 @@ struct semu_apollo4_stimer {
     uint32_t pending;
     uint32_t nvram[4];
     stimer_compare compare[2];
+    /* Wismar plain-store law (ticket 755, E-WIS-0002 with the E-ULS-0046
+     * lane class): CONFIG is a plain store with reset 0x80000000; the
+     * Wismar guest writes value bits outside the shared evidenced mask. */
+    int wismar_plain_config;
 };
 
 #endif
