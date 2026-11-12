@@ -1,0 +1,198 @@
+[evidence]
+format=1
+id=E-ROS-0001
+date=2026-11-11
+source_kind=authentic SOF package extraction plus read-only catalog, registry and lane-CLI inspection
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Rostock-fw_2.39.20.20609-O-26950e90.sof
+product=Rostock
+retail_model=Suunto Vertical
+version=2.39.20.20609-O
+channel=O
+container_revision=f06153d9
+
+[sof_package]
+filename=Rostock-fw_2.39.20.20609-O-26950e90.sof
+size=6666426
+sha256=dd2e8fb3bfa6ed3ea21b6e8df2f0897b44bdac9a9f916016d327266d135ffc49
+md5=362f95d0d1db2d59239806509d78500c
+magic=SOF1
+declared_header_span=624
+header_region_0x00_0x280_sha256=c43103b4e5ea15fa104daf713eea8ece01153c2655a7332fc631c3ce5d451e3e
+header_span_0x00_span_sha256=c41eee2b51971635c63f66daf551003d2f864823dc2a5d841544d9f827c358d2
+object_id=0x26950e90
+component_count=5
+terminator_record_index=6
+payload_start=640
+payload_bytes_total=6665786
+payload_bytes_plus_header_equals_package=true
+trailing_bytes=0
+record_table_region=0x040..0x280
+header_span_gap_bytes=16 (bytes 0x270..0x27f are zero; the declared span 624 does not cover the last 16 bytes of the record-table region; the same 16-byte gap is observed in E-TJN-0001 and E-WIS-0001)
+terminator_slots=record 6 type 0 encoding 4 (tail 00000000000db400000000000000000000000000); record 7 type 0 encoding 5 (tail 00000000000f1400000000000000000000000000); records 8-12 type 0 encoding 0 with zero tails; the extraction tool stops at the first type 0 and the terminator semantics are unproven
+record_tail_slots_nonzero=2,3,4,5 (20-byte tails at 0x1c..0x2f recorded without field-level meaning)
+header_word_0x04=0x26950e90 (equals the filename object-id suffix; semantics unproven)
+header_word_0x08=0x0065b8ae (equals size minus 12 = 6666414; semantics unproven)
+
+[component 01 type-1 encoding-1]
+index=1
+type=1
+encoding_version=1
+offset=640
+stored_size=5854
+expanded_size=5854
+load_address=0xffffffff
+stored_crc32=53b600f7
+expanded_crc32=53b600f7
+stored_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+expanded_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+compression=none
+trailing_crc32_word=false
+first_words=0x73311933 0x000016d2 (not a vector pair)
+note=unmapped descriptor; SHA-256 equals the type-1 v1 header recorded for Sapporo, Ulsan, Tianjin and Wismar (observed hash equality only, no inheritance claim)
+
+[component 02 type-3 encoding-2]
+index=2
+type=3
+encoding_version=2
+offset=6494
+stored_size=54420
+expanded_size=81442
+load_address=0x00040000
+stored_crc32=7ba45006
+expanded_crc32=2144df1c
+stored_sha256=1783192e740fc75d99772e974a1f5170513d643c0d1a121bae3eae73180aa087
+expanded_sha256=9df875f4e60e73a4f966e73dff13bc5f310121108b0cf3e0c3b508c3148be6a2
+compression=xz
+trailing_crc32_word=true
+payload_size=81438
+payload_sha256=8955445db80b4a654c4e74da20e183d2a3b01f5c93488dfb1ff0691975d44882
+crc32_residue=2144df1c
+vector_table=initial_sp=0x1005ffc0 reset_vector=0x00053a39 (code 0x00053a38, inside [0x00040000,0x00053e22))
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; the SOF load range overlaps components 04 and 05; role not proven (extraction tool labels type 3 only)
+
+[component 03 type-2 encoding-2]
+index=3
+type=2
+encoding_version=2
+offset=60914
+stored_size=60984
+expanded_size=71445
+load_address=0x00019000
+stored_crc32=6a44d056
+expanded_crc32=2144df1c
+stored_sha256=ba1d0ba0cd70703c6d54b07699064e91811866c6f3c118eb25a71076b1938c1e
+expanded_sha256=5fb4425d65df8ee4ae9a4a43f8d909d885bf6f4f7592d3a6c0cc07797e2ace3a
+compression=xz
+trailing_crc32_word=true
+payload_size=71441
+payload_sha256=5c535da9526ea0766edba97f269903a817ccb4bc5e19f210880ab7a9cdc1fe77
+crc32_residue=2144df1c
+vector_table=initial_sp=0x1005ffc0 reset_vector=0x0001e101 (code 0x0001e100, inside [0x00019000,0x0002a715))
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; role not proven (extraction tool labels type 2 only)
+
+[component 04 type-4 encoding-2]
+index=4
+type=4
+encoding_version=2
+offset=121898
+stored_size=1087256
+expanded_size=1756752
+load_address=0x00040000
+stored_crc32=df5a05dc
+expanded_crc32=2144df1c
+stored_sha256=33c2719cf6865053010855b46416c4d1882d4435451fb098c92d29c28166dd6b
+expanded_sha256=51717bdfd6dcabe63e6732c3961bea24b046045df3be8b8e9d9de5f457ac302b
+compression=xz
+trailing_crc32_word=true
+payload_size=1756748
+payload_sha256=2a281293376b9fadd7aff0ee0ac13a81e7cbfcbffa1e54ef48a4d38ade48817c
+crc32_residue=2144df1c
+vector_table=initial_sp=0x1005ffc0 reset_vector=0x001ec327 (code 0x001ec326, inside [0x00040000,0x001ece50))
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; the SOF load range overlaps components 02 and 05; role not proven (extraction tool labels type 4 only)
+
+[component 05 type-1 encoding-3]
+index=5
+type=1
+encoding_version=3
+offset=1209154
+stored_size=5457272
+expanded_size=16519168
+load_address=0x00000000
+stored_crc32=ea9c8de8
+expanded_crc32=04125a7f
+stored_sha256=a96c678b09dbb694072847720ce9d4c3768b48551f523ad772ee2bb297d0f023
+expanded_sha256=256e06325e71f033b976cadc1ccb0b1434238ceb565aa7ca0f11011956e05233
+compression=xz
+trailing_crc32_word=false
+last_word=0xffffffff
+first_words=0xc367696c 0x6f6c2da1 (data, not a vector pair)
+note=no trailing CRC32 word; SOF load field 0x00000000; the catalog classifies this component as unclassified-resource-component with no product-specific coverage proof (Sapporo 2.39.20's equal-size resource is filesystem-fragment classified); no runtime placement is derived from the package
+
+[load_layout_analysis]
+xz_load_ranges=component 02 [0x00040000,0x00053e22); component 03 [0x00019000,0x0002a715); component 04 [0x00040000,0x001ece50); component 05 [0x00000000,0x00fc1000)
+overlapping_load_ranges=(2,4),(2,5),(3,5),(4,5)
+cpu_start_tuple_derived_from_package=false
+note=the manifest load fields are not mutually consistent as runtime addresses; no CPU start tuple, vector-table base or runtime placement is derived from the package alone (the same convention as E-TJN-0001); Ulsan and Wismar wiring cannot be reused without field-by-field proof
+
+[sapporo_class_comparison]
+verdict=layout-is-sapporo-class-by-catalog-derivation (no behavior or wiring inheritance)
+shared_container_revision=f06153d9 (identical to Sapporo 2.39.20.22297)
+component_sequence=1v1, 3v2, 2v2, 4v2, 1v3 with load fields 0xffffffff/0x00040000/0x00019000/0x00040000/0x00000000 (matches Sapporo exactly; differs from Tianjin's external-flash tail at 0x00040000 and from Ulsan's type-5-at-0x00010000/type-4-at-0x00030000)
+resource_component=type 1 v3, expanded 16,519,168 B at load 0x00000000, same expanded size as Sapporo 2.39.20.22297's resource (E-SAP-0011)
+resource_bytes_differ=Rostock stored sha256 a96c678b... vs Sapporo d92111d5...; expanded sha256 256e0632... vs Sapporo 49a3936f...; the resource is NOT Sapporo bytes
+classification_gap=catalog: unclassified-resource-component, no product-specific coverage proof (Sapporo: filesystem-fragment with logical-cluster evidence)
+readme_warning=$FIRMWARE_ROOT/emulator/devices/rostock/README.md (SHA-256 4037da5e95dfd723a01a9dc3235259c686cd6c2ba2dc2389054491b9539513ec) warns the Rostock resource must not be treated as Sapporo or Ulsan merely because application component load addresses look familiar
+
+[cross_version]
+five_local_packages=2.33.16.15742 a5ffeba5 (acf9fa01) 1fa88d81...; 2.35.34.17246 c28de158 (b0e8e377) c559e77f...; 2.37.34.18511 dfa3d8d6 (29e19c4b) 5c88cc0b...; 2.37.48.19002 d14f671b (aea9f2fc) d7666309...; 2.39.20.20609 26950e90 (f06153d9) dd2e8fb3...
+resource_constant=every package's component 05 expands to 16,519,168 B at load 0x00000000
+components_02_03=stored hashes 1783192e.../ba1d0ba0... are identical across all five Rostock packages (5 catalog occurrences) and are not Sapporo bytes
+
+[provenance]
+catalog_file=$FIRMWARE_ROOT/firmware/catalog.json
+catalog_sha256=8b09f444e8fca8ce8c9f48bcbde6618c5f83fffe68080deb9abe1c5264f7d10e
+cdn_url=https://firmware.geo.movescount.com/production/Rostock-fw_2.39.20.20609-O-26950e90.sof
+package_classification=replacement-component-ota
+whole_device_factory_image=false
+base_firmware_status=not-proven (SOF omits device-specific state and/or part of external flash)
+http_headers_file=$FIRMWARE_ROOT/artifacts/firmware/Rostock-fw_2.39.20.20609-O-26950e90.sof.headers
+http_content_length=6666426
+http_last_modified=Mon, 16 Dec 2024 11:41:20 GMT
+http_etag=362f95d0d1db2d59239806509d78500c (non-multipart ETag equal to the whole-file MD5; stronger than the multipart ETags recorded for Tianjin and Wismar)
+provenance_gap=the community-inventory provenance entry covers the Rostock product but not the exact 2.39.20 filename; the official-support entry covers Tianjin/Ulsan 2.37.48 only (Tianjin's E-TJN-0001 had exact-filename official-support provenance; Rostock does not)
+acquisition_record=$FIRMWARE_ROOT/docs/research/firmware-acquisition.md documents the Rostock resource component as a type-1/v3 replacement at [0, 0x00fc1000) with full physical/factory coverage not proven
+
+[lane_status]
+registry=$FIRMWARE_ROOT/emulator/devices/registry.json
+registry_sha256=292add2822af1bd2dae090150c341e24eeaca1f54720739732c7a5222b8f1666
+device_id=suunto-vertical (aliases vertical, rostock)
+status=cataloged
+profiles=one: 2.33.16-analysis, status planned, pinned to the OLDEST package (2.33.16.15742), not 2.39.20
+launcher=none
+default_profile=none
+next_milestone=Classify the resource component and identify its MCU/memory contract
+lane_files=$FIRMWARE_ROOT/emulator/devices/rostock/ contains only README.md; no Rostock .resc/.repl machine exists anywhere under $FIRMWARE_ROOT/emulator (all Renode machines are Sapporo/Ulsan)
+lane_cli_refusal=run vertical -> error: Suunto Vertical has no firmware profile yet (exit 2); run vertical --profile 2.33.16-analysis -> ...is not runnable yet. Next: Classify the resource component and identify its MCU/memory contract (exit 2)
+lane_refusal_log=/tmp/rostock-intake/lane-refusal.txt SHA-256 8e584a6319b2a2dca5b72630c7fe1bdf23b7e8f5eed24928ae761577793be238
+note=the lane fails closed in the same shape as the Tianjin refusal; no bounded trace, memory map, IRQ contract, board wiring, display contract or input contract exists for Rostock
+
+[extraction_verification]
+tool=$FIRMWARE_ROOT/tools/sof_extract.py via python3, output to /tmp/rostock-intake/extract (volatile; nothing copied into any repository)
+run_pair=extract-run1.json = extract-run2.json SHA-256 96459f291d900d553502d382372792a5eb6e38a27a349f7fe27bd058f192218b (byte-identical twice)
+independent_census=census.py run pair census1.txt = census2.txt SHA-256 15e31555850461bd5ae386caec4f492b5648a84f34bc1dda42a19271e40120d3 (byte-identical twice)
+machine_readable_census=/tmp/rostock-intake/rostock-2.39.20.census.json SHA-256 6d4d3650d6609e9492bd3ea5ddc4c8fda85ff5e557210086756f391503dc2b95
+catalog_cross_check=all component fields (type, encoding, offset, sizes, load, CRC32, SHA-256) match catalog.json exactly; whole-package SHA-256 matches
+spot_hash_verification=every stored/expanded SHA-256 and CRC32 in the census was re-verified from the extracted bytes by the independent census script (run pair byte-identical); whole-package SHA-256 and MD5 recomputed on disk
+
+[validation]
+strict_validation=extraction run pair byte-identical; independent census run pair byte-identical; catalog cross-check exact on every field; whole-package SHA-256/MD5 recomputed on disk
+fixture_validation=see the E-ROS-0001 ledger entry for the final fixture validation
+volatile_artifacts=/tmp/rostock-intake/ (census.json, census.py, census1.txt=census2.txt, extract/, extract-run1.json=extract-run2.json, lane-refusal.txt); all outside every repository tree
+
+[limitations]
+no_firmware_bytes=only sizes, offsets, hashes, CRCs and derived boundaries are recorded; no firmware or resource bytes enter Git
+roles_not_asserted=component roles are not claimed; the extraction tool labels type numbers only
+no_inheritance=no family inheritance is inferred from the shared Apollo4-class SP 0x1005ffc0, the identical type-1 v1 header hash, or the Sapporo-class layout; the device README forbids it
+runtime_placement_unproven=the load fields overlap and no runtime placement, memory map or IRQ contract is derived from the package
+lane_fields_missing=memory map, IRQ contract, board wiring, first bounded stop, display contract and input contract have no Rostock evidence; the lane CLI refuses
+eligibility=ineligible for an executable profile today under the ticket-770 frozen interfaces; the audit-note blocker (no extraction) is stale, but 775 may not start on this dispatch alone
