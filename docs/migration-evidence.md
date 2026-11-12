@@ -16743,6 +16743,387 @@ integration runs above; `make check-lines`, `make check-task-contracts`,
 | pristine `component-04-type-4-v2.raw` | `ba286a7bce55dd2f7aba81436d3c5152401c28d86bef89b2c9dbbacd04b7e9e5` |
 | pristine `component-05-type-1-v3.raw` | `b06492a982faa188a14d0a458e7165f9e0b13d0917ded3c3e37077f6ef68d5c5` |
 
+## E-TJN-0001 — Tianjin 2.37.48 package contract verified; the product is ineligible for an executable profile (ticket 770)
+
+2026-10-21; authentic SOF package extraction plus read-only catalog and
+lane-registry inspection. Source:
+`$FIRMWARE_ROOT/artifacts/firmware/Tianjin-fw_2.37.48.19199-Q-0b462834.sof`,
+11,133,122 bytes, SHA-256
+`d35ea7219abee0686dc93705282272ea953d7e2df98b90b77102e1c9d16a9aa5`
+(MD5 `c43ae48f8cc4747e2fb88b30cece8589`, matching the acquisition record).
+Extraction manifest
+`$FIRMWARE_ROOT/artifacts/analysis/tianjin-2.37.48/manifest.json` SHA-256
+`2115b26eaf4638adea56941c3d609a979e92ee70c4efc4103008d71f805b4a60`;
+catalog `$FIRMWARE_ROOT/firmware/catalog.json` SHA-256
+`8b09f444e8fca8ce8c9f48bcbde6618c5f83fffe68080deb9abe1c5264f7d10e`;
+lane registry `$FIRMWARE_ROOT/emulator/devices/registry.json` SHA-256
+`292add2822af1bd2dae090150c341e24eeaca1f54720739732c7a5222b8f1666`.
+No firmware or resource bytes enter the repository; only sizes, offsets,
+hashes, CRCs and derived boundaries are recorded.
+
+**Derived package census.** SOF1 header: declared header span 624, model
+`Tianjin`, version `2.37.48.19199`, channel `Q`, container revision
+`aea9f2fc`, header SHA-256
+`31f9b771b8b52d2f8f8a3ad7fcfbac05541568a5d719f22783f0f59a4d8f78e8`.
+The record-table region is `0x040..0x280` (12 slots of 0x30 bytes); the
+declared span 624 (`0x270`) leaves 16 zero bytes between the span end and
+the first payload at 640 (`0x280`), so it does not cover the last 16 bytes of
+the table region. Five payload components are followed by a type-0
+terminator at record index 6 (encoding 4) and a further type-0 slot 7
+(encoding 5); the extraction tool stops at the first type-0 and the
+terminator semantics are unproven. Payload bytes total exactly the package
+size with zero trailing bytes.
+
+- component 01: type 1, encoding v1, offset 640, stored = expanded 5,854 B,
+  SHA-256 `5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b`,
+  load field `0xffffffff`, compression none, no trailing CRC32 word; an
+  unmapped descriptor whose first eight bytes are not a vector pair. The
+  SHA-256 equals the type-1 v1 header recorded for Sapporo and Ulsan
+  (observed hash equality only; no inheritance claim).
+- component 02: type 3, encoding v2, offset 6,494, stored 82,168 B
+  SHA-256 `435b0e0573ddf80dd0c171a7c16c10a4ab9dea3179cadce3e3320a0180407a3b`,
+  expanded 120,984 B SHA-256
+  `eb7a39ebc5359a70a57b49001ee5f7c80b660e0c993308a5e30ace951efeaad2`,
+  load field `0x00040000`, XZ. The expanded blob ends with a 4-byte
+  little-endian CRC32 of the preceding payload (payload 120,980 B SHA-256
+  `3e53a7d80d274a350e8c33cf0edd7c8fb5ed21768ce35c3134cd698413767ea8`;
+  whole-blob CRC32 residue `0x2144df1c`), so `expanded_size` includes that
+  checksum word.
+- component 03: type 2, encoding v2, offset 88,662, stored 95,304 B
+  SHA-256 `b36f287ffbc4da337e5f59caf375f93c545bc4709c4c51433333f428437c5ac4`,
+  expanded 104,080 B SHA-256
+  `530428d103b13082508181e5b31380fd067a959450b10dfa0670b5c3d36f7393`,
+  load field `0x00019000`, XZ, trailing CRC32 word; payload 104,076 B
+  SHA-256 `c8fdb0b01032e9ec70bba3c2582d310a6dca863677c41e935d4dbc33a1249554`.
+- component 04: type 4, encoding v2, offset 183,966, stored 1,126,516 B
+  SHA-256 `ede4382f11d353eaa58ee131082420abee24a765fbf27a79da283c9983112267`,
+  expanded 1,828,370 B SHA-256
+  `652690b45f31eb5d6cca8f99b59c3d114c31f9bcce7a9eac48985367ddb98fa2`,
+  load field `0x00040000`, XZ, trailing CRC32 word; payload 1,828,366 B
+  SHA-256 `0d7d701541ff093a502649dc7306568d955c909dfe5e525db3de7e2595664fec`.
+- component 05: type 1, encoding v3, offset 1,310,482, stored 9,822,640 B
+  SHA-256 `07bf3d7eff71fbf26c2a3b4e65ecd05f77c1bae967e264ad91ef92d6ab5f1bb8`,
+  expanded 33,292,288 B SHA-256
+  `6fe0edefff4b550492f1d851fad9452c77ea07c9b655faa918b37a169c747bb3`,
+  load field `0x00040000`, XZ, no trailing CRC32 word (last word
+  `0xffffffff`). The catalog classifies this component as the external-flash
+  tail replacement covering `[0x00040000, 0x02000000)` with 262,144 bytes
+  missing at the prefix (coverage `0.9921875`); that is a catalog claim, not
+  an address-space derivation.
+
+**Vector words.** Each executable-looking component begins with
+`initial_sp=0x1005ffc0` and a Thumb reset vector inside its own load range:
+component 02 `0x0005d739` (code `0x0005d738`, range
+`[0x00040000, 0x0005d898)`); component 03 `0x000195b1` (code `0x000195b0`,
+range `[0x00019000, 0x00032690)`); component 04 `0x001fd95d` (code
+`0x001fd95c`, range `[0x00040000, 0x001fe612)`). The initial SP lies inside
+the Apollo4 SRAM window `0x10000000..0x1016ffff`. These are recorded as
+initial-SP/reset-vector values by convention; the bytes establish the values
+only, and the CPU start component is not proven.
+
+**Unknown start tuple and load layout.** Three components carry a vector
+table, and the manifest load fields are not mutually consistent as runtime
+addresses: components 02, 04 and 05 all report `0x00040000` while component
+03 reports `0x00019000`; the declared ranges overlap. No CPU start tuple,
+vector-table base, runtime placement or memory map is derived from the
+package alone. Ulsan 2.35.36 places its resident (type 5) at `0x00010000` and
+application (type 4) at `0x00030000` (E-ULS-0001), so Tianjin's type-2/type-4
+loads differ and Ulsan wiring cannot be reused without field-by-field proof.
+No sharing claim is made. Bytes 0x04 (`0x0b462834`, equal to the filename
+suffix) and 0x08 (`0x00a9e0b6`, equal to size minus 12) are observed but
+their semantics are unproven; the nonzero 20-byte record tails (0x1c..0x2f)
+are likewise recorded without field-level meaning.
+
+**Source provenance is complete.** The catalog records the exact CDN URL
+`https://firmware.geo.movescount.com/production/Tianjin-fw_2.37.48.19199-Q-0b462834.sof`,
+`package_classification=replacement-component-ota`,
+`whole_device_factory_image=false`, `base_firmware_status=not-proven`
+(`SOF omits device-specific state and/or part of external flash`), and an
+`official-support` provenance entry (lifecycle FAQ URL) covering this exact
+filename. The preserved HTTP headers
+(`$FIRMWARE_ROOT/artifacts/firmware/Tianjin-fw_2.37.48.19199-Q-0b462834.sof.headers`,
+SHA-256 `5b8bc9da581cdcab6b628bd0d811f1c3c6c620b900024a206b866c40248ef237`)
+record `HTTP/1.1 200 OK`, `Content-Length: 11133122`,
+`Last-Modified: Wed, 02 Oct 2024 12:14:35 GMT` and
+`ETag: "30e108a1e31b214e29395fdbfa126a7b-2"` (a multipart ETag, not the
+whole-file MD5). The acquisition record
+`$FIRMWARE_ROOT/docs/research/firmware-acquisition.md` SHA-256
+`7c6c4f5860e45ccd851363a35b5b69e96fb3b91d820b96ecf0ae2f0b4d64789b`
+lists the same URL, byte count, SHA-256 and MD5 (retrieved 2026-08-09). The
+first 262,144 bytes of external flash and device-personalized state are absent
+and remain explicitly unknown.
+
+**Verification.** Two independent parses of the package bytes produced
+byte-identical censuses: `/tmp/tjn-intake/census.py` SHA-256
+`e7ae2a64c366e5f14489b34bb287f3b03c5c6a8543711e888303700e8733b236`
+with `/tmp/tjn-intake/census1.txt` = `/tmp/tjn-intake/census2.txt` SHA-256
+`f1f521dc43902f41c1b56b8ddfeeaec468f2f86c862f29273ec083f939899f9d`;
+and the independent verifier `/tmp/tjn-verify/verify.py` SHA-256
+`7dace6ecc3d0c9b722cdb4635595f6e9023503bebbfd9bb66cf9910b6ccd3ff8`
+with `/tmp/tjn-verify/run1.txt` = `/tmp/tjn-verify/run2.txt` SHA-256
+`8b4db6b2298731d0f7d234115c239c775c4785163c88403de0ebe7a21694350d`,
+plus a shasum/xz CLI cross-check `/tmp/tjn-verify/cli-report.txt` SHA-256
+`d8d583b428fce8351729fb1cf9d96e8f1336584e3152852d53675197973d9464`.
+Every stored size/SHA-256/CRC32 matched the SOF bytes, every XZ stream
+decompressed to the declared expanded size/SHA-256/CRC32, and the analysis
+`.stored`/`.raw` files matched the package slices and decompressed bytes
+byte-for-byte. The volatile scripts and logs live outside the repository
+tree; only the derived census and hashes are recorded here.
+
+**Lane status and the absent first stop.** The read-only lane registers
+`suunto-race`/`tianjin` as `cataloged` with one profile,
+`2.37.48-analysis`, whose status is `planned`; there is no `launcher` and no
+`default_profile`, and `$FIRMWARE_ROOT/emulator/devices/tianjin/` contains
+only `README.md` (SHA-256
+`573bddda898c406cabe00125fe93fff85d45685cf2af29432694525fff0ebf44`).
+`emulator/suunto-emulator info tianjin` reports the planned profile and the
+next milestone; `run tianjin` fails closed with
+`error: Suunto Race (first generation) has no firmware profile yet` (exit 2)
+and `run tianjin --profile 2.37.48-analysis` fails closed with
+`error: Suunto Race (first generation) profile 2.37.48-analysis is not runnable yet. Next: Compare its boot and display contracts with Ulsan before creating a native profile`
+(exit 2). The refusal log `/tmp/tjn-intake/lane-refusal.txt` SHA-256
+`3d94fdcf948d12364e95fe511bc97085e460c843b2ef6d66e478c91466a059a7`
+captures these exact outputs. With no executable launcher, no Tianjin
+`.resc`/`.repl`/trace exists and no repeatable bounded first stop can be
+captured.
+
+**Eligibility decision: ineligible.** Package/components/hashes/loads and
+source provenance are complete; the exact missing fields are
+`memory_map`, `irq_contract`, `board_wiring`, `first_bounded_stop`,
+`display_contract`, and `input_contract`. A read-only audit
+(`/tmp/tjn-audit/tianjin-evidence-audit.md` SHA-256
+`80eeecd40818891e9729030f667b3775e91a2fe0dfdc92500daf5197b95c67bf`)
+found zero Tianjin-specific evidence for those six fields: the only lane
+memory map is the Sapporo 2.22.60 early-boot map, no Tianjin IRQ trace or
+platform `.repl` exists, no Tianjin display/panel or buttons/crown/touch
+evidence exists, and the 285-file flat resource carve is not a hardware
+contract. Ticket 775 may not start: no eligible product exists, and the
+lane's own next milestone (compare boot and display contracts with Ulsan) is
+unmet. Next step: obtain exact Tianjin memory/IRQ/board/display/input
+evidence (an executable lane profile or owner-authorized offline RE of the
+pinned firmware) before any reset-profile work; do not manufacture
+placeholders. The contract fixture
+`fixtures/evidence/tianjin/tianjin-2.37.48.contract.semu` has SHA-256
+`bf5df575c5cdfd3ee40c5e69112ada8ae75b6f2cc1ca53ffbe0fd5b6a9f6d12e`.
+
+Validation: `make check-lines && make check` exit 0 (documentation/evidence
+only; no source, profile, registry or index change); a programmatic fixture
+validator (`/tmp/tjn-intake/validate_fixture.py` SHA-256
+`7bf34bbb90fd6e779f346097e02cff9ad4fa4ac0f1a8a2d8bdee90893efeba97`, output
+`/tmp/tjn-intake/fixture-validation.txt` SHA-256
+`eff0e2de383393db84013844eb59da175db9435505190d20970a56dc2538ad81`)
+re-checked every recorded hash, size, CRC, vector and status against the
+evidence files. Confidence: high for
+the package census (two independent twice-identical runs plus a CLI
+cross-check) and for the ineligibility decision (the lane fails closed and
+the six required fields have no Tianjin-specific evidence). Affected
+modules: none — evidence only. Unresolved: the CPU start component and the
+runtime placement of the overlapping `0x00040000` load fields; the header
+span/payload gap, the record-tail and terminator-slot semantics, and the
+bytes at header offsets 0x04/0x08 remain unproven from the bytes; the first
+262,144 external-flash bytes and device-personalized state are permanently
+unavailable without hardware.
+
+## E-WIS-0001 — Wismar 2.46.14 package and bounded reset contract verified; display and board wiring remain unknown (ticket 750)
+
+2026-10-21; authentic SOF package extraction plus read-only Wismar lane
+probes and research inspection. Source package
+`$FIRMWARE_ROOT/artifacts/firmware/Wismar-fw_2.46.14.26212-U-a994f63c.sof`,
+11,838,622 bytes, SHA-256
+`c0ec99042f8480d2863acf047bc63b8601745a3fe7f09c1e519be2191c9858b1`
+(MD5 `41144621ec42441c870181c88d2494ee`); SOF1 header span 624, model
+`Wismar`, version `2.46.14.26212-U`, channel `U`, container revision
+`9e6c0590`, header SHA-256
+`b382db073afdc110ea4cca527b871cb89abe4d020ecaf72d80b1217bc4890973`;
+generated manifest
+`$FIRMWARE_ROOT/artifacts/generated/wismar-2.46.14/manifest.json` SHA-256
+`7362b736628f91a247bd5c97df304ae7c4dc5075168ebbc49831025bd645024c`;
+lane registry SHA-256
+`292add2822af1bd2dae090150c341e24eeaca1f54720739732c7a5222b8f1666`;
+external-candidates file SHA-256
+`e5d48e3d1063a3a13cfbbf720907df0d3040322587903319a379690a48c23584`.
+No firmware or resource bytes enter the repository; only sizes, offsets,
+hashes, CRCs, trace lines and derived boundaries are recorded. The contract
+fixture is `fixtures/evidence/wismar/wismar-2.46.14.contract.semu`
+(SHA-256 `79f66c10db0219a2601aa434685aa5fb4c5f5e5d330a9d253875bd8e3a1f94f0`).
+
+**Derived package census.** Five payload components plus a type-0
+terminator at record index 6 (and slot 7, encoding 5); first payload at 640;
+payload bytes total exactly the package size with zero trailing bytes; the
+declared header span 624 leaves 16 zero bytes before the first payload.
+
+- component 01: type 1, encoding v1, offset 640, stored = expanded 5,854 B,
+  SHA-256 `5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b`,
+  load field `0xffffffff`, no trailing CRC word; an unmapped descriptor whose
+  first words are not a vector pair. The hash equals the type-1 v1 header
+  recorded for Sapporo, Ulsan and Tianjin (observed equality only).
+- component 02: type 3, encoding v2, offset 6,494, stored 100,304 B
+  SHA-256 `2b38ac645123dd33db2b885df1a453a1026f2f4cc7cd5a9191fe0d6165d4b541`,
+  expanded 149,996 B SHA-256
+  `5abb13b2011fc76e0cedad6ab768c927ac15f9f353c6087a749868ceac4b5cb0`,
+  load field `0x00450000`, XZ, trailing CRC32 word; payload 149,992 B
+  SHA-256 `68d3f15e119afb68c9ebc34a23da210d60c6b1640c796093bc8ba941ffeb9601`.
+  The lane profile does not load this component and its load field overlaps
+  component 04, so its runtime role/placement is unknown.
+- component 03: type 2, encoding v2, offset 106,798, stored 100,304 B
+  SHA-256 `6cfffc1402f3d1ceb474181e0e1bdc96f6e894775e794f9e984334d5d55b20b7`,
+  expanded 149,992 B SHA-256
+  `dc5853600aaf4f1e4857de1827ee36ec55a32c92e2be836bffea4ed3f0989e43`,
+  load field `0x00414000`, XZ, trailing CRC32 word; payload 149,988 B
+  SHA-256 `2077c26d6602328ed0f93c91349fcd96a236f9634a66ef0ac11e1de14171b9ed`.
+- component 04: type 4, encoding v2, offset 207,102, stored 1,597,664 B
+  SHA-256 `5ddcab6e88b15356a0720c1885be7f861f83b5bc439db2d1b3311a77514b6b0e`,
+  expanded 2,420,644 B SHA-256
+  `878945bca689195ef3f99137d0efc3179250068cc91d9afd2d24e1d304c2de97`,
+  load field `0x00450000`, XZ, trailing CRC32 word; payload 2,420,640 B
+  SHA-256 `aa8eca7bf50b9b5be48fbd6099882a9b1b08426f58c784e2e0451748ead9d1a2`.
+- component 05: type 1, encoding v3, offset 1,804,766, stored 10,033,856 B
+  SHA-256 `672196b8b6319674ce156721658bc518e55adf287ec00e79ad81c221639fafe5`,
+  expanded 33,292,288 B SHA-256
+  `b324f3d20aa2100610ca98930b5f5bc98bcded6131a49b54b4357042029c4ebd`,
+  load field `0x00040000`, XZ, no trailing CRC word (last word `0xffffffff`).
+  The lane loads it at the external-flash XIP alias `0x18040000`; the first
+  `0x40000` bytes are absent. The research doc's `0x18040000` table value is
+  the lane alias, not the SOF record field (its own prose agrees with
+  `0x00040000`).
+
+**Vectors and start tuple.** Component 02: SP `0x20004000`, reset vector
+`0x0047456d` (code `0x0047456c`, range `[0x00450000, 0x004749ec)`).
+Component 03: SP `0x20004000`, reset vector `0x0043856d` (code
+`0x0043856c`, range `[0x00414000, 0x004389e8)`). Component 04: SP
+`0x20004000`, reset vector `0x006954cd` (code `0x006954cc`, range
+`[0x00450000, 0x0069efa4)`). All reset vectors are Thumb and inside their
+components; the SP lies in the `0x20000000` SRAM alias, not the
+`0x10000000..0x1016ffff` window. The lane start tuple is vector table
+`0x00450000`, SP `0x20004000`, PC `0x006954cd`; it is the lane's audited
+choice from component 04's vector words, not an independent start-component
+proof.
+
+**Lane load layout and aliases.** Code window `0x00400000+0x00300000`;
+stack alias `0x20000000+0x00400000`; extended SRAM `0x10160000+0x00060000`;
+working memory `0x101c0000+0x000a7000`; external flash
+`0x18000000+0x02000000`; resources loaded at `0x18040000`. The lane loads
+components 03 (`0x00414000`), 04 (`0x00450000`) and 05 (`0x18040000`) only.
+Observed stack/buffer values in the alias: SP `0x20003fb0` (boundary/long),
+`0x20003fc8` (CRC probe), `0x20003fe0` (display/svc fault), `0x20035f30`
+(BKPT probe); MAX20360 buffers at `0x2001c210`/`0x20035dxx`. The lane
+platform records guest writes through `0x202d172c` in the first bounded
+smoke; the exact alias bound is not derivable from the package.
+
+**IRQ contract.** The lane configures the NVIC priority mask as `0xf0`; a
+direct lane probe wrote `0xffffffff` to `0xE000E400` and read back
+`0xF0F0F0F0`, and wrote `0x12345678` to `0xE000E404` and read back
+`0x10305070`, with lane warnings "should be maskable with 0xF0". Timer14 is
+wired to `nvic@81`; NVIC ISER/ISPR read `0` at the 0.1 s boundary. The
+research claim that a generic `0xe0` mask causes the native FreeRTOS port
+assert is documented-only; the configured `0xf0` mask is directly observed.
+Probe: `/tmp/wismar-lane/nvic-mask-probe.resc` SHA-256
+`9ee81e56972a2e071e041b4c7930db1bb3f86ef50904c0b699236c9c169c00b9`;
+raw logs `7b61e533…`/`006a6170…`; normalized pair SHA-256
+`f798d5fbbcb8e890e3ca6fae006c4b778b2ba8dd72f971cbcc11a014a5a0bc24`
+(byte-identical twice).
+
+**First Wismar-specific transaction.** The native startup writes Timer14
+control at `0x40008000+0x3c0` with value `0x00000a10` (function-select bits
+4..7 = Edge=1). The shared upstream Apollo4 timer model rejects that
+selector; the Wismar-local wrapper `WismarApollo4Timer.cs` SHA-256
+`0aa513f421c6812a06956456fd69bc1b5b01e2deba10709464c08f467fee61c1` maps
+only that exact selector to Upcount(2) and logs
+`WISMAR_TIMER14_EDGE_COMPAT value=0x00000A10 mode=upcount`. This is the first
+Wismar-specific transaction requiring non-shared behavior. Observed 30 hits
+in the 1 s BKPT probe and 13 in each 2 s display/svc probe.
+
+**Observed device transactions.** MSPI2 JEDEC read-ID: instruction
+`0x009f0000`, address `0x00000000`, count 3, response `20 bb 19`, first at
+virtual ticks 159,800,000 (4 hits in each 2 s display/svc probe, 9 in the 1 s
+BKPT probe); the identity is shared with the Sapporo model, Wismar's use of
+`0x9f` is observed. MAX20360: 32 API-level `WISMAR_MAX_API` lines
+(probe-capped) and 3 `WISMAR_MAX_RESULT` lines in the BKPT probe; first API
+`lr=0x0057EEA3 r0=0x2001C210 r1=0x7f r2=1 r3=0xffffffff sp=0x20035d60`,
+first result `r0=1 r1=0x1f4`. No MAX20360 peripheral model exists and no
+bus-level IOM4 transaction is separately logged; the IOM4 boundary probe
+failed (`sysbus Unregister iom4` parameter mismatch) and is not evidence.
+
+**Bounded traces (twice byte-identical after stripping Renode
+timestamps/banners).** 0.1 s boundary: normalized SHA-256
+`bfc7bd292453903881ebfe1784cd9259dc324d1863e3cf8cd49da10ed60b8ca2`,
+terminal PC `0x52ac56`, SP `0x20003fb0`, LR `0x52ac6f`, CFSR/HFSR `0/0`;
+raw logs `aa3f00fc…`/`d9b02df8…`. 0.1 s long boundary: normalized
+`d8af0688…`, reads `0x004c4c60=0x4770be00`, `0x000c4c60=0`,
+`0x00514c60=0xf3602001`, `0x00457c60=0x80f57d43`, NVIC ISER/ISPR `0/0`.
+CRC boundary: normalized `260022b5…`, first native checksum entry at hook
+`0x0052AC5C` pointer `0x0048595C` count `0x00022854` LR `0x004F77C3` sample
+`78000000C4B00000F4B000009CC90000`, terminal PC `0x52ac5c` SP `0x20003fc8`
+LR `0x4f77c3`. 1 s BKPT probe: normalized `5a801057…`, terminal PC
+`0x51bc82`, SP `0x20035f30`, LR `0x51bc6b`, CFSR/HFSR `0/0`, no BKPT or
+port-assert entry. 2 s display probe: normalized `8d71390d…`, fault entry
+PC `0x697e96` CFSR `0x00010000` stacked
+`0x00000000,0xc0000000,0x000000f0,0xe000e400,0x00000000,0x0051079d,0x00534900,0x41000000`;
+no MSPI1/DIAP display submission line. 2 s svc-translator probe: normalized
+`98fb6d1f…`, same fault with instruction words `0x4805,0xbf00,0x6801,0xbf00`.
+Raw log SHA-256s for every run are recorded in the contract fixture. Raw log
+pairs relied on here: boundary `aa3f00fc…`/`d9b02df8…`; long
+`a126c098…`/`e76ab28b…`; CRC `392e198c…`/`668ea1e1…`; BKPT
+`5c7866d8…`/`df973105…`; display `6109e1eb…`/`72de91d1…`; svc-translator
+`243926df…`/`84ffc40a…`; NVIC mask `7b61e533…`/`006a6170…`. The full smoke
+wrapper could not complete in this sandbox because Renode's .NET
+extraction cache was unavailable; the traces come from the lane runner's
+direct Renode invocations, and the smoke runner's strict validation block was
+run standalone twice (exit 0, identical output; script SHA-256
+`be686898164f110c9e3cb053bbefdb26877d165f38b839f888a2d2390ed3197f`,
+output SHA-256 `9796e7886edb464202d6bb567c09efd89bfb12468a4ee4f21b895bcbba2aeb98`).
+
+**First observed execution boundary.** The 2 s display and svc-translator
+probes hit a UsageFault `UNDEFINSTR` (CFSR `0x00010000`) at stacked PC
+`0x00534900`, LR `0x0051079d`, fault entry PC `0x697e96`, before any display
+submission. The bytes at `0x00534900` are a valid Thumb-2 literal-load
+sequence; the boundary is a Renode 1.16 translator artifact, not a Wismar
+firmware contract. Earlier lane model gaps that log warnings but do not stop
+execution: GPIO unhandled writes (offsets `0x400`/`0x340`), non-existing
+peripheral writes at `0x40010470`/`0x40010464`/`0x4001045c`, and CLKGEN
+reads at `0x4000400c`/`0x40004044`.
+
+**Unknowns.** The display contract is unknown: no DIAP/MSPI1 submission was
+observed and no Wismar display stream, framebuffer or frame hash exists in
+the evidence root. Board wiring is unknown: the lane profile composes shared
+Sapporo sensor/IOM4/MSPI2 models without Wismar-specific GPIO/button/sensor/
+power/panel MMIO or IRQ proof beyond the aliases and transactions above. The
+lane registry says `acquisition` with no profiles and the lane CLI refuses
+(`error: Suunto Race 2 has no firmware profile yet`, exit 2), while two
+exact SOFs and the extracted components exist on disk; intake hashed the
+files, not the registry. A second exact package,
+`Wismar-fw_2.46.4.25276-U-6542ddd7.sof` (11,840,774 B, SHA-256
+`11d19e7e93d123f179955d91857a5bea71631362bbacc6df48a83ba982be3f42`,
+revision `e223be78`), was verified twice; its components 1-3 are
+byte-identical to 2.46.14 while component 4 (expanded 2,416,082 B
+`04de9a5d…`) and component 5 (expanded `94873818…`) differ; it has no lane
+profile or bounded trace, and no inheritance is claimed. The working-tree
+svc-translator script differs from HEAD (working SHA-256
+`c106e797…`; HEAD `824d73e4…`); its diagnostic patch still faults at
+`0x00534900`, and the trace was taken with the working script.
+
+**Validation.** The lane's strict validation block (package, resident,
+application, resources sizes/SHA-256 and both vectors) exits 0 twice with
+identical output (`STRICT VALIDATION PASS`); two independent package parses
+(including an independent verifier's run pair SHA-256
+`2036bd078c35d6cb4f641811cdc10049142e5e0656fcd6a8619d18a37a0d668e`)
+found no discrepancies and matched the generated manifest byte-for-byte. A
+programmatic fixture validator (`/tmp/wismar-verify/validate_fixture.py`
+SHA-256 `3a480435aea35dd116cd4cafe96cb5e132b51e0bab2faf668e79e73474bb2aba`,
+output `/tmp/wismar-verify/fixture-validation.txt` SHA-256
+`c5e3fec1276de2aeff59882042bf09c8816046b17ed34b618b157433ce80b5ae`)
+re-checked every recorded hash, size, CRC, vector, trace and package field
+against the evidence files. The lane runner's pre-run file manifest shows no
+new files under the firmware root. `make check-lines && make check` exit 0 (documentation/evidence only;
+no source, profile, registry or index change). Confidence: high for the
+package census, lane aliases, NVIC mask, Timer14/MSPI2/MAX20360 observations
+and the twice-identical bounded traces; medium for the start tuple (the
+lane's audited choice); unknown for display and board wiring. Affected
+modules: none — evidence only. Ticket 755 may start from this reset contract
+with the display and wiring unknowns carried forward; the first unsupported
+in-tree behavior is the Timer14 edge-mode selector, followed by the Renode
+translator boundary.
+
 ## E-ULS-0052 — Ulsan 2.44.52 reset profile and GPIO checkpoint (ticket 808)
 
 2026-11-04. E-ULS-0003 pins the three pristine components. The reference

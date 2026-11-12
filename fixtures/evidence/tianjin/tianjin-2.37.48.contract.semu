@@ -1,0 +1,280 @@
+[evidence]
+format=1
+id=E-TJN-0001
+date=2026-10-21
+source_kind=authentic SOF package extraction plus read-only catalog and lane-registry inspection
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Tianjin-fw_2.37.48.19199-Q-0b462834.sof
+product=Tianjin
+retail_model=Suunto Race (first generation)
+version=2.37.48.19199
+channel=Q
+container_revision=aea9f2fc
+
+[sof_package]
+filename=Tianjin-fw_2.37.48.19199-Q-0b462834.sof
+size=11133122
+sha256=d35ea7219abee0686dc93705282272ea953d7e2df98b90b77102e1c9d16a9aa5
+md5=c43ae48f8cc4747e2fb88b30cece8589
+magic=SOF1
+declared_header_span=624
+header_sha256=31f9b771b8b52d2f8f8a3ad7fcfbac05541568a5d719f22783f0f59a4d8f78e8
+component_count=5
+terminator_record_index=6
+payload_start=640
+payload_bytes_total=11133122
+trailing_bytes=0
+record_table_region=0x040..0x280
+header_span_gap_bytes=16 (bytes 0x270..0x27f are zero; the declared span 624 does not cover the last 16 bytes of the record-table region)
+terminator_slots=record 6 type 0 encoding 4; record 7 type 0 encoding 5; the extraction tool stops at the first type 0 and the terminator semantics are unproven
+
+[component 01 type-1 encoding-1]
+index=1
+type=1
+encoding_version=1
+offset=640
+stored_size=5854
+expanded_size=5854
+load_address=0xffffffff
+stored_crc32=53b600f7
+expanded_crc32=53b600f7
+stored_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+expanded_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+compression=none
+trailing_crc32_word=false
+last_word=0xbd002b01
+note=unmapped descriptor; first eight bytes are not a vector pair; SHA-256 equals the type-1 v1 header recorded for Sapporo and Ulsan (observed hash equality only, no inheritance claim)
+
+[component 02 type-3 encoding-2]
+index=2
+type=3
+encoding_version=2
+offset=6494
+stored_size=82168
+expanded_size=120984
+load_address=0x00040000
+stored_crc32=b2a3f33f
+expanded_crc32=2144df1c
+stored_sha256=435b0e0573ddf80dd0c171a7c16c10a4ab9dea3179cadce3e3320a0180407a3b
+expanded_sha256=eb7a39ebc5359a70a57b49001ee5f7c80b660e0c993308a5e30ace951efeaad2
+compression=xz
+trailing_crc32_word=true
+payload_size=120980
+payload_sha256=3e53a7d80d274a350e8c33cf0edd7c8fb5ed21768ce35c3134cd698413767ea8
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload (whole-blob CRC32 residue 0x2144df1c); expanded_size includes that word; role not proven (extraction tool labels type 3 only)
+
+[component 03 type-2 encoding-2]
+index=3
+type=2
+encoding_version=2
+offset=88662
+stored_size=95304
+expanded_size=104080
+load_address=0x00019000
+stored_crc32=5819a7a8
+expanded_crc32=2144df1c
+stored_sha256=b36f287ffbc4da337e5f59caf375f93c545bc4709c4c51433333f428437c5ac4
+expanded_sha256=530428d103b13082508181e5b31380fd067a959450b10dfa0670b5c3d36f7393
+compression=xz
+trailing_crc32_word=true
+payload_size=104076
+payload_sha256=c8fdb0b01032e9ec70bba3c2582d310a6dca863677c41e935d4dbc33a1249554
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; role not proven (extraction tool labels type 2 only)
+
+[component 04 type-4 encoding-2]
+index=4
+type=4
+encoding_version=2
+offset=183966
+stored_size=1126516
+expanded_size=1828370
+load_address=0x00040000
+stored_crc32=44b97ef8
+expanded_crc32=2144df1c
+stored_sha256=ede4382f11d353eaa58ee131082420abee24a765fbf27a79da283c9983112267
+expanded_sha256=652690b45f31eb5d6cca8f99b59c3d114c31f9bcce7a9eac48985367ddb98fa2
+compression=xz
+trailing_crc32_word=true
+payload_size=1828366
+payload_sha256=0d7d701541ff093a502649dc7306568d955c909dfe5e525db3de7e2595664fec
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; role not proven (extraction tool labels type 4 only)
+
+[component 05 type-1 encoding-3]
+index=5
+type=1
+encoding_version=3
+offset=1310482
+stored_size=9822640
+expanded_size=33292288
+load_address=0x00040000
+stored_crc32=87b08f6d
+expanded_crc32=160b1089
+stored_sha256=07bf3d7eff71fbf26c2a3b4e65ecd05f77c1bae967e264ad91ef92d6ab5f1bb8
+expanded_sha256=6fe0edefff4b550492f1d851fad9452c77ea07c9b655faa918b37a169c747bb3
+compression=xz
+trailing_crc32_word=false
+last_word=0xffffffff
+note=no trailing CRC32 word; the catalog classifies component_index 5 as the external-flash tail replacement covering [0x00040000, 0x02000000) with 262144 bytes missing at the prefix (coverage 0.9921875); that is a catalog claim, not an address-space derivation
+
+[vector_table 02 type-3]
+initial_sp=0x1005ffc0
+reset_vector=0x0005d739
+reset_code_address=0x0005d738
+thumb=true
+reset_in_component=true
+sp_in_apollo_sram_window=true
+load_range=0x00040000..0x0005d898 (exclusive)
+note=first two 32-bit little-endian words of the expanded payload
+
+[vector_table 03 type-2]
+initial_sp=0x1005ffc0
+reset_vector=0x000195b1
+reset_code_address=0x000195b0
+thumb=true
+reset_in_component=true
+sp_in_apollo_sram_window=true
+load_range=0x00019000..0x00032690 (exclusive)
+note=first two 32-bit little-endian words of the expanded payload
+
+[vector_table 04 type-4]
+initial_sp=0x1005ffc0
+reset_vector=0x001fd95d
+reset_code_address=0x001fd95c
+thumb=true
+reset_in_component=true
+sp_in_apollo_sram_window=true
+load_range=0x00040000..0x001fe612 (exclusive)
+note=first two 32-bit little-endian words of the expanded payload
+
+[start_tuple]
+status=unknown
+reason=three components carry a vector table and the manifest load fields are not mutually consistent as runtime addresses (components 02, 04 and 05 all report 0x00040000, component 03 reports 0x00019000), so no CPU start tuple, vector-table base, or runtime placement is derived from the package alone
+
+[format_ambiguities]
+header_fields=bytes 0x04 (0x0b462834, equal to the filename suffix) and 0x08 (0x00a9e0b6, equal to size minus 12) are observed; their semantics are not proven from the bytes
+record_tail=bytes 0x1c..0x2f of each 0x30-byte record are nonzero for records 02-05 and for slots 6-7; field boundaries and semantics are unproven
+vector_interpretation=the first two words of components 02-04 are recorded as initial SP and reset vector by convention; the bytes establish the values only
+load_overlap=components 02, 04 and 05 declare overlapping ranges at base 0x00040000; per-type load semantics are unproven
+
+[load_layout]
+manifest_load_fields=component 02 0x00040000; component 03 0x00019000; component 04 0x00040000; component 05 0x00040000
+overlap=components 02, 04 and 05 share the manifest load field 0x00040000
+runtime_placement=unknown
+sharing_proof=none
+cross_product_note=Ulsan 2.35.36 places resident type 5 at 0x00010000 and application type 4 at 0x00030000 (E-ULS-0001), so Tianjin's type-2/type-4 loads differ and Ulsan wiring cannot be reused without proof
+
+[source_provenance]
+status=complete
+catalog=$FIRMWARE_ROOT/firmware/catalog.json
+catalog_sha256=8b09f444e8fca8ce8c9f48bcbde6618c5f83fffe68080deb9abe1c5264f7d10e
+catalog_bytes=11133122
+catalog_package_sha256=d35ea7219abee0686dc93705282272ea953d7e2df98b90b77102e1c9d16a9aa5
+catalog_cdn_url=https://firmware.geo.movescount.com/production/Tianjin-fw_2.37.48.19199-Q-0b462834.sof
+catalog_package_classification=replacement-component-ota
+catalog_whole_device_factory_image=false
+catalog_base_firmware_status=not-proven
+catalog_base_firmware_reason=SOF omits device-specific state and/or part of external flash
+catalog_provenance_kind=official-support
+catalog_provenance_url=https://www.suunto.com/en-je/Support/faq-articles/lifecycle/2.39.20-trouble-shooting
+catalog_provenance_covers=Tianjin-fw_2.37.48.19199-Q-0b462834.sof, Ulsan-fw_2.37.48.11829-R-f1af7ce3.sof
+acquisition_record=$FIRMWARE_ROOT/docs/research/firmware-acquisition.md
+acquisition_record_sha256=7c6c4f5860e45ccd851363a35b5b69e96fb3b91d820b96ecf0ae2f0b4d64789b
+acquisition_date=2026-08-09
+http_headers_file=$FIRMWARE_ROOT/artifacts/firmware/Tianjin-fw_2.37.48.19199-Q-0b462834.sof.headers
+http_headers_sha256=5b8bc9da581cdcab6b628bd0d811f1c3c6c620b900024a206b866c40248ef237
+http_status=200 OK
+http_content_length=11133122
+http_last_modified=Wed, 02 Oct 2024 12:14:35 GMT
+http_etag=30e108a1e31b214e29395fdbfa126a7b-2
+release_notes=$FIRMWARE_ROOT/firmware/release-notes/race.json
+release_notes_sha256=9c561af508a53c648ce4d084ef1103ac39a3d54c889fec02cef7350bb48f1503
+release_notes_source=https://www.suunto.com/en-ca/Support/Software-updates/Release-notes/suunto-race-software-updates/
+release_notes_retrieved=2026-08-09
+known_packages=$FIRMWARE_ROOT/firmware/known-packages.json
+known_packages_sha256=f3a0fbd28dfbc19071b7fbd63c0b762ce11a8384e9a9dfa1bedb605da73c2843
+device_specific_state=absent: first 262144 bytes of the external flash and device-personalized state are not in the OTA; base_firmware_status=not-proven; never guessed
+
+[extraction_verification]
+status=twice-identical
+tool=$FIRMWARE_ROOT/tools/sof_extract.py
+tool_sha256=78f9c98e633095451c787870ba0c8614bbc80dc6e3d7bf8eb1960c320cbd720e
+analysis_manifest=$FIRMWARE_ROOT/artifacts/analysis/tianjin-2.37.48/manifest.json
+analysis_manifest_sha256=2115b26eaf4638adea56941c3d609a979e92ee70c4efc4103008d71f805b4a60
+analysis_manifest_package_match=true
+analysis_stored_raw_match=true
+method=independent re-parse of the SOF1 header and component table; stored size/SHA-256/CRC32 verified against the file bytes; every XZ stream decompressed with Python lzma and with command-line xz; expanded size/SHA-256/CRC32 verified; analysis .stored/.raw files compared byte-for-byte
+script=/tmp/tjn-intake/census.py
+script_sha256=e7ae2a64c366e5f14489b34bb287f3b03c5c6a8543711e888303700e8733b236
+log=/tmp/tjn-intake/census1.txt
+log_sha256=f1f521dc43902f41c1b56b8ddfeeaec468f2f86c862f29273ec083f939899f9d
+log_pair=/tmp/tjn-intake/census2.txt
+log_pair_sha256=f1f521dc43902f41c1b56b8ddfeeaec468f2f86c862f29273ec083f939899f9d
+independent_script=/tmp/tjn-verify/verify.py
+independent_script_sha256=7dace6ecc3d0c9b722cdb4635595f6e9023503bebbfd9bb66cf9910b6ccd3ff8
+independent_log=/tmp/tjn-verify/run1.txt
+independent_log_sha256=8b4db6b2298731d0f7d234115c239c775c4785163c88403de0ebe7a21694350d
+independent_log_pair=/tmp/tjn-verify/run2.txt
+independent_log_pair_sha256=8b4db6b2298731d0f7d234115c239c775c4785163c88403de0ebe7a21694350d
+independent_cli_crosscheck=/tmp/tjn-verify/cli-report.txt
+independent_cli_crosscheck_sha256=d8d583b428fce8351729fb1cf9d96e8f1336584e3152852d53675197973d9464
+note=volatile scripts and logs live outside the repository tree; only the derived census and hashes are recorded here
+
+[lane_status]
+status=cataloged
+registry=$FIRMWARE_ROOT/emulator/devices/registry.json
+registry_sha256=292add2822af1bd2dae090150c341e24eeaca1f54720739732c7a5222b8f1666
+device_id=suunto-race
+aliases=race, tianjin
+device_status=cataloged
+profiles=2.37.48-analysis status=planned launcher=none
+default_profile=none
+tianjin_profile_dir=$FIRMWARE_ROOT/emulator/devices/tianjin/
+tianjin_profile_dir_contents=README.md only
+tianjin_readme_sha256=573bddda898c406cabe00125fe93fff85d45685cf2af29432694525fff0ebf44
+lane_devices_readme_sha256=5fc8fc186fcc6ec8bbfe9fea67a71a20cd00ebc1947fc9da47d7483f2d24ab4b
+lane_cli_sha256=f5540bc708efe612e43f85498f302b6b16a134928dcac4677143dc533db0ad76
+lane_entrypoint_sha256=f309bb1777f40c893fe4993086675b77a406e3e1410436a6f1462854b192f9f3
+info_output=Device: Suunto Race (first generation); Internal platform: Tianjin; State: cataloged; Validated local firmware packages: 1; Profiles: 2.37.48-analysis: planned; Next milestone: Compare its boot and display contracts with Ulsan before creating a native profile
+run_refusal_default=error: Suunto Race (first generation) has no firmware profile yet (exit 2)
+run_refusal_explicit_profile=error: Suunto Race (first generation) profile 2.37.48-analysis is not runnable yet. Next: Compare its boot and display contracts with Ulsan before creating a native profile (exit 2)
+refusal_log=/tmp/tjn-intake/lane-refusal.txt
+refusal_log_sha256=3d94fdcf948d12364e95fe511bc97085e460c843b2ef6d66e478c91466a059a7
+note=no executable launcher exists, so no bounded trace or first stop can be captured; the lane deliberately fails closed for the planned profile
+
+[evidence_audit]
+audit_report=/tmp/tjn-audit/tianjin-evidence-audit.md
+audit_report_sha256=80eeecd40818891e9729030f667b3775e91a2fe0dfdc92500daf5197b95c67bf
+memory_map=absent (the only lane memory map is $FIRMWARE_ROOT/emulator/analysis/boot-map.md, which is the Sapporo 2.22.60 early-boot map; SHA-256 6cfde18fe9336b35d28aa686cdf8ebd70a498e66837b24120c28ac395f45bbb3)
+irq_contract=absent (no Tianjin IRQ trace, hook, priority or attachment evidence)
+board_wiring=absent (no tianjin-platform.repl or equivalent; only Ulsan and Wismar platform files exist)
+first_bounded_stop=absent (no launcher, .resc, .repl, trace or PC/SP/LR record; the OTA is not a base/factory image)
+display_contract=absent (no Tianjin display-controller, panel-transport, resolution or frame-format evidence)
+input_contract=absent (no Tianjin buttons/crown/touch evidence; the recovered button table is Sapporo 2.22.60)
+non_qualifying_adjacent=retail FCC identity, app capability strings, external-flash volume-manager negative control, and the 285-file flat resource carve are not memory/IRQ/board/display/input contracts
+
+[eligibility]
+package_contract=complete
+source_provenance=complete
+memory_map=missing
+irq_contract=missing
+board_wiring=missing
+first_bounded_stop=missing
+display_contract=missing
+input_contract=missing
+missing_fields=memory_map, irq_contract, board_wiring, first_bounded_stop, display_contract, input_contract
+sharing_proof=none
+
+[intake_outcome]
+eligible=false
+reason=The package, component, hash, load-field, vector and provenance contract is complete and byte-verified twice, but eligibility additionally requires an exact memory/IRQ contract, board wiring, a repeatable bounded first stop, and display/input contracts. The read-only lane lists Tianjin as cataloged with a planned profile that has no executable launcher, so no bounded trace can be captured; no Tianjin-specific memory, IRQ, board, display or input evidence exists in the lane or the research records. The manifest load fields place three components at 0x00040000, so runtime placement cannot be derived from the package alone, and the layout differs from Ulsan 2.35.36 (resident type 5 at 0x00010000, application type 4 at 0x00030000), so Ulsan wiring cannot be reused without proof.
+ticket_775_may_start=false
+next_step=Obtain exact Tianjin memory/IRQ/board/display/input evidence (an executable lane profile or owner-authorized offline RE of the pinned firmware) before any reset-profile work; do not manufacture placeholders
+
+[limitations]
+no_firmware_bytes=only sizes, offsets, hashes, CRCs and derived boundaries are recorded; no firmware or resource bytes enter Git
+roles_not_asserted=component roles are not claimed; the extraction tool labels type numbers only
+device_personalized=first 262144 bytes of external flash and device-specific state are absent and permanently unavailable without hardware; never guessed
+no_inheritance=no family inheritance is inferred from the shared Apollo4 class or the identical type-1 v1 header hash
+no_guest_behavior=the lane is the sole machine oracle and has no Tianjin executable profile, so no guest-visible behavior is observed or claimed

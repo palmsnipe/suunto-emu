@@ -1,0 +1,297 @@
+[evidence]
+format=1
+id=E-WIS-0001
+date=2026-10-21
+source_kind=authentic SOF package extraction plus read-only Wismar lane probes and research inspection
+source_location=$FIRMWARE_ROOT/artifacts/firmware/Wismar-fw_2.46.14.26212-U-a994f63c.sof
+product=Wismar
+retail_model=Suunto Race 2
+version=2.46.14.26212-U
+channel=U
+container_revision=9e6c0590
+
+[sof_package]
+filename=Wismar-fw_2.46.14.26212-U-a994f63c.sof
+size=11838622
+sha256=c0ec99042f8480d2863acf047bc63b8601745a3fe7f09c1e519be2191c9858b1
+md5=41144621ec42441c870181c88d2494ee
+magic=SOF1
+declared_header_span=624
+header_sha256=b382db073afdc110ea4cca527b871cb89abe4d020ecaf72d80b1217bc4890973
+object_id=0xa994f63c
+component_count=5
+terminator_record_index=6
+payload_start=640
+payload_bytes_total=11838622
+trailing_bytes=0
+record_table_region=0x040..0x280
+header_span_gap_bytes=16 (bytes 0x270..0x27f are zero; the declared span 624 does not cover the last 16 bytes of the record-table region)
+terminator_slots=record 6 type 0 encoding 4; record 7 type 0 encoding 5; the extraction tool stops at the first type 0 and the terminator semantics are unproven; the same slot bytes and record-tail shape are observed in E-TJN-0001 (observed equality only, no inheritance claim)
+
+[component 01 type-1 encoding-1]
+index=1
+type=1
+encoding_version=1
+offset=640
+stored_size=5854
+expanded_size=5854
+load_address=0xffffffff
+stored_crc32=53b600f7
+expanded_crc32=53b600f7
+stored_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+expanded_sha256=5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b
+compression=none
+trailing_crc32_word=false
+first_words=0x73311933 0x000016d2 (not a vector pair)
+note=unmapped descriptor; SHA-256 equals the type-1 v1 header recorded for Sapporo, Ulsan and Tianjin (observed hash equality only, no inheritance claim)
+
+[component 02 type-3 encoding-2]
+index=2
+type=3
+encoding_version=2
+offset=6494
+stored_size=100304
+expanded_size=149996
+load_address=0x00450000
+stored_crc32=2bfbd52a
+expanded_crc32=2144df1c
+stored_sha256=2b38ac645123dd33db2b885df1a453a1026f2f4cc7cd5a9191fe0d6165d4b541
+expanded_sha256=5abb13b2011fc76e0cedad6ab768c927ac15f9f353c6087a749868ceac4b5cb0
+compression=xz
+trailing_crc32_word=true
+payload_size=149992
+payload_sha256=68d3f15e119afb68c9ebc34a23da210d60c6b1640c796093bc8ba941ffeb9601
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; the SOF load field 0x00450000 overlaps component 04; the lane profile does NOT load this component, so its runtime role/placement is unknown; role not proven (extraction tool labels type 3 only)
+
+[component 03 type-2 encoding-2]
+index=3
+type=2
+encoding_version=2
+offset=106798
+stored_size=100304
+expanded_size=149992
+load_address=0x00414000
+stored_crc32=fc826d96
+expanded_crc32=2144df1c
+stored_sha256=6cfffc1402f3d1ceb474181e0e1bdc96f6e894775e794f9e984334d5d55b20b7
+expanded_sha256=dc5853600aaf4f1e4857de1827ee36ec55a32c92e2be836bffea4ed3f0989e43
+compression=xz
+trailing_crc32_word=true
+payload_size=149988
+payload_sha256=2077c26d6602328ed0f93c91349fcd96a236f9634a66ef0ac11e1de14171b9ed
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; the lane loads this component at 0x00414000; role not proven (extraction tool labels type 2 only)
+
+[component 04 type-4 encoding-2]
+index=4
+type=4
+encoding_version=2
+offset=207102
+stored_size=1597664
+expanded_size=2420644
+load_address=0x00450000
+stored_crc32=8cc3f223
+expanded_crc32=2144df1c
+stored_sha256=5ddcab6e88b15356a0720c1885be7f861f83b5bc439db2d1b3311a77514b6b0e
+expanded_sha256=878945bca689195ef3f99137d0efc3179250068cc91d9afd2d24e1d304c2de97
+compression=xz
+trailing_crc32_word=true
+payload_size=2420640
+payload_sha256=aa8eca7bf50b9b5be48fbd6099882a9b1b08426f58c784e2e0451748ead9d1a2
+crc32_residue=2144df1c
+note=expanded bytes end with a 4-byte little-endian CRC32 of the preceding payload; expanded_size includes that word; the lane loads this component at 0x00450000 and starts at its reset vector; role not proven (extraction tool labels type 4 only)
+
+[component 05 type-1 encoding-3]
+index=5
+type=1
+encoding_version=3
+offset=1804766
+stored_size=10033856
+expanded_size=33292288
+load_address=0x00040000
+stored_crc32=d68e088b
+expanded_crc32=a283b221
+stored_sha256=672196b8b6319674ce156721658bc518e55adf287ec00e79ad81c221639fafe5
+expanded_sha256=b324f3d20aa2100610ca98930b5f5bc98bcded6131a49b54b4357042029c4ebd
+compression=xz
+trailing_crc32_word=false
+last_word=0xffffffff
+note=no trailing CRC32 word; SOF load field 0x00040000; the lane loads it at the external-flash XIP alias 0x18040000; the first 0x40000 bytes are absent (external-flash tail, not a factory dump); the research doc's 0x18040000 table value is the lane alias, not the SOF record field
+
+[vector_table 02 type-3]
+initial_sp=0x20004000
+reset_vector=0x0047456d
+reset_code_address=0x0047456c
+thumb=true
+reset_in_component=true
+sp_in_sram_alias=true
+load_range=0x00450000..0x004749ec (exclusive)
+note=first two 32-bit little-endian words of the expanded payload; SP is in the 0x20000000 SRAM alias, not the 0x10000000 window; the component is not loaded by the lane profile
+
+[vector_table 03 type-2]
+initial_sp=0x20004000
+reset_vector=0x0043856d
+reset_code_address=0x0043856c
+thumb=true
+reset_in_component=true
+sp_in_sram_alias=true
+load_range=0x00414000..0x004389e8 (exclusive)
+note=first two 32-bit little-endian words of the expanded payload; this is the resident vector pinned by the lane runner
+
+[vector_table 04 type-4]
+initial_sp=0x20004000
+reset_vector=0x006954cd
+reset_code_address=0x006954cc
+thumb=true
+reset_in_component=true
+sp_in_sram_alias=true
+load_range=0x00450000..0x0069efa4 (exclusive)
+note=first two 32-bit little-endian words of the expanded payload; this is the application vector and the lane profile's CPU start
+
+[start_tuple]
+status=observed
+vector_table=0x00450000
+initial_sp=0x20004000
+pc=0x006954cd
+pc_is_thumb=true
+source=$FIRMWARE_ROOT/emulator/devices/wismar/wismar-2.46.14.resc (SHA-256 9575e68a4c7825dc1acb9ff5b89ede48515cdaf683a531582a91b4d7ff3ede9d)
+note=start tuple is the lane profile's audited choice from component 04's vector words; the CPU start component is not proven independently of the lane
+
+[lane_load_layout]
+code_window=0x00400000 size 0x00300000
+loaded_components=component 03 at 0x00414000; component 04 at 0x00450000; component 05 at 0x18040000
+not_loaded=component 02 (type 3) is not loaded by the lane profile; its SOF load field 0x00450000 overlaps component 04
+source=$FIRMWARE_ROOT/emulator/devices/wismar/wismar-2.46.14.resc (SHA-256 9575e68a4c7825dc1acb9ff5b89ede48515cdaf683a531582a91b4d7ff3ede9d)
+note=the lane loads only components 03, 04 and 05; component 02's runtime role/placement is unknown
+
+[memory_aliases]
+stack_alias=0x20000000 size 0x00400000
+stack_alias_observed=SP 0x20003fb0 (boundary/long), 0x20003fc8 (CRC probe), 0x20003fe0 (display/svc fault), 0x20035f30 (BKPT probe); MAX20360 buffers at 0x2001c210/0x20035dxx
+stack_alias_comment=the lane platform records guest writes through 0x202d172c in the first bounded smoke
+extended_sram=0x10160000 size 0x00060000
+working_memory=0x101c0000 size 0x000a7000
+external_flash=0x18000000 size 0x02000000
+resources_load=0x18040000 (XIP alias)
+source=$FIRMWARE_ROOT/emulator/devices/wismar/wismar-platform.repl (SHA-256 ced65de0b25ac12e8bc99184b49afbb99aff022a38b943a9299178f9ccbd5b6e)
+note=aliases are lane declarations plus observed stack/buffer values; the exact SRAM alias bound is not derivable from the package
+
+[irq]
+nvic_priority_mask=0xf0
+mask_observation=write 0xffffffff to 0xE000E400 reads back 0xF0F0F0F0; write 0x12345678 to 0xE000E404 reads back 0x10305070; lane logs "should be maskable with 0xF0"
+timer14_irq=81
+nvic_iser_ispr_at_0.1s=0x00000000/0x00000000
+source=$FIRMWARE_ROOT/emulator/devices/wismar/wismar-platform.repl; $FIRMWARE_ROOT/emulator/devices/wismar/wismar-timer.repl (SHA-256 4378d3a20735637ee24715cc8fef747aa576932a356f2c3950ddcc618b0a788c); /tmp/wismar-lane/nvic-mask-probe.resc (SHA-256 9ee81e56972a2e071e041b4c7930db1bb3f86ef50904c0b699236c9c169c00b9)
+nvic_mask_probe=/tmp/wismar-lane/nvic-mask-probe.resc SHA-256 9ee81e56972a2e071e041b4c7930db1bb3f86ef50904c0b699236c9c169c00b9
+nvic_mask_logs=/tmp/wismar-lane/nvic-mask-1.log SHA-256 7b61e533f02ca1992ca82d45b85ca705be2a4710ca73c4bcde261730ecab985d; /tmp/wismar-lane/nvic-mask-2.log SHA-256 006a6170f7637710c2bce00451da9ed725c92cb2233f33a18097248835d43961
+nvic_mask_normalized=/tmp/wismar-lane/nvic-mask-1.strict2.txt = nvic-mask-2.strict2.txt SHA-256 f798d5fbbcb8e890e3ca6fae006c4b778b2ba8dd72f971cbcc11a014a5a0bc24
+note=the research claim that a generic 0xe0 mask causes the native FreeRTOS port assert is documented-only; the configured 0xf0 mask is directly observed by the write/readback probe
+
+[timer14]
+transaction=32-bit control write at 0x40008000+0x3c0 with value 0x00000a10 (function-select bits 4..7 = Edge=1)
+lane_behavior=WISMAR_TIMER14_EDGE_COMPAT value=0x00000A10 mode=upcount; the Wismar-local wrapper maps Edge(1) to Upcount(2) for this exact selector only
+observed_first=display-boundary probe at virtual_ticks ~0.1598 s (first WISMAR_TIMER14_EDGE_COMPAT line); 30 hits in the 1 s BKPT probe and 13 in each 2 s display/svc probe
+source=$FIRMWARE_ROOT/emulator/devices/wismar/WismarApollo4Timer.cs (SHA-256 0aa513f421c6812a06956456fd69bc1b5b01e2deba10709464c08f467fee61c1)
+classification=first Wismar-specific transaction that the shared upstream Apollo4 timer model rejects; the lane-local wrapper is the workaround, not a firmware fact
+
+[mspi2]
+transaction=instruction=0x009f0000, address=0x00000000, count=3, response=20 bb 19
+observed_first=MSPI2 RX DMA at virtual_ticks=159800000 (display-boundary probe); 4 hits in each 2 s display/svc probe and 9 in the 1 s BKPT probe
+source=$FIRMWARE_ROOT/emulator/renode/mspi2/SapporoApollo4Mspi2.cs (shared model; ReadIdCommand=0x9f; MicronId 20 bb 19)
+note=the identity 20 bb 19 is shared with the Sapporo model; Wismar's use of JEDEC 0x9f is observed in the lane log
+
+[max20360]
+observed_api_first=hook pc 0x0057EF84 lr=0x0057EEA3 r0=0x2001C210 r1=0x0000007F r2=0x00000001 r3=0xFFFFFFFF sp=0x20035D60
+observed_result_first=r0=0x00000001 r1=0x000001F4
+observed_counts=32 WISMAR_MAX_API lines (probe-capped) and 3 WISMAR_MAX_RESULT lines in the 1 s BKPT probe
+note=API-level native calls observed; no MAX20360 peripheral model exists and no bus-level IOM4 transaction is separately logged; the IOM4 boundary probe failed (`sysbus Unregister iom4` parameter mismatch), so it is not evidence
+
+[bounded_traces]
+boundary_0.1s=normalized_sha256 bfc7bd292453903881ebfe1784cd9259dc324d1863e3cf8cd49da10ed60b8ca2; raw logs aa3f00fcd899ff782cd16b1bf5a7fafc26ee1455694de19f8373741d3ac24b91 / d9b02df818f7bcebc79ab47d1179d1c98b1f756d3be514a81b0b1e263ce1cb6c; terminal pc=0x52ac56 sp=0x20003fb0 lr=0x52ac6f cfsr=0x00000000 hfsr=0x00000000
+long_boundary_0.1s=normalized_sha256 d8af06884a4cd181e9dbb56a74001a3ef34660cffe2f73fb7e2b84d590330c74; raw logs a126c098aba2425aa3ddf3fa9db1fc7f82490b6c152982dbd3f87ebe6160e79b / e76ab28b949f8a2d278536db05c348f0b0de23486a0788f6f10dd385464df50a; reads 0x004c4c60=0x4770be00, 0x000c4c60=0x00000000, 0x00514c60=0xf3602001, 0x00457c60=0x80f57d43, NVIC ISER/ISPR 0x00000000/0x00000000
+crc_boundary=normalized_sha256 260022b52f886c8ce1e479bb6154376509ed1744108045b17866eb7774894574; raw logs 392e198c5a96a37db1b040d9912bb426a75b139228c54d2255be26ab822fe1c1 / 668ea1e1816172fe8de8278692c01b0b62e4eee68707d077c4e7f6b3b1a0e47f; first native checksum entry at hook 0x0052AC5C pointer=0x0048595C count=0x00022854 lr=0x004F77C3 sample=78000000C4B00000F4B000009CC90000; terminal pc=0x52ac5c sp=0x20003fc8 lr=0x4f77c3
+bkpt_boundary_1s=normalized_sha256 5a801057b04b54cc393b56f8077c726fb05ce32d968f3723b1dfd5dd18313b8e; raw logs 5c7866d870d8ffee442988c0cc897ad67d1067db626b70fcee41bd5f08c323ef / df97310527d10ad7cd6e5062768119866899999a698e9fec7794c80f196cea7d; terminal pc=0x51bc82 sp=0x20035f30 lr=0x51bc6b cfsr/hfsr=0; no BKPT or port-assert entry occurred; MAX20360 API/result lines present
+display_boundary_2s=normalized_sha256 8d71390d72da7d7a36b8325620dd0666098b1d4536e7aadbc70e651cff87665f; raw logs 6109e1ebb20413cd74ac7dd21bf1e7d272a149aee5f9b925284e572192f315ec / 72de91d10b26133c62dfa77dfb11d169012e0cb5e1c3a15b9947c7bf671c41b5; fault entry pc=0x697e96 sp=0x20003fe0 lr=0xffffffed cfsr=0x00010000 hfsr=0 stacked=0x00000000,0xc0000000,0x000000f0,0xe000e400,0x00000000,0x0051079d,0x00534900,0x41000000; terminal pc=0x697e96 sp=0x20003fe0 lr=0xffffffed cfsr=0x00010000 hfsr=0; no MSPI1/DIAP display submission line appears
+svc_translator_2s=normalized_sha256 98fb6d1f757010d3bc03807c769c3303b858cb2ba36cce11989a990f75b7fec8; raw logs 243926df233e9481a5f2e25dae9b8e59915927ea199369896b8b8e63e068d5b9 / 84ffc40a5ce52150559afa37477cf85e209f0c4f25f517f3ab2aa25db28b2cd9; same fault with instruction words 0x4805,0xbf00,0x6801,0xbf00
+trace_pair_note=each probe's two raw runs differ only in Renode timestamps/banners; after stripping timestamps/banners the normalized pairs are byte-identical; raw log SHA-256s are recorded above
+iom4_boundary=failed probe: `sysbus Unregister iom4` parameter mismatch; no trace; not evidence (normalized output is the deterministic error text only)
+smoke_wrapper=the full smoke wrapper could not complete in this sandbox because Renode's .NET extraction cache was unavailable; the lane runner's direct Renode invocations produced the traces above, and the smoke runner's strict validation block was run standalone twice (exit 0, identical output)
+
+[first_unsupported]
+transaction=Timer14 edge-mode control write, value 0x00000a10 at 0x40008000+0x3c0; the shared upstream Apollo4 timer model rejects this selector and the lane-local wrapper maps it to upcount; this is the first Wismar-specific transaction requiring non-shared behavior
+execution_boundary=UsageFault UNDEFINSTR CFSR 0x00010000 at stacked PC 0x00534900, LR 0x0051079d, fault entry PC 0x697e96; observed twice in the 2 s display and svc-translator probes; classified as a Renode 1.16 translator artifact (the bytes at 0x00534900 are a valid Thumb-2 literal-load sequence), not a Wismar firmware contract
+display_submission=not reached before the UNDEFINSTR boundary; no display stream or frame hash exists
+preceding_lane_model_gaps=gpio unhandled writes (offsets 0x400/0x340), non-existing peripheral writes at 0x40010470/0x40010464/0x4001045c, and CLKGEN reads at 0x4000400c/0x40004044; these are lane model absences that log warnings and do not stop execution
+
+[display_contract]
+status=unknown
+reason=no DIAP/MSPI1 display submission was observed; the 2 s display-boundary probe faults at 0x00534900 before any submission; no Wismar display stream, framebuffer, PNG or frame hash exists anywhere in the evidence root
+next=read-only trace of the first display-driver request after the translator boundary is resolved; no synthetic panel pixels
+
+[board_wiring]
+status=unknown
+reason=the lane profile composes shared Sapporo sensor/IOM4/MSPI2 models; no Wismar-specific GPIO/button/sensor/power/panel MMIO or IRQ proof exists beyond the aliases, Timer14 IRQ and the observed transactions above; no Wismar platform wiring file other than wismar-platform.repl
+
+[registry_status]
+status=acquisition (contradicts the files on disk)
+registry=$FIRMWARE_ROOT/emulator/devices/registry.json
+registry_sha256=292add2822af1bd2dae090150c341e24eeaca1f54720739732c7a5222b8f1666
+packages_field=empty
+profiles=empty
+default_profile=none
+launcher=none
+lane_cli_refusal=error: Suunto Race 2 has no firmware profile yet (exit 2)
+catalog=no Wismar package entry; $FIRMWARE_ROOT/firmware/known-packages.json SHA-256 f3a0fbd28dfbc19071b7fbd63c0b762ce11a8384e9a9dfa1bedb605da73c2843 has empty Wismar packages; discovery exact_package_count=0
+external_candidates=$FIRMWARE_ROOT/firmware/external-package-candidates.json SHA-256 e5d48e3d1063a3a13cfbbf720907df0d3040322587903319a379690a48c23584 lists the exact 2.46.14 and 2.46.4 packages
+note=intake hashed the files on disk, not the registry claims; the lane CLI cannot run Wismar
+
+[source_provenance]
+candidates_file=$FIRMWARE_ROOT/firmware/external-package-candidates.json
+candidates_sha256=e5d48e3d1063a3a13cfbbf720907df0d3040322587903319a379690a48c23584
+cdn_url=https://firmware.geo.movescount.com/production/Wismar-fw_2.46.14.26212-U-a994f63c.sof
+catalog_status=external-exact-candidate
+factory_image=false
+http_headers_file=$FIRMWARE_ROOT/artifacts/firmware/Wismar-fw_2.46.14.26212-U-a994f63c.sof.headers
+http_headers_sha256=29512f6ea8b70ffe175cd449854544943ab31c6f277833914cefad42e0a4ac55
+http_content_length=11838622
+http_last_modified=Thu, 16 Oct 2025 06:42:48 GMT
+http_etag=6c2eb06c1444c6642af023a59107ad5f-2
+readme=$FIRMWARE_ROOT/emulator/devices/wismar/README.md
+readme_sha256=5c164c683dfa22ca889a346c536ed9135be7dff9aa7a1c4b7b2d8991ba16bf84
+boundary_doc=$FIRMWARE_ROOT/docs/research/wismar-2.46-emulator-boundary.md
+boundary_doc_sha256=c4204d67c4f24ceacb98a5f9e554e198e5c8c51a465a63a127def9ccb7225e1d
+comparison_doc=$FIRMWARE_ROOT/docs/research/wismar-ulsan-package-comparison.md
+comparison_doc_sha256=39bd4d421bc01b46a164c8a02a3857c2b488b86f65031db660e43c23de6bb710
+generated_manifest=$FIRMWARE_ROOT/artifacts/generated/wismar-2.46.14/manifest.json
+generated_manifest_sha256=7362b736628f91a247bd5c97df304ae7c4dc5075168ebbc49831025bd645024c
+doc_discrepancy=the boundary doc's table lists component 5 load 0x18040000; the SOF record field is 0x00040000 and 0x18040000 is the lane's XIP alias; the doc's own "missing first 0x40000 bytes" prose agrees with the SOF field
+
+[second_package]
+filename=Wismar-fw_2.46.4.25276-U-6542ddd7.sof
+size=11840774
+sha256=11d19e7e93d123f179955d91857a5bea71631362bbacc6df48a83ba982be3f42
+md5=d322540a9515b2a6ecbf0ea54c8d6448
+header_sha256=64c152188adb0ce51cb76028c84ef6d4f51e19384629f8ad081a6c8d54f4f1d1
+container_revision=e223be78
+components=01 type1v1 5854 5d2d0bb9f59481328453e2a64ebb8fbfb3cde2262bb9590f53e7adc7c14e5b9b (identical); 02 type3v2 load 0x00450000 stored 100304 2b38ac645123dd33db2b885df1a453a1026f2f4cc7cd5a9191fe0d6165d4b541 expanded 149996 5abb13b2011fc76e0cedad6ab768c927ac15f9f353c6087a749868ceac4b5cb0 (identical); 03 type2v2 load 0x00414000 stored 100304 6cfffc1402f3d1ceb474181e0e1bdc96f6e894775e794f9e984334d5d55b20b7 expanded 149992 dc5853600aaf4f1e4857de1827ee36ec55a32c92e2be836bffea4ed3f0989e43 (identical); 04 type4v2 load 0x00450000 stored 1595276 a5276a76aab65bfb641e47ba591d6504f7e71e86258e7141e77a9ff716fef6d7 expanded 2416082 04de9a5dfa2abfc68217249dcdb3c4c711dcbb9e19d4c278c52cca7c74f1d9d4; 05 type1v3 load 0x00040000 stored 10038396 8c619b05b8fd2db93ef8b2a2afa15a4acd5fdaf1359823c36da7f5a55afc8461 expanded 33292288 948738181fc4cdb6697609c810d88ebb6e954529a74ed4e169d09f6c6411f223
+note=second exact package verified twice; components 1-3 are byte-identical to 2.46.14, components 4-5 differ; no lane profile or bounded trace exists for 2.46.4; no inheritance claim
+
+[validation]
+strict_validation_script=/tmp/wismar-lane/strict_validation.py SHA-256 be686898164f110c9e3cb053bbefdb26877d165f38b839f888a2d2390ed3197f
+strict_validation_output=/tmp/wismar-lane/strict-1.txt = strict-2.txt SHA-256 9796e7886edb464202d6bb567c09efd89bfb12468a4ee4f21b895bcbba2aeb98 (exit 0 twice; "STRICT VALIDATION PASS")
+independent_package_verification=/tmp/wismar-verify/verify.py SHA-256 4a0d5c0993ae7d947104020b7674457072c81148f5064a38a170e0abf81d0565; run pair 2036bd078c35d6cb4f641811cdc10049142e5e0656fcd6a8619d18a37a0d668e; table 78440d3010730968e3fe6c69b6bff92d17e6b2dfbbc52790019c735d4c06dd03; no discrepancies
+header_parse_pair=/tmp/wismar-verify/header-1.txt = header-2.txt SHA-256 8bfd4d42edd89ea9edd8a52d8925a39486f4b3a0f002b2fec4d9b741397e1d49
+lane_runner_script=/tmp/wismar-lane/run-probe.sh SHA-256 73911993e22b43b4e7731d843f264b46be7b7eb60982bbac32e9db18aa365fe7
+lane_normalizers=/tmp/wismar-lane/normalize.py SHA-256 9b0142dcd51dc45feb610c669944c98b17a3e8ae12682bbfe021f13849cff0d0; /tmp/wismar-lane/normalize_all.py SHA-256 aa25e689f98309c8c41f1699bfa29d6aded0ad990e00a1aec656d6d9ce025f70
+fixture_validator=see the E-WIS-0001 ledger entry for the final fixture validation
+firmware_root_untouched=the lane runner recorded a pre-run file manifest and the probes created no new files under $FIRMWARE_ROOT; the only pre-existing Wismar working-tree change is wismar-2.46.14-svc-translator.resc (working SHA-256 c106e797d0195914886da469735fc8623a7016eac24cb6fa4f4b7bc0220e0b21; HEAD 824d73e42e20fdbb0a794a041e8d8c6c9479dfbf1e79ad7b45727e3119e88aeb), whose diagnostic patch still faults at 0x00534900
+
+[limitations]
+no_firmware_bytes=only sizes, offsets, hashes, CRCs and derived boundaries are recorded; no firmware or resource bytes enter Git
+roles_not_asserted=component roles are not claimed; the extraction tool labels type numbers only
+no_inheritance=no family inheritance is inferred from the shared Apollo4 class, the identical type-1 v1 header hash, or the shared component-1/2/3 hashes with 2.46.4
+registry_contradiction=the lane registry says acquisition/no profiles while two exact SOFs and extracted components exist on disk; intake hashed the files
+device_personalized=the external-flash tail lacks the first 0x40000 bytes; device-personalized state is absent and never guessed
+display_and_wiring=display stream/frame hashes and Wismar-specific board wiring remain unknown
+translator_artifact=the 0x00534900 UNDEFINSTR boundary is a Renode 1.16 translator artifact, not a firmware transaction; it is recorded as the first observed execution boundary, not as a device contract
+probe_limitations=the IOM4 boundary probe failed and the full smoke wrapper could not complete in this sandbox; the recorded traces come from the lane runner's direct Renode invocations
