@@ -142,21 +142,33 @@ static void test_real_firmware_stop_reproduced(semu_test_context *context)
            (unsigned long long)first_instructions,
            (unsigned long long)first_time);
     /* Twice-identical pinned golden (ticket 755 instance 2): guest AIRCR
-     * reset cycles after the first unsupported IOM4 command write
-     * (0x40054120; the Wismar lane models IOM4 — the in-tree mirror is the
-     * next instance), then the budget stop at the lane 0.1s boundary PC.
-     * Must not be weakened; it advances when the next device frontier
-     * lands and must be re-derived then, never silently re-pinned. */
+     * fault-free across the full 8-second virtual-time window (zero
+     * refusals, zero AIRCR resets) and stops at the lane 1 s BKPT probe's
+     * terminal PC (E-WIS-0001 bkpt_boundary_1s: terminal pc 0x51bc82,
+     * cfsr/hfsr 0, no BKPT or port-assert). The instruction count is the
+     * guest's own cadence; the time budget paces it. Must not be
+     * weakened; it advances when the next device frontier lands and must
+     * be re-derived then, never silently re-pinned. */
     SEMU_TEST_EQ_U64(context, (uint64_t)SEMU_STOP_BUDGET, (uint64_t)first_reason);
-    SEMU_TEST_EQ_U64(context, UINT64_C(0x0052ac56), first_pc);
-    SEMU_TEST_EQ_U64(context, UINT64_C(80000000), first_instructions);
-    SEMU_TEST_EQ_U64(context, UINT64_C(80000000), first_time);
+    SEMU_TEST_EQ_U64(context, UINT64_C(0x0051bc82), first_pc);
+    SEMU_TEST_EQ_U64(context, UINT64_C(15128956), first_instructions);
+    SEMU_TEST_EQ_U64(context, UINT64_C(8000000000), first_time);
     /* The twice-identical property is proven by the cold CLI pair in
      * tests/integration/test_firmware_wismar_246_reset.sh; an in-process
-     * cold reset does not reproduce it because the guest's own AIRCR
-     * cycles carry SRAM state (preserve_ram) that a cold reset drops. */
+     * reset+run lands on the same PC but 22 instructions later, because
+     * device state created during the first epoch (compare events, RTC
+     * anchors) is not byte-identical after a cold reset. Both runs reach
+     * the same fault-free window PC. */
+    semu_error_clear(&error);
+    SEMU_TEST_EQ_U64(context, SEMU_OK, semu_machine_reset(machine, &error));
+    semu_error_clear(&error);
+    second_reason = semu_machine_run(machine, &limits, &error);
+    second_pc = semu_machine_program_counter(machine);
+    second_instructions = semu_machine_instructions(machine);
+    second_time = semu_machine_virtual_time(machine);
+    SEMU_TEST_EQ_U64(context, (uint64_t)first_reason, (uint64_t)second_reason);
+    SEMU_TEST_EQ_U64(context, first_pc, second_pc);
     semu_machine_destroy(machine);
-    (void)second_reason; (void)second_pc;
     (void)second_instructions; (void)second_time;
 }
 

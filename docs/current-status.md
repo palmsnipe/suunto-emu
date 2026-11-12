@@ -5227,3 +5227,31 @@ were added — the in-tree IOM4 mirror is the next ticket-760 instance.
 `make test TEST_FILTER=wismar` 5/5; `TEST_FILTER=ulsan` 89/89; both era
 checkpoints PASS; `make check` (1,120 PASS), `check-lines`,
 `check-task-contracts`, `make sanitize` (1,114 PASS) all exit 0.
+
+## Ticket 760 — Wismar instance 3: IOM4 mirror and Timer14 startup land; the boot runs fault-free to the lane 1 s BKPT terminal PC — 2026-11-12
+
+E-WIS-0004 (ticket 760 instance 2): three steps close the remaining
+startup frontiers. (1) The E-SAP-0036 IOM4 lane-mirror engine now serves
+Wismar — the Wismar lane includes the same SapporoApollo4Iom4 model
+(wismar-2.46.14.resc unregisters the upstream iom4 and loads
+sapporo-iom4.repl), correcting the E-WIS-0003 note that named no Wismar
+IOM4 mirror; the E-WIS-0003 first-unsupported write 0x40054120 is the
+mirror's command register. (2) The shared CTIMER gains the lane wrapper's
+Timer14 law: the channel-14 Edge(1) selector maps to Upcount(2) (observed
+0x00000a10 → 0x00000a20 readback), other channel-14 control words and the
+raw INTEN store follow the upstream class, and the global 0x10 offset
+takes the registers-dictionary warn+0 law with narrower slicing. (3) A
+probe found the profile seam re-bound the 0xf0 NVIC mask only when the
+stop reason was NONE — after a completed run the mask silently reverted
+to 0xe0 and disarmed the SCS fallback law; the re-bind is now
+unconditional for the Wismar profile. The boot then runs the full
+8-second virtual-time window fault-free (zero refusals, zero AIRCR
+resets, zero warnings) to `stop=budget pc=0x0051bc82
+instructions=15128956 virtual_time_ns=8000000000` — the lane 1 s BKPT
+probe's terminal PC (E-WIS-0001: cfsr/hfsr 0, no BKPT or port-assert) —
+twice byte-identical as a cold CLI pair. `make test TEST_FILTER=wismar`
+5/5; `TEST_FILTER=ulsan` 89/89; both era checkpoints PASS; `make check`
+(1,120 PASS), `check-lines`, `check-task-contracts`, `make sanitize`
+(1,114 PASS) all exit 0. Next gap: the display/panel boundary — the
+lane's 2 s display probe faults at the Renode translator artifact before
+any display submission, so ticket 765 needs new lane evidence.

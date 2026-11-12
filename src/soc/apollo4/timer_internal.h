@@ -34,6 +34,11 @@ struct semu_apollo4_timer {
     uint32_t pattern;
     uint32_t observed_d8;
     uint32_t observed_b4;
+    /* Wismar Timer14 edge-mode law (ticket 760, E-WIS-0001): the lane's
+     * WismarApollo4Timer wrapper maps exactly the channel-14 Edge(1)
+     * function selector to Upcount(2); all other registers and timers
+     * keep the shared law. */
+    int wismar_timer14_edge;
 };
 
 void semu_apollo4_timer8_sync(timer_channel *channel, uint64_t now);

@@ -488,6 +488,10 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
          * Wismar guest writes value bits outside the shared evidenced
          * mask. */
         semu_apollo4_stimer_enable_wismar_plain_config(soc->stimer);
+        /* E-WIS-0001: the Timer14 edge-mode startup write
+         * (0x40008000+0x3c0, value 0x00000a10) takes the lane wrapper's
+         * exact Edge->Upcount mapping. */
+        semu_apollo4_timer_enable_wismar_timer14_edge(soc->timer);
     }
     if (strcmp(profile_id, "ulsan-2.44.52") == 0 && soc->uart3 == NULL) {
         semu_status status;
@@ -536,9 +540,13 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
     /* E-SAP-0036: the 2.35 startup path replaces the shared IOM4 law
      * with the lane-mirror engine at 0x40054000 (IRQ 10); no other
      * profile reaches this seam. */
-    /* The live IOM4 mirror stays 2.35-only even when rtc_live covers
-     * Wismar (the Wismar lane names no IOM4 mirror; E-WIS-0001). */
-    if (strcmp(profile_id, "sapporo-2.35.34") == 0 &&
+    /* E-WIS-0003 correction: the Wismar lane DOES include the same
+     * SapporoApollo4Iom4 model (wismar-2.46.14.resc unregisters the
+     * upstream iom4 and loads sapporo-iom4.repl), so the mirror serves
+     * Wismar too. Unregistered-device commands take the documented
+     * class error (0x204=0x40) instead of a bus fault. */
+    if ((strcmp(profile_id, "sapporo-2.35.34") == 0 ||
+         strcmp(profile_id, "wismar-2.46.14") == 0) &&
         soc->iom4_live == NULL) {
         soc->iom4_live = semu_sapporo_iom4_create(
             soc->bus, gpio_irq_adapter, soc, error);

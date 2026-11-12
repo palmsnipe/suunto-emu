@@ -747,8 +747,7 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
      * restores the three-bit 0xe0 default; the seam sits where both the
      * CPU and the selected profile are in scope. The bind call validates
      * the mask and refuses anything but 0xe0/0xf0. */
-    if (machine->stop_reason == SEMU_STOP_NONE &&
-        strcmp(machine->profile.id, "wismar-2.46.14") == 0 &&
+    if (strcmp(machine->profile.id, "wismar-2.46.14") == 0 &&
         !semu_cpu_bind_priority_mask(machine->cpu, UINT8_C(0xf0), error)) {
         machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
         return error->code;

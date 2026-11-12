@@ -33,14 +33,13 @@ run_boot()
 run_boot "$work/first"
 run_boot "$work/second"
 cmp "$work/first" "$work/second"
-stop='stop=budget pc=0x0052ac56 instructions=80000000 virtual_time_ns=80000000'
+stop='stop=budget pc=0x0051bc82 instructions=15128956 virtual_time_ns=8000000000'
 tail -1 "$work/first" >"$work/stop"
 printf '%s\n' "$stop" | cmp - "$work/stop"
-reset=' fault_address=0x40054120'
-grep -Fq 'event=machine-reset-request pc=0x0052bfd6' "$work/first"
-grep -Fq "$reset" "$work/first"
-# Five guest AIRCR cycles in the 80M window (the guest re-attempts the
-# unsupported IOM4 command after each preserve-RAM reset).
-test "$(grep -c 'machine-reset-request' "$work/first")" -eq 5
+# Fault-free window: no refusals, no guest AIRCR resets, no warnings —
+# matching the lane 1 s BKPT probe (E-WIS-0001, terminal pc 0x51bc82,
+# cfsr/hfsr 0).
+test "$(grep -c 'machine-reset-request' "$work/first")" -eq 0
+test "$(grep -c 'level=warning' "$work/first")" -eq 0
 cat "$work/first"
 echo 'PASS wismar-2.46.14 standalone reset and refusal checkpoint'

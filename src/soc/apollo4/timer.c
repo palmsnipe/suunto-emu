@@ -310,7 +310,13 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
 {
     timer_channel *channel; uint32_t local; unsigned index;
     timer_channel old_channel; semu_status status;
-    if (timer == NULL || !valid_access(offset, width)) return refuse(offset, error);
+    if (timer == NULL) return refuse(offset, error);
+    if (timer->wismar_timer14_edge && offset == 0x10u) {
+        /* E-WIS-0003 instance 3: narrower writes drop (dictionary law). */
+        semu_error_clear(error);
+        return SEMU_OK;
+    }
+    if (!valid_access(offset, width)) return refuse(offset, error);
     if (offset == TIMER_GLOBAL_MASK) {
         if ((value & ~0x27ffu) != 0u)
             return refuse(offset, error);
@@ -358,6 +364,11 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         if (value != 0u && value != UINT32_C(0x1f000000))
             return refuse(offset, error);
         timer->observed_d8 = value;
+    } else if (timer->wismar_timer14_edge && offset == 0x10u) {
+        /* E-WIS-0003 instance 3: the upstream class stores the raw word
+         * in its registers dictionary with no scheduling side effect
+         * (E-ULS-0021 records the same RMW store 0x2 on the Ulsan
+         * class). */
     } else if (!is_channel_offset(offset)) return refuse(offset, error);
     else {
         index = channel_index(offset);
@@ -366,10 +377,33 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
         /* Validate first: a refused write must not even materialize elapsed
          * Timer8 phase in the saved state. */
         if (local == TIMER_CONTROL) {
-            if (!supported_control(value) && !(index == 8u && value == 0x141u))
+            if (timer->wismar_timer14_edge && index == 14u &&
+                (((value >> TIMER_FUNCTION_SHIFT) & TIMER_FUNCTION_MASK) ==
+                 UINT32_C(1))) {
+                /* E-WIS-0001: the lane wrapper maps only the exact
+                 * Edge(1) selector to Upcount(2) and passes the modified
+                 * value straight to the inner model. */
+                value = (value & ~(TIMER_FUNCTION_MASK << TIMER_FUNCTION_SHIFT)) |
+                        (TIMER_FUNCTION_UPCOUNT << TIMER_FUNCTION_SHIFT);
+            } else if (timer->wismar_timer14_edge && index == 14u) {
+                /* E-WIS-0003 instance 3: the lane's inner timer class
+                 * stores any aligned channel-14 control word (the guest
+                 * follows the Edge store with the Upcount+enable word,
+                 * e.g. 0xa21, outside the shared Sapporo-observed list);
+                 * the store path below keeps the generic state updates
+                 * and comparator scheduling. */
+            } else if (!supported_control(value) &&
+                       !(index == 8u && value == 0x141u)) {
                 return refuse(offset, error);
+            }
         } else if (local == TIMER_INTEN) {
-            if ((value & ~TIMER_INTEN_COMPARE) != 0u) return refuse(offset, error);
+            if ((value & ~TIMER_INTEN_COMPARE) != 0u &&
+                !timer->wismar_timer14_edge)
+                return refuse(offset, error);
+            /* E-WIS-0002 instance 3: the lane's upstream timer class
+             * stores the raw INTEN word (only the COMPARE bit steers
+             * scheduling); the Wismar guest writes extra bits
+             * (E-ULS-0021 records the same Ulsan shape, store 0x2). */
         } else if (local != TIMER_VALUE && local != TIMER_COMPARE0 && local != TIMER_COMPARE1)
             return refuse(offset, error);
         old_channel = *channel;
@@ -408,4 +442,9 @@ semu_status semu_apollo4_timer_write(semu_apollo4_timer *timer,
     }
     semu_error_clear(error);
     return SEMU_OK;
+}
+
+void semu_apollo4_timer_enable_wismar_timer14_edge(semu_apollo4_timer *timer)
+{
+    if (timer != NULL) timer->wismar_timer14_edge = 1;
 }

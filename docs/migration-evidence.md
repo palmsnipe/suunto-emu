@@ -21414,3 +21414,52 @@ clock.{c,h},stimer.{c,internal.h,h}}`, `src/cpu/armv7m/scs.c`,
 era checkpoint script. Next instance: the IOM4 command path
 (`0x40054120`), with the lane's SapporoApollo4Iom4 class as the evidence
 source.
+
+## E-WIS-0004 — Wismar instance 3: the IOM4 mirror and Timer14 startup land; the boot runs fault-free to the lane 1 s BKPT terminal PC (ticket 760)
+
+2026-11-12; ticket 760 instance 2, continuing from E-WIS-0003. Three
+evidence-bounded steps, each scoped to the Wismar profile:
+
+1. **IOM4 mirror** (the E-WIS-0003 first-unsupported write `0x40054120`):
+   the Wismar lane DOES include the SapporoApollo4Iom4 model
+   (`wismar-2.46.14.resc` unregisters the upstream iom4 and loads
+   `sapporo-iom4.repl`), correcting the E-WIS-0003 note; the E-SAP-0036
+   lane-mirror engine now serves Wismar too (unregistered-device commands
+   take the documented class error 0x204=0x40 instead of a bus fault).
+2. **Timer14 startup** (the E-WIS-0001 recorded transaction): the shared
+   CTIMER gains a `wismar_timer14_edge` flag implementing exactly the lane
+   wrapper's law — channel-14 Edge(1) selector maps to Upcount(2) (the
+   observed `0x00000a10` → `0x00000a20` readback), other channel-14
+   control words and the raw INTEN store follow the upstream class
+   (E-ULS-0021 records the same Ulsan INTEN shape), and the global 0x10
+   offset (outside the shared model) takes the registers-dictionary
+   warn+0 law including narrower slicing.
+3. **NVIC-mask re-bind gate fix**: the profile seam re-bound `0xf0` only
+   when the machine stop reason was NONE, so a reset after a completed
+   budget stop left the CPU at the `0xe0` default and the SCS fallback
+   law silently disarmed — found by the in-process reset probe
+   (`mask after reset: e0`, run2 stopping at the E-WIS-0002 sync site);
+   the re-bind is now unconditional for the Wismar profile.
+
+**Bounded stop (twice identical, cold CLI pair).** The boot now runs the
+full 8-second virtual-time window **fault-free**: zero refusals, zero
+guest AIRCR resets, zero warnings, and the budget stop
+`stop=budget pc=0x0051bc82 instructions=15128956
+virtual_time_ns=8000000000` — the lane 1 s BKPT probe's terminal PC
+(E-WIS-0001 `bkpt_boundary_1s`: terminal pc `0x51bc82`, cfsr/hfsr 0, no
+BKPT or port-assert, MAX20360 API/result lines present). An in-process
+reset+run lands on the same PC 22 instructions later (device state
+created during the first epoch is not byte-identical after a cold
+reset), so the twice-identical proof is the cold CLI pair; the unit test
+pins reason and PC across the in-process reset.
+
+**Verification.** `make test TEST_FILTER=wismar` 5/5;
+`TEST_FILTER=ulsan` 89/89; both era firmware checkpoints PASS with pins
+unchanged; `make check` exit 0 (1,120 PASS); `check-lines`,
+`check-task-contracts` exit 0; `make sanitize` exit 0 (1,114 PASS).
+Affected modules: `src/soc/apollo4/{apollo4.c,timer.{c,h,
+timer_internal.h}}`, `src/boards/machine.c` (mask re-bind gate), the two
+Wismar tests and the era checkpoint script. Next gap: the display/panel
+boundary — the lane's 2 s display probe faults at the Renode translator
+artifact before any display submission, so the display contract still
+requires new lane evidence (ticket 765).
