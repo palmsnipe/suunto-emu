@@ -228,12 +228,25 @@ semu_status semu_apollo4_gpio_read(void *context, uint32_t offset,
         *value = gpio->interrupt_status[bank];
         return SEMU_OK;
     }
+    if (gpio->wismar_gap_writes) {
+        /* E-WIS-0001 warn+0 law (E-ULS-0046 precedent): the lane's upstream
+         * GPIO class answers unregistered in-window offsets with a warning
+         * and 0; the Wismar boot reads them (first observed 0x250). */
+        *value = 0u;
+        return SEMU_OK;
+    }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "Apollo4 GPIO offset 0x%08x is unsupported", offset);
     return SEMU_ERR_UNSUPPORTED;
 }
 
-semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
+/* E-WIS-0001 lane-gap writes: the GPIO offsets inside the shared window
+ * that the lane model logged as unhandled writes while the guest continued
+ * on every twice-identical bounded trace. Plain stores, no state. */
+static int wismar_gap_write_offset(uint32_t offset)
+{
+    return offset == 0x340u || offset == 0x400u;
+}semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
                                     unsigned width, uint32_t value,
                                     semu_error *error)
 {
@@ -245,7 +258,7 @@ semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
     if (status != SEMU_OK) return status;
     pin = pin_register(offset);
     if (pin >= 0) {
-        if (gpio->pad_key != GPIO_PAD_KEY) {
+        if (gpio->pad_key != GPIO_PAD_KEY && !gpio->wismar_gap_writes) {
             semu_error_set(error, SEMU_ERR_STATE,
                            "Apollo4 GPIO pin configuration is locked");
             return SEMU_ERR_STATE;
@@ -305,6 +318,21 @@ semu_status semu_apollo4_gpio_write(void *context, uint32_t offset,
         report_irq(gpio, (unsigned)bank, old_level);
         return SEMU_OK;
     }
+    if (gpio->wismar_gap_writes && wismar_gap_write_offset(offset)) {
+        /* E-WIS-0001: the lane logged these writes and continued; a plain
+         * drop preserves that behavior without inventing semantics. The
+         * addresses past the window (0x45c..0x470) are served by the
+         * separate wismar.gpio-gap device. */
+        return SEMU_OK;
+    }
+    if (gpio->wismar_gap_writes) {
+        /* E-WIS-0001 warn+0 law (the E-ULS-0046 precedent): the lane's
+         * upstream GPIO class answers unregistered in-window offsets with
+         * a warning and 0 on reads, and drops their writes; the Wismar boot
+         * touches them (first observed 0x250), so the Wismar profile takes
+         * the lane law while the shared profiles keep refusing. */
+        return SEMU_OK;
+    }
     semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                    "Apollo4 GPIO offset 0x%08x is unsupported", offset);
     return SEMU_ERR_UNSUPPORTED;
@@ -361,6 +389,60 @@ int semu_apollo4_gpio_get_input(const semu_apollo4_gpio *gpio, unsigned pin)
 void semu_apollo4_gpio_enable_race_s_inputs(semu_apollo4_gpio *gpio)
 {
     gpio->race_s_inputs = 1;
+}
+
+void semu_apollo4_gpio_enable_wismar_gap_writes(semu_apollo4_gpio *gpio)
+{
+    gpio->wismar_gap_writes = 1;
+}
+
+/* The addresses past the shared 0x400 GPIO window (0x40010400 upward) are
+ * outside the mapped device; the Wismar profile maps this gap block over
+ * the span the guest's own literal pool names (0x40010400..0x400104b0:
+ * pool entries 0x00, 0x04, 0x20, 0x3c, 0x58, 0x74, 0x90, 0xac plus the
+ * E-WIS-0001 recorded 0x5c/0x64/0x68/0x70) so those accesses land as lane
+ * warn+0 behavior instead of unmapped faults (E-WIS-0001, "non-existing
+ * peripheral writes at 0x40010470/0x40010464/0x4001045c ... do not stop
+ * execution"; the untagged SystemBus fallback reads 0 and drops writes per
+ * the E-ULS-0038 engine-source law). */
+static semu_status gpio_gap_read(void *context, uint32_t offset,
+                                 unsigned width, uint32_t *value,
+                                 semu_error *error)
+{
+    (void)context;
+    if (width != 4u || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Wismar GPIO gap read at 0x%08x width %u is unsupported",
+                       0x40010400u + offset, width);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    *value = 0u;
+    return SEMU_OK;
+}
+
+static semu_status gpio_gap_write(void *context, uint32_t offset,
+                                  unsigned width, uint32_t value,
+                                  semu_error *error)
+{
+    (void)context;
+    (void)value;
+    if (width != 4u || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Wismar GPIO gap write at 0x%08x width %u is "
+                       "unsupported", 0x40010400u + offset, width);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
+}
+
+static const semu_bus_device_ops gpio_gap_ops = {
+    gpio_gap_read, gpio_gap_write, NULL
+};
+
+semu_status semu_apollo4_gpio_gap_map(semu_bus *bus, semu_error *error)
+{
+    return semu_bus_map_device(bus, "wismar.gpio-gap", 0x40010400u, 0xb0u,
+                               &gpio_gap_ops, NULL, error);
 }
 
 int semu_apollo4_gpio_falling_input_armed(const semu_apollo4_gpio *gpio, unsigned pin)
@@ -426,4 +508,50 @@ semu_status semu_apollo4_gpio_set_output_observer(
 const semu_bus_device_ops *semu_apollo4_gpio_bus_ops(void)
 {
     return &gpio_ops;
+}
+
+/* The Wismar startup enables DEMCR.TRCENA and then touches the CoreSight
+ * DWT window (0xE001E000..0xE001EFFF, first observed access 0xE001E300).
+ * No in-tree device serves that debug window; the lane's CortexM accepts
+ * the accesses (both twice-identical traces continued), so the Wismar
+ * profile maps this plain warn+0 block: reads 0, writes dropped. Shared
+ * profiles never map it and keep failing closed. */
+static semu_status dwt_gap_read(void *context, uint32_t offset,
+                                unsigned width, uint32_t *value,
+                                semu_error *error)
+{
+    (void)context;
+    if (width != 4u || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Wismar DWT read at 0x%08x width %u is unsupported",
+                       0xe001e000u + offset, width);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    *value = 0u;
+    return SEMU_OK;
+}
+
+static semu_status dwt_gap_write(void *context, uint32_t offset,
+                                 unsigned width, uint32_t value,
+                                 semu_error *error)
+{
+    (void)context;
+    (void)value;
+    if (width != 4u || (offset & 3u) != 0u) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "Wismar DWT write at 0x%08x width %u is unsupported",
+                       0xe001e000u + offset, width);
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    return SEMU_OK;
+}
+
+static const semu_bus_device_ops dwt_gap_ops = {
+    dwt_gap_read, dwt_gap_write, NULL
+};
+
+semu_status semu_apollo4_dwt_gap_map(semu_bus *bus, semu_error *error)
+{
+    return semu_bus_map_device(bus, "wismar.dwt-gap", 0xe001e000u, 0x1000u,
+                               &dwt_gap_ops, NULL, error);
 }

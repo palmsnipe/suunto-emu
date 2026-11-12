@@ -21248,3 +21248,105 @@ device-personalized state is absent without hardware. Next eligible dispatch:
 a Rostock lane machine or owner-authorized offline RE of the pinned package,
 from which the memory/IRQ/wiring contracts and a first bounded stop would be
 derived.
+
+## E-WIS-0002 — Wismar 2.46.14 in-tree reset profile reaches the twice-identical bounded stop (ticket 755)
+
+2026-11-12; in-tree implementation from the E-WIS-0001 reset contract. The
+profile `profiles/wismar/2.46.14/profile.semu` (SHA-256
+`523307a5fbd138eac5f6927e5a9259ed698759bfee9c4e56aa7408d002510eb1`) pins the
+three lane-loaded components (resident `dc585360…` 149,992 B at
+`0x00414000`; application `878945bc…` 2,420,644 B at `0x00450000`; resources
+`b324f3d2…` 33,292,288 B at `0x18040000` — expanded sizes including the
+trailing CRC32 word), the start tuple (`vector_table=0x00450000`; SP and
+Thumb PC re-derived from the vector table: `0x20004000`/`0x006954cc`), and
+466x466 as the parser-required display dimensions (no Wismar display
+contract exists; the value matches the Apollo4-class panel geometry recorded
+for Ulsan and is not a Wismar display claim). Component 02 stays absent —
+the lane does not load it and its runtime role is unknown (E-WIS-0001).
+
+**NVIC priority mask `0xf0`.** The CPU gains a validated implemented-priority
+selector (`semu_cpu_bind_priority_mask`, `semu_cpu_priority_mask`):
+`0xe0` (the reset default) or `0xf0`; any other value refuses without
+mutation. Every IRQ/system priority write and read, and the snapshot
+validity check, use the effective mask. The Wismar profile binds `0xf0` in
+`semu_machine_reset_state_internal` after every CPU reset (the reset restores
+`0xe0`); the snapshot round-trips the selector and refuses any other byte.
+The synthetic test reproduces the E-WIS-0001 probe exactly: `0xffffffff` to
+`0xE000E400` reads back `0xF0F0F0F0`, `0x12345678` to `0xE000E404` reads
+back `0x10305070`. Snapshot byte offsets shifted by the new fields; the
+affected tests (`test_cpu_snapshot`, `test_cpu_snapshot_itstate`,
+`test_cpu_snapshot_sleep`, `test_cpu_snapshot_systick`,
+`test_cpu_nvic`) are re-pinned to the new layout, never weakened.
+
+**v8-M stack-limit MSRs.** The pinned application's reset entry
+(`0x006954cc`: `ldr r0,[pc,#12]` = `0x20000000`; `msr SYSm=0x0a,r0`;
+`msr SYSm=0x0b,r0`) executes two `MSR` encodings the tree previously
+refused as reserved (SYSm `0x0a`/`0x0b` = v8-M MSPLIM/PSPLIM). The lane
+machine — the sole oracle — executed past this entry in every twice-
+identical bounded trace (terminal PCs `0x52ac56`/`0x52ac5c`/`0x51bc82`,
+all past `0x6954d6`), so the encodings are admitted: stored into new
+observable CPU state fields (`msplim`/`psplim`), read back by `MRS`, with
+no limit-enforcement fault modeled because no lane trace shows one. The
+prior refusal case moves to the still-reserved SYSm `0x0c`.
+
+**Wismar warn+0 gap law.** The first in-tree boot reached the guest's own
+fault-handler reset at GPIO offsets the lane model itself only warned
+about. The lane's behavior (warn, continue — twice identical) is adopted
+Wismar-scoped, following the E-ULS-0046 "unregistered in-window offsets
+answered warn+0 upstream" precedent: (1) inside the shared GPIO window the
+Wismar profile drops the recorded writes at offsets `0x340`/`0x400` and
+answers unmodeled offsets with read-0/drop (first observed `0x250`), also
+admitting pin-configuration writes without the Sapporo PADKEY gate; (2) a
+Wismar-only `wismar.gpio-gap` device covers `0x40010400..0x400104af` — the
+span the guest's own literal pool names (`0x00`/`0x04`/`0x20`/`0x3c`/
+`0x58`/`0x5c`/`0x64`/`0x68`/`0x70`/`0x74`/`0x90`/`0xac`) plus the E-WIS-0001
+recorded writes — reads 0, writes dropped, sub-word refuses; (3) the same
+law for the unmodeled MCUCTRL offsets (first observed `0x40020250`) via a
+`wismar_warn_zero` flag on the shared MCU-control device; (4) a
+Wismar-only `wismar.dwt-gap` device covers the CoreSight DWT window
+`0xE001E000..0xE001Efff` (first observed `0xE001E300` after the guest sets
+`DEMCR.TRCENA`) with the same warn+0 law; (5) `SCB DEMCR` (`0xE000EDFC`)
+is stored raw with mask `0x0101007f` and no debug semantics. The shared
+Sapporo/Ulsan profiles keep refusing all of these: every admission is
+gated on the profile identity.
+
+**Bounded stop (twice identical).** The private bundle
+`tests/private/wismar-2.46.14/` (manifest SHA-256 `e4060ea2…`, symlinks
+into `$FIRMWARE_ROOT/artifacts/generated/wismar-2.46.14/`) boots the exact
+firmware: one guest AIRCR reset at instruction 14,518,838 (vt 14,518,838,
+PC `0x0052bfd6`, LR `0xffffffe9`, fault address `0x42003310` — the first
+unsupported peripheral bit-band alias access, aliasing CLKGEN `0x660` bit
+4; bit-band aliasing is not an in-tree semantic and is deliberately not
+added), then the budget stop
+`stop=budget pc=0x0052ac56 instructions=20000000 virtual_time_ns=20000000`
+— the lane's own 0.1 s boundary PC (E-WIS-0001 boundary trace terminal
+`0x52ac56`). The pinned run reproduced twice byte-identically via
+`tests/integration/test_firmware_wismar_246_reset.sh` (SHA-256
+`fbc6e452…`), and the reset+manifest-mismatch refusal cases pass.
+
+**Verification.** `make test TEST_FILTER=wismar` 5/5 (`test_wismar_reset`
+2/2 with the pinned golden reproduced twice across an in-process reset;
+`test_wismar_reset_map` 3/3: map edges, NVIC-mask probe, v8-M MSR
+acceptance with reset-restore of `0xe0`, input refusal, metadata/hash
+refusals, mask-bind refusal). `make test TEST_FILTER=ulsan` 89/89 (Race S
+regressions unchanged); `make test-firmware TEST_PROFILE=ulsan-2.44.52
+TEST_FILTER=ulsan_244_` PASS with the pinned stop
+`pc=0x000d47f0 instructions=98756036` unchanged;
+`make test-firmware TEST_PROFILE=wismar-2.46.14 TEST_FILTER=wismar_246_`
+PASS twice; `make check` exit 0 (1,120 PASS lines, 0 FAIL, firmware-gated
+SDL walks skipped); `make check-lines` exit 0 (new advisory warning:
+`test_wismar_reset_map.c` 380 lines); `make check-task-contracts` exit 0
+(191 tickets); `make sanitize` exit 0 (1,114 PASS). Affected modules:
+`src/boards/wismar_board.{c,h}` (new, 108 lines),
+`src/boards/machine.c` (board dispatch, profile seam, reset seam, input
+refusal), `src/frontends/cli_profiles.c`, `profiles/{index.semu,wismar/}`,
+`src/cpu/armv7m/{armv7m_internal.h,cpu.c,cpu_snapshot.c,nvic.c,scb.c,scs.c,
+thumb32_system.c}`, `src/soc/apollo4/{apollo4.c,gpio.{c,h},mcu_control.{c,h}}`,
+`include/semu/cpu.h`, and the test files above. Confidence: high for the
+component placement, the start tuple, the `0xf0` mask behavior, and the
+bounded stop (twice identical in-process and via the CLI pair); the gap
+admissions are lane-behavior-derived (warn+continue) and scoped to the
+Wismar profile only. Remaining gaps, in evidence order: peripheral bit-band
+aliasing (the first unsupported access, `0x42003310`), Timer14 edge-mode
+semantics (the lane wrapper is a workaround, not a firmware fact), the
+display contract, and board wiring — each requires its own evidence gate.

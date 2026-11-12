@@ -33,6 +33,12 @@ static const uint32_t write_offsets[] = {
 struct semu_apollo4_mcu_control {
     semu_bus *bus;
     semu_scheduler *scheduler;
+    /* Wismar warn+0 law (ticket 755, E-WIS-0001 with the E-ULS-0038
+     * upstream-fallback precedent): unmodeled in-window MCUCTRL offsets
+     * answer reads 0 and drop writes, because the lane's SilenceRange
+     * served them that way while the guest continued on every
+     * twice-identical trace. The shared profiles keep refusing. */
+    int wismar_warn_zero;
 };
 
 static const semu_bus_device_ops mcu_ops = {
@@ -77,7 +83,8 @@ static semu_status validate(void *context, uint32_t offset, unsigned width,
                        "Apollo4 MCU control supports 32-bit accesses only");
         return SEMU_ERR_UNSUPPORTED;
     }
-    if (write ? !is_known_write(offset) : !is_known_read(offset)) {
+    if (!(write ? is_known_write(offset) : is_known_read(offset)) &&
+        !((semu_apollo4_mcu_control *)context)->wismar_warn_zero) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "Apollo4 MCU control offset 0x%08x is unsupported",
                        offset);
@@ -161,4 +168,10 @@ semu_status semu_apollo4_mcu_control_write(void *context, uint32_t offset,
 const semu_bus_device_ops *semu_apollo4_mcu_control_bus_ops(void)
 {
     return &mcu_ops;
+}
+
+void semu_apollo4_mcu_control_enable_wismar_warn_zero(
+    semu_apollo4_mcu_control *mcu)
+{
+    if (mcu != NULL) mcu->wismar_warn_zero = 1;
 }

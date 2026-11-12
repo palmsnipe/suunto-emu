@@ -5159,3 +5159,42 @@ byte-identically; no engine edits, so check-lines, `make check`,
 stand as recorded in instance-6. Next observations: the 60/61 s press pair
 lies beyond the 1B-cap frontier of the slice census, and the
 `0x0800009e`-style bootrom-vector fetch-alias counters await naming.
+
+## Ticket 755 — the Wismar 2.46.14 in-tree reset profile reaches the twice-identical bounded stop — 2026-11-12
+
+E-WIS-0002 (ticket 755, from the E-WIS-0001 reset contract): the exact
+Wismar (Suunto Race 2) 2.46.14 firmware boots in-tree under the new
+profile `wismar-2.46.14` and stops deterministically at the lane's own
+0.1 s boundary PC. The profile pins the three lane-loaded components at
+the audited addresses (resident `0x00414000`, application `0x00450000`,
+resources `0x18040000` XIP), the start tuple from the application vector
+table (`SP 0x20004000`, Thumb PC `0x006954cc`), and leaves component 02
+deliberately unloaded (its load field overlaps component 04 and its role
+is unknown). Three evidence-bounded engine additions, each Wismar-scoped:
+(1) the NVIC implemented-priority width is now a validated CPU selector —
+`0xe0` reset default, `0xf0` bound by the Wismar profile after every
+reset — reproducing the E-WIS-0001 probe readbacks exactly; (2) the v8-M
+`MSPLIM`/`PSPLIM` MSR encodings the Wismar entry executes (SYSm
+`0x0a`/`0x0b`, previously refused) are accepted and stored observable
+state, as the lane oracle executed past them in every trace; (3) the
+lane's warn+0 behavior for the GPIO/MCUCTRL/DWT offsets the Wismar boot
+touches is adopted through Wismar-only flags and gap devices
+(`wismar.gpio-gap` `0x40010400..0x400104af`, `wismar.dwt-gap`
+`0xE001E000..0xE001Efff`, DEMCR stored, MCU-control warn_zero), while the
+shared Sapporo/Ulsan profiles keep refusing everything unobserved. The
+bounded private run reproduces twice byte-identically: one guest AIRCR
+reset at instruction 14,518,838 after the first unsupported peripheral
+bit-band access (`0x42003310`; bit-band aliasing is not an in-tree
+semantic and is the next evidence gate), then
+`stop=budget pc=0x0052ac56 instructions=20000000 virtual_time_ns=20000000`
+— exactly the E-WIS-0001 lane 0.1 s boundary terminal PC. No Timer14,
+display, or wiring semantics were added (ticket-755 forbidden scope).
+`make test TEST_FILTER=wismar` 5/5; `make test TEST_FILTER=ulsan` 89/89;
+both `make test-firmware` era checkpoints PASS with pinned stops
+unchanged; `make check` (1,120 PASS), `make check-lines`,
+`make check-task-contracts`, `make sanitize` all exit 0. Snapshot byte
+offsets shifted for the two new CPU fields and the affected tests are
+re-pinned to the new layout. Next gaps in evidence order: peripheral
+bit-band aliasing, Timer14 edge-mode semantics, the display contract, and
+board wiring.
+

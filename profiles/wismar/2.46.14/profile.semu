@@ -1,0 +1,35 @@
+# Wismar (Suunto Race 2) 2.46.14 reset profile. Ticket 755.
+# E-WIS-0001 pins the component identities, the lane load layout and the
+# start tuple (the lane's audited choice from component 04's vector words).
+# Component 02 (type 3, load field 0x00450000) is NOT loaded by the lane
+# profile: its load field overlaps component 04 and its runtime role is
+# unknown, so it is deliberately absent here. The resources load is the
+# physical XIP address of the external-flash tail; the first 0x40000 bytes
+# of the tail are absent from the OTA and are never synthesized.
+[profile]
+format=1
+id=wismar-2.46.14
+board=wismar
+product=Wismar
+version=2.46.14.26212-U
+vector_table=0x00450000
+display_width=466
+display_height=466
+
+[component resident]
+role=resident
+load_address=0x00414000
+size=149992
+sha256=dc5853600aaf4f1e4857de1827ee36ec55a32c92e2be836bffea4ed3f0989e43
+
+[component application]
+role=application
+load_address=0x00450000
+size=2420644
+sha256=878945bca689195ef3f99137d0efc3179250068cc91d9afd2d24e1d304c2de97
+
+[component resources]
+role=resources
+load_address=0x18040000
+size=33292288
+sha256=b324f3d20aa2100610ca98930b5f5bc98bcded6131a49b54b4357042029c4ebd

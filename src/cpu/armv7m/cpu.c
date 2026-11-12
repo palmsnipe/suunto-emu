@@ -119,8 +119,12 @@ void semu_cpu_reset(semu_cpu *cpu, uint32_t vector_table, semu_error *error)
     cpu->has_fault_address = 0u;
     cpu->vector_table = vector_table & ~0x7fu;
     cpu->prigroup = 0u;
+    /* The reset default priority width is three bits (0xe0); a Wismar-class
+     * profile re-binds the 0xf0 selector after every reset. */
+    cpu->priority_mask = ARMV7M_NVIC_PRIORITY_MASK;
     cpu->pending_source_count = 0u;
     cpu->ccr = 1u << 9;
+    cpu->demcr = 0u;
     cpu->itstate = 0u;
     cpu->event_register = 0u;
     cpu->sleep_mode = ARMV7M_SLEEP_NONE;
@@ -293,8 +297,31 @@ void semu_cpu_set_irq(semu_cpu *cpu, unsigned irq, int level)
 void semu_cpu_set_irq_priority(semu_cpu *cpu, unsigned irq, uint8_t priority)
 {
     if (cpu != NULL && irq < ARMV7M_IRQ_COUNT) {
-        cpu->irq_priority[irq] = priority & ARMV7M_NVIC_PRIORITY_MASK;
+        cpu->irq_priority[irq] = priority & armv7m_priority_mask(cpu);
     }
+}
+
+int semu_cpu_bind_priority_mask(semu_cpu *cpu, uint8_t mask, semu_error *error)
+{
+    if (cpu == NULL) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT, "CPU is required");
+        return 0;
+    }
+    if (mask != ARMV7M_NVIC_PRIORITY_MASK &&
+        mask != ARMV7M_NVIC_PRIORITY_MASK_WIDE) {
+        semu_error_set(error, SEMU_ERR_ARGUMENT,
+                       "unsupported NVIC priority mask 0x%02x", mask);
+        return 0;
+    }
+    cpu->priority_mask = mask;
+    semu_error_clear(error);
+    return 1;
+}
+
+uint8_t semu_cpu_priority_mask(const semu_cpu *cpu)
+{
+    return cpu != NULL ? armv7m_priority_mask(cpu)
+                       : ARMV7M_NVIC_PRIORITY_MASK;
 }
 
 void semu_cpu_signal_event(semu_cpu *cpu)

@@ -15,6 +15,7 @@ struct semu_apollo4_gpio {
     uint32_t interrupt_enable[SEMU_APOLLO4_GPIO_IRQ_BANKS];
     uint32_t interrupt_status[SEMU_APOLLO4_GPIO_IRQ_BANKS];
     int race_s_inputs;
+    int wismar_gap_writes;
     uint32_t pad_key;
     semu_apollo4_gpio_irq_fn irq;
     void *irq_context;

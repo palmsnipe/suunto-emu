@@ -17,3 +17,7 @@ status=reset-bring-up
 [profile ulsan-2.44.52]
 path=profiles/ulsan/2.44.52/profile.semu
 status=reset-bring-up
+
+[profile wismar-2.46.14]
+path=profiles/wismar/2.46.14/profile.semu
+status=reset-bring-up

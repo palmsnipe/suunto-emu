@@ -27,5 +27,9 @@ semu_status semu_apollo4_mcu_control_write(void *context, uint32_t offset,
                                            unsigned width, uint32_t value,
                                            semu_error *error);
 const semu_bus_device_ops *semu_apollo4_mcu_control_bus_ops(void);
+/* Wismar warn+0 law (ticket 755, E-WIS-0001): unmodeled in-window MCUCTRL
+ * offsets answer reads 0 and drop writes for this instance. */
+void semu_apollo4_mcu_control_enable_wismar_warn_zero(
+    semu_apollo4_mcu_control *mcu);
 
 #endif

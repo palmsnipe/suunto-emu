@@ -185,6 +185,16 @@ static void test_msr_apsr_masks_stacks_and_control(
                      call_system(&fixture, 0xf388u, 0x8809u));
     SEMU_TEST_EQ_U64(context, 0x23458u, semu_cpu_get_state(fixture.cpu)->psp);
     SEMU_TEST_EQ_U64(context, 0x12344u, semu_cpu_get_state(fixture.cpu)->r[13]);
+    /* E-WIS-0001: v8-M MSPLIM/PSPLIM writes are accepted and observable
+     * (the Wismar entry writes both with the SRAM-alias base value). */
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     call_system(&fixture, 0xf387u, 0x880au));
+    SEMU_TEST_EQ_U64(context, 0x12344u,
+                     semu_cpu_get_state(fixture.cpu)->msplim);
+    SEMU_TEST_EQ_U64(context, SEMU_OK,
+                     call_system(&fixture, 0xf387u, 0x880bu));
+    SEMU_TEST_EQ_U64(context, 0x12344u,
+                     semu_cpu_get_state(fixture.cpu)->psplim);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
                      call_system(&fixture, 0xf38au, 0x8814u));
     SEMU_TEST_EQ_U64(context, 3u, semu_cpu_get_state(fixture.cpu)->control);
@@ -219,7 +229,7 @@ static void test_special_encoding_refusals_are_atomic(
         {0xf3efu, 0x9000u},
         {0xf38du, 0x8808u},
         {0xf380u, 0x8008u},
-        {0xf380u, 0x880au}
+        {0xf380u, 0x880cu}
     };
     size_t index;
 

@@ -6,19 +6,19 @@
 #include <stddef.h>
 #include <string.h>
 
-#define CPU_SNAPSHOT_FPCA 1659u
-#define CPU_SNAPSHOT_FP_CONTEXT_FAULT 1660u
-#define CPU_SNAPSHOT_STACK_FAULT 1661u
-#define CPU_SNAPSHOT_BUS_FAULT 1662u
-#define CPU_SNAPSHOT_EVENT_REGISTER 1664u
-#define CPU_SNAPSHOT_SLEEP_MODE 1665u
-#define CPU_SNAPSHOT_SLEEP_WAKE 1666u
-#define CPU_SNAPSHOT_RESET_REQUESTED 1667u
-#define CPU_SNAPSHOT_SYSTICK_COUNTFLAG 1692u
-#define CPU_SNAPSHOT_SYSTICK_EVENT_VALID 1701u
-#define CPU_SNAPSHOT_STACK_ALIGN 1702u
-#define CPU_SNAPSHOT_EXCLUSIVE_VALID 1703u
-#define CPU_SNAPSHOT_EXCLUSIVE_WIDTH 1708u
+#define CPU_SNAPSHOT_FPCA 1664u
+#define CPU_SNAPSHOT_FP_CONTEXT_FAULT 1665u
+#define CPU_SNAPSHOT_STACK_FAULT 1666u
+#define CPU_SNAPSHOT_BUS_FAULT 1667u
+#define CPU_SNAPSHOT_EVENT_REGISTER 1669u
+#define CPU_SNAPSHOT_SLEEP_MODE 1670u
+#define CPU_SNAPSHOT_SLEEP_WAKE 1671u
+#define CPU_SNAPSHOT_RESET_REQUESTED 1672u
+#define CPU_SNAPSHOT_SYSTICK_COUNTFLAG 1697u
+#define CPU_SNAPSHOT_SYSTICK_EVENT_VALID 1706u
+#define CPU_SNAPSHOT_STACK_ALIGN 1707u
+#define CPU_SNAPSHOT_EXCLUSIVE_VALID 1708u
+#define CPU_SNAPSHOT_EXCLUSIVE_WIDTH 1713u
 #define CPU_SNAPSHOT_IRQ_LEVEL 251u
 #define CPU_SNAPSHOT_IRQ_ENABLED 507u
 #define CPU_SNAPSHOT_IRQ_PENDING 763u
@@ -29,15 +29,16 @@
 #define CPU_SNAPSHOT_SYSTEM_PENDING 1579u
 #define CPU_SNAPSHOT_SYSTEM_ACTIVE 1595u
 #define CPU_SNAPSHOT_VECTOR_TABLE 247u
-#define CPU_SNAPSHOT_SCR 1615u
-#define CPU_SNAPSHOT_CCR 1619u
-#define CPU_SNAPSHOT_SHCSR 1623u
-#define CPU_SNAPSHOT_CFSR 1627u
-#define CPU_SNAPSHOT_HFSR 1631u
-#define CPU_SNAPSHOT_CPACR 1643u
-#define CPU_SNAPSHOT_FPCCR 1647u
-#define CPU_SNAPSHOT_FPCAR 1651u
-#define CPU_SNAPSHOT_FPDSCR 1655u
+#define CPU_SNAPSHOT_SCR 1616u
+#define CPU_SNAPSHOT_CCR 1620u
+#define CPU_SNAPSHOT_SHCSR 1624u
+#define CPU_SNAPSHOT_CFSR 1628u
+#define CPU_SNAPSHOT_HFSR 1632u
+#define CPU_SNAPSHOT_CPACR 1644u
+#define CPU_SNAPSHOT_DEMCR 1648u
+#define CPU_SNAPSHOT_FPCCR 1652u
+#define CPU_SNAPSHOT_FPCAR 1656u
+#define CPU_SNAPSHOT_FPDSCR 1660u
 #define CPU_SNAPSHOT_R13 52u
 #define CPU_SNAPSHOT_PRIMASK 76u
 #define CPU_SNAPSHOT_BASEPRI 80u
@@ -272,11 +273,11 @@ static void test_system_snapshot_masks_refuse(semu_test_context *context)
     static const size_t offsets[] = {
         CPU_SNAPSHOT_VECTOR_TABLE, CPU_SNAPSHOT_SCR, CPU_SNAPSHOT_CCR,
         CPU_SNAPSHOT_SHCSR, CPU_SNAPSHOT_CFSR, CPU_SNAPSHOT_HFSR,
-        CPU_SNAPSHOT_CPACR, CPU_SNAPSHOT_FPCCR, CPU_SNAPSHOT_FPCAR,
-        CPU_SNAPSHOT_FPDSCR
+        CPU_SNAPSHOT_CPACR, CPU_SNAPSHOT_DEMCR, CPU_SNAPSHOT_FPCCR,
+        CPU_SNAPSHOT_FPCAR, CPU_SNAPSHOT_FPDSCR
     };
     static const uint8_t values[] = {
-        1u, 1u, 1u, 1u, 1u, 1u, 1u, 4u, 1u, 1u
+        1u, 1u, 1u, 1u, 1u, 1u, 1u, 0x80u, 4u, 1u, 1u
     };
     semu_cpu_fixture fixture;
     semu_cpu_state state = initial_state();
@@ -294,6 +295,7 @@ static void test_system_snapshot_masks_refuse(semu_test_context *context)
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->cfsr);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->hfsr);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->cpacr);
+    SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->demcr);
     SEMU_TEST_EQ_U64(context, ARMV7M_FPCCR_CONTROL_MASK, fixture.cpu->fpccr);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->fpcar);
     SEMU_TEST_EQ_U64(context, 0u, fixture.cpu->fpdscr);

@@ -58,8 +58,16 @@ static int known_ulsan_profile(const semu_profile *profile)
     return semu_ulsan_board_accepted(profile->board, profile->id);
 }
 
+static int known_wismar_profile(const semu_profile *profile)
+{
+    return semu_wismar_board_accepted(profile->board, profile->id);
+}
+
 /* Forward declaration: map_board dispatches on the board identity. */
 static semu_status map_sapporo(semu_machine *machine, semu_error *error);
+static semu_status map_wismar_tail(semu_machine *machine,
+                                   semu_apollo4_irq_fn irq_sink,
+                                   semu_error *error);
 
 /* Board dispatch for the Apollo4 Plus variant (ticket 725): the Ulsan board
  * maps only evidence-backed memory; Sapporo wiring stays isolated. */
@@ -88,7 +96,42 @@ static semu_status map_board(semu_machine *machine, semu_error *error)
                                          machine->scheduler);
         return SEMU_OK;
     }
+    /* Wismar reset board (ticket 755, E-WIS-0001): regions only, then the
+     * shared Apollo4 SoC blocks, which fail closed on every unobserved
+     * transaction (the first one is the TIMER14 edge selector). No Sapporo
+     * device, INFO1, or Nema display attach: E-WIS-0001 names no Wismar
+     * display/sensor wiring, and the ticket forbids inferred shared wiring. */
+    if (known_wismar_profile(&machine->profile)) {
+        if (semu_wismar_board_map(machine->bus, error) != SEMU_OK) {
+            return SEMU_ERR_STATE;
+        }
+        return map_wismar_tail(machine, irq_sink, error);
+    }
     return map_sapporo(machine, error);
+}
+
+static semu_status map_wismar_tail(semu_machine *machine,
+                                   semu_apollo4_irq_fn irq_sink,
+                                   semu_error *error)
+{
+    /* The shared Apollo4 SoC block set (ctimer at 0x40008000, SystemTimer,
+     * UART1, IOM/MSPI, MRAM, GPIO, clock/power/reset controllers) is the
+     * Apollo4 address-space contract; every unobserved register refuses.
+     * The Wismar guest's first Wismar-specific transaction, the TIMER14
+     * edge-mode selector 0x00000a10 at 0x40008000+0x3c0, therefore stops
+     * the run as a device refusal (E-WIS-0001; the lane's own edge-compat
+     * wrapper is a lane workaround, not firmware behavior, and is
+     * deliberately not reproduced). */
+    machine->soc = semu_apollo4_create(machine->bus, error);
+    if (machine->soc == NULL) {
+        return error != NULL ? error->code : SEMU_ERR_STATE;
+    }
+    if (semu_apollo4_init(machine->soc, machine->scheduler, irq_sink,
+                           machine, error) != SEMU_OK) {
+        return error->code;
+    }
+    return semu_apollo4_select_profile(machine->soc, machine->profile.id,
+                                       error);
 }
 
 static semu_status map_sapporo(semu_machine *machine, semu_error *error)
@@ -451,7 +494,8 @@ semu_machine *semu_machine_create(const semu_machine_options *options,
         return NULL;
     }
     if (!known_sapporo_profile(options->profile) &&
-        !known_ulsan_profile(options->profile)) {
+        !known_ulsan_profile(options->profile) &&
+        !known_wismar_profile(options->profile)) {
         semu_error_set(error, SEMU_ERR_UNSUPPORTED, "board profile is not implemented");
         return NULL;
     }
@@ -697,6 +741,18 @@ semu_status semu_machine_reset_state_internal(semu_machine *machine,
         return error->code;
     }
     semu_cpu_reset(machine->cpu, vector_table, error);
+    /* E-WIS-0001: the Wismar NVIC implements four priority bits (writing
+     * 0xffffffff to 0xE000E400 read back 0xF0F0F0F0, twice byte-identically).
+     * The selector is re-bound after every CPU reset because the reset
+     * restores the three-bit 0xe0 default; the seam sits where both the
+     * CPU and the selected profile are in scope. The bind call validates
+     * the mask and refuses anything but 0xe0/0xf0. */
+    if (machine->stop_reason == SEMU_STOP_NONE &&
+        strcmp(machine->profile.id, "wismar-2.46.14") == 0 &&
+        !semu_cpu_bind_priority_mask(machine->cpu, UINT8_C(0xf0), error)) {
+        machine->stop_reason = SEMU_STOP_DEVICE_REFUSED;
+        return error->code;
+    }
     machine->stop_reason = semu_cpu_stop_reason(machine->cpu);
     return machine->stop_reason == SEMU_STOP_NONE ? SEMU_OK : error->code;
 }
@@ -756,6 +812,13 @@ semu_status semu_machine_input(semu_machine *machine,
         }
         semu_error_set(error, SEMU_ERR_UNSUPPORTED,
                        "ulsan board input is not wired");
+        return SEMU_ERR_UNSUPPORTED;
+    }
+    /* E-WIS-0001 names no Wismar button, crown, or touch pin, so every
+     * semantic input refuses instead of reaching the Sapporo GPIO wiring. */
+    if (known_wismar_profile(&machine->profile)) {
+        semu_error_set(error, SEMU_ERR_UNSUPPORTED,
+                       "wismar board input is not wired");
         return SEMU_ERR_UNSUPPORTED;
     }
     if (event->kind != SEMU_INPUT_BUTTON || event->code >= SEMU_ARRAY_LEN(pins)) {

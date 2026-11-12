@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #define CPU_SNAPSHOT_XPSR 64u
-#define CPU_SNAPSHOT_ITSTATE 1663u
+#define CPU_SNAPSHOT_ITSTATE 1668u
 
 static semu_status read_mutated(semu_cpu_fixture *source,
                                 semu_cpu_fixture *target,

@@ -446,6 +446,25 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
                        "Apollo4 profile selection requires soc and id");
         return SEMU_ERR_ARGUMENT;
     }
+    /* E-WIS-0001: the lane's GPIO model logged warn-not-stop writes at
+     * offsets 0x340/0x400 and beyond-the-block writes at 0x45c/0x464/0x470
+     * while the guest continued on every twice-identical trace. The Wismar
+     * profile admits those five writes as plain drops; the shared profiles
+     * keep refusing them. Offsets 0x340 stays inside the shared GPIO
+     * window; 0x400+ lands past it, so a Wismar-only gap device serves the
+     * three recorded addresses and refuses everything else. */
+    if (strcmp(profile_id, "wismar-2.46.14") == 0) {
+        semu_status status = semu_apollo4_gpio_gap_map(soc->bus, error);
+        if (status != SEMU_OK) {
+            return status;
+        }
+        semu_apollo4_gpio_enable_wismar_gap_writes(soc->gpio);
+        semu_apollo4_mcu_control_enable_wismar_warn_zero(soc->mcu_control);
+        status = semu_apollo4_dwt_gap_map(soc->bus, error);
+        if (status != SEMU_OK) {
+            return status;
+        }
+    }
     if (strcmp(profile_id, "ulsan-2.44.52") == 0 && soc->uart3 == NULL) {
         semu_status status;
         if (!soc->initialized) {

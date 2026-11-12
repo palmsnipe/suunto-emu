@@ -349,7 +349,7 @@ semu_status armv7m_nvic_read(semu_cpu *cpu, uint32_t offset, unsigned width,
             unsigned irq = offset - 0x400u + index;
             if (irq < ARMV7M_IMPLEMENTED_IRQ_COUNT)
                 *value |= (uint32_t)(cpu->irq_priority[irq] &
-                                     ARMV7M_NVIC_PRIORITY_MASK) <<
+                                     armv7m_priority_mask(cpu)) <<
                           (index * 8u);
         }
         return SEMU_OK;
@@ -379,7 +379,7 @@ semu_status armv7m_nvic_write(semu_cpu *cpu, uint32_t offset, unsigned width,
             unsigned irq = offset - 0x400u + index;
             if (irq < ARMV7M_IMPLEMENTED_IRQ_COUNT)
                 cpu->irq_priority[irq] = (uint8_t)(value >> (index * 8u)) &
-                                         ARMV7M_NVIC_PRIORITY_MASK;
+                                         armv7m_priority_mask(cpu);
         }
         return SEMU_OK;
     }

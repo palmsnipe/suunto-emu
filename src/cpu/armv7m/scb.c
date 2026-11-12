@@ -17,6 +17,12 @@
 #define SCB_MMFAR 0xd34u
 #define SCB_BFAR 0xd38u
 #define SCB_CPACR 0xd88u
+/* DEMCR (E-WIS-0001 lane behavior): the Wismar startup writes the debug
+ * exception and monitor control register (first observed store enables
+ * TRCENA for the DWT cycle counter). Stored, mask-validated, no debug
+ * semantics: no monitor/VCATCH fault is modeled because no lane trace
+ * shows one. */
+#define SCB_DEMCR 0xdfcu
 #define SCB_FPCCR 0xf34u
 #define SCB_FPCAR 0xf38u
 #define SCB_FPDSCR 0xf3cu
@@ -123,7 +129,7 @@ static void write_shpr(semu_cpu *cpu, uint32_t offset, unsigned width,
         if (system_priority_byte(address, &exception)) {
             cpu->system_priority[exception] =
                 (uint8_t)(value >> (byte * 8u)) &
-                ARMV7M_NVIC_PRIORITY_MASK;
+                armv7m_priority_mask(cpu);
         }
     }
 }
@@ -180,6 +186,7 @@ int armv7m_scb_offset(uint32_t offset)
     case SCB_CPUID: case SCB_ICSR: case SCB_VTOR: case SCB_AIRCR:
     case SCB_SCR: case SCB_CCR: case SCB_SHCSR: case SCB_CFSR:
     case SCB_HFSR: case SCB_MMFAR: case SCB_BFAR: case SCB_CPACR:
+    case SCB_DEMCR:
     case SCB_FPCCR: case SCB_FPCAR: case SCB_FPDSCR:
         return 1;
     default:
@@ -212,6 +219,7 @@ semu_status armv7m_scb_read(semu_cpu *cpu, uint32_t offset, unsigned width,
         case SCB_BFAR: raw = (cpu->cfsr & (1u << 15)) != 0u ?
                                   cpu->bfar : 0u; break;
         case SCB_CPACR: raw = cpu->cpacr; break;
+        case SCB_DEMCR: raw = cpu->demcr; break;
         case SCB_FPCCR: raw = cpu->fpccr & ARMV7M_FPCCR_READ_MASK; break;
         case SCB_FPCAR: raw = cpu->fpcar & FPCAR_ADDRESS_MASK; break;
         case SCB_FPDSCR: raw = cpu->fpdscr & FPDSCR_MODEL_MASK; break;
@@ -323,6 +331,12 @@ semu_status armv7m_scb_write(semu_cpu *cpu, uint32_t offset, unsigned width,
     case SCB_CPACR:
         cpu->cpacr = (cpu->cpacr & ~mask) | (bits & mask);
         cpu->cpacr &= 0x00f00000u;
+        return SEMU_OK;
+    case SCB_DEMCR:
+        /* E-WIS-0001: stored raw; no debug-monitor semantics are modeled
+         * (no lane trace shows a monitor or VCATCH fault), so only the
+         * stored value is retained for readback. */
+        cpu->demcr = (cpu->demcr & ~mask) | (bits & mask);
         return SEMU_OK;
     case SCB_FPCCR:
         cpu->fpccr = (cpu->fpccr & ~(mask & ARMV7M_FPCCR_CONTROL_MASK)) |

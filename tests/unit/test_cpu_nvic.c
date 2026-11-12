@@ -450,8 +450,8 @@ static void test_prigroup_snapshot_range_refusal(semu_test_context *context)
     semu_snapshot_writer_init(&writer);
     SEMU_TEST_EQ_U64(context, SEMU_OK,
         semu_cpu_snapshot_write(fixture.cpu, &writer, &fixture.error));
-    SEMU_TEST_ASSERT(context, writer.size > 1614u);
-    writer.data[1614u] = 8u; /* pending count + exception depth */
+    SEMU_TEST_ASSERT(context, writer.size > 1615u);
+    writer.data[1615u] = 8u; /* pending count + exception depth + mask */
     semu_snapshot_reader_init(&reader, writer.data, writer.size);
     SEMU_TEST_EQ_U64(context, SEMU_ERR_FORMAT,
         semu_cpu_snapshot_read(fixture.cpu, &reader, &fixture.error));

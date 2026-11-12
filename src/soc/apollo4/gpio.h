@@ -50,6 +50,20 @@ semu_status semu_apollo4_gpio_set_input(semu_apollo4_gpio *gpio,
                                         semu_error *error);
 int semu_apollo4_gpio_get_input(const semu_apollo4_gpio *gpio, unsigned pin);
 void semu_apollo4_gpio_enable_race_s_inputs(semu_apollo4_gpio *gpio);
+/* Wismar warn-not-stop gap writes (ticket 755, E-WIS-0001): inside the
+ * shared GPIO window the profile accepts plain stores at offsets 0x340 and
+ * 0x400; the addresses past the shared window are served by the separate
+ * gap device mapped by semu_apollo4_gpio_gap_map. Reads of those offsets
+ * still refuse, and the shared profiles are unchanged. */
+void semu_apollo4_gpio_enable_wismar_gap_writes(semu_apollo4_gpio *gpio);
+/* Maps the Wismar-only gap block at 0x40010400 (0x80 wide): plain 32-bit
+ * stores at offsets 0x5c/0x64/0x70 (addresses 0x4001045c/0x40010464/
+ * 0x40010470), everything else refuses (E-WIS-0001). */
+semu_status semu_apollo4_gpio_gap_map(semu_bus *bus, semu_error *error);
+/* Maps the Wismar-only DWT gap block at 0xE001E000 (0x1000 wide): plain
+ * 32-bit warn+0 accesses (reads 0, writes dropped), everything narrower
+ * refuses (E-WIS-0001 lane continuation; shared profiles never map it). */
+semu_status semu_apollo4_dwt_gap_map(semu_bus *bus, semu_error *error);
 int semu_apollo4_gpio_falling_input_armed(const semu_apollo4_gpio *gpio, unsigned pin);
 semu_status semu_apollo4_gpio_configure_pin(
     semu_apollo4_gpio *gpio, unsigned pin,

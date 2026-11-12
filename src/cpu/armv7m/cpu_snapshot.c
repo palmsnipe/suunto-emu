@@ -86,7 +86,7 @@ static int valid_interrupt_state(const semu_cpu *cpu)
             !valid_binary(cpu->irq_enabled[index]) ||
             !valid_binary(cpu->irq_pending[index]) ||
             !valid_binary(cpu->irq_active[index]) ||
-            (cpu->irq_priority[index] & ~ARMV7M_NVIC_PRIORITY_MASK) != 0u ||
+            (cpu->irq_priority[index] & ~armv7m_priority_mask(cpu)) != 0u ||
             source != expected) {
             return 0;
         }
@@ -95,7 +95,7 @@ static int valid_interrupt_state(const semu_cpu *cpu)
         if (!valid_binary(cpu->system_pending[index]) ||
             !valid_binary(cpu->system_active[index]) ||
             (cpu->system_priority[index] &
-             (uint8_t)~ARMV7M_NVIC_PRIORITY_MASK) != 0u) {
+             (uint8_t)~armv7m_priority_mask(cpu)) != 0u) {
             return 0;
         }
     }
@@ -128,6 +128,7 @@ static int valid_system_state(const semu_cpu *cpu)
            (cpu->cfsr & ~cfsr_mask) == 0u &&
            (cpu->hfsr & ~(1u << 30)) == 0u &&
            (cpu->cpacr & ~0x00f00000u) == 0u &&
+           (cpu->demcr & ~UINT32_C(0x0101007f)) == 0u &&
            (cpu->fpccr & ~ARMV7M_FPCCR_READ_MASK) == 0u &&
            (cpu->fpcar & ~0xfffffff8u) == 0u &&
            (cpu->fpdscr & ~0x07c00000u) == 0u;
@@ -236,6 +237,7 @@ semu_status semu_cpu_snapshot_write(const semu_cpu *cpu,
     W(semu_snapshot_writer_u16(writer, cpu->pending_source_count, error));
     W(semu_snapshot_writer_u8(writer, cpu->exception_depth, error));
     W(semu_snapshot_writer_u8(writer, cpu->prigroup, error));
+    W(semu_snapshot_writer_u8(writer, cpu->priority_mask, error));
     W(semu_snapshot_writer_u32(writer, cpu->scr, error));
     W(semu_snapshot_writer_u32(writer, cpu->ccr, error));
     W(semu_snapshot_writer_u32(writer, cpu->shcsr, error));
@@ -244,6 +246,7 @@ semu_status semu_cpu_snapshot_write(const semu_cpu *cpu,
     W(semu_snapshot_writer_u32(writer, cpu->mmfar, error));
     W(semu_snapshot_writer_u32(writer, cpu->bfar, error));
     W(semu_snapshot_writer_u32(writer, cpu->cpacr, error));
+    W(semu_snapshot_writer_u32(writer, cpu->demcr, error));
     W(semu_snapshot_writer_u32(writer, cpu->fpccr, error));
     W(semu_snapshot_writer_u32(writer, cpu->fpcar, error));
     W(semu_snapshot_writer_u32(writer, cpu->fpdscr, error));
@@ -324,9 +327,16 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u16(reader, &candidate.pending_source_count, error));
     R(semu_snapshot_reader_u8(reader, &candidate.exception_depth, error));
     R(semu_snapshot_reader_u8(reader, &candidate.prigroup, error));
+    R(semu_snapshot_reader_u8(reader, &candidate.priority_mask, error));
     if (candidate.prigroup > 7u) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid CPU priority grouping");
+        return SEMU_ERR_FORMAT;
+    }
+    if (candidate.priority_mask != ARMV7M_NVIC_PRIORITY_MASK &&
+        candidate.priority_mask != ARMV7M_NVIC_PRIORITY_MASK_WIDE) {
+        semu_error_set(error, SEMU_ERR_FORMAT,
+                       "invalid CPU priority mask");
         return SEMU_ERR_FORMAT;
     }
     R(semu_snapshot_reader_u32(reader, &candidate.scr, error));
@@ -337,6 +347,7 @@ semu_status semu_cpu_snapshot_read(semu_cpu *cpu,
     R(semu_snapshot_reader_u32(reader, &candidate.mmfar, error));
     R(semu_snapshot_reader_u32(reader, &candidate.bfar, error));
     R(semu_snapshot_reader_u32(reader, &candidate.cpacr, error));
+    R(semu_snapshot_reader_u32(reader, &candidate.demcr, error));
     R(semu_snapshot_reader_u32(reader, &candidate.fpccr, error));
     R(semu_snapshot_reader_u32(reader, &candidate.fpcar, error));
     R(semu_snapshot_reader_u32(reader, &candidate.fpdscr, error));

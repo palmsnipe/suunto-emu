@@ -9,6 +9,9 @@ static int privileged(const semu_cpu *cpu)
 static int valid_special(unsigned special)
 {
     return special <= 3u || (special >= 5u && special <= 9u) ||
+           /* v8-M MSPLIM/PSPLIM (E-WIS-0001: the Wismar entry writes
+            * both, and the lane oracle accepts the writes). */
+           special == 10u || special == 11u ||
            (special >= 16u && special <= 20u);
 }
 
@@ -45,6 +48,8 @@ static uint32_t mrs_value(const semu_cpu *cpu, unsigned special)
     switch (special) {
     case 8u: return cpu->state.msp & ~3u;
     case 9u: return cpu->state.psp & ~3u;
+    case 10u: return cpu->state.msplim;
+    case 11u: return cpu->state.psplim;
     case 16u: return cpu->state.primask & 1u;
     case 17u:
     case 18u: return cpu->state.basepri & 0xffu;
@@ -127,6 +132,17 @@ static semu_status execute_msr(semu_cpu *cpu, uint16_t first,
     case 8u:
     case 9u:
         write_stack(cpu, special, value);
+        return SEMU_OK;
+    case 10u:
+        /* v8-M MSPLIM (E-WIS-0001: observed with the SRAM-alias base
+         * value at the Wismar entry; the lane oracle accepts the write).
+         * Stored unmasked like the lane's accepted plain value; no
+         * limit-fault semantics are modeled because no lane trace shows
+         * one. */
+        cpu->state.msplim = value & ~3u;
+        return SEMU_OK;
+    case 11u:
+        cpu->state.psplim = value & ~3u;
         return SEMU_OK;
     case 16u:
         cpu->state.primask = value & 1u;

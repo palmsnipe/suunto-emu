@@ -7,8 +7,8 @@
 #include <stdint.h>
 
 #define CPU_SNAPSHOT_WAITING 232u
-#define CPU_SNAPSHOT_SLEEP_MODE 1665u
-#define CPU_SNAPSHOT_SLEEP_WAKE 1666u
+#define CPU_SNAPSHOT_SLEEP_MODE 1670u
+#define CPU_SNAPSHOT_SLEEP_WAKE 1671u
 
 static semu_status refuse_byte(semu_cpu_fixture *source,
                                semu_cpu_fixture *target, size_t offset,

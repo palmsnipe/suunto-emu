@@ -19,6 +19,7 @@
 #include "../devices/sapporo_nema_gpu.h"
 #include "../display/nema_backend.h"
 #include "ulsan_board.h"
+#include "wismar_board.h"
 
 struct semu_machine {
     semu_bus *bus;

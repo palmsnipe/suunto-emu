@@ -26,6 +26,7 @@
 #define ARMV7M_SLEEP_WFI 1u
 #define ARMV7M_SLEEP_WFE 2u
 #define ARMV7M_NVIC_PRIORITY_MASK 0xe0u
+#define ARMV7M_NVIC_PRIORITY_MASK_WIDE 0xf0u
 #define ARMV7M_FPCCR_LSPACT (1u << 0)
 #define ARMV7M_FPCCR_USER (1u << 1)
 #define ARMV7M_FPCCR_THREAD (1u << 3)
@@ -84,6 +85,10 @@ struct semu_cpu {
     uint16_t pending_source_count;
     uint8_t exception_depth;
     uint8_t prigroup;
+    /* NVIC implemented-priority width selector: 0xe0 (three bits, the
+     * reset default) or 0xf0 (four bits). Written only by the profile
+     * seam before the first run; reset restores 0xe0. */
+    uint8_t priority_mask;
     uint32_t scr;
     uint32_t ccr;
     uint32_t shcsr;
@@ -92,6 +97,7 @@ struct semu_cpu {
     uint32_t mmfar;
     uint32_t bfar;
     uint32_t cpacr;
+    uint32_t demcr;
     uint32_t fpccr;
     uint32_t fpcar;
     uint32_t fpdscr;
@@ -151,6 +157,17 @@ semu_status semu_cpu_snapshot_event_links_match(
  * previously regular functions in support.c; they are moved here because
  * they are called from many translation units on the inner loop.
  */
+
+/* Effective implemented-priority mask for IRQ/system priority fields:
+ * the Apollo4-class parts this emulator serves expose three (0xe0) or
+ * four (0xf0) priority bits (E-WIS-0001 directly observes the 0xf0
+ * readback on the Wismar part). The selector is validated at bind time. */
+static inline uint8_t armv7m_priority_mask(const semu_cpu *cpu)
+{
+    return cpu->priority_mask == ARMV7M_NVIC_PRIORITY_MASK_WIDE
+               ? ARMV7M_NVIC_PRIORITY_MASK_WIDE
+               : ARMV7M_NVIC_PRIORITY_MASK;
+}
 
 static inline uint32_t armv7m_reg(const semu_cpu *cpu, unsigned reg,
                                   uint32_t pc)
