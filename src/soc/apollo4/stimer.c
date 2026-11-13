@@ -5,6 +5,7 @@ enum {
     STIMER_CONFIGURATION = 0x00u,
     STIMER_COUNTER = 0x04u,
     STIMER_COMPARE_A = 0x20u,
+    STIMER_COMPARE_B = 0x24u,
     STIMER_COMPARE_C = 0x28u,
     STIMER_NVRAM0 = 0x50u,
     STIMER_NVRAM3 = 0x5cu,
@@ -14,10 +15,16 @@ enum {
 };
 #define STIMER_RESET_CONFIGURATION UINT32_C(0x80000000)
 #define STIMER_CONFIGURATION_MASK UINT32_C(0x80000503)
+/* E-WIS-0009: the Wismar CONFIG law keeps bits {0,1,8,9} (0x303) plus
+ * the reset transient; CMPR_C's bit 10 is not evidenced for Wismar. */
+#define STIMER_CONFIGURATION_MASK_WISMAR_TICK UINT32_C(0x80000303)
 #define STIMER_COMPARE_ENABLE_A UINT32_C(1u << 8)
+#define STIMER_COMPARE_ENABLE_B UINT32_C(1u << 9)
 #define STIMER_COMPARE_ENABLE_C UINT32_C(1u << 10)
 #define STIMER_INTERRUPT_ENABLE_MASK UINT32_C(0x101)
+#define STIMER_INTERRUPT_ENABLE_MASK_WISMAR_TICK UINT32_C(0x3)
 #define STIMER_IRQ_MASK UINT32_C(0x105)
+#define STIMER_IRQ_MASK_WISMAR_TICK UINT32_C(0x3)
 #define STIMER_FREQUENCY_HZ UINT64_C(32768)
 #define STIMER_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
 #define STIMER_COMPARE_WRITE_LATENCY UINT32_C(3)
@@ -73,18 +80,38 @@ static unsigned compare_number(uint32_t offset)
 {
     return offset == STIMER_COMPARE_A ? 0u : 1u;
 }
-static uint32_t compare_enable_bit(unsigned number)
+/* E-WIS-0009: under the Wismar tick law the second compare unit is
+ * CMPR1 (+0x24); the shared class keeps CMPR_C (+0x28). */
+static int compare_offset(const semu_apollo4_stimer *stimer, uint32_t offset)
 {
+    if (stimer->wismar_tick_release)
+        return offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_B;
+    return offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_C;
+}
+static uint32_t compare_enable_bit(const semu_apollo4_stimer *stimer,
+                                   unsigned number)
+{
+    if (stimer->wismar_tick_release && number != 0u)
+        return STIMER_COMPARE_ENABLE_B;
     return number == 0u ? STIMER_COMPARE_ENABLE_A : STIMER_COMPARE_ENABLE_C;
 }
-static unsigned compare_irq(unsigned number)
+static unsigned compare_irq(const semu_apollo4_stimer *stimer,
+                            unsigned number)
 {
+    if (stimer->wismar_tick_release && number != 0u)
+        return SEMU_APOLLO4_STIMER_IRQ_B;
     return number == 0u ? SEMU_APOLLO4_STIMER_IRQ_A :
                           SEMU_APOLLO4_STIMER_IRQ_C;
 }
+static uint32_t compare_pending_bit(const semu_apollo4_stimer *stimer,
+                                    unsigned number)
+{
+    if (number == 0u) return UINT32_C(1);
+    return stimer->wismar_tick_release ? UINT32_C(1u << 1) : UINT32_C(1u << 2);
+}
 static void set_irq(semu_apollo4_stimer *stimer, unsigned number, int level)
 {
-    uint32_t mask = UINT32_C(1) << (number == 0u ? 0u : 2u);
+    uint32_t mask = compare_pending_bit(stimer, number);
     int old_level = (stimer->pending & mask) != 0u;
     if (level != 0) {
         stimer->pending |= mask;
@@ -92,7 +119,7 @@ static void set_irq(semu_apollo4_stimer *stimer, unsigned number, int level)
         stimer->pending &= ~mask;
     }
     if (old_level != (level != 0) && stimer->irq != NULL) {
-        stimer->irq(stimer->irq_context, compare_irq(number), level != 0);
+        stimer->irq(stimer->irq_context, compare_irq(stimer, number), level != 0);
     }
 }
 static void cancel_compare(semu_apollo4_stimer *stimer, unsigned number)
@@ -117,7 +144,7 @@ void semu_apollo4_stimer_event(void *context, uint64_t now)
     compare->event = 0u;
     current = counter_now(stimer);
     if (compare->enabled == 0u ||
-        (stimer->configuration & compare_enable_bit(number)) == 0u ||
+        (stimer->configuration & compare_enable_bit(stimer, number)) == 0u ||
         stimer->interrupt_enable == 0u) {
         return;
     }
@@ -139,7 +166,7 @@ static semu_status schedule_compare(semu_apollo4_stimer *stimer,
     semu_status status;
     cancel_compare(stimer, number);
     if (compare->enabled == 0u ||
-        (stimer->configuration & compare_enable_bit(number)) == 0u ||
+        (stimer->configuration & compare_enable_bit(stimer, number)) == 0u ||
         stimer->interrupt_enable == 0u) {
         return SEMU_OK;
     }
@@ -230,7 +257,7 @@ semu_status semu_apollo4_stimer_read(void *context, uint32_t offset,
     }
     if (offset == STIMER_CONFIGURATION) *value = stimer->configuration;
     else if (offset == STIMER_COUNTER) *value = counter_now(stimer);
-    else if (offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_C)
+    else if (compare_offset(stimer, offset))
         *value = stimer->compare[compare_number(offset)].deadline;
     else if (offset >= STIMER_NVRAM0 && offset <= STIMER_NVRAM3)
         *value = stimer->nvram[(offset - STIMER_NVRAM0) / 4u];
@@ -270,35 +297,54 @@ semu_status semu_apollo4_stimer_write(void *context, uint32_t offset,
             if (status != SEMU_OK) return status;
         }
     } else if (offset == STIMER_INTERRUPT_ENABLE) {
-        if ((value & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u &&
-            !stimer->wismar_plain_config)
+        if (stimer->wismar_tick_release) {
+            /* E-WIS-0009/E-WIS-0006: the tickless driver RMWs INTEN with
+             * per-channel bits {0,1} at tick setup; unevidenced bits
+             * (the shared 0x100/0x1 masks and everything else) are
+             * dropped per the lane class law. */
+            stimer->interrupt_enable = value &
+                                       STIMER_INTERRUPT_ENABLE_MASK_WISMAR_TICK;
+            for (number = 0u; number < 2u; ++number) {
+                status = schedule_compare(stimer, number, error);
+                if (status != SEMU_OK) return status;
+            }
+        } else if ((value & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u &&
+                   !stimer->wismar_plain_config) {
             return refuse(offset, error, "interrupt control not evidenced");
-        if (stimer->wismar_plain_config) {
+        } else if (stimer->wismar_plain_config) {
             /* E-WIS-0002 (E-ULS-0046 class law): the lane drops STIMER
              * writes with unevidenced bits; no enable side effects are
              * modeled for them. */
             semu_error_clear(error);
             return SEMU_OK;
-        }
-        stimer->interrupt_enable = value;
-        for (number = 0u; number < 2u; ++number) {
-            status = schedule_compare(stimer, number, error);
-            if (status != SEMU_OK) return status;
+        } else {
+            stimer->interrupt_enable = value;
+            for (number = 0u; number < 2u; ++number) {
+                status = schedule_compare(stimer, number, error);
+                if (status != SEMU_OK) return status;
+            }
         }
     } else if (offset == STIMER_INTERRUPT_CLEAR) {
-        if ((value & ~STIMER_IRQ_MASK) != 0u &&
-            !stimer->wismar_plain_config)
+        if (stimer->wismar_tick_release) {
+            /* E-WIS-0009: the park wake sweep and the IRQ 32/33 handlers
+             * deassert pulses by writing INTCLR bits {0,1}; other bits
+             * keep the lane class drop. */
+            if ((value & 1u) != 0u) set_irq(stimer, 0u, 0);
+            if ((value & 2u) != 0u) set_irq(stimer, 1u, 0);
+        } else if ((value & ~STIMER_IRQ_MASK) != 0u &&
+                   !stimer->wismar_plain_config) {
             return refuse(offset, error, "only IRQA and IRQC are evidenced");
-        if (stimer->wismar_plain_config) {
+        } else if (stimer->wismar_plain_config) {
             /* E-WIS-0002 (E-ULS-0046 class law): the lane drops STIMER
              * writes; no clear side effects are modeled for the
              * unevidenced value bits. */
             semu_error_clear(error);
             return SEMU_OK;
+        } else {
+            if ((value & 1u) != 0u) set_irq(stimer, 0u, 0);
+            if ((value & 4u) != 0u) set_irq(stimer, 1u, 0);
         }
-        if ((value & 1u) != 0u) set_irq(stimer, 0u, 0);
-        if ((value & 4u) != 0u) set_irq(stimer, 1u, 0);
-    } else if (offset == STIMER_COMPARE_A || offset == STIMER_COMPARE_C) {
+    } else if (compare_offset(stimer, offset)) {
         number = compare_number(offset);
         /*
          * Apollo advances the main counter by three ticks while committing a
@@ -394,16 +440,25 @@ semu_status semu_apollo4_stimer_snapshot_read(
             (compare->event_valid != 0u) != (compare->event != 0u) ||
             (compare->event_valid != 0u &&
              (compare->enabled == 0u ||
-              (candidate.configuration & compare_enable_bit((unsigned)index)) == 0u ||
+              (candidate.configuration &
+               compare_enable_bit(stimer, (unsigned)index)) == 0u ||
               candidate.interrupt_enable == 0u))) {
             semu_error_set(error, SEMU_ERR_FORMAT,
                            "invalid STIMER snapshot event state");
             return SEMU_ERR_FORMAT;
         }
     }
-    if ((candidate.configuration & ~STIMER_CONFIGURATION_MASK) != 0u ||
-        (candidate.interrupt_enable & ~STIMER_INTERRUPT_ENABLE_MASK) != 0u ||
-        (candidate.pending & ~UINT32_C(0x5)) != 0u) {
+    if ((candidate.configuration &
+         ~(stimer->wismar_tick_release ?
+           STIMER_CONFIGURATION_MASK_WISMAR_TICK :
+           STIMER_CONFIGURATION_MASK)) != 0u ||
+        (candidate.interrupt_enable &
+         ~(stimer->wismar_tick_release ?
+           STIMER_INTERRUPT_ENABLE_MASK_WISMAR_TICK :
+           STIMER_INTERRUPT_ENABLE_MASK)) != 0u ||
+        (candidate.pending &
+         ~(stimer->wismar_tick_release ?
+           STIMER_IRQ_MASK_WISMAR_TICK : UINT32_C(0x5))) != 0u) {
         semu_error_set(error, SEMU_ERR_FORMAT,
                        "invalid STIMER snapshot control state");
         return SEMU_ERR_FORMAT;
@@ -431,4 +486,10 @@ void semu_apollo4_stimer_enable_wismar_plain_config(
     semu_apollo4_stimer *stimer)
 {
     if (stimer != NULL) stimer->wismar_plain_config = 1;
+}
+
+void semu_apollo4_stimer_enable_wismar_tick_release(
+    semu_apollo4_stimer *stimer)
+{
+    if (stimer != NULL) stimer->wismar_tick_release = 1;
 }

@@ -6,6 +6,42 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 765 — the STIMER tick release lands: the Wismar park is gone, the boot runs its FreeRTOS scheduler, and the next frontier is MSPI2 +0xa8 (E-WIS-0009) — 2026-11-12
+
+The E-WIS-0006 parking-point gate is implemented: a Wismar-gated
+`semu_apollo4_stimer_enable_wismar_tick_release` flag re-binds the second
+STIMER compare unit to CMPR1 (`+0x24`, IRQ 33, INTSTAT bit 1, CFG bit 9 —
+replacing the shared CMPR_C `+0x28`/IRQ 34 law only under the flag),
+lets INTEN stores {0,1} arm the engine, and gives INTCLR bits {0,1} the
+pulse-deassert semantics; the footer's three support censuses
+(`24fe066c…`, `6aef416f…`, `49fbae7a…`, each twice-identical) pin the
+firmware's tickless law (per-channel INTEN/ISER/IPR arming, the
+`c0+delta−c1−3` latency pre-compensation that keeps the in-tree
+relative compare law exact, and the handler deassert path). The pinned
+boot moves from the `0x51bc82` WFI park to a real scheduler: 18.1M
+instructions of init work per 22.8 ms cycle, ending at the first
+fail-closed MSPI2 access (`0x400620a8`, flash-driver RMW at pc
+`0x005a7784`) whose hardfault handler self-resets via AIRCR — four
+deterministic reset requests per window, budget stop
+`stop=budget pc=0x0052ac48 instructions=80000000
+virtual_time_ns=98794776`, twice byte-identical (cold CLI pair; the
+in-process reset lands 12 bytes later with identical reason and
+counts). The DSIAP5 sender census (`49fbae7a…`) bounds the display path:
+the deterministic first DSIAP5 message is the splash CONTROL OPEN
+(`msg[0]=0, msg[4]=0` from the earlyBootSplash chain), expected once the
+freed boot passes the MSPI2 gap — no DC access occurs in this window.
+Verification: new `tests/devices/test_wismar_stimer_tick.c` (3 cases);
+`TEST_FILTER=stimer/apollo4/ulsan/wismar` all green (the Sapporo
+`+0x24` refusal and compare-latency pins unchanged); the Wismar era
+script PASS with the new stop; `make check` 1,123 PASS; `make sanitize`
+0 FAIL. Integrator notices: the regenerated private
+`tests/private/ulsan-2.44.52/firmware.semu` (five components vs the
+profile's three) now fails `semu_manifest_validate` locally before any
+device code runs — the Ulsan 2.44.52 era guard needs a re-pin; and the
+next Wismar instance is the MSPI2 `+0xa8` gap (new lane/RE evidence
+required — the dictionary law `+0x80..0x9c` must not be widened by
+guessing).
+
 ## Ticket 765 — three offline derivations open the Wismar display frontier: the parking-point gate, the full DCS init sequence, and the frame/geometry law (E-WIS-0006..0008) — 2026-11-12
 
 Three parallel owner-authorized offline-RE derivations (ticket 765, the

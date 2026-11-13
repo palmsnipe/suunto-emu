@@ -28,6 +28,11 @@ struct semu_apollo4_stimer {
      * lane class): CONFIG is a plain store with reset 0x80000000; the
      * Wismar guest writes value bits outside the shared evidenced mask. */
     int wismar_plain_config;
+    /* Wismar tickless-idle tick law (ticket 765, E-WIS-0009): the second
+     * compare unit binds to CMPR1 (+0x24, IRQ 33, INTSTAT/INTEN bit 1,
+     * CONFIG enable bit 9); INTEN stores bits {0,1} and arm compares;
+     * INTCLR bits {0,1} deassert the pulse lines. */
+    int wismar_tick_release;
 };
 
 #endif

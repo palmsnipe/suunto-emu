@@ -33,13 +33,17 @@ run_boot()
 run_boot "$work/first"
 run_boot "$work/second"
 cmp "$work/first" "$work/second"
-stop='stop=budget pc=0x0051bc82 instructions=15128956 virtual_time_ns=8000000000'
+stop='stop=budget pc=0x0052ac48 instructions=80000000 virtual_time_ns=98794776'
 tail -1 "$work/first" >"$work/stop"
 printf '%s\n' "$stop" | cmp - "$work/stop"
-# Fault-free window: no refusals, no guest AIRCR resets, no warnings —
-# matching the lane 1 s BKPT probe (E-WIS-0001, terminal pc 0x51bc82,
-# cfsr/hfsr 0).
-test "$(grep -c 'machine-reset-request' "$work/first")" -eq 0
-test "$(grep -c 'level=warning' "$work/first")" -eq 0
+# E-WIS-0009 bounded stop: the STIMER tick release frees the tickless
+# park; the guest boots into its scheduler, reaches the first unsupported
+# MSPI2 +0xa8 access (0x400620a8, E-WIS-0009), and its fault handler
+# self-resets through AIRCR exactly four times in the 80M-instruction
+# window before the budget stop. The deterministic reset loop is the
+# pinned frontier; zero-warning fault-freedom returns when the MSPI2
+# gap closes with new evidence.
+test "$(grep -c 'machine-reset-request' "$work/first")" -eq 4
+test "$(grep -c 'level=warning' "$work/first")" -eq 4
 cat "$work/first"
 echo 'PASS wismar-2.46.14 standalone reset and refusal checkpoint'

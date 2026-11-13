@@ -30,6 +30,14 @@ void semu_apollo4_stimer_reset(void *context);
  * evidenced-bits mask. */
 void semu_apollo4_stimer_enable_wismar_plain_config(
     semu_apollo4_stimer *stimer);
+/* Wismar tickless-idle tick law (ticket 765, E-WIS-0009/E-WIS-0006): the
+ * guest arms CMPR0 (+0x20) and CMPR1 (+0x24) every park cycle, stores
+ * INTEN bits {0,1} at tick setup, and deasserts pulses through INTCLR
+ * bits {0,1}; compare channel N maps to IRQ 32+N, INTSTAT bit N, and
+ * CONFIG enable bit 8+N. Under the flag the second compare unit binds
+ * to CMPR1 (+0x24, IRQ 33) instead of CMPR_C (+0x28, IRQ 34). */
+void semu_apollo4_stimer_enable_wismar_tick_release(
+    semu_apollo4_stimer *stimer);
 semu_status semu_apollo4_stimer_read(void *context, uint32_t offset,
                                      unsigned width, uint32_t *value,
                                      semu_error *error);

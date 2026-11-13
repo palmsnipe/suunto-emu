@@ -21764,3 +21764,114 @@ no Wismar lane DC transaction ever observed; the first DC access remains
 the designated evidence-bounded frontier, and the lane-gated boundary
 should decide which cold paths a first module must answer (the blend trios
 and `+0x1a4` may be cold in the parking era). No production change.
+
+## E-WIS-0009 — Wismar instance 4: the STIMER CMPR0/CMPR1 tick release frees the tickless park; the boot advances 18.1M instructions to the first unsupported MSPI2 +0xa8 access (ticket 765)
+
+2026-11-12; ticket 765 instance, implementing the E-WIS-0006 parking-point
+gate law under the offline-RE class (2026-09-23 owner decision). The
+supporting derivations were produced by three parallel research passes,
+each with a twice-run deterministic census: the tickless STIMER
+transaction census (script `/tmp/wismar-stimer-re/stimer_census.py`, runs
+`stimer-census-final-1.txt` = `-2.txt`, both SHA-256
+`24fe06c65878b8ea2a95065a57e97ad86eea851d2e64ab707bdb95f08be7fc49`), the
+moving-pin/guard census (`/tmp/wismar-golden-census/census_pins.sh`;
+`census-run-1.txt` = `-2.txt`, both
+`6aef416f84c89d8ab01f80d339c89a848db2f75aa93a73f61550e8ef55f9a074`), and
+the DSIAP5 sender census (`/tmp/wismar-dsiap5-sender-re/
+census_dsiap5_sender.py`; `census-run-1.txt` = `-2.txt`, both
+`49fbae7a40c23aaf40066a8f8c5ea51a0b5b7f1cd3bc5d74ae52366df733ac22`), all
+outside Git; the load-bearing sites were re-verified against the
+surviving disassembly and the emulator at integration time.
+
+**The implemented law (Wismar-gated, E-ULS-0035 precedent class).** The
+tickless idle (`0x4faa06`) re-arms CMPR0 (`+0x20`) and CMPR1 (`+0x24`)
+every park cycle with `value = c0 + delta − c1 − 3` (the firmware
+pre-subtracts the shared three-tick compare-commit latency, so the
+in-tree relative compare law applies unchanged), double/triple-reads
+COUNTER `+0x04` for stability, and its boot-time tick setup
+(`0x4fa934`, `0x52ab30(0,15,31)` / `0x52ab30(1,15,32)`) issues the
+image's only INTEN stores — `INTEN |= 1<<chan` at `+0x100` — plus NVIC
+ISER1 `1<<chan`, IPR `0xf0`, and CFG `0x303` (compare-enable bits 8/9).
+Channel N maps to IRQ `32+N` (32/33), INTSTAT bit N, INTEN bit N; the
+wake sweep and handlers (`0x4fa9d8`/`0x4fa9e8` → `0x52ab96`) deassert
+through INTCLR `1<<N` at `+0x108`. In-tree
+(`src/soc/apollo4/stimer.{c,h,_internal.h}`, enable seam
+`semu_apollo4_stimer_enable_wismar_tick_release` in the
+`wismar-2.46.14` profile block of `src/soc/apollo4/apollo4.c`): the
+second compare unit re-binds from CMPR_C (`+0x28`, IRQ 34, INTSTAT bit
+2, CFG bit 10 — the shared/Sapporo law, now still guarded by
+`tests/devices/test_apollo4_stimer.c`) to CMPR1 (`+0x24`, IRQ 33,
+INTSTAT bit 1, CFG bit 9) when the flag rides; INTEN stores
+`value & 3` and arms (the E-WIS-0002 drop is replaced under the flag;
+unevidenced bits keep the lane-class drop); INTCLR bits {0,1} deassert
+the pulse lines; snapshot validation accepts CFG `0x80000303`/INTEN
+`{0,1}`/pending `{0,1}` under the flag. Everything else — including
+`+0x24` on the shared profile (refusal preserved) and `+0x28` under the
+flag (lane-class drop) — stays fail-closed.
+
+**Bounded stop (twice identical, cold CLI pair; E-WIS-0004 replaced in
+scope).** With the release, the park is gone: the guest now boots into
+its FreeRTOS scheduler and runs 18,122,043 instructions of real init
+work in 22.8 ms of virtual time — the tick advance
+(`0x4faac4..0x4faae6`, udiv by 32 STIMER ticks per RTOS tick, tick loop
+`0x4f939c` under BASEPRI `0x30`, PendSV pend `0x10000000`) and the freed
+task graph execute — until the next fail-closed frontier: **the first
+unsupported MSPI2 access at `0x400620a8` (offset `+0xa8` of the
+external-flash window `0x40062000`)**, faulting at pc `0x005a7784`
+(`ldr r2,[r1]` with `r1=[sp+4]`, inside the flash-driver RMW cluster
+`0x5a7746..0x5a7790`), instruction 181,219,64; the guest hardfault
+handler then writes AIRCR `0x05fa0004` (pc `0x0052bfd6`) and self-resets
+deterministically every 22,820,727 ns / 18,122,022 instructions, so the
+pinned window records exactly four `machine-reset-request` warnings
+(first at `instructions=18122043 fault_address=0x400620a8`) before the
+budget stop `stop=budget pc=0x0052ac48 instructions=80000000
+virtual_time_ns=98794776`. The in-process reset+run lands in the same
+drain cycle 12 bytes later (pc `0x0052ac54`) with identical reason,
+instructions, and time; the twice-identical proof is the cold CLI pair
+in `tests/integration/test_firmware_wismar_246_reset.sh` (both runs
+byte-identical, four warning lines each). The E-WIS-0006 "park is the
+terminal state" pin (`0x51bc82`, 15,128,956 instructions at 8 s) and the
+120 s corroboration are superseded by this release: the WFI park is now
+a real tick-released idle.
+
+**Observed gaps opened by the release (next instances, fail-closed).**
+(1) **MSPI2 `+0xa8`** — the in-tree MSPI dictionary serves
+`+0x80..0x9c` but not `+0xa8`; implementing it requires new evidence
+(lane probe of the `0x40062000` window or the upstream Renode MSPI
+class register law) — do not guess. (2) The DSIAP5 sender census bounds
+the display path: the queue-handle cell is `0x2000543C` (struct
+`0x20005438`), the sole send core is `0x53dadc`, the deterministic
+first message is the CONTROL OPEN (`msg[0]=0, msg[4]=0`) posted by the
+earlyBootSplash chain (`0x5a3f18`, splash resource
+`ui/img/p/suunto.pxb`), and the Application-task spawn (`0x53ddd0`) has
+no static caller — the wuiapp start is event-driven, so the open is
+expected once the freed boot passes the MSPI2 gap; no DC access occurs
+in this window. (3) The STIMER rate keeps the committed 32768 Hz class
+law (`STIMER_FREQUENCY_HZ`); the 32-ticks-per-RTOS-tick ratio is
+firmware-proven but the absolute rate is not observable in-tree (CFG
+CLKSEL bits `0x303`) — a future lane rate observation would re-pin.
+
+**Verification.** New device tests
+`tests/devices/test_wismar_stimer_tick.c` (3 cases: both-compare
+arms/fire/deassert with readback and pulse times; INTEN/INTCLR masking
+with the shared-profile `+0x24` refusal preserved and misaligned
+refusal; flag-aware snapshot roundtrip). `make test TEST_FILTER=stimer`
+4 suites green (5/2/4/3, including the Sapporo shared-device guard);
+`TEST_FILTER=apollo4`, `TEST_FILTER=ulsan` (31 binaries), `TEST_FILTER=wismar`
+(3 suites incl. the re-pinned `test_wismar_reset` and map tests) all
+green; the era script `test_firmware_wismar_246_reset.sh` PASS with the
+new stop and the four-reset census; `make check` exit 0 (1,123 PASS);
+`make sanitize` exit 0 (0 FAIL); `check-lines` exit 0. Affected modules:
+`src/soc/apollo4/{stimer.{c,h},stimer_internal.h,apollo4.c}`,
+`tests/{unit/test_wismar_reset.c,devices/test_wismar_stimer_tick.c,
+integration/test_firmware_wismar_246_reset.sh}`, docs updates
+(`current-status.md`, `hardware-coverage.md` Wismar row). The Ulsan
+2.44.52 era guard is currently unsatisfiable locally for a
+pre-existing environment reason unrelated to this change: the
+regenerated private bundle `tests/private/ulsan-2.44.52/firmware.semu`
+now carries five components (header/code3/resident/application/
+resources) against the three-component `ulsan-2.44.52` profile, so
+`semu_manifest_validate` refuses at the count check before any device
+code runs — integrator re-pin required (profile or manifest refresh);
+the shared-device guard class is covered by the Sapporo
+`test_apollo4_stimer.c` pins, which pass unchanged.

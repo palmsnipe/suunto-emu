@@ -488,6 +488,10 @@ semu_status semu_apollo4_select_profile(semu_apollo4 *soc,
          * Wismar guest writes value bits outside the shared evidenced
          * mask. */
         semu_apollo4_stimer_enable_wismar_plain_config(soc->stimer);
+        /* E-WIS-0009 (E-WIS-0006 law): the Wismar tickless idle arms
+         * CMPR0 (+0x20, IRQ 32) and CMPR1 (+0x24, IRQ 33) every park
+         * cycle; INTEN bits {0,1} arm, INTCLR bits {0,1} deassert. */
+        semu_apollo4_stimer_enable_wismar_tick_release(soc->stimer);
         /* E-WIS-0001: the Timer14 edge-mode startup write
          * (0x40008000+0x3c0, value 0x00000a10) takes the lane wrapper's
          * exact Edge->Upcount mapping. */
