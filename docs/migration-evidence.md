@@ -21506,3 +21506,261 @@ access is the designated next evidence-bounded frontier (the IOM4
 `0x40054120` precedent). Open gaps: the full DCS init sequence, the Wismar
 frame/stride law (the Ulsan 2.44 constants are unverified for Wismar), the
 parking-point gate, and the panel geometry. No production change.
+
+## E-WIS-0006 — Wismar parking-point gate derived offline: the tickless WFI park, its wake-source census, and the DSIAP5 queue gate to display init (ticket 765)
+
+2026-11-12; owner-authorized offline reverse-engineering of the pinned 2.46.14
+application component (same inputs and class as E-WIS-0005: `app.raw` load
+0x450000, SHA-256 `878945bca689195ef3f99137d0efc3179250068cc91d9afd2d24e1d304c2de97`,
+arm-none-eabi-objdump force-thumb disassembly). Census script
+`/tmp/wismar-parking-re/parkgate/census_parkgate.py` (SHA-256
+`0522c4d21e1b5c019f7ff668e2d2b81bc51bf57a003b16cabc019e3e419c190f`,
+outside Git), run twice byte-identically: `parkgate-census-final-1.txt` =
+`parkgate-census-final-2.txt`, SHA-256
+`160018714383e998d7e5a0abfd2f3378075f2379d730ba75630b378f3986fadd`, both.
+The derived census is recorded here; no firmware bytes enter Git.
+
+The park (wfi `0x51bc80`, terminal isb `0x51bc82`) is the tail of the
+FreeRTOS **tickless idle**: the function `0x51ba70..0x51bdec` is called only
+from `0x4faa96`/`0x4faaac` inside the tickless routine `0x4faa06`, after
+`cpsid i; dsb; isb` (`0x4faa20..26`) and after the caller reprograms the
+STIMER comparators 0/1 (`0x52abb8(0,delta)` at `0x4faa4c`,
+`0x52abb8(1,delta+1)` at `0x4faa54`). PRIMASK is saved at entry (`0x4ee9bc`
+mrs) and restored at exit; the literal at `0x51c1d0` decodes to
+`0x47ff0000` — the Apollo4 SDK sync-read aperture (in-tree
+`src/soc/apollo4/auxiliary.c` `SYNC_READ_BASE`) — and its loaded value is
+discarded: it is the bus-transaction barrier before WFI, not a state guard.
+SCR SLEEPDEEP is set at `0x51bb8a..94` only when the PWRCTRL/MCUCTRL supply
+conditions hold (`[0x40021108][5:4]==3`, `[0x40021000][1:0]==2`, bit 27 of
+`[0x40021008]`, chip-id `0x22/0x23` vs `[0x4002000c]`) and cleared on the
+fallback path `0x51bc42..74`; the `[0x2006c048]==0x1f01600d` singleton gates
+the state-sync prologue (`0x51bc0c..40`). On wake the loop reads ICSR
+VECTPENDING and tests **`== 0x62` (exception 98 = IRQ 82 = CTIMER channel
+15)**; on match it dispatches the deferred callback `[0x2006c038]` via
+`0x51aadc`, and the exit re-pends a computed mask through the **ISPR1 alias
+`0xe001e300`** (literal `0x51c1d4`, store `0x51bde2`).
+
+Wake-source census (vector table 0x450000 plus pool-literal arming sites):
+IRQ 2 = RTC alarm (handler `0x4d1230`; alarm law `[0x40004a00] |= mask`, rearm
+write `0x40004a08`/read `0x40004a04` at `0x4f74f6` — the same `+0x200` block
+family as the E-SAP-0032/E-ULS-0048 one-second alarm law); IRQs 32/33 =
+STIMER comparators 0/1, the tickless tick (driver words
+`0x40008800/04/20/50`, handler pairs `0x4fa9d8/0x4fa9e8`, armed at every
+park cycle); IRQ 82 = CTIMER15 (arm function `0x51a9cc`: compare0 at
+`[0x400083e8]` over base `0x400083e0`, CTRL bit pulse, INTEN
+`[0x40008010] |= 0x8000`, ISER2 `[0xe000e108] = 0x40000`, handler
+`0x54e8be` → `0x51aadc`); IRQ 29 = the DC interrupt, armed only by
+`0x55d204` during display init — i.e. strictly after the first DC access,
+never a park wake.
+
+Display gate chain (receiver-side census): the **DSIAP5 task** (name string
+at `0x53ddac`) is created at `0x53dc20` (stack 400, prio 3) along with a
+28-byte message queue at `0x53dbf2`; its loop blocks on the image's only
+queue-peek (`0x53d7ac`) and a block-forever receive (`0x53d7c2`); the first
+open reaches `0x53d94e` → `0x55d370` (panel init) → `0x56fe70` → `0x55d204`,
+which stores **0 to DC `+0xf8` — the first `0x400A0000`-class transaction of
+the whole boot** — after which `0x56fe78` compares DC `+0xf4` against
+literal `0x87452365` (`0x56ff5c`), the exact hardware-ID value the Ulsan DC
+class answers (E-ULS-0039); a mismatch returns -1. Ranked release events:
+(1) the STIMER comparator tick (IRQ 32/33; the E-ULS-0035 precedent law) —
+provably armed at the instant of every park and the only wake that advances
+the scheduler and whatever posts the DSIAP5 open message; (2) the RTC 1 s
+alarm (IRQ 2; already live in-tree) — services wall-clock accounting only;
+(3) CTIMER15 (IRQ 82; the wake the park loop is specifically written to
+recognize, but its arm sites `0x654038/0x654324/0x659a44` sit in the
+power/display-manager module and static analysis cannot prove the boot arms
+them before the first park); (4) strictly, the first DC access is gated by
+the 28-byte DSIAP5 open message itself, whose sender is not statically
+locatable (receiver-side evidence only).
+
+Corroboration from the in-tree window extension (CLI pair, workspace
+`/tmp/wismar-120s/`, outside Git): with 360M-instruction/120 s caps the
+pinned boot stops `stop=budget pc=0x0051bc82 instructions=22030956
+virtual_time_ns=120000000000`, twice byte-identical (both logs SHA-256
+`e8416ece8f0418255f1402558a8646ad6b0dd7448138c9244bf83d703541575b`), zero
+warnings and zero reset requests — the park persists the full 120 s with no
+DC access, extending the 20 s pin (cd4f2ea) sixfold on the same law.
+Remaining unknowns: the DSIAP5 message sender; whether boot arms CTIMER15
+pre-park; the identity of the `0x2006c000` singleton and the `0x4ecddc`
+service dispatch; VTOR assumed `0x450000` from the E-WIS-0001 start tuple.
+Validation: static-derivation-only class (no Wismar lane or runtime DC
+transaction exists); all claims are pool-literal-anchored instruction sites,
+per the entry's cited census. No production change.
+
+## E-WIS-0007 — Wismar panel DCS init sequence derived offline: the ordered command law, the DC register programming order, and three corrections to E-WIS-0005 details (ticket 765)
+
+2026-11-12; owner-authorized offline reverse-engineering, same inputs and
+class as E-WIS-0005/DIS-0006. Census script (parse objdump into an
+address-indexed map, resolve all `ldr rX,[pc,..]` literals against `app.raw`,
+scan image-wide branch edges, replay the module with a curated
+branch-decision table) run twice byte-identically: `census-run-a.txt` =
+`census-run-b.txt`, SHA-256
+`17d8b94006512e523003540ac9b2c53e902af7d1db084d97d98fef0ab56eeaa0`, both,
+in `/tmp/wismar-parking-re/` (outside Git). Provenance caveat: sibling
+derivations shared that workspace and clobbered this derivation's script
+after its pair was produced; the twice-identical outputs above survive with
+the recorded hashes, and the method is fully restated in the census excerpt
+below, so the derivation is reproducible from the documented method. Key
+sites were independently re-verified against the surviving disassembly at
+integration time (`0x55d456..0x55d532` walk, literal pool
+`0x55d740..0x55d784`, `0x55d024..0x55d0f8` poll bodies).
+
+Headline corrections to E-WIS-0005: the panel-power-on init entry is
+**`0x55d370`**, not `0x55d36e` (two alignment bytes sit at `0x55d36e`; the
+sole caller bl at `0x53d988` targets `0x55d370` and nothing references
+`0x55d36e`); the "39 00 / 69 d0 / 36 with c0 flag" of E-WIS-0005 belong to
+the state dispatcher `0x55d638` (image callers pass `a=0`: `b==1` → DCS 39
+with **no payload** followed by `[00 00]` and `[69 d0]`; `b==2` → `[66 02]`
+plus the awake flag `0x2007876a[0]=1`; `b==3` → DCS 10), and **`0xC0` is the
+MADCTL flipped-orientation parameter in the request path (`0x53da72`), not a
+"flag"** — the init itself issues `36 00`.
+
+Ordered panel power-on law (entry `0x55d370`, sole caller `0x53d988`; the
+init returns 1 on success). Pre-command sequence: register the DSI callback
+(thumb ptr `0x53da99` via literal `0x55d774`); engine reset `0x571c38`;
+claim resources 22 and 21 (`0x4ecddc`); **arm the DC interrupt**
+(`0x56fe70` → `0x55d204`: DC `+0xf8=0`, IPR byte `0x40` → `0xe000e41d`
+(IRQ 29), ISER0 `0x20000000` → `0xe000e100`); rails A (pin table
+`0x698cfc`, pads `0x21/0x5f/0x63`); **panel hardware reset: pad `0x5c` low
+11 ms → high 11 ms** (`0x53dab8`); rails B (`0x69b9b0`); DSI/DC rearm
+`0x55cf98` (`0x5714da(1,1,4,0)`; **DC `+0x1a4=0x80000000`; DC `+0x1a8=1`
+(after `0xfffffff1`); DC `+0x28=0x82203085`**). Then the read gate: DSI read
+cmd `0x0C` (Get Pixel Format), count 1, type 1 must **return 7** (24-bpp
+DCS stream encoding; `cmp r0,#7; bne` at `0x55d3c2..ca`); on mismatch the
+init logs the "start display status" dump (log 0x703, fmt `"%08x %08x %08x
+%08x %08x"`, 8/14/21 record walkers) and full power-down (`0x55d570`),
+returning 0. The ordered command traffic (each row: bytes, len, DC `+0x2c`
+bit0 flag, qualification, site):
+
+1. `00 FF` (len 2, flag 0, both bytes OR `0x40000000`) — `0x55d3d2`
+2. `FF 23 90 01` (len 4, raw) — `0x55d3f4`
+3. `00 80` (len 2, OR each) — `0x55d3fc`
+4. `FF 23 90` (len 3, raw) — `0x55d416`
+5. `00 70` (len 2, OR each) — `0x55d41e`
+6. `C8 04` (len 2, OR each) — `0x55d426`
+7. DCS `11` Sleep Out (no payload, flag 1) — `0x55d430`, then **51 ms** (`0x55d436`)
+8. DCS `3A` Set Pixel Format, param `05` (RGB565 stream) — `0x55d442`
+9. DCS `35` Set Tear On, param `00` — `0x55d44e`
+10. DCS `36` MADCTL, param `00` (via shim `0x55cf38`) — `0x55d456`
+11. brightness `[0x63][bb]` (len 2, bb = `max(0x31,x)`, x = `*(byte@0x20009def)`
+    if the panel-variant byte (`0x52be08()`) is 5 else the fixed `0x4D`;
+    writer `0x55cf5e`) — `0x55d45a..68` then `0x55d512`
+12. DCS `29` Set Display On (via `0x55cf46`, r0=1) — `0x55d518`, then **5 ms**
+13. DSI read cmd `0x0A` (Get Power Mode), count 1 — result only logged
+    (log `0x1703`, "dsiap5 init, mode %u") — `0x55d526..32`
+
+then session end `0x55d60e` (`0x571d5c(1)`; **DC `+0x28=0`; PLAY
+(`+0x00`)=0 and `+0x10=0`**; release 21) and return 1. The only
+inter-command delays on the path are the 51 ms Sleep-Out and 5 ms Display-On
+waits (plus the 11+11 ms reset toggle and the rail sequences). There is **no
+multi-table init-by-panel-id**: the command table is a single fixed sequence
+compiled inline; the variant byte selects only the brightness source.
+Panel power-down (`0x55d570`): 5 ms → DCS `10` Sleep In → release 21 →
+engine stop `0x571c9c(0)` → 51 ms → rails (`0x698d0c`, `0x69b9a0`) →
+`0x4f1c94(7)` → rails `0x69b990` → 5 ms → tail rails `0x69b988`.
+
+DC register programming order around one write command (`0x55d17a`): DC
+`+0x2c` bits 1..2 cleared then bit0 set/cleared per flag; kick
+`0x5716d0(0,0,0xc0000000)`; poll DC `+0xfc` mask `0x17c00` (=0, timeout
+100000); read DC `+0x28`; `+0x28 |= 0x20000` (mirror `0x5716cc`); len==0 →
+single FIFO word `0x40000000` else each payload byte OR `0x40000000` when
+len<3 written through `0x571598` (per-byte `+0xfc` bit-11 poll, `+0xe8`
+descriptor word `0x4000002c` literal `0x55d744`); `+0x28` restored to its
+pre-traffic value; poll tail (the compiler-relied return law r1=0,
+r2=0x17c00, r3=0). The DCSI read path (`0x55d090`): `+0x2c` bit0 per type;
+`+0x28 |= 0x40000`; count==1 → `+0x28 |= 0x60000`, launch
+`0x571608(cmd|0x4000000)`; per byte poll `+0xfc` busy, **DC `+0xec` := 0**
+(each byte), final return DC `+0xec & size-mask` (`0xff/0xffff/0xffffff` by
+count, mask decode `0x55d14e..0x55d170`). The DC ISR `0x55d71a` (IRQ 29)
+acknowledges `+0xf8` bits 3..4 (RMW clear) and exits through the
+portYIELD-shaped tail `0x53d72e`; the vsync fence `0x55cfc8` writes 8 and
+0x10 to `+0xf8` around an event wait. Wismar reads DC `+0xf4` (HWID gate)
+and the rearm uses `+0x1a4/+0x1a8`; the fence/PLAY path writes `+0x00`
+(PLAY) and `+0x10`. Provenance: static-derivation-only (no Wismar lane DC
+transaction exists); inferred-vs-evidenced boundaries are flagged in the
+census (three curated branch sites; the `[00 FF]` second byte from the
+read-mask leftover r1=0xff; the fail-path record-walker walker accumulation
+is reported verbatim as a compiler-shape puzzle). No production change.
+
+## E-WIS-0008 — Wismar frame/stride/geometry law derived offline: 466x466 RGB565, the DC window/layer/PLAY law, the DSI-PHY value table, and the Ulsan seeding verdict (ticket 765)
+
+2026-11-12; owner-authorized offline reverse-engineering, class and inputs
+as E-WIS-0005/DIS-0006. Census script `/tmp/wismar-parking-re/census.py`
+(SHA-256 `aff8903e530d313498f5127267ee0bfbcc3d63c52694660af56fc8d1d0c4cb20`,
+outside Git) run twice byte-identically: `census-1.txt` = `census-2.txt`,
+SHA-256
+`f617e9da7ba94aa006d85d63d18f2b9b8a22a39685a5f5686862e05ff955f130`, both.
+The derived census is recorded here; no firmware bytes enter Git.
+
+Panel geometry: **466x466**, instruction-pinned at `0x53d9e4` (`mov.w
+r1,#466; strh r1,[sp,#8]; strh r1,[sp,#10]`), flowing `0x53d7f8` →
+`0x53d856` → `0x55d2ca/0x55d2f2/0x55d31e` into the rect-draw API — matching
+the in-tree profile's `display_width/display_height=466` and the Ulsan class
+pin (`DISP_244_PANEL_SIZE 466`). No packed `(466<<16)|466` word exists in
+the image, so geometry is instruction-evidenced only. Pixel format: DCS
+`3A=05` (E-WIS-0007) with the bpp law `(fmt==5) ? 2 : 1` at `0x55d22c` →
+RGB565, 2 Bpp.
+
+Corrections to E-WIS-0005's poll-law wording (both re-verified against the
+surviving literals at integration time): the `0x17c00` mask polls **DC
+`+0xfc`** (literal `0x55d74c = 0x400a00fc`, timeout literal `0x186a0`), and
+the busy bit is **bit 16 of `+0xfc`** (`0x55d0f2..fa`: read `+0xfc`, `lsls
+r0,#15; bmi` — bit 16 lands in N), not "bit 15"; **`+0xec` is the DSI RX data
+word** (written 0 at `0x55d11e`, masked-read at `0x55d148`), not a status
+mask. E-WIS-0005's "+0xfc bit 15 and +0xec bits 0x17c00" phrasing is
+superseded by this entry.
+
+DC hardware-ID gate: `0x56fe78` compares DC `+0xf4` to literal `0x56ff5c` =
+**`0x87452365` — byte-identical to the Ulsan class HWID** (E-ULS-0039). DC
+window law (`0x56fee2`, values composed at `0x56ff10..0x56ff52`): `+0x0c =
+(x0<<16)|y0`; `+0x14 = ((x0+dx)<<16)|((y0+dy)&0xffff)`; `+0x18 =
+((x0+dx+dw)<<16)|y2`; `+0x1c = (x3<<16)|((y2+dh)&0xffff)`; `+0x24 =
+((x0+dx)<<16)|((y0+dy-1)&0xffff)`; `0x56fe70` reads them back into the
+mirror struct `0x200767f4`, also capturing `+0xf0` and `+0x100`. Layer
+scanout law (table base `+0x30`, per-layer stride `0x20`): `+0x30` fmt word
+`0x88000000|fmt<<16|secondary<<8|(fmt&0x1f)|byte64<<6|byte65<<7`; `+0x34`
+start packed; `+0x38` `(w<<16)|h`; `+0x3c` **source address**; `+0x40`
+stride packed `(byte38<<16)|lo16`; `+0x44` packed; `+0x48/+0x4c` zoom
+`0x4000` (14-bit 1:1); blend-mode trios `{+0xd0,+0xd4,+0xd8}` (mode 0),
+`{+0xdc,+0xe0,+0xe4}` (mode 1), `{+0x188,+0x18c,+0x190}` with
+`+0x194/+0x198/+0x19c` (mode 2+). PLAY window law: literal `0x00100008`
+(pool `0x55d768`) OR `0x20000` → **`0x00300008`** for the TE-synced submit
+(`0x55d018 + 0x56ff60`), with the `+0xf8 = 8 → wait → 0x10` arming; the
+non-synced alt path plays `0x00020008`; both followed by DC `+0x10 = 0`
+(`0x56ff70..76`).
+
+DSI-PHY (`0x400A8000`) value table (`0x55d5fe` → `0x571e3c(1,16,0x44,0)` →
+`0x571f0c`/`0x5716f4`): `+0x04` RMW/poll bit 19, `|=0x80000`; `+0x0c`
+`0x8001`; `+0x10` `0x00ffffff`; `+0x14`/`+0x44` `0x0000ffff`; `+0x18`
+`0x1f`; `+0x1c` `0xff`; `+0x50` **2000** (contimeout); `+0x5c` 2 then 3;
+`+0x68/6c/70` rate-calc bytes (float64 calc `0x5716f4` with floor/ceil,
+constants 500.0/105.0/40.0/85.0/145.0/50.0; pinned rate class `0x44` →
+floor 2/ceil 3 on the first quantisation pair, the mixing ladder otherwise
+unreplayed); `+0x74` 0 then 1 (enable); `+0x78` `|=0x800` (lane-on), and
+`|=0x20000` when `[0x4002000c]&0xff != 0x21` (chip-id conditional);
+`+0x7c` `|=0x2000`, `|=0x200`, rate code `0x44`; `+0x80` `0x10000000` then
+`|=0x480000`; `+0x84` `|=0x30000`; `+0x98` 0; MCUCTRL `0x400204a0` bias
+`|=0x1300`, poll `0x10000000`. Frame path: NEMA GPU MMIO base `0x40090000`
+(status `0x400900f8/94`), GPU state `0x20004764`, CL submit `0x51ceea`,
+wait `0x51c2a0` (1000 ms semaphore, 600 s warning) — **no static framebuffer
+base exists** (runtime composited), so the Ulsan SRAM window pin is
+unverified for Wismar and stays fail-closed.
+
+Ulsan comparison and seeding verdict (parsed live from
+`src/devices/ulsan_disp.c`): matching — HWID `0x87452365`, panel size 466,
+`+0xf8`/IRQ 29/vsync-bit `0x10` law, alt PLAY word `0x00020008` exactly,
+layer register layout (`+0x30` fmt, `+0x34` start, `+0x38` size, `+0x3c`
+source), the `0x88xxxxxx` mode-word family, and the DSI-PHY `+0x0c..0x84`
+offset vocabulary. Differing — full PLAY `0x00300008` (Wismar) vs
+`0x00120008` (Ulsan 2.44.52 observed); `+0xec` actively written 0 and
+masked-read as RX data (the Ulsan "panel ready" constant `0x77` appears
+nowhere in the Wismar module); Wismar stride is the per-layer packed
+`+0x40` word, not the Ulsan L4-stride 233 pin. Absent from the Ulsan class
+(and therefore required corrections when seeding a Wismar DC layer from
+`ulsan_disp.c`): reads `+0x100`, `+0x180`; writes `+0x1a4`, `+0xdc/+0xe0/
++0xe4`, `+0x188/+0x18c/+0x190/+0x194/+0x198/+0x19c`; DSI-PHY `+0x8004`,
+`+0x8054`, `+0x8098`. Provenance: static-derivation-only, pin-level law;
+no Wismar lane DC transaction ever observed; the first DC access remains
+the designated evidence-bounded frontier, and the lane-gated boundary
+should decide which cold paths a first module must answer (the blend trios
+and `+0x1a4` may be cold in the parking era). No production change.

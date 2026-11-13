@@ -6,6 +6,40 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 765 — three offline derivations open the Wismar display frontier: the parking-point gate, the full DCS init sequence, and the frame/geometry law (E-WIS-0006..0008) — 2026-11-12
+
+Three parallel owner-authorized offline-RE derivations (ticket 765, the
+standing 2026-09-23 evidence class) each reproduced twice byte-identically,
+with the disputed or load-bearing sites re-verified against the surviving
+disassembly at integration time. E-WIS-0006 (census sha256 `16001871…`):
+the park at pc `0x51bc82` is the FreeRTOS tickless-idle WFI tail
+(`0x51ba70..0x51bdec`, sync-read `0x47ff0000` barrier, ISPR1-alias
+re-pend) whose wake sources are the STIMER comparator tick (IRQ 32/33,
+armed every park cycle, the E-ULS-0035 precedent law), the RTC alarm
+(IRQ 2, live in-tree), CTIMER15 (IRQ 82, the wake the loop is specifically
+written to recognize), and — strictly — the 28-byte open message to the
+DSIAP5 task, whose first DC transaction stores 0 to DC `+0xf8` and whose
+`+0xf4` hardware-ID check expects `0x87452365` (the exact Ulsan class
+HWID). A 120 s in-tree CLI pair extends the fault-free park window to
+`stop=budget pc=0x0051bc82 instructions=22030956` twice byte-identical,
+so the boot provably never self-releases to display init on the current
+models — the DSIAP5 gate is the designated next evidence-bounded frontier
+and the STIMER tick pulse the ranked release to synthesize. E-WIS-0007
+(census `17d8b940…`): the complete ordered panel power-on law — the
+`0x0C`-read-equals-7 gate, rails/reset/rearm prelude, thirteen command
+steps with the 51 ms/5 ms delay law, the power-down law, the per-command
+DC register order, and corrections to three E-WIS-0005 details (init entry
+0x55d370; the 39/69/66 commands belong to the state dispatcher 0x55d638;
+MADCTL 0xC0 is an orientation parameter, not a flag). E-WIS-0008 (census
+`f617e9da…`): geometry 466x466 RGB565 (matching the profile), the DC
+window/layer/PLAY law (`0x00300008` TE-synced vs `0x00020008` alt), the
+DSI-PHY value table, poll-law corrections (the 0x17c00 mask and busy bit
+live on `+0xfc` — bit 16 — and `+0xec` is the RX data word), and the
+seeding verdict: a Wismar DC layer can seed from `src/devices/ulsan_disp.c`
+with a bounded correction set (drop the `0x77` front, accept `0x00300008`,
+extend the read/write offset sets). No production change; no Wismar lane
+DC transaction exists, so all three entries are static-derivation class.
+
 ## Ticket 765 — E-WIS-0005 derives the Wismar display transport offline: the Apollo4 display-controller/DSI class, not MSPI2/DIAP — 2026-11-12
 
 The owner-authorized offline-RE class produced E-WIS-0005 from the pinned
