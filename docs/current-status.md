@@ -6,6 +6,28 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Ticket 765 — E-WIS-0005 derives the Wismar display transport offline: the Apollo4 display-controller/DSI class, not MSPI2/DIAP — 2026-11-12
+
+The owner-authorized offline-RE class produced E-WIS-0005 from the pinned
+2.46.14 application component (twice-identical census, sha256
+e978541c...): the panel transport is the Apollo4 display controller at
+0x400A0000 with the DSI PHY window at 0x400A8000 — the same class the
+Ulsan lane models (E-ULS-0039, src/devices/ulsan_disp.c) — while MSPI2
+is the external flash. The display module 0x55cf38..0x55e000 exposes the
+DC register read/write helpers (0x55d1ec/0x55d1fa), the poll law
+(+0xfc bit 15, +0xec bits 0x17c00), the panel command writer 0x55d17a
+with the 0x40000000 data-qualification bit, DCS-style 2-byte emitters,
+and the DSI-PHY cluster at 0x571f78; the NEMA wait function is 0x51c2a0.
+Every touched DC offset lies inside the Ulsan class's observed census
+(class-level corroboration only; no Wismar lane DC transaction exists).
+The wismar-2.46.14 profile leaves 0x400A0000..0x400A8FFF deliberately
+unmapped and the boot stays fault-free past its 20 s parking point
+without DC access, so the first DC access is the designated next
+evidence-bounded frontier (the IOM4 0x40054120 precedent). Open gaps:
+the full DCS init sequence, the Wismar frame/stride law, the
+parking-point gate, and the panel geometry. No production change;
+check-lines and check-task-contracts green, make check green.
+
 ## Integrator sweep — five tickets close and the Wismar display gate opens — 2026-11-12
 
 Index-only sweep with dated integrator-decision notes in each ticket file:

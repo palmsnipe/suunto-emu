@@ -21463,3 +21463,46 @@ Wismar tests and the era checkpoint script. Next gap: the display/panel
 boundary — the lane's 2 s display probe faults at the Renode translator
 artifact before any display submission, so the display contract still
 requires new lane evidence (ticket 765).
+
+## E-WIS-0005 — Wismar 2.46.14 display transport derived offline: the same Apollo4 display-controller/DSI class as Ulsan, not MSPI2/DIAP (ticket 765)
+
+2026-11-12; owner-authorized offline reverse-engineering of the pinned
+2.46.14 application component (component 04, load 0x450000, expanded
+2,420,644 B, SHA-256
+`878945bca689195ef3f99137d0efc3179250068cc91d9afd2d24e1d304c2de97`; parent
+package SHA-256 `c0ec9904...`, E-WIS-0001), derived with
+arm-none-eabi-objdump force-thumb disassembly plus aligned literal scans,
+reproduced twice byte-identically (census SHA-256
+`e978541cb8a2bc14f6111fa9eee534c7751e531a458a0450651a72d6f9dc73cb`, both
+runs; workspace `/tmp/wismar-display-re/`, outside Git). No firmware bytes
+enter Git; the derived census is recorded here.
+
+The panel transport is the Apollo4 display controller at `0x400A0000` with
+the DSI PHY window at `0x400A8000` — the same class the Ulsan lane models
+(E-ULS-0039, `src/devices/ulsan_disp.c`) — not MSPI2/DIAP. MSPI2
+(`0x40062000`) is the external flash (E-WIS-0001 JEDEC law); the application
+carries a four-entry MSPI base table `0x40060000`/`0x40063000`/`0x40062000`/
+`0x40061000` at `0x57d9f0` with no panel traffic. The display module
+(`0x55cf38..0x55e000`) writes DC registers through `0x55d1fa` (str into
+`0x400a0000+r0`) and reads through `0x55d1ec`/`0x55cea4` (polls `+0xfc`
+bit 15 and `+0xec` bits `0x17c00`); the panel command writer `0x55d17a`
+programs DC `+0x2c` (bits 1..2), reads `+0x28`, sets the `+0x28`-side bit
+`0x20000`, and pushes payload bytes OR-qualified with `0x40000000` for
+sub-3-byte commands; emitters `0x55d6b2..0x55d70c` issue 2-byte DCS-style
+commands (`66 02`; `39 00`, `69 d0`; `36` with a `c0` flag). DC reset/IRQ
+enable `0x55d204` stores 0 to `+0xf8` and arms the NVIC via
+`0xe000e100`/`0xe000e41d`. The DSI-PHY cluster near `0x571f78` references
+`0x400a8000/04/54/68/74/7c/80/84` plus MCUCTRL-side `0x4002000c`/`0x400204a0`.
+The NEMA GPU wait function is `0x51c2a0` (string "?NEMA: wait cl:%d
+(int=%d,last=%d)" at `0x68f257`; 1000 ms semaphore wait, 600 s warning).
+Every DC offset the module touches (`+0x28`, `+0x2c`, `+0xec`, `+0xf8`,
+`+0xfc`, `+0x1a8`) lies inside the Ulsan class's observed offset census
+(E-ULS-0039/E-ULS-0075) — class-level corroboration only; no Wismar lane DC
+transaction has ever been observed. The in-tree `wismar-2.46.14` profile
+leaves `0x400A0000..0x400A8FFF` deliberately unmapped, and the pinned boot
+is fault-free to its 20 s parking point (pc `0x51bc82`, E-WIS-0004) without
+DC access: display init lies beyond the evidence window, so the first DC
+access is the designated next evidence-bounded frontier (the IOM4
+`0x40054120` precedent). Open gaps: the full DCS init sequence, the Wismar
+frame/stride law (the Ulsan 2.44 constants are unverified for Wismar), the
+parking-point gate, and the panel geometry. No production change.
