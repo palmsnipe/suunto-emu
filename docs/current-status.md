@@ -6,6 +6,19 @@ maintenance follows `AGENTS.md` directly. A roadmap ticket is `done` only when
 its full acceptance conditions pass, even if useful pieces of later tickets
 already exist.
 
+## Integrator sweep — five tickets close and the Wismar display gate opens — 2026-11-12
+
+Index-only sweep with dated integrator-decision notes in each ticket file:
+tickets 750, 755 and 760 (Wismar evidence inventory, reset profile, observed
+gap; E-WIS-0001..0004, commits 10e9ff8/083ce15/b01f043/c999112/cd4f2ea),
+770 (Rostock E-ROS-0001 and Tianjin E-TJN-0001 ineligible contracts, Xiamen
+ineligible-record close), and 827 (Race S UART3 transport, E-ULS-0117) move
+to `done`. Ticket 765 (Wismar Native Display Gate) moves to `in-progress`:
+its evidence prerequisites (the Wismar 2.46.14 display-submission/MSPI2-DIAP
+command set and the MAX20360 bus role) are now being derived under the
+owner-authorized offline-RE evidence class (2026-09-23 decision). No
+production change; `make check-task-contracts` green (191 tickets).
+
 ## Ticket 710 — the touch-route layer reaches the uiEngine queue/touchBuffer and the run now continues past the guest reset; the TMA5xx IOM3 poll is still not observed — 2026-10-20
 
 E-SAP-0127 (instance-87 follow-up, sap233-touch-impl): under the owner's

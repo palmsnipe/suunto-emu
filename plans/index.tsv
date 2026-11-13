@@ -112,27 +112,27 @@ id	phase	title	status	dependencies	ticket
 747	7	Sapporo 2.39 Native History Scan Budget	done	729	plans/tasks/747-sapporo-239-history-scan-budget.md
 748	7	Sapporo 2.39 Ongoing Activity File Integration	done	729,615	plans/tasks/748-sapporo-239-ongoing-file.md
 749	7	Sapporo 2.39 Native ZIP Read Passthrough	done	729	plans/tasks/749-sapporo-239-native-zip-read.md
-750	7	Wismar 2.46 Evidence Inventory	blocked	630	plans/tasks/750-wismar-evidence.md
+750	7	Wismar 2.46 Evidence Inventory	done	630	plans/tasks/750-wismar-evidence.md
 751	7	Sapporo 2.39 Native Quiet Read Routing	done	729	plans/tasks/751-sapporo-239-native-quiet-read.md
 752	7	Sapporo 2.39 Combined Timer13 Interrupt Enable	done	310,727,729,615	plans/tasks/752-sapporo-239-ctimer13-combined-inten.md
 753	7	Sapporo 2.39 Native Empty Widgets Cache Value	done	728,729,615	plans/tasks/753-sapporo-239-native-widgets.md
 754	7	Sapporo 2.39 Post-Logo Activity Budget	done	729,615	plans/tasks/754-sapporo-239-post-logo-activity.md
-755	7	Wismar Reset Profile	blocked	750	plans/tasks/755-wismar-reset-profile.md
+755	7	Wismar Reset Profile	done	750	plans/tasks/755-wismar-reset-profile.md
 756	7	Sapporo 2.39 GPS Startup Integration	done	416,615,729	plans/tasks/756-sapporo-239-gps-startup.md
 757	7	Sapporo 2.39 GPS Reopen and Restart Integration	done	756,615,729	plans/tasks/757-sapporo-239-gps-reopen.md
 758	7	CXD Awake Pulse Failure Integration	done	110,416,615,757	plans/tasks/758-cxd-awake-failure-integration.md
 759	7	Sapporo 2.39 Bounded GPS Awake Integration	done	757,758	plans/tasks/759-sapporo-239-gps-awake.md
-760	7	One Wismar Observed Gap	blocked	755	plans/tasks/760-wismar-observed-gap.md
+760	7	One Wismar Observed Gap	done	755	plans/tasks/760-wismar-observed-gap.md
 761	7	NEMA Submission Atomicity and Refusal Integration	done	110,500,502,506,513,615,759	plans/tasks/761-nema-submission-atomicity.md
 762	7	Sapporo 2.39 General Settings Persistence Evidence	done	729,759,761	plans/tasks/762-sapporo-239-general-settings-evidence.md
 763	7	Sapporo 2.39 General Settings Budget Integration	done	729,759,762	plans/tasks/763-sapporo-239-general-settings-budget.md
 764	7	Sapporo 2.39 Personal Settings Persistence Evidence	done	729,759,763	plans/tasks/764-sapporo-239-personal-settings-evidence.md
-765	7	Wismar Native Display Gate	blocked	760	plans/tasks/765-wismar-display-gate.md
+765	7	Wismar Native Display Gate	in-progress	760	plans/tasks/765-wismar-display-gate.md
 766	7	Sapporo 2.39 Personal Settings Budget Integration	done	729,759,764	plans/tasks/766-sapporo-239-personal-settings-budget.md
 767	7	Sapporo 2.39 Time Settings Persistence Evidence	done	729,759,766	plans/tasks/767-sapporo-239-time-settings-evidence.md
 768	7	Sapporo 2.39 Native Time Settings Routing	done	729,759,767	plans/tasks/768-sapporo-239-native-time-routing.md
 769	7	Sapporo 2.39 Fifth GPS Awake Evidence	done	759,768	plans/tasks/769-sapporo-239-fifth-awake-evidence.md
-770	7	Tianjin, Rostock, or Xiamen Intake	blocked	630	plans/tasks/770-product-intake.md
+770	7	Tianjin, Rostock, or Xiamen Intake	done	630	plans/tasks/770-product-intake.md
 771	7	Sapporo 2.39 Optional Five-Pulse GPS Integration	done	759,768,769	plans/tasks/771-sapporo-239-five-awake-integration.md
 772	7	Sapporo 2.39 Personal Save Suffix Evidence	done	729,766,771	plans/tasks/772-sapporo-239-personal-save-suffix-evidence.md
 773	7	Sapporo 2.39 Personal Save Suffix Budget Integration	done	729,766,771,772	plans/tasks/773-sapporo-239-personal-save-suffix-budget.md
@@ -189,4 +189,4 @@ id	phase	title	status	dependencies	ticket
 824	7	Ulsan 2.44.52 UART3 Readiness Trace	done	823	plans/tasks/824-ulsan-244-uart3-readiness-trace.md
 825	7	Ulsan 2.44.52 Controlled UART3 CTS Probe	done	824	plans/tasks/825-ulsan-244-controlled-cts-probe.md
 826	7	Ulsan 2.44.52 First Inbound UART3 Radio Frame	blocked	825	plans/tasks/826-ulsan-244-uart3-first-inbound-frame.md
-827	7	Ulsan 2.44.52 UART3 Transport	ready	825	plans/tasks/827-ulsan-244-uart3-transport.md
+827	7	Ulsan 2.44.52 UART3 Transport	done	825	plans/tasks/827-ulsan-244-uart3-transport.md

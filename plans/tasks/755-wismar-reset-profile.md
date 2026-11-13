@@ -1,6 +1,6 @@
 # 755 — Wismar Reset Profile
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 750
 
@@ -71,3 +71,12 @@ test in-tree, do not assume). The stated blocker is therefore still valid as
 the 750 chain only; once 750's stale premise is corrected, nothing physical
 stands between that registration and this profile.
 Status is left unchanged for integrator review.
+
+## Integrator decision (2026-11-12, project owner): `blocked` -> `done`
+
+The acceptance is met by commit 083ce15: the `wismar-2.46.14` profile boots
+the exact Race 2 firmware from the E-WIS-0001 reset contract to a
+twice-identical bounded stop, with `make test TEST_FILTER=wismar` 5/5 and
+both era checkpoints passing with pinned stops unchanged. Evidence-bounded
+engine additions are scoped to the Wismar profile; the shared profiles keep
+refusing everything unobserved.

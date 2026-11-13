@@ -1,6 +1,6 @@
 # 750 — Wismar 2.46 Evidence Inventory
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 630
 
@@ -76,3 +76,13 @@ NVIC mask, SRAM alias `0x2000_0000`, Timer14 edge-mode, MSPI2 `0x9f`→
 remains — a display-submission trace and the `0x00534900` UNDEFINSTR boundary —
 is read-only RE derivation.
 Status is left unchanged for integrator review.
+
+## Integrator decision (2026-11-12, project owner): `blocked` -> `done`
+
+The acceptance clause ("Complete non-copyrighted reset contract and first
+unsupported transaction are recorded with evidence IDs") is met by E-WIS-0001
+(`docs/migration-evidence.md`): the Wismar 2.46.14 package census, lane
+aliases, `0xf0` NVIC mask, Timer14/MSPI2/MAX20360 observations, and
+twice-identical bounded reset traces are recorded with no firmware bytes in
+Git (commit 10e9ff8). The remaining display-submission item is 765-chain work
+under the owner-authorized offline-RE evidence class, not a 750 blocker.

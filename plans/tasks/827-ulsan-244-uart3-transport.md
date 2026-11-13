@@ -1,6 +1,6 @@
 # 827 — Ulsan 2.44.52 UART3 Transport
 
-**Status:** ready
+**Status:** done
 **Phase:** 7
 **Dependencies:** 825
 
@@ -109,3 +109,13 @@ passed. Private verification logs are under `/tmp/semu-827.yXqNuX`.
 - `era.log` — `65a61d1075bc1d0e4da4c4424c9658b7bd55bfd3d41a8a05fe6aca1cda497c81`
 - `check-final.log` — `8d49b8915201d725baa931bd8ea16695b76c8a041eac6f48f7221401c0121fa7`
 - `sanitize.log` — `00b6f838bf32b59eb9a97fe12131561b4a361b9df84251c54aad14b269857ca5`
+
+## Integrator decision (2026-11-12, project owner): `ready` -> `done`
+
+The acceptance is met by the recorded handoff and E-ULS-0117: focused UART
+and snapshot tests pass, all 89 Race S cases pass, both firmware-era scripts,
+task contracts, line checks, `make check` and `make sanitize` pass, and two
+matched cold second-open traces plus a matched lower-button retry pair
+reproduce the second-open replay and native Connect result. The sequence-6
+peer response and cold-radio timing remain open under ticket 826, which stays
+blocked on a hash-pinned radio-peer source.

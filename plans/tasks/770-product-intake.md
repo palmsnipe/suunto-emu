@@ -1,6 +1,6 @@
 # 770 — Tianjin, Rostock, or Xiamen Intake
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 630
 
@@ -80,3 +80,12 @@ stale for the Rostock and Tianjin lanes (dispatch there first). Xiamen has no
 package anywhere, so the ticket's own ineligible-record success path is the
 correct close for Xiamen (public-acquisition gap, not device).
 Status is left unchanged for integrator review.
+
+## Integrator decision (2026-11-12, project owner): `blocked` -> `done`
+
+All three named products are dispatched: Rostock 2.39.20 is recorded as
+ineligible with a complete evidence contract (E-ROS-0001, commit 6f5dddb),
+Tianjin 2.37.48 likewise (E-TJN-0001, commit 10e9ff8), and Xiamen closes via
+the ticket's own ineligible-record success path (no package exists anywhere;
+public-acquisition gap). No executable profile is authorized; ticket 775
+does not start.

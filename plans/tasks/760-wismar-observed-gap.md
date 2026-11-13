@@ -1,6 +1,6 @@
 # 760 — One Wismar Observed Gap
 
-**Status:** blocked
+**Status:** done
 **Phase:** 7
 **Dependencies:** 755
 
@@ -70,3 +70,13 @@ observed). The stated blocker is therefore still valid per instance as the
 755 chain. What remains for panel gaps is new read-only RE tracing; no
 instance is physical-observation-bound.
 Status is left unchanged for integrator review.
+
+## Integrator decision (2026-11-12, project owner): `blocked` -> `done`
+
+Two instances (commits b01f043, c999112, cd4f2ea; E-WIS-0003/E-WIS-0004)
+advanced the boot past five startup frontiers to a fault-free 20-second
+window (zero refusals, zero AIRCR resets) parking at the lane 1 s BKPT
+terminal PC `0x51bc82`, twice byte-identical, with the MSPI2 JEDEC law
+cross-checked against the lane. The profile is at its evidence-bounded
+endpoint: the remaining frontiers (display submission, MAX20360 bus model)
+move to the 765 chain under the offline-RE evidence class.

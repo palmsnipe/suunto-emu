@@ -1,6 +1,6 @@
 # 765 — Wismar Native Display Gate
 
-**Status:** blocked
+**Status:** in-progress
 **Phase:** 7
 **Dependencies:** 760
 
